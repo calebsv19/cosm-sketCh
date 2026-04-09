@@ -1,0 +1,10 @@
+build/
+dist/
+tmp/
+ide_files/
+.DS_Store
+**/.DS_Store
+
+# Runtime/session state
+data/last_session.pack
+*.log

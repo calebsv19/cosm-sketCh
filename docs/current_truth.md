@@ -1,0 +1,51 @@
+# Current Truth
+
+Status date: 2026-04-08
+
+- Program scaffold directory created under `drawing_program/`.
+- Identity lock established for brand (`sketCh`) and internal key (`drawing_program`).
+- Lifecycle skeleton is implemented with canonical stage functions and order checks:
+  - `bootstrap -> config_load -> state_seed -> subsystems_init -> runtime_start -> run_loop -> shutdown`
+- Canonical app entry is wired: `drawing_program_app_main(...)`, plus thin `main` and headless wrappers.
+- Baseline build/test/headless-smoke targets are wired in `drawing_program/Makefile`.
+- Visual runtime path is wired with SDL window creation for `make run` (`drawing_program_app_visual_main`).
+- IR1 input routing seams are implemented in run loop with explicit phases:
+  - `InputIntake`
+  - `InputNormalize`
+  - `InputRoute`
+  - `InputInvalidate`
+- Typed IR1 contracts and diagnostics counters are wired and validated in lifecycle tests.
+- Pane host skeleton is wired using shared libs:
+  - `core_pane`
+  - `core_layout`
+  - `core_pane_module`
+- `orChestra`-style adapter hook surface is implemented with typed result codes and guard semantics:
+  - overlay begin/end
+  - snapshot stage/apply/cancel
+  - runtime pause/resume/tick
+  - runtime/overlay input route and render hooks
+- Packaging baseline targets are implemented:
+  - `package-desktop*` lane including smoke and launcher self-test
+  - package now bundles dependent dylibs into `Contents/Frameworks` and ad-hoc signs bundle artifacts
+- Reference layout artifacts are available from workspace sandbox export:
+  - `workspace_sandbox/data/presets/sketch_layout_v1.pack`
+  - `workspace_sandbox/data/presets/sketch_layout_v1.json`
+- Document/editor/history phase-2 foundations are implemented:
+  - document seed with canvas metadata and base layer
+  - editor/session seed with active tool/layer + viewport baseline
+  - history command baseline (`SET_LAYER_VISIBILITY`) with apply/undo/redo
+- Snapshot IO wiring is implemented:
+  - pack save/load (`DPS2` chunk) via `core_pack`
+  - debug JSON export path
+  - workspace preset bridge-check path against `WSPS` chunk
+- Render-domain baseline is implemented:
+  - deterministic document/editor -> render projection (`logical canvas`, `layer visibility`, `active-layer`, `redraw policy`)
+  - redraw policy hooks into IR1 invalidation output
+  - pane-host runtime render dispatch now executes bound module render callbacks each frame
+- CLI/Make snapshot validation paths:
+  - `make -C drawing_program export-snapshot-json EXPORT_PRESET=<pack> EXPORT_JSON=<json>`
+  - `make -C drawing_program snapshot-bridge-check WORKSPACE_PRESET=../workspace_sandbox/data/presets/sketch_layout_v1.pack`
+- Shared integration mode controls are present:
+  - `make -C drawing_program shared-mode`
+  - `make -C drawing_program shared-subtree-check`
+  - `make -C drawing_program shared-subtree-prepare`

@@ -1,0 +1,127 @@
+#ifndef DRAWING_PROGRAM_APP_MAIN_H
+#define DRAWING_PROGRAM_APP_MAIN_H
+
+#include <stdint.h>
+
+#include "core_base.h"
+#include "drawing_program/drawing_program_document.h"
+#include "drawing_program/drawing_program_editor_state.h"
+#include "drawing_program/drawing_program_history.h"
+#include "drawing_program/drawing_program_overlay_adapter.h"
+#include "drawing_program/drawing_program_pane_host.h"
+#include "drawing_program/drawing_program_render_domain.h"
+#include "drawing_program/drawing_program_snapshot.h"
+#include "drawing_program/drawing_program_viewport.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct DrawingProgramAppContext {
+    uint8_t headless;
+    uint8_t print_lifecycle;
+    uint8_t export_json_requested;
+    uint8_t bridge_workspace_check_requested;
+    uint32_t smoke_frames;
+    uint64_t frame_counter;
+    uint8_t state_seeded;
+    uint8_t subsystems_ready;
+    uint8_t runtime_started;
+    uint64_t input_events_processed;
+    uint64_t input_actions_emitted;
+    uint64_t routed_global_total;
+    uint64_t routed_pane_total;
+    uint64_t routed_fallback_total;
+    uint64_t invalidation_target_total;
+    uint64_t invalidation_full_total;
+    uint64_t invalidation_reason_bits_total;
+    uint64_t viewport_sample_probe_success_total;
+    uint64_t render_frames_projected_total;
+    uint64_t render_layers_visible_total;
+    uint64_t render_full_redraw_total;
+    uint64_t render_target_redraw_total;
+    uint64_t render_module_calls_total;
+    uint64_t render_module_canvas_calls_total;
+    uint64_t render_module_palette_calls_total;
+    uint32_t render_last_active_layer_id;
+    uint8_t render_last_has_active_layer;
+    DrawingProgramRenderFrameProjection render_projection;
+    DrawingProgramDocument document;
+    DrawingProgramEditorState editor;
+    DrawingProgramHistory history;
+    DrawingProgramPaneHost pane_host;
+    DrawingProgramOverlayAdapterState overlay_adapter;
+    const char *preset_path;
+    const char *export_json_path;
+    const char *bridge_workspace_preset_path;
+} DrawingProgramAppContext;
+
+typedef enum DrawingProgramInputRouteTargetPolicy {
+    DRAWING_PROGRAM_INPUT_ROUTE_TARGET_FALLBACK = 0,
+    DRAWING_PROGRAM_INPUT_ROUTE_TARGET_GLOBAL = 1,
+    DRAWING_PROGRAM_INPUT_ROUTE_TARGET_PANE = 2
+} DrawingProgramInputRouteTargetPolicy;
+
+typedef enum DrawingProgramInputInvalidateReasonBits {
+    DRAWING_PROGRAM_INPUT_INVALIDATE_REASON_QUIT = 1u << 0,
+    DRAWING_PROGRAM_INPUT_INVALIDATE_REASON_WINDOW = 1u << 1,
+    DRAWING_PROGRAM_INPUT_INVALIDATE_REASON_KEYBOARD = 1u << 2,
+    DRAWING_PROGRAM_INPUT_INVALIDATE_REASON_POINTER = 1u << 3,
+    DRAWING_PROGRAM_INPUT_INVALIDATE_REASON_WHEEL = 1u << 4
+} DrawingProgramInputInvalidateReasonBits;
+
+typedef struct DrawingProgramInputEventRaw {
+    uint64_t frame_index;
+    uint32_t event_count;
+    uint32_t quit_event_count;
+    uint32_t window_event_count;
+    uint32_t key_event_count;
+    uint32_t pointer_event_count;
+    uint32_t wheel_event_count;
+    uint32_t other_event_count;
+    uint8_t quit_requested;
+} DrawingProgramInputEventRaw;
+
+typedef struct DrawingProgramInputEventNormalized {
+    uint8_t has_quit_action;
+    uint8_t has_window_action;
+    uint8_t has_keyboard_action;
+    uint8_t has_pointer_action;
+    uint8_t has_wheel_action;
+    uint32_t action_count;
+    uint32_t immediate_action_count;
+    uint32_t queued_action_count;
+    uint32_t ignored_action_count;
+} DrawingProgramInputEventNormalized;
+
+typedef struct DrawingProgramInputRouteResult {
+    uint8_t consumed;
+    DrawingProgramInputRouteTargetPolicy target_policy;
+    uint32_t routed_global_count;
+    uint32_t routed_pane_count;
+    uint32_t routed_fallback_count;
+} DrawingProgramInputRouteResult;
+
+typedef struct DrawingProgramInputInvalidationResult {
+    uint8_t full_invalidate;
+    uint32_t invalidation_reason_bits;
+    uint32_t target_invalidation_count;
+    uint32_t full_invalidation_count;
+} DrawingProgramInputInvalidationResult;
+
+CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc, char **argv);
+CoreResult drawing_program_app_config_load(DrawingProgramAppContext *ctx);
+CoreResult drawing_program_app_state_seed(DrawingProgramAppContext *ctx);
+CoreResult drawing_program_app_subsystems_init(DrawingProgramAppContext *ctx);
+CoreResult drawing_program_runtime_start(DrawingProgramAppContext *ctx);
+CoreResult drawing_program_app_run_loop(DrawingProgramAppContext *ctx);
+CoreResult drawing_program_app_shutdown(DrawingProgramAppContext *ctx);
+
+int drawing_program_app_main(int argc, char **argv);
+int drawing_program_app_visual_main(int argc, char **argv);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

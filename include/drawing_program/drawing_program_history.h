@@ -1,0 +1,45 @@
+#ifndef DRAWING_PROGRAM_HISTORY_H
+#define DRAWING_PROGRAM_HISTORY_H
+
+#include <stdint.h>
+
+#include "core_base.h"
+#include "drawing_program/drawing_program_document.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define DRAWING_PROGRAM_HISTORY_CAPACITY 64u
+
+typedef enum DrawingProgramCommandType {
+    DRAWING_PROGRAM_COMMAND_NONE = 0,
+    DRAWING_PROGRAM_COMMAND_SET_LAYER_VISIBILITY = 1
+} DrawingProgramCommandType;
+
+typedef struct DrawingProgramCommand {
+    DrawingProgramCommandType type;
+    uint32_t layer_id;
+    uint8_t new_visibility;
+    uint8_t previous_visibility;
+} DrawingProgramCommand;
+
+typedef struct DrawingProgramHistory {
+    DrawingProgramCommand entries[DRAWING_PROGRAM_HISTORY_CAPACITY];
+    uint32_t count;
+    uint32_t cursor;
+} DrawingProgramHistory;
+
+void drawing_program_history_init(DrawingProgramHistory *history);
+CoreResult drawing_program_history_apply_set_layer_visibility(DrawingProgramHistory *history,
+                                                              DrawingProgramDocument *document,
+                                                              uint32_t layer_id,
+                                                              uint8_t visible);
+CoreResult drawing_program_history_undo(DrawingProgramHistory *history, DrawingProgramDocument *document);
+CoreResult drawing_program_history_redo(DrawingProgramHistory *history, DrawingProgramDocument *document);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

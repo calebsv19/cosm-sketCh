@@ -1,0 +1,25 @@
+#!/bin/sh
+set -eu
+
+SELF_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+CONTENTS_DIR="$(CDPATH= cd -- "$SELF_DIR/.." && pwd)"
+RES_DIR="$CONTENTS_DIR/Resources"
+APP_BIN="$SELF_DIR/drawing-program-bin"
+
+if [ "${1-}" = "--print-config" ]; then
+  echo "DRAWING_PROGRAM_RUNTIME_DIR=$RES_DIR"
+  echo "DRAWING_PROGRAM_APP_BIN=$APP_BIN"
+  exit 0
+fi
+
+if [ "${1-}" = "--self-test" ]; then
+  [ -x "$APP_BIN" ] || { echo "missing app binary: $APP_BIN"; exit 1; }
+  "$APP_BIN" --headless --smoke-frames 1 >/dev/null 2>&1 || {
+    echo "headless smoke failed"
+    exit 1
+  }
+  echo "self-test ok"
+  exit 0
+fi
+
+exec "$APP_BIN" "$@"
