@@ -5,6 +5,7 @@ SELF_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 CONTENTS_DIR="$(CDPATH= cd -- "$SELF_DIR/.." && pwd)"
 RES_DIR="$CONTENTS_DIR/Resources"
 APP_BIN="$SELF_DIR/drawing-program-bin"
+export DRAWING_PROGRAM_RUNTIME_DIR="$RES_DIR"
 
 if [ "${1-}" = "--print-config" ]; then
   echo "DRAWING_PROGRAM_RUNTIME_DIR=$RES_DIR"

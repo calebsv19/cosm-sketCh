@@ -259,6 +259,11 @@ DrawingProgramOverlayAdapterResult drawing_program_adapter_input_route_runtime(
                                     "runtime input route requires runtime_active",
                                     ctx->overlay_adapter.lifecycle_state);
     }
+    if (ctx->overlay_adapter.runtime_paused) {
+        return adapter_result_error(DRAWING_PROGRAM_OVERLAY_ADAPTER_INVALID_STATE,
+                                    "runtime input route not allowed while paused",
+                                    ctx->overlay_adapter.lifecycle_state);
+    }
     return adapter_result_ok(ctx->overlay_adapter.lifecycle_state, ctx->overlay_adapter.lifecycle_state);
 }
 
@@ -284,6 +289,12 @@ DrawingProgramOverlayAdapterResult drawing_program_adapter_render_runtime_base(
         return adapter_result_error(DRAWING_PROGRAM_OVERLAY_ADAPTER_INVALID_ARGUMENT,
                                     "null app context",
                                     DRAWING_PROGRAM_OVERLAY_STATE_RUNTIME_ACTIVE);
+    }
+    if (ctx->overlay_adapter.lifecycle_state != DRAWING_PROGRAM_OVERLAY_STATE_RUNTIME_ACTIVE ||
+        ctx->overlay_adapter.runtime_paused) {
+        return adapter_result_error(DRAWING_PROGRAM_OVERLAY_ADAPTER_INVALID_STATE,
+                                    "runtime base render requires runtime_active and unpaused state",
+                                    ctx->overlay_adapter.lifecycle_state);
     }
     result = drawing_program_pane_host_render(ctx);
     if (result.code != CORE_OK) {
@@ -312,38 +323,52 @@ DrawingProgramOverlayAdapterResult drawing_program_adapter_render_overlay_chrome
 DrawingProgramOverlayAdapterResult drawing_program_adapter_persist_save_session(
     struct DrawingProgramAppContext *ctx) {
     CoreResult result;
+    DrawingProgramOverlayLifecycleState state;
     if (!ctx) {
         return adapter_result_error(DRAWING_PROGRAM_OVERLAY_ADAPTER_INVALID_ARGUMENT,
                                     "null app context",
                                     DRAWING_PROGRAM_OVERLAY_STATE_RUNTIME_ACTIVE);
+    }
+    state = ctx->overlay_adapter.lifecycle_state;
+    if (state != DRAWING_PROGRAM_OVERLAY_STATE_RUNTIME_ACTIVE || ctx->overlay_adapter.runtime_paused) {
+        return adapter_result_error(DRAWING_PROGRAM_OVERLAY_ADAPTER_INVALID_STATE,
+                                    "session save requires runtime_active and unpaused state",
+                                    state);
     }
     result = drawing_program_snapshot_save(ctx, ctx->preset_path);
     if (result.code != CORE_OK) {
         return adapter_result_error(DRAWING_PROGRAM_OVERLAY_ADAPTER_IO_FAILURE,
                                     result.message,
-                                    ctx->overlay_adapter.lifecycle_state);
+                                    state);
     }
-    return adapter_result_ok(ctx->overlay_adapter.lifecycle_state, ctx->overlay_adapter.lifecycle_state);
+    return adapter_result_ok(state, state);
 }
 
 DrawingProgramOverlayAdapterResult drawing_program_adapter_persist_export_debug_json(
     struct DrawingProgramAppContext *ctx) {
     CoreResult result;
+    DrawingProgramOverlayLifecycleState state;
     if (!ctx) {
         return adapter_result_error(DRAWING_PROGRAM_OVERLAY_ADAPTER_INVALID_ARGUMENT,
                                     "null app context",
                                     DRAWING_PROGRAM_OVERLAY_STATE_RUNTIME_ACTIVE);
     }
+    state = ctx->overlay_adapter.lifecycle_state;
+    if (state != DRAWING_PROGRAM_OVERLAY_STATE_RUNTIME_ACTIVE || ctx->overlay_adapter.runtime_paused) {
+        return adapter_result_error(DRAWING_PROGRAM_OVERLAY_ADAPTER_INVALID_STATE,
+                                    "debug export requires runtime_active and unpaused state",
+                                    state);
+    }
     if (!ctx->export_json_path) {
         return adapter_result_error(DRAWING_PROGRAM_OVERLAY_ADAPTER_INVALID_ARGUMENT,
                                     "missing export json path",
-                                    ctx->overlay_adapter.lifecycle_state);
+                                    state);
     }
     result = drawing_program_snapshot_export_debug_json(ctx, ctx->export_json_path);
     if (result.code != CORE_OK) {
         return adapter_result_error(DRAWING_PROGRAM_OVERLAY_ADAPTER_IO_FAILURE,
                                     result.message,
-                                    ctx->overlay_adapter.lifecycle_state);
+                                    state);
     }
-    return adapter_result_ok(ctx->overlay_adapter.lifecycle_state, ctx->overlay_adapter.lifecycle_state);
+    return adapter_result_ok(state, state);
 }

@@ -22,11 +22,13 @@ typedef struct DrawingProgramAppContext {
     uint8_t print_lifecycle;
     uint8_t export_json_requested;
     uint8_t bridge_workspace_check_requested;
+    uint8_t bridge_workspace_import_requested;
     uint32_t smoke_frames;
     uint64_t frame_counter;
     uint8_t state_seeded;
     uint8_t subsystems_ready;
     uint8_t runtime_started;
+    uint8_t snapshot_loaded_from_preset;
     uint64_t input_events_processed;
     uint64_t input_actions_emitted;
     uint64_t routed_global_total;
@@ -43,6 +45,9 @@ typedef struct DrawingProgramAppContext {
     uint64_t render_module_calls_total;
     uint64_t render_module_canvas_calls_total;
     uint64_t render_module_palette_calls_total;
+    uint32_t render_canvas_last_raster_hash;
+    uint32_t render_canvas_last_nonzero_samples;
+    uint64_t tool_switch_total;
     uint32_t render_last_active_layer_id;
     uint8_t render_last_has_active_layer;
     DrawingProgramRenderFrameProjection render_projection;
@@ -51,6 +56,13 @@ typedef struct DrawingProgramAppContext {
     DrawingProgramHistory history;
     DrawingProgramPaneHost pane_host;
     DrawingProgramOverlayAdapterState overlay_adapter;
+    float pane_host_bounds_width;
+    float pane_host_bounds_height;
+    uint32_t ui_theme_preset_id;
+    uint32_t ui_font_preset_id;
+    uint8_t ui_left_panel_slot;
+    uint8_t ui_right_panel_slot;
+    int8_t ui_font_zoom_step;
     const char *preset_path;
     const char *export_json_path;
     const char *bridge_workspace_preset_path;
@@ -92,6 +104,8 @@ typedef struct DrawingProgramInputEventNormalized {
     uint32_t immediate_action_count;
     uint32_t queued_action_count;
     uint32_t ignored_action_count;
+    uint8_t has_tool_switch_action;
+    uint8_t requested_tool_kind;
 } DrawingProgramInputEventNormalized;
 
 typedef struct DrawingProgramInputRouteResult {
@@ -116,6 +130,9 @@ CoreResult drawing_program_app_subsystems_init(DrawingProgramAppContext *ctx);
 CoreResult drawing_program_runtime_start(DrawingProgramAppContext *ctx);
 CoreResult drawing_program_app_run_loop(DrawingProgramAppContext *ctx);
 CoreResult drawing_program_app_shutdown(DrawingProgramAppContext *ctx);
+CoreResult drawing_program_app_set_pane_host_bounds(DrawingProgramAppContext *ctx,
+                                                     float width,
+                                                     float height);
 
 int drawing_program_app_main(int argc, char **argv);
 int drawing_program_app_visual_main(int argc, char **argv);

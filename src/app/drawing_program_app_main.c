@@ -4,6 +4,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core_font.h"
+#include "core_theme.h"
+#include "drawing_program/drawing_program_runtime_orchestration.h"
+
 typedef enum DrawingProgramAppStage {
     DRAWING_PROGRAM_APP_STAGE_INIT = 0,
     DRAWING_PROGRAM_APP_STAGE_BOOTSTRAPPED,
@@ -18,6 +22,38 @@ typedef enum DrawingProgramAppStage {
 static CoreResult drawing_program_invalid(const char *message) {
     CoreResult r = { CORE_ERR_INVALID_ARG, message };
     return r;
+}
+
+static int drawing_program_trace_ui_state_enabled(void) {
+    const char *value = getenv("DRAWING_PROGRAM_TRACE_UI_STATE");
+    if (!value || value[0] == '\0' || value[0] == '0') {
+        return 0;
+    }
+    return 1;
+}
+
+static void drawing_program_normalize_ui_state(DrawingProgramAppContext *ctx) {
+    if (!ctx) {
+        return;
+    }
+    if (ctx->ui_theme_preset_id >= (uint32_t)CORE_THEME_PRESET_COUNT) {
+        ctx->ui_theme_preset_id = (uint32_t)CORE_THEME_PRESET_DARK_DEFAULT;
+    }
+    if (ctx->ui_font_preset_id >= (uint32_t)CORE_FONT_PRESET_COUNT ||
+        !core_font_preset_name((CoreFontPresetId)ctx->ui_font_preset_id)) {
+        ctx->ui_font_preset_id = (uint32_t)CORE_FONT_PRESET_IDE;
+    }
+    if (ctx->ui_font_zoom_step < -2) {
+        ctx->ui_font_zoom_step = -2;
+    } else if (ctx->ui_font_zoom_step > 4) {
+        ctx->ui_font_zoom_step = 4;
+    }
+    if (ctx->ui_left_panel_slot > 1u) {
+        ctx->ui_left_panel_slot = 0u;
+    }
+    if (ctx->ui_right_panel_slot > 1u) {
+        ctx->ui_right_panel_slot = 0u;
+    }
 }
 
 static int drawing_program_transition_stage(DrawingProgramAppStage *stage,
@@ -49,119 +85,28 @@ static void drawing_program_lifecycle_note(const DrawingProgramAppContext *ctx, 
 
 static void drawing_program_input_intake(uint64_t frame_index,
                                          uint32_t total_frames,
+                                         uint8_t simulate_events,
                                          DrawingProgramInputEventRaw *out_raw) {
     if (!out_raw) {
         return;
     }
     memset(out_raw, 0, sizeof(*out_raw));
     out_raw->frame_index = frame_index;
+    if (!simulate_events) {
+        return;
+    }
 
     out_raw->pointer_event_count = 1u;
     out_raw->event_count = 1u;
+    if (frame_index == 0u) {
+        out_raw->key_event_count = 1u;
+        out_raw->event_count += 1u;
+    }
 
     if (frame_index + 1u >= (uint64_t)total_frames) {
         out_raw->quit_event_count = 1u;
         out_raw->quit_requested = 1u;
         out_raw->event_count += 1u;
-    }
-}
-
-static void drawing_program_input_normalize(const DrawingProgramInputEventRaw *raw,
-                                            DrawingProgramInputEventNormalized *out_normalized) {
-    if (!raw || !out_normalized) {
-        return;
-    }
-    memset(out_normalized, 0, sizeof(*out_normalized));
-    out_normalized->has_quit_action = raw->quit_event_count > 0u ? 1u : 0u;
-    out_normalized->has_window_action = raw->window_event_count > 0u ? 1u : 0u;
-    out_normalized->has_keyboard_action = raw->key_event_count > 0u ? 1u : 0u;
-    out_normalized->has_pointer_action = raw->pointer_event_count > 0u ? 1u : 0u;
-    out_normalized->has_wheel_action = raw->wheel_event_count > 0u ? 1u : 0u;
-
-    out_normalized->action_count =
-        raw->quit_event_count +
-        raw->window_event_count +
-        raw->key_event_count +
-        raw->pointer_event_count +
-        raw->wheel_event_count;
-    out_normalized->immediate_action_count = out_normalized->action_count;
-    out_normalized->queued_action_count = 0u;
-    out_normalized->ignored_action_count = raw->other_event_count;
-}
-
-static void drawing_program_input_route(const DrawingProgramInputEventNormalized *normalized,
-                                        DrawingProgramInputRouteResult *out_route) {
-    if (!normalized || !out_route) {
-        return;
-    }
-    memset(out_route, 0, sizeof(*out_route));
-    out_route->target_policy = DRAWING_PROGRAM_INPUT_ROUTE_TARGET_FALLBACK;
-
-    if (normalized->has_quit_action || normalized->has_window_action || normalized->has_keyboard_action) {
-        if (normalized->has_quit_action) {
-            out_route->routed_global_count += 1u;
-        }
-        if (normalized->has_window_action) {
-            out_route->routed_global_count += 1u;
-        }
-        if (normalized->has_keyboard_action) {
-            out_route->routed_global_count += 1u;
-        }
-        out_route->target_policy = DRAWING_PROGRAM_INPUT_ROUTE_TARGET_GLOBAL;
-        out_route->consumed = 1u;
-    }
-
-    if (normalized->has_pointer_action || normalized->has_wheel_action) {
-        if (normalized->has_pointer_action) {
-            out_route->routed_pane_count += 1u;
-        }
-        if (normalized->has_wheel_action) {
-            out_route->routed_pane_count += 1u;
-        }
-        if (out_route->target_policy == DRAWING_PROGRAM_INPUT_ROUTE_TARGET_FALLBACK) {
-            out_route->target_policy = DRAWING_PROGRAM_INPUT_ROUTE_TARGET_PANE;
-        }
-        out_route->consumed = 1u;
-    }
-
-    if (!out_route->consumed) {
-        out_route->routed_fallback_count = normalized->action_count > 0u ? normalized->action_count : 1u;
-        out_route->target_policy = DRAWING_PROGRAM_INPUT_ROUTE_TARGET_FALLBACK;
-    }
-}
-
-static void drawing_program_input_invalidate(const DrawingProgramInputEventNormalized *normalized,
-                                             const DrawingProgramInputRouteResult *route,
-                                             DrawingProgramInputInvalidationResult *out_invalidation) {
-    uint32_t bits = 0u;
-    if (!normalized || !route || !out_invalidation) {
-        return;
-    }
-    memset(out_invalidation, 0, sizeof(*out_invalidation));
-
-    if (normalized->has_quit_action) {
-        bits |= DRAWING_PROGRAM_INPUT_INVALIDATE_REASON_QUIT;
-    }
-    if (normalized->has_window_action) {
-        bits |= DRAWING_PROGRAM_INPUT_INVALIDATE_REASON_WINDOW;
-    }
-    if (normalized->has_keyboard_action) {
-        bits |= DRAWING_PROGRAM_INPUT_INVALIDATE_REASON_KEYBOARD;
-    }
-    if (normalized->has_pointer_action) {
-        bits |= DRAWING_PROGRAM_INPUT_INVALIDATE_REASON_POINTER;
-    }
-    if (normalized->has_wheel_action) {
-        bits |= DRAWING_PROGRAM_INPUT_INVALIDATE_REASON_WHEEL;
-    }
-
-    out_invalidation->invalidation_reason_bits = bits;
-    out_invalidation->full_invalidate =
-        (normalized->has_quit_action || normalized->has_window_action) ? 1u : 0u;
-    if (out_invalidation->full_invalidate) {
-        out_invalidation->full_invalidation_count = 1u;
-    } else if (route->consumed) {
-        out_invalidation->target_invalidation_count = 1u;
     }
 }
 
@@ -211,6 +156,13 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
     ctx->preset_path = "data/last_session.pack";
     ctx->export_json_path = 0;
     ctx->bridge_workspace_preset_path = "workspace_sandbox/data/presets/sketch_layout_v1.pack";
+    ctx->pane_host_bounds_width = 1200.0f;
+    ctx->pane_host_bounds_height = 800.0f;
+    ctx->ui_theme_preset_id = (uint32_t)CORE_THEME_PRESET_DARK_DEFAULT;
+    ctx->ui_font_preset_id = (uint32_t)CORE_FONT_PRESET_IDE;
+    ctx->ui_left_panel_slot = 0u;
+    ctx->ui_right_panel_slot = 0u;
+    ctx->ui_font_zoom_step = 0;
 
     for (i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--headless") == 0) {
@@ -238,6 +190,10 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
         if (strcmp(argv[i], "--bridge-workspace-preset") == 0 && i + 1 < argc) {
             ctx->bridge_workspace_preset_path = argv[++i];
             ctx->bridge_workspace_check_requested = 1u;
+            continue;
+        }
+        if (strcmp(argv[i], "--bridge-workspace-import") == 0) {
+            ctx->bridge_workspace_import_requested = 1u;
             continue;
         }
     }
@@ -290,6 +246,7 @@ CoreResult drawing_program_app_subsystems_init(DrawingProgramAppContext *ctx) {
 
 CoreResult drawing_program_runtime_start(DrawingProgramAppContext *ctx) {
     CoreResult result;
+    CoreResult load_result;
     if (!ctx) {
         return drawing_program_invalid("null app context");
     }
@@ -297,9 +254,42 @@ CoreResult drawing_program_runtime_start(DrawingProgramAppContext *ctx) {
         return drawing_program_invalid("subsystems must be initialized before runtime start");
     }
 
-    result = drawing_program_snapshot_load(ctx, ctx->preset_path);
-    if (result.code != CORE_OK) {
-        (void)drawing_program_snapshot_save(ctx, ctx->preset_path);
+    load_result = drawing_program_snapshot_load(ctx, ctx->preset_path);
+    result = load_result;
+    if (drawing_program_trace_ui_state_enabled()) {
+        fprintf(stderr,
+                "drawing_program trace runtime_start after_load code=%d tool=%u theme=%u font=%u zoom=%d slot_l=%u slot_r=%u leafs=%u\n",
+                (int)result.code,
+                (unsigned)ctx->editor.active_tool,
+                (unsigned)ctx->ui_theme_preset_id,
+                (unsigned)ctx->ui_font_preset_id,
+                (int)ctx->ui_font_zoom_step,
+                (unsigned)ctx->ui_left_panel_slot,
+                (unsigned)ctx->ui_right_panel_slot,
+                (unsigned)ctx->pane_host.leaf_count);
+    }
+    ctx->snapshot_loaded_from_preset = (load_result.code == CORE_OK && ctx->pane_host.leaf_count >= 4u) ? 1u : 0u;
+    if (!ctx->snapshot_loaded_from_preset) {
+        /* Keep scaffold visuals deterministic: fall back to the seeded 4-pane host. */
+        (void)drawing_program_pane_host_init(ctx);
+        result = drawing_program_snapshot_save(ctx, ctx->preset_path);
+        if (drawing_program_trace_ui_state_enabled()) {
+            fprintf(stderr,
+                    "drawing_program trace runtime_start fallback_save code=%d path=%s\n",
+                    (int)result.code,
+                    ctx->preset_path ? ctx->preset_path : "(null)");
+        }
+    }
+    drawing_program_normalize_ui_state(ctx);
+    if (drawing_program_trace_ui_state_enabled()) {
+        fprintf(stderr,
+                "drawing_program trace runtime_start normalized tool=%u theme=%u font=%u zoom=%d slot_l=%u slot_r=%u\n",
+                (unsigned)ctx->editor.active_tool,
+                (unsigned)ctx->ui_theme_preset_id,
+                (unsigned)ctx->ui_font_preset_id,
+                (int)ctx->ui_font_zoom_step,
+                (unsigned)ctx->ui_left_panel_slot,
+                (unsigned)ctx->ui_right_panel_slot);
     }
 
     if (ctx->bridge_workspace_check_requested) {
@@ -310,15 +300,13 @@ CoreResult drawing_program_runtime_start(DrawingProgramAppContext *ctx) {
         printf("drawing_program workspace preset bridge check OK: %s\n",
                ctx->bridge_workspace_preset_path ? ctx->bridge_workspace_preset_path : "(null)");
     }
-
-    if (ctx->export_json_requested) {
-        result = drawing_program_snapshot_export_debug_json(ctx, ctx->export_json_path);
+    if (ctx->bridge_workspace_import_requested) {
+        result = drawing_program_snapshot_bridge_import_workspace_preset(ctx, ctx->bridge_workspace_preset_path);
         if (result.code != CORE_OK) {
             return result;
         }
-        printf("drawing_program snapshot debug export OK: preset=%s json=%s\n",
-               ctx->preset_path ? ctx->preset_path : "(null)",
-               ctx->export_json_path ? ctx->export_json_path : "(null)");
+        printf("drawing_program workspace preset import OK: %s\n",
+               ctx->bridge_workspace_preset_path ? ctx->bridge_workspace_preset_path : "(null)");
     }
 
     ctx->runtime_started = 1u;
@@ -360,10 +348,19 @@ CoreResult drawing_program_app_run_loop(DrawingProgramAppContext *ctx) {
             CoreResult err = { CORE_ERR_FORMAT, adapter_result.reason };
             return err;
         }
-        drawing_program_input_intake((uint64_t)i, frames, &raw);
-        drawing_program_input_normalize(&raw, &normalized);
-        drawing_program_input_route(&normalized, &route);
-        drawing_program_input_invalidate(&normalized, &route, &invalidation);
+        drawing_program_input_intake((uint64_t)i, frames, ctx->headless, &raw);
+        result = drawing_program_runtime_orchestration_plan_frame(&raw, &normalized, &route, &invalidation);
+        if (result.code != CORE_OK) {
+            return result;
+        }
+        result = drawing_program_runtime_orchestration_dispatch_immediate(ctx, &normalized);
+        if (result.code != CORE_OK) {
+            return result;
+        }
+        result = drawing_program_runtime_orchestration_submit_deferred(ctx, &normalized);
+        if (result.code != CORE_OK) {
+            return result;
+        }
         result = drawing_program_render_project_and_update_counters(ctx, &invalidation);
         if (result.code != CORE_OK) {
             return result;
@@ -395,11 +392,63 @@ CoreResult drawing_program_app_run_loop(DrawingProgramAppContext *ctx) {
 }
 
 CoreResult drawing_program_app_shutdown(DrawingProgramAppContext *ctx) {
+    CoreResult result;
     if (!ctx) {
         return drawing_program_invalid("null app context");
     }
-    (void)drawing_program_snapshot_save(ctx, ctx->preset_path);
+    result = drawing_program_snapshot_save(ctx, ctx->preset_path);
+    if (drawing_program_trace_ui_state_enabled()) {
+        fprintf(stderr,
+                "drawing_program trace shutdown save_result code=%d path=%s tool=%u theme=%u font=%u zoom=%d slot_l=%u slot_r=%u\n",
+                (int)result.code,
+                ctx->preset_path ? ctx->preset_path : "(null)",
+                (unsigned)ctx->editor.active_tool,
+                (unsigned)ctx->ui_theme_preset_id,
+                (unsigned)ctx->ui_font_preset_id,
+                (int)ctx->ui_font_zoom_step,
+                (unsigned)ctx->ui_left_panel_slot,
+                (unsigned)ctx->ui_right_panel_slot);
+    }
+    if (result.code != CORE_OK) {
+        fprintf(stderr,
+                "drawing_program: snapshot save failed code=%d message=%s path=%s\n",
+                (int)result.code,
+                result.message ? result.message : "(null)",
+                ctx->preset_path ? ctx->preset_path : "(null)");
+        return result;
+    }
+    if (ctx->export_json_requested) {
+        result = drawing_program_snapshot_export_debug_json(ctx, ctx->export_json_path);
+        if (result.code != CORE_OK) {
+            fprintf(stderr,
+                    "drawing_program: snapshot debug export failed code=%d message=%s json=%s\n",
+                    (int)result.code,
+                    result.message ? result.message : "(null)",
+                    ctx->export_json_path ? ctx->export_json_path : "(null)");
+            return result;
+        }
+        printf("drawing_program snapshot debug export OK: preset=%s json=%s\n",
+               ctx->preset_path ? ctx->preset_path : "(null)",
+               ctx->export_json_path ? ctx->export_json_path : "(null)");
+    }
     return core_result_ok();
+}
+
+CoreResult drawing_program_app_set_pane_host_bounds(DrawingProgramAppContext *ctx,
+                                                     float width,
+                                                     float height) {
+    if (!ctx) {
+        return drawing_program_invalid("null app context");
+    }
+    if (width < 64.0f || height < 64.0f) {
+        return drawing_program_invalid("invalid pane host bounds");
+    }
+    if (ctx->pane_host_bounds_width == width && ctx->pane_host_bounds_height == height) {
+        return core_result_ok();
+    }
+    ctx->pane_host_bounds_width = width;
+    ctx->pane_host_bounds_height = height;
+    return drawing_program_pane_host_rebuild(ctx);
 }
 
 int drawing_program_app_main(int argc, char **argv) {
@@ -409,6 +458,7 @@ int drawing_program_app_main(int argc, char **argv) {
 
     result = drawing_program_app_bootstrap(&app, argc, argv);
     if (result.code != CORE_OK) {
+        fprintf(stderr, "drawing_program: bootstrap failed code=%d message=%s\n", (int)result.code, result.message);
         return 1;
     }
     drawing_program_lifecycle_note(&app, "bootstrap");
@@ -421,6 +471,7 @@ int drawing_program_app_main(int argc, char **argv) {
 
     result = drawing_program_app_config_load(&app);
     if (result.code != CORE_OK) {
+        fprintf(stderr, "drawing_program: config_load failed code=%d message=%s\n", (int)result.code, result.message);
         return 1;
     }
     drawing_program_lifecycle_note(&app, "config_load");
@@ -433,6 +484,7 @@ int drawing_program_app_main(int argc, char **argv) {
 
     result = drawing_program_app_state_seed(&app);
     if (result.code != CORE_OK) {
+        fprintf(stderr, "drawing_program: state_seed failed code=%d message=%s\n", (int)result.code, result.message);
         return 1;
     }
     drawing_program_lifecycle_note(&app, "state_seed");
@@ -445,6 +497,7 @@ int drawing_program_app_main(int argc, char **argv) {
 
     result = drawing_program_app_subsystems_init(&app);
     if (result.code != CORE_OK) {
+        fprintf(stderr, "drawing_program: subsystems_init failed code=%d message=%s\n", (int)result.code, result.message);
         return 1;
     }
     drawing_program_lifecycle_note(&app, "subsystems_init");
@@ -457,6 +510,7 @@ int drawing_program_app_main(int argc, char **argv) {
 
     result = drawing_program_runtime_start(&app);
     if (result.code != CORE_OK) {
+        fprintf(stderr, "drawing_program: runtime_start failed code=%d message=%s\n", (int)result.code, result.message);
         return 1;
     }
     drawing_program_lifecycle_note(&app, "runtime_start");
@@ -469,6 +523,7 @@ int drawing_program_app_main(int argc, char **argv) {
 
     result = drawing_program_app_run_loop(&app);
     if (result.code != CORE_OK) {
+        fprintf(stderr, "drawing_program: run_loop failed code=%d message=%s\n", (int)result.code, result.message);
         return 1;
     }
     drawing_program_lifecycle_note(&app, "run_loop");
@@ -481,6 +536,7 @@ int drawing_program_app_main(int argc, char **argv) {
 
     result = drawing_program_app_shutdown(&app);
     if (result.code != CORE_OK) {
+        fprintf(stderr, "drawing_program: shutdown failed code=%d message=%s\n", (int)result.code, result.message);
         return 1;
     }
     drawing_program_lifecycle_note(&app, "shutdown");

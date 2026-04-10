@@ -2,6 +2,7 @@
 #include <unistd.h>
 
 #include "drawing_program/drawing_program_app_main.h"
+#include "drawing_program/drawing_program_runtime_orchestration.h"
 
 static int expect_ok(CoreResult result, const char *label) {
     if (result.code != CORE_OK) {
@@ -20,8 +21,33 @@ static int expect_overlay_ok(DrawingProgramOverlayAdapterResult result, const ch
     return 1;
 }
 
+static int expect_overlay_error_code(DrawingProgramOverlayAdapterResult result,
+                                     DrawingProgramOverlayAdapterErrorCode code,
+                                     const char *label) {
+    if (result.ok || result.error_code != code) {
+        fprintf(stderr, "overlay_test: %s expected error_code=%d got ok=%u code=%d reason=%s\n",
+                label,
+                (int)code,
+                (unsigned)result.ok,
+                (int)result.error_code,
+                result.reason ? result.reason : "n/a");
+        return 0;
+    }
+    return 1;
+}
+
 int main(void) {
     DrawingProgramAppContext ctx;
+    DrawingProgramAppContext workflow_ctx;
+    uint32_t center_x;
+    uint32_t center_y;
+    uint32_t workflow_center_x;
+    uint32_t workflow_center_y;
+    uint8_t workflow_center_value = 0u;
+    uint8_t center_before = 0u;
+    uint8_t center_after = 0u;
+    uint8_t center_undo = 0u;
+    uint8_t center_redo = 0u;
     char arg0[] = "drawing_program_test";
     char arg1[] = "--headless";
     char arg2[] = "--smoke-frames";
@@ -35,6 +61,96 @@ int main(void) {
         return 1;
     }
     if (!expect_ok(drawing_program_app_state_seed(&ctx), "state_seed")) {
+        return 1;
+    }
+    if (!expect_ok(drawing_program_app_bootstrap(&workflow_ctx, 4, argv), "workflow_bootstrap")) {
+        return 1;
+    }
+    if (!expect_ok(drawing_program_app_config_load(&workflow_ctx), "workflow_config_load")) {
+        return 1;
+    }
+    if (!expect_ok(drawing_program_app_state_seed(&workflow_ctx), "workflow_state_seed")) {
+        return 1;
+    }
+    workflow_center_x = workflow_ctx.document.raster_width / 2u;
+    workflow_center_y = workflow_ctx.document.raster_height / 2u;
+    if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                       &workflow_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_SET_TOOL_ERASER),
+                   "workflow_set_tool_eraser")) {
+        return 1;
+    }
+    if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                       &workflow_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_STAMP_CENTER_SAMPLE),
+                   "workflow_stamp_eraser")) {
+        return 1;
+    }
+    if (!expect_ok(drawing_program_document_sample_read(&workflow_ctx.document,
+                                                        workflow_center_x,
+                                                        workflow_center_y,
+                                                        &workflow_center_value),
+                   "workflow_sample_after_eraser_stamp")) {
+        return 1;
+    }
+    if (workflow_center_value != 0u) {
+        fprintf(stderr,
+                "lifecycle_test: expected workflow eraser stamp to set center sample to 0 got=%u\n",
+                (unsigned)workflow_center_value);
+        return 1;
+    }
+    if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                       &workflow_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_SET_TOOL_BRUSH),
+                   "workflow_set_tool_brush")) {
+        return 1;
+    }
+    if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                       &workflow_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_STAMP_CENTER_SAMPLE),
+                   "workflow_stamp_brush")) {
+        return 1;
+    }
+    if (!expect_ok(drawing_program_document_sample_read(&workflow_ctx.document,
+                                                        workflow_center_x,
+                                                        workflow_center_y,
+                                                        &workflow_center_value),
+                   "workflow_sample_after_brush_stamp")) {
+        return 1;
+    }
+    if (workflow_center_value != 255u) {
+        fprintf(stderr,
+                "lifecycle_test: expected workflow brush stamp to set center sample to 255 got=%u\n",
+                (unsigned)workflow_center_value);
+        return 1;
+    }
+    if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                       &workflow_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_TOGGLE_ACTIVE_LAYER_VISIBILITY),
+                   "workflow_toggle_layer_visibility")) {
+        return 1;
+    }
+    if (workflow_ctx.document.layers[0].visible != 0u) {
+        fprintf(stderr, "lifecycle_test: expected workflow toggle to hide active layer\n");
+        return 1;
+    }
+    if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                       &workflow_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_UNDO),
+                   "workflow_undo")) {
+        return 1;
+    }
+    if (workflow_ctx.document.layers[0].visible != 1u) {
+        fprintf(stderr, "lifecycle_test: expected workflow undo to restore active layer visibility\n");
+        return 1;
+    }
+    if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                       &workflow_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_REDO),
+                   "workflow_redo")) {
+        return 1;
+    }
+    if (workflow_ctx.document.layers[0].visible != 0u) {
+        fprintf(stderr, "lifecycle_test: expected workflow redo to hide active layer again\n");
+        return 1;
+    }
+    if (workflow_ctx.tool_switch_total != 2u) {
+        fprintf(stderr,
+                "lifecycle_test: expected workflow tool switch total=2 got=%llu\n",
+                (unsigned long long)workflow_ctx.tool_switch_total);
         return 1;
     }
     {
@@ -75,6 +191,18 @@ int main(void) {
         fprintf(stderr, "lifecycle_test: unexpected document seed state layer_count=%u\n", ctx.document.layer_count);
         return 1;
     }
+    if (ctx.document.raster_width == 0u ||
+        ctx.document.raster_height == 0u ||
+        ctx.document.raster_sample_count == 0u) {
+        fprintf(stderr, "lifecycle_test: expected seeded raster baseline\n");
+        return 1;
+    }
+    center_x = ctx.document.raster_width / 2u;
+    center_y = ctx.document.raster_height / 2u;
+    if (!expect_ok(drawing_program_document_sample_read(&ctx.document, center_x, center_y, &center_before),
+                   "sample_read_center_before")) {
+        return 1;
+    }
     if (ctx.editor.active_tool != DRAWING_PROGRAM_TOOL_BRUSH || ctx.editor.active_layer_id != 1u) {
         fprintf(stderr, "lifecycle_test: unexpected editor seed state tool=%u layer=%u\n",
                 (unsigned)ctx.editor.active_tool,
@@ -85,13 +213,77 @@ int main(void) {
         fprintf(stderr, "lifecycle_test: expected empty history at seed\n");
         return 1;
     }
-    if (ctx.pane_host.leaf_count != 2u || ctx.pane_host.module_binding_count != 2u) {
+    if (ctx.pane_host.leaf_count != 4u || ctx.pane_host.module_binding_count != 4u) {
         fprintf(stderr, "lifecycle_test: unexpected pane host seed state leaf_count=%u binding_count=%u\n",
                 ctx.pane_host.leaf_count,
                 ctx.pane_host.module_binding_count);
         return 1;
     }
+    {
+        DrawingProgramInputEventRaw raw = { 0 };
+        DrawingProgramInputEventNormalized normalized = { 0 };
+        DrawingProgramInputRouteResult route = { 0 };
+        DrawingProgramInputInvalidationResult invalidation = { 0 };
+        raw.pointer_event_count = 1u;
+        raw.event_count = 1u;
+        if (!expect_ok(drawing_program_runtime_orchestration_plan_frame(&raw, &normalized, &route, &invalidation),
+                       "orchestration_plan_frame")) {
+            return 1;
+        }
+        if (normalized.action_count != 1u || normalized.immediate_action_count != 1u || normalized.queued_action_count != 0u) {
+            fprintf(stderr, "lifecycle_test: unexpected orchestration normalization totals action=%u immediate=%u queued=%u\n",
+                    normalized.action_count,
+                    normalized.immediate_action_count,
+                    normalized.queued_action_count);
+            return 1;
+        }
+        if (route.routed_pane_count != 1u || route.routed_global_count != 0u || invalidation.full_invalidate != 0u) {
+            fprintf(stderr, "lifecycle_test: unexpected orchestration route/invalidation projection\n");
+            return 1;
+        }
+        if (!expect_ok(drawing_program_runtime_orchestration_submit_deferred(&ctx, &normalized),
+                       "orchestration_submit_deferred_empty")) {
+            return 1;
+        }
+        normalized.queued_action_count = 1u;
+        if (drawing_program_runtime_orchestration_submit_deferred(&ctx, &normalized).code == CORE_OK) {
+            fprintf(stderr, "lifecycle_test: expected deferred submission guard failure when queued actions are present\n");
+            return 1;
+        }
+    }
     if (!expect_overlay_ok(drawing_program_adapter_overlay_session_begin(&ctx), "overlay_session_begin")) {
+        return 1;
+    }
+    if (!expect_overlay_error_code(drawing_program_adapter_runtime_tick(&ctx),
+                                   DRAWING_PROGRAM_OVERLAY_ADAPTER_INVALID_STATE,
+                                   "runtime_tick_blocked_in_authoring")) {
+        return 1;
+    }
+    if (!expect_overlay_error_code(drawing_program_adapter_input_route_runtime(&ctx),
+                                   DRAWING_PROGRAM_OVERLAY_ADAPTER_INVALID_STATE,
+                                   "runtime_input_blocked_in_authoring")) {
+        return 1;
+    }
+    if (!expect_overlay_error_code(drawing_program_adapter_render_runtime_base(&ctx),
+                                   DRAWING_PROGRAM_OVERLAY_ADAPTER_INVALID_STATE,
+                                   "runtime_render_blocked_in_authoring")) {
+        return 1;
+    }
+    if (!expect_overlay_error_code(drawing_program_adapter_persist_save_session(&ctx),
+                                   DRAWING_PROGRAM_OVERLAY_ADAPTER_INVALID_STATE,
+                                   "persist_save_blocked_in_authoring")) {
+        return 1;
+    }
+    ctx.export_json_path = "/tmp/drawing_program_overlay_authoring_blocked.json";
+    if (!expect_overlay_error_code(drawing_program_adapter_persist_export_debug_json(&ctx),
+                                   DRAWING_PROGRAM_OVERLAY_ADAPTER_INVALID_STATE,
+                                   "persist_export_blocked_in_authoring")) {
+        return 1;
+    }
+    if (!expect_overlay_ok(drawing_program_adapter_input_route_overlay(&ctx), "overlay_input_allowed_in_authoring")) {
+        return 1;
+    }
+    if (!expect_overlay_ok(drawing_program_adapter_render_overlay_chrome(&ctx), "overlay_render_allowed_in_authoring")) {
         return 1;
     }
     if (!expect_overlay_ok(drawing_program_adapter_snapshot_stage_draft(&ctx), "snapshot_stage_draft")) {
@@ -125,6 +317,22 @@ int main(void) {
     if (ctx.overlay_adapter.lifecycle_state != DRAWING_PROGRAM_OVERLAY_STATE_RUNTIME_ACTIVE ||
         ctx.pane_host.layout_state.mode != CORE_LAYOUT_MODE_RUNTIME) {
         fprintf(stderr, "overlay_test: expected runtime active after discard\n");
+        return 1;
+    }
+    if (!expect_overlay_ok(drawing_program_adapter_runtime_tick(&ctx), "runtime_tick_after_authoring")) {
+        return 1;
+    }
+    if (!expect_overlay_ok(drawing_program_adapter_input_route_runtime(&ctx), "runtime_input_after_authoring")) {
+        return 1;
+    }
+    if (!expect_overlay_ok(drawing_program_adapter_render_runtime_base(&ctx), "runtime_render_after_authoring")) {
+        return 1;
+    }
+    ctx.export_json_path = "/tmp/drawing_program_overlay_runtime_export.json";
+    if (!expect_overlay_ok(drawing_program_adapter_persist_save_session(&ctx), "persist_save_after_authoring")) {
+        return 1;
+    }
+    if (!expect_overlay_ok(drawing_program_adapter_persist_export_debug_json(&ctx), "persist_export_after_authoring")) {
         return 1;
     }
     if (!expect_ok(drawing_program_app_subsystems_init(&ctx), "subsystems_init")) {
@@ -178,6 +386,22 @@ int main(void) {
     if (!expect_ok(drawing_program_app_run_loop(&ctx), "run_loop")) {
         return 1;
     }
+    if (!expect_ok(drawing_program_document_sample_read(&ctx.document, center_x, center_y, &center_after),
+                   "sample_read_center_after")) {
+        return 1;
+    }
+    if (center_after != 255u) {
+        fprintf(stderr, "lifecycle_test: expected brush seed to set center sample to 255 got=%u\n",
+                (unsigned)center_after);
+        return 1;
+    }
+    if (ctx.editor.active_tool != DRAWING_PROGRAM_TOOL_SELECT || ctx.tool_switch_total != 1u) {
+        fprintf(stderr,
+                "lifecycle_test: expected tool switch to SELECT with count=1 got tool=%u switches=%llu\n",
+                (unsigned)ctx.editor.active_tool,
+                (unsigned long long)ctx.tool_switch_total);
+        return 1;
+    }
     if (ctx.viewport_sample_probe_success_total != 2u) {
         fprintf(stderr, "lifecycle_test: expected viewport probe success count 2 got=%llu\n",
                 (unsigned long long)ctx.viewport_sample_probe_success_total);
@@ -191,17 +415,17 @@ int main(void) {
                 (unsigned long long)ctx.frame_counter);
         return 1;
     }
-    if (ctx.input_events_processed != 3u) {
-        fprintf(stderr, "lifecycle_test: expected input_events_processed=3 got=%llu\n",
+    if (ctx.input_events_processed != 4u) {
+        fprintf(stderr, "lifecycle_test: expected input_events_processed=4 got=%llu\n",
                 (unsigned long long)ctx.input_events_processed);
         return 1;
     }
-    if (ctx.input_actions_emitted != 3u) {
-        fprintf(stderr, "lifecycle_test: expected input_actions_emitted=3 got=%llu\n",
+    if (ctx.input_actions_emitted != 4u) {
+        fprintf(stderr, "lifecycle_test: expected input_actions_emitted=4 got=%llu\n",
                 (unsigned long long)ctx.input_actions_emitted);
         return 1;
     }
-    if (ctx.routed_global_total != 1u || ctx.routed_pane_total != 2u || ctx.routed_fallback_total != 0u) {
+    if (ctx.routed_global_total != 2u || ctx.routed_pane_total != 2u || ctx.routed_fallback_total != 0u) {
         fprintf(stderr,
                 "lifecycle_test: unexpected route totals g=%llu p=%llu f=%llu\n",
                 (unsigned long long)ctx.routed_global_total,
@@ -228,14 +452,49 @@ int main(void) {
                 (unsigned long long)ctx.render_target_redraw_total);
         return 1;
     }
-    if (ctx.render_module_calls_total != 4u ||
-        ctx.render_module_canvas_calls_total != 2u ||
-        ctx.render_module_palette_calls_total != 2u) {
+    if (ctx.render_module_calls_total != 12u ||
+        ctx.render_module_canvas_calls_total != 3u ||
+        ctx.render_module_palette_calls_total != 3u) {
         fprintf(stderr,
                 "lifecycle_test: unexpected module render call totals total=%llu canvas=%llu palette=%llu\n",
                 (unsigned long long)ctx.render_module_calls_total,
                 (unsigned long long)ctx.render_module_canvas_calls_total,
                 (unsigned long long)ctx.render_module_palette_calls_total);
+        return 1;
+    }
+    if (!expect_ok(drawing_program_history_undo(&ctx.history, &ctx.document), "history_undo_brush_seed")) {
+        return 1;
+    }
+    if (!expect_ok(drawing_program_document_sample_read(&ctx.document, center_x, center_y, &center_undo),
+                   "sample_read_center_after_undo")) {
+        return 1;
+    }
+    if (center_undo != center_before) {
+        fprintf(stderr, "lifecycle_test: expected center sample restore on undo before=%u after_undo=%u\n",
+                (unsigned)center_before,
+                (unsigned)center_undo);
+        return 1;
+    }
+    if (!expect_ok(drawing_program_history_redo(&ctx.history, &ctx.document), "history_redo_brush_seed")) {
+        return 1;
+    }
+    if (!expect_ok(drawing_program_document_sample_read(&ctx.document, center_x, center_y, &center_redo),
+                   "sample_read_center_after_redo")) {
+        return 1;
+    }
+    if (center_redo != 255u) {
+        fprintf(stderr, "lifecycle_test: expected center sample 255 after redo got=%u\n", (unsigned)center_redo);
+        return 1;
+    }
+    if (ctx.render_projection.raster_sample_count == 0u ||
+        ctx.render_projection.raster_nonzero_count == 0u ||
+        ctx.render_projection.raster_hash32 == 0u) {
+        fprintf(stderr, "lifecycle_test: expected raster projection baseline populated\n");
+        return 1;
+    }
+    if (ctx.render_canvas_last_raster_hash != ctx.render_projection.raster_hash32 ||
+        ctx.render_canvas_last_nonzero_samples != ctx.render_projection.raster_nonzero_count) {
+        fprintf(stderr, "lifecycle_test: expected canvas module to consume raster projection fields\n");
         return 1;
     }
     if (!ctx.render_last_has_active_layer || ctx.render_last_active_layer_id != 1u) {

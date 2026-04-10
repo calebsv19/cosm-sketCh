@@ -14,14 +14,19 @@ extern "C" {
 
 typedef enum DrawingProgramCommandType {
     DRAWING_PROGRAM_COMMAND_NONE = 0,
-    DRAWING_PROGRAM_COMMAND_SET_LAYER_VISIBILITY = 1
+    DRAWING_PROGRAM_COMMAND_SET_LAYER_VISIBILITY = 1,
+    DRAWING_PROGRAM_COMMAND_SET_SAMPLE_VALUE = 2
 } DrawingProgramCommandType;
 
 typedef struct DrawingProgramCommand {
     DrawingProgramCommandType type;
     uint32_t layer_id;
+    uint32_t sample_x;
+    uint32_t sample_y;
     uint8_t new_visibility;
     uint8_t previous_visibility;
+    uint8_t new_sample_value;
+    uint8_t previous_sample_value;
 } DrawingProgramCommand;
 
 typedef struct DrawingProgramHistory {
@@ -35,6 +40,11 @@ CoreResult drawing_program_history_apply_set_layer_visibility(DrawingProgramHist
                                                               DrawingProgramDocument *document,
                                                               uint32_t layer_id,
                                                               uint8_t visible);
+CoreResult drawing_program_history_apply_set_sample_value(DrawingProgramHistory *history,
+                                                          DrawingProgramDocument *document,
+                                                          uint32_t sample_x,
+                                                          uint32_t sample_y,
+                                                          uint8_t value);
 CoreResult drawing_program_history_undo(DrawingProgramHistory *history, DrawingProgramDocument *document);
 CoreResult drawing_program_history_redo(DrawingProgramHistory *history, DrawingProgramDocument *document);
 

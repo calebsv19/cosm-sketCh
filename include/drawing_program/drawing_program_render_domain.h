@@ -27,6 +27,9 @@ typedef struct DrawingProgramRenderFrameProjection {
     uint32_t visible_layer_count;
     uint32_t hidden_layer_count;
     uint32_t active_layer_id;
+    uint32_t raster_sample_count;
+    uint32_t raster_nonzero_count;
+    uint32_t raster_hash32;
     uint8_t has_active_layer;
     uint8_t full_redraw;
     uint8_t targeted_redraw;

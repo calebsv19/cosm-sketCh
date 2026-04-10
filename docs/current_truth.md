@@ -1,6 +1,6 @@
 # Current Truth
 
-Status date: 2026-04-08
+Status date: 2026-04-09
 
 - Program scaffold directory created under `drawing_program/`.
 - Identity lock established for brand (`sketCh`) and internal key (`drawing_program`).
@@ -9,12 +9,57 @@ Status date: 2026-04-08
 - Canonical app entry is wired: `drawing_program_app_main(...)`, plus thin `main` and headless wrappers.
 - Baseline build/test/headless-smoke targets are wired in `drawing_program/Makefile`.
 - Visual runtime path is wired with SDL window creation for `make run` (`drawing_program_app_visual_main`).
+- Render backend contract seam is now explicit in visual runtime:
+  - `--render-backend sdl-debug` (implemented debug lane)
+  - `--render-backend vulkan-kit` (declared production target lane; not implemented yet in `P4-S1`)
+- Visual runtime now presents deterministic non-empty frames:
+  - clear + pane debug rectangles by solved leaf layout
+  - pane/module coloring now resolves via shared `core_theme` tokens (no hardcoded pane colors)
+  - per-frame diagnostics reflected in window title text
+- Visual pane solve is now bound to live runtime window bounds (not fixed-size solve), and debug-fit/marker projection artifacts are removed from the frame draw path.
+- Pane scaffold seed now resolves to 4 panes:
+  - top menu bar
+  - bottom left panel
+  - bottom center canvas
+  - bottom right inspector
+- Visual harness supports module swap probe on center pane:
+  - keys `1..4` remap center-pane module type
+  - title readout reports center module type + active tool id
+- Phase 6 UI legibility pass (`P6-S1`) is implemented:
+  - top pane renders explicit menu-bar chrome and active-tool status chip
+  - left pane renders tools panel with active-row highlight
+  - right pane renders canvas info panel (layer/visibility/history/raster + key hints)
+  - center pane renders viewport label/chrome on top of raster preview
+- Phase 6 world-view interaction baseline (`P6-S2`) is implemented:
+  - center pane renders world-view grid and a movable white canvas sheet
+  - left-click/drag draws onto canvas sheet via history-backed sample writes
+  - right-click/drag pans viewport; mouse wheel zooms viewport
+  - center/right chrome reflects live viewport transform (`pan`/`zoom`)
+- Phase 6 side-panel controls baseline (`P6-S3`) is implemented:
+  - left pane seeded as switchable host (`TOOLS` / `VIEW`) with clickable tabs
+  - tool rows are clickable and route through workflow control path (not hotkeys only)
+  - right pane seeded as switchable host (`CANVAS` / `LAYER`) with clickable tabs
+  - active-layer visibility is toggleable from pane UI control
+  - control rows/tabs include hover/selection visuals for interaction legibility
+- Visual UI settings persistence seed is now implemented:
+  - theme preset cycles with `Cmd/Ctrl+Shift+T` (forward) and `Cmd/Ctrl+Shift+Y` (backward)
+  - text size step controls are wired: `Cmd/Ctrl +` grow, `Cmd/Ctrl -` shrink, `Cmd/Ctrl 0` reset
+  - current theme preset, font preset, font zoom step, and side-panel slot selections persist in snapshot (`DPUI` chunk, v2)
+  - persisted UI settings are restored on runtime start when present
 - IR1 input routing seams are implemented in run loop with explicit phases:
   - `InputIntake`
   - `InputNormalize`
   - `InputRoute`
   - `InputInvalidate`
+- Runtime orchestration seam is explicitly isolated and wired in run loop:
+  - `drawing_program_runtime_orchestration_plan_frame(...)`
+  - `drawing_program_runtime_orchestration_dispatch_immediate(...)`
+  - `drawing_program_runtime_orchestration_submit_deferred(...)`
+  - queued/deferred lane is contract-declared with deterministic guard failure when non-zero queue is presented in current phase scope
 - Typed IR1 contracts and diagnostics counters are wired and validated in lifecycle tests.
+- IR1 seed behavior now includes deterministic tool switch request:
+  - frame-0 keyboard action normalizes into tool switch to `SELECT`
+  - run-loop applies tool switch before render projection/invalidation accounting
 - Pane host skeleton is wired using shared libs:
   - `core_pane`
   - `core_layout`
@@ -24,6 +69,14 @@ Status date: 2026-04-08
   - snapshot stage/apply/cancel
   - runtime pause/resume/tick
   - runtime/overlay input route and render hooks
+- Runtime-vs-authoring boundary guard contract is now explicitly enforced and tested:
+  - runtime tick/input/render are rejected while overlay authoring is active (or runtime paused)
+  - overlay input/render hooks require authoring-active
+  - persist save/export hooks now require runtime-active and unpaused state
+  - visual debug backend draw path now requires runtime-active and unpaused state
+  - lifecycle tests verify both rejection and re-acceptance transitions across authoring commit/discard
+- Phase 4 closeout record (`P4-S5`) is complete with `P4-S1..P4-S5` fully landed.
+- Phase 3 runtime-visibility/tool-seed lane is closed out with all slices complete (`P3-S1..P3-S5`).
 - Packaging baseline targets are implemented:
   - `package-desktop*` lane including smoke and launcher self-test
   - package now bundles dependent dylibs into `Contents/Frameworks` and ad-hoc signs bundle artifacts
@@ -38,13 +91,36 @@ Status date: 2026-04-08
   - pack save/load (`DPS2` chunk) via `core_pack`
   - debug JSON export path
   - workspace preset bridge-check path against `WSPS` chunk
+  - workspace preset import/apply path:
+    - `--bridge-workspace-import`
+    - imports WSPS layout into drawing pane host and rebinds drawing module roles deterministically
 - Render-domain baseline is implemented:
   - deterministic document/editor -> render projection (`logical canvas`, `layer visibility`, `active-layer`, `redraw policy`)
   - redraw policy hooks into IR1 invalidation output
   - pane-host runtime render dispatch now executes bound module render callbacks each frame
+- Document-backed raster baseline is now wired:
+  - document seeds deterministic raster samples (`raster_width/height/sample_count/samples[]`)
+  - render projection includes raster metadata (`sample_count`, `nonzero_count`, `hash32`)
+  - visual canvas pane renders raster preview from document sample data
+- First real mutation lane is now wired through command/history:
+  - pointer seed action in runtime orchestration applies brush stamp via history command
+  - history supports sample-value command type with undo/redo replay
+- Minimal workflow controls are now wired through runtime orchestration and visual input:
+  - tool controls: `B/E/F/L/R/C/S/M/I`
+  - active layer visibility toggle: `V`
+  - undo/redo: `Z`, `Shift+Z`, `Y`
+  - deterministic center sample stamp: `Space`
+  - controls mutate real editor/document/history state (not debug-only pane color state)
+- Phase 5 base closeout is complete (`P5-S1..P5-S5`) with bounded carry-forward:
+  - next behavior lane is symmetry/palette/selection depth
+  - backend remains `sdl-debug` for active runtime while `vulkan-kit` remains planned
+- Synthetic seed input path is now headless-only:
+  - visual mode no longer force-injects frame-0 key/pointer actions each frame
+  - headless lifecycle lane remains deterministic for contract regression checks
 - CLI/Make snapshot validation paths:
   - `make -C drawing_program export-snapshot-json EXPORT_PRESET=<pack> EXPORT_JSON=<json>`
   - `make -C drawing_program snapshot-bridge-check WORKSPACE_PRESET=../workspace_sandbox/data/presets/sketch_layout_v1.pack`
+  - `make -C drawing_program snapshot-bridge-import WORKSPACE_PRESET=../workspace_sandbox/data/presets/sketch_layout_v1.pack`
 - Shared integration mode controls are present:
   - `make -C drawing_program shared-mode`
   - `make -C drawing_program shared-subtree-check`

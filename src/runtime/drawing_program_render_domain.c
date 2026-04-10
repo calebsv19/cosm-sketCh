@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "core_base.h"
 #include "drawing_program/drawing_program_document.h"
 #include "drawing_program/drawing_program_editor_state.h"
 
@@ -26,6 +27,7 @@ CoreResult drawing_program_render_project_frame(
     out_projection->sample_density = document->sample_density;
     out_projection->layer_count = document->layer_count;
     out_projection->active_layer_id = editor->active_layer_id;
+    out_projection->raster_sample_count = document->raster_sample_count;
     out_projection->invalidation_reason_bits = invalidation->invalidation_reason_bits;
     out_projection->full_redraw =
         (invalidation->full_invalidate || invalidation->full_invalidation_count > 0u) ? 1u : 0u;
@@ -40,6 +42,12 @@ CoreResult drawing_program_render_project_frame(
             out_projection->has_active_layer = 1u;
         }
     }
+    for (i = 0u; i < document->raster_sample_count; ++i) {
+        if (document->raster_samples[i] != 0u) {
+            out_projection->raster_nonzero_count += 1u;
+        }
+    }
+    out_projection->raster_hash32 = core_hash32_fnv1a(document->raster_samples, document->raster_sample_count);
     out_projection->hidden_layer_count = out_projection->layer_count - out_projection->visible_layer_count;
 
     return core_result_ok();

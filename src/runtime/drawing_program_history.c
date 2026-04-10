@@ -62,6 +62,32 @@ CoreResult drawing_program_history_apply_set_layer_visibility(DrawingProgramHist
     return core_result_ok();
 }
 
+CoreResult drawing_program_history_apply_set_sample_value(DrawingProgramHistory *history,
+                                                          DrawingProgramDocument *document,
+                                                          uint32_t sample_x,
+                                                          uint32_t sample_y,
+                                                          uint8_t value) {
+    DrawingProgramCommand command;
+    CoreResult result;
+    uint8_t prev = 0u;
+    if (!history || !document) {
+        return drawing_program_history_invalid("invalid sample command request");
+    }
+
+    result = drawing_program_document_sample_write(document, sample_x, sample_y, value, &prev);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    memset(&command, 0, sizeof(command));
+    command.type = DRAWING_PROGRAM_COMMAND_SET_SAMPLE_VALUE;
+    command.sample_x = sample_x;
+    command.sample_y = sample_y;
+    command.new_sample_value = value;
+    command.previous_sample_value = prev;
+    drawing_program_history_push(history, &command);
+    return core_result_ok();
+}
+
 CoreResult drawing_program_history_undo(DrawingProgramHistory *history, DrawingProgramDocument *document) {
     const DrawingProgramCommand *command;
     if (!history || !document) {
@@ -77,6 +103,13 @@ CoreResult drawing_program_history_undo(DrawingProgramHistory *history, DrawingP
                                                              command->layer_id,
                                                              command->previous_visibility,
                                                              0);
+    }
+    if (command->type == DRAWING_PROGRAM_COMMAND_SET_SAMPLE_VALUE) {
+        return drawing_program_document_sample_write(document,
+                                                     command->sample_x,
+                                                     command->sample_y,
+                                                     command->previous_sample_value,
+                                                     0);
     }
     return drawing_program_history_invalid("unsupported undo command");
 }
@@ -95,6 +128,18 @@ CoreResult drawing_program_history_redo(DrawingProgramHistory *history, DrawingP
                                                                           command->layer_id,
                                                                           command->new_visibility,
                                                                           0);
+        if (result.code != CORE_OK) {
+            return result;
+        }
+        history->cursor += 1u;
+        return core_result_ok();
+    }
+    if (command->type == DRAWING_PROGRAM_COMMAND_SET_SAMPLE_VALUE) {
+        CoreResult result = drawing_program_document_sample_write(document,
+                                                                  command->sample_x,
+                                                                  command->sample_y,
+                                                                  command->new_sample_value,
+                                                                  0);
         if (result.code != CORE_OK) {
             return result;
         }
