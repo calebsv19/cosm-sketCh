@@ -23,6 +23,9 @@ typedef struct DrawingProgramAppContext {
     uint8_t export_json_requested;
     uint8_t bridge_workspace_check_requested;
     uint8_t bridge_workspace_import_requested;
+    uint8_t runtime_root_cli_override;
+    uint8_t input_root_cli_override;
+    uint8_t output_root_cli_override;
     uint32_t smoke_frames;
     uint64_t frame_counter;
     uint8_t state_seeded;
@@ -63,6 +66,9 @@ typedef struct DrawingProgramAppContext {
     uint8_t ui_left_panel_slot;
     uint8_t ui_right_panel_slot;
     int8_t ui_font_zoom_step;
+    char runtime_root_path[512];
+    char input_root_path[512];
+    char output_root_path[512];
     const char *preset_path;
     const char *export_json_path;
     const char *bridge_workspace_preset_path;

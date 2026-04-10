@@ -24,12 +24,16 @@ Near-term (active):
   - `P5-S4` minimal workflow controls complete
   - `P5-S5` phase 5 base closeout complete
 - next lane:
-  - Phase 6 interactive UI foundation kickoff:
+  - Phase 6 interactive UI foundation complete:
     - `P6-S1` explicit menu/side-pane chrome + visible state HUD complete
     - `P6-S2` center world-view viewport + movable white canvas sheet + pointer draw baseline complete
     - `P6-S3` switchable side-panel host seed with interactive controls complete
-    - `P6-S4` scaffold guardrail sync (`RS1` + data-root checkpoint)
-    - `P6-S5` closeout and Phase 7 entry boundary
+    - `P6-S4` scaffold guardrail sync complete (`RS1` + data-root checkpoint)
+    - `P6-S5` closeout and Phase 7 entry boundary complete
+  - next: Phase 7 interaction depth kickoff:
+    - `P7-S1` brush geometry baseline
+    - `P7-S2` palette/color model baseline
+    - `P7-S3` selection seed baseline
   - keep `WSPS` bridge compatibility and overlay/runtime contract invariants locked while deepening behavior
 - keep workspace preset bridge compatibility maintained while feature depth increases
 

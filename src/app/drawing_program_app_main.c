@@ -83,6 +83,25 @@ static void drawing_program_lifecycle_note(const DrawingProgramAppContext *ctx, 
     printf("drawing_program lifecycle: %s\n", stage_name ? stage_name : "unknown");
 }
 
+static void drawing_program_seed_data_roots(DrawingProgramAppContext *ctx) {
+    const char *runtime_env;
+    if (!ctx) {
+        return;
+    }
+    runtime_env = getenv("DRAWING_PROGRAM_RUNTIME_DIR");
+    if (runtime_env && runtime_env[0] != '\0') {
+        if (!ctx->runtime_root_cli_override) {
+            (void)snprintf(ctx->runtime_root_path, sizeof(ctx->runtime_root_path), "%s", runtime_env);
+        }
+        if (!ctx->input_root_cli_override) {
+            (void)snprintf(ctx->input_root_path, sizeof(ctx->input_root_path), "%s/input", ctx->runtime_root_path);
+        }
+        if (!ctx->output_root_cli_override) {
+            (void)snprintf(ctx->output_root_path, sizeof(ctx->output_root_path), "%s/output", ctx->runtime_root_path);
+        }
+    }
+}
+
 static void drawing_program_input_intake(uint64_t frame_index,
                                          uint32_t total_frames,
                                          uint8_t simulate_events,
@@ -145,6 +164,84 @@ static CoreResult drawing_program_render_project_and_update_counters(
     return core_result_ok();
 }
 
+/* RS1 Update phase: input intake/route + immediate/deferred dispatch. */
+static CoreResult drawing_program_frame_update(DrawingProgramAppContext *ctx,
+                                               uint32_t frame_index,
+                                               uint32_t total_frames,
+                                               DrawingProgramInputEventRaw *raw_out,
+                                               DrawingProgramInputEventNormalized *normalized_out,
+                                               DrawingProgramInputRouteResult *route_out,
+                                               DrawingProgramInputInvalidationResult *invalidation_out) {
+    CoreResult result;
+    DrawingProgramOverlayAdapterResult adapter_result;
+    if (!ctx || !raw_out || !normalized_out || !route_out || !invalidation_out) {
+        return drawing_program_invalid("null RS1 update argument");
+    }
+    adapter_result = drawing_program_adapter_runtime_tick(ctx);
+    if (!adapter_result.ok) {
+        CoreResult err = { CORE_ERR_FORMAT, adapter_result.reason };
+        return err;
+    }
+    adapter_result = drawing_program_adapter_input_route_runtime(ctx);
+    if (!adapter_result.ok) {
+        CoreResult err = { CORE_ERR_FORMAT, adapter_result.reason };
+        return err;
+    }
+    drawing_program_input_intake((uint64_t)frame_index, total_frames, ctx->headless, raw_out);
+    result = drawing_program_runtime_orchestration_plan_frame(raw_out, normalized_out, route_out, invalidation_out);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    result = drawing_program_runtime_orchestration_dispatch_immediate(ctx, normalized_out);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    result = drawing_program_runtime_orchestration_submit_deferred(ctx, normalized_out);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    ctx->input_events_processed += (uint64_t)raw_out->event_count;
+    ctx->input_actions_emitted += (uint64_t)normalized_out->action_count;
+    ctx->routed_global_total += (uint64_t)route_out->routed_global_count;
+    ctx->routed_pane_total += (uint64_t)route_out->routed_pane_count;
+    ctx->routed_fallback_total += (uint64_t)route_out->routed_fallback_count;
+    ctx->invalidation_target_total += (uint64_t)invalidation_out->target_invalidation_count;
+    ctx->invalidation_full_total += (uint64_t)invalidation_out->full_invalidation_count;
+    ctx->invalidation_reason_bits_total += (uint64_t)invalidation_out->invalidation_reason_bits;
+    return core_result_ok();
+}
+
+/* RS1 RenderDerive phase: derive projection/transforms only. */
+static CoreResult drawing_program_frame_render_derive(
+    DrawingProgramAppContext *ctx,
+    const DrawingProgramInputInvalidationResult *invalidation,
+    DrawingProgramViewportTransform *viewport_out) {
+    CoreResult result;
+    if (!ctx || !invalidation || !viewport_out) {
+        return drawing_program_invalid("null RS1 render_derive argument");
+    }
+    result = drawing_program_render_project_and_update_counters(ctx, invalidation);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    drawing_program_viewport_transform_from_state(&ctx->editor, &ctx->document, viewport_out);
+    return core_result_ok();
+}
+
+/* RS1 RenderSubmit phase: submit to active backend/runtime adapter. */
+static CoreResult drawing_program_frame_render_submit(DrawingProgramAppContext *ctx) {
+    DrawingProgramOverlayAdapterResult adapter_result;
+    if (!ctx) {
+        return drawing_program_invalid("null RS1 render_submit argument");
+    }
+    adapter_result = drawing_program_adapter_render_runtime_base(ctx);
+    if (!adapter_result.ok) {
+        CoreResult err = { CORE_ERR_FORMAT, adapter_result.reason };
+        return err;
+    }
+    return core_result_ok();
+}
+
 CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc, char **argv) {
     int i;
     if (!ctx) {
@@ -163,6 +260,9 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
     ctx->ui_left_panel_slot = 0u;
     ctx->ui_right_panel_slot = 0u;
     ctx->ui_font_zoom_step = 0;
+    (void)snprintf(ctx->runtime_root_path, sizeof(ctx->runtime_root_path), "data/runtime");
+    (void)snprintf(ctx->input_root_path, sizeof(ctx->input_root_path), "data/input");
+    (void)snprintf(ctx->output_root_path, sizeof(ctx->output_root_path), "data/output");
 
     for (i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--headless") == 0) {
@@ -196,6 +296,21 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
             ctx->bridge_workspace_import_requested = 1u;
             continue;
         }
+        if (strcmp(argv[i], "--runtime-root") == 0 && i + 1 < argc) {
+            (void)snprintf(ctx->runtime_root_path, sizeof(ctx->runtime_root_path), "%s", argv[++i]);
+            ctx->runtime_root_cli_override = 1u;
+            continue;
+        }
+        if (strcmp(argv[i], "--input-root") == 0 && i + 1 < argc) {
+            (void)snprintf(ctx->input_root_path, sizeof(ctx->input_root_path), "%s", argv[++i]);
+            ctx->input_root_cli_override = 1u;
+            continue;
+        }
+        if (strcmp(argv[i], "--output-root") == 0 && i + 1 < argc) {
+            (void)snprintf(ctx->output_root_path, sizeof(ctx->output_root_path), "%s", argv[++i]);
+            ctx->output_root_cli_override = 1u;
+            continue;
+        }
     }
 
     return core_result_ok();
@@ -205,6 +320,7 @@ CoreResult drawing_program_app_config_load(DrawingProgramAppContext *ctx) {
     if (!ctx) {
         return drawing_program_invalid("null app context");
     }
+    drawing_program_seed_data_roots(ctx);
     return core_result_ok();
 }
 
@@ -335,56 +451,25 @@ CoreResult drawing_program_app_run_loop(DrawingProgramAppContext *ctx) {
     }
 
     for (i = 0; i < frames; ++i) {
-        DrawingProgramOverlayAdapterResult adapter_result;
         DrawingProgramScreenPoint screen_probe;
         DrawingProgramSamplePoint sample_probe;
-        adapter_result = drawing_program_adapter_runtime_tick(ctx);
-        if (!adapter_result.ok) {
-            CoreResult err = { CORE_ERR_FORMAT, adapter_result.reason };
-            return err;
-        }
-        adapter_result = drawing_program_adapter_input_route_runtime(ctx);
-        if (!adapter_result.ok) {
-            CoreResult err = { CORE_ERR_FORMAT, adapter_result.reason };
-            return err;
-        }
-        drawing_program_input_intake((uint64_t)i, frames, ctx->headless, &raw);
-        result = drawing_program_runtime_orchestration_plan_frame(&raw, &normalized, &route, &invalidation);
+        result = drawing_program_frame_update(ctx, i, frames, &raw, &normalized, &route, &invalidation);
         if (result.code != CORE_OK) {
             return result;
         }
-        result = drawing_program_runtime_orchestration_dispatch_immediate(ctx, &normalized);
+        result = drawing_program_frame_render_derive(ctx, &invalidation, &viewport_transform);
         if (result.code != CORE_OK) {
             return result;
         }
-        result = drawing_program_runtime_orchestration_submit_deferred(ctx, &normalized);
-        if (result.code != CORE_OK) {
-            return result;
-        }
-        result = drawing_program_render_project_and_update_counters(ctx, &invalidation);
-        if (result.code != CORE_OK) {
-            return result;
-        }
-        drawing_program_viewport_transform_from_state(&ctx->editor, &ctx->document, &viewport_transform);
         screen_probe.x = 100.0f + (float)i;
         screen_probe.y = 100.0f + (float)i;
         if (drawing_program_screen_to_sample(viewport_transform, screen_probe, &sample_probe)) {
             ctx->viewport_sample_probe_success_total += 1u;
         }
-        adapter_result = drawing_program_adapter_render_runtime_base(ctx);
-        if (!adapter_result.ok) {
-            CoreResult err = { CORE_ERR_FORMAT, adapter_result.reason };
-            return err;
+        result = drawing_program_frame_render_submit(ctx);
+        if (result.code != CORE_OK) {
+            return result;
         }
-
-        ctx->input_events_processed += (uint64_t)raw.event_count;
-        ctx->input_actions_emitted += (uint64_t)normalized.action_count;
-        ctx->routed_global_total += (uint64_t)route.routed_global_count;
-        ctx->routed_pane_total += (uint64_t)route.routed_pane_count;
-        ctx->routed_fallback_total += (uint64_t)route.routed_fallback_count;
-        ctx->invalidation_target_total += (uint64_t)invalidation.target_invalidation_count;
-        ctx->invalidation_full_total += (uint64_t)invalidation.full_invalidation_count;
-        ctx->invalidation_reason_bits_total += (uint64_t)invalidation.invalidation_reason_bits;
         ctx->frame_counter += 1u;
     }
 

@@ -41,6 +41,10 @@ Status date: 2026-04-09
   - right pane seeded as switchable host (`CANVAS` / `LAYER`) with clickable tabs
   - active-layer visibility is toggleable from pane UI control
   - control rows/tabs include hover/selection visuals for interaction legibility
+- Phase 6 closeout (`P6-S5`) is complete:
+  - phase objective met: interactive UI scaffold is now visibly reactive and usable as a stable editor shell baseline
+  - Phase 7 entry boundary is locked to interaction-depth slices (brush geometry, palette model, selection seed)
+  - scaffold/runtime contract invariants remain locked (`IR1`, `RS1`, overlay boundary, WSPS bridge)
 - Visual UI settings persistence seed is now implemented:
   - theme preset cycles with `Cmd/Ctrl+Shift+T` (forward) and `Cmd/Ctrl+Shift+Y` (backward)
   - text size step controls are wired: `Cmd/Ctrl +` grow, `Cmd/Ctrl -` shrink, `Cmd/Ctrl 0` reset
@@ -56,6 +60,16 @@ Status date: 2026-04-09
   - `drawing_program_runtime_orchestration_dispatch_immediate(...)`
   - `drawing_program_runtime_orchestration_submit_deferred(...)`
   - queued/deferred lane is contract-declared with deterministic guard failure when non-zero queue is presented in current phase scope
+- RS1 execution seam is now explicit in app run-loop code ownership:
+  - `drawing_program_frame_update(...)`
+  - `drawing_program_frame_render_derive(...)`
+  - `drawing_program_frame_render_submit(...)`
+  - mutation, derive, and submit responsibilities are separated without behavior drift
+- Data-root checkpoint paths are seeded in app context:
+  - `runtime_root_path`, `input_root_path`, `output_root_path`
+  - defaults: `data/runtime`, `data/input`, `data/output`
+  - runtime package root override via `DRAWING_PROGRAM_RUNTIME_DIR`
+  - CLI overrides available: `--runtime-root`, `--input-root`, `--output-root`
 - Typed IR1 contracts and diagnostics counters are wired and validated in lifecycle tests.
 - IR1 seed behavior now includes deterministic tool switch request:
   - frame-0 keyboard action normalizes into tool switch to `SELECT`
