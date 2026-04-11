@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "core_base.h"
+#include "drawing_program/drawing_program_color_model.h"
 #include "drawing_program/drawing_program_document.h"
 #include "drawing_program/drawing_program_editor_state.h"
 #include "drawing_program/drawing_program_history.h"
@@ -23,6 +24,8 @@ typedef struct DrawingProgramAppContext {
     uint8_t export_json_requested;
     uint8_t bridge_workspace_check_requested;
     uint8_t bridge_workspace_import_requested;
+    uint8_t preset_path_cli_override;
+    uint8_t persist_enabled;
     uint8_t runtime_root_cli_override;
     uint8_t input_root_cli_override;
     uint8_t output_root_cli_override;
@@ -65,10 +68,12 @@ typedef struct DrawingProgramAppContext {
     uint32_t ui_font_preset_id;
     uint8_t ui_left_panel_slot;
     uint8_t ui_right_panel_slot;
+    uint8_t ui_active_color_index;
     int8_t ui_font_zoom_step;
     char runtime_root_path[512];
     char input_root_path[512];
     char output_root_path[512];
+    char preset_path_buffer[512];
     const char *preset_path;
     const char *export_json_path;
     const char *bridge_workspace_preset_path;

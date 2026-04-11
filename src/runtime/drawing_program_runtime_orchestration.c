@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "drawing_program/drawing_program_color_model.h"
 #include "drawing_program/drawing_program_history.h"
 
 static CoreResult orchestration_invalid(const char *message) {
@@ -23,7 +24,8 @@ static CoreResult set_active_tool(DrawingProgramAppContext *ctx, DrawingProgramT
 static CoreResult stamp_center_sample(DrawingProgramAppContext *ctx) {
     uint32_t sx;
     uint32_t sy;
-    uint8_t value = 255u;
+    uint8_t value = drawing_program_color_value_from_index(
+        ctx ? drawing_program_color_index_clamp(ctx->ui_active_color_index) : drawing_program_color_default_index());
     if (!ctx) {
         return orchestration_invalid("null app context for stamp center sample");
     }
@@ -31,32 +33,18 @@ static CoreResult stamp_center_sample(DrawingProgramAppContext *ctx) {
     sy = ctx->document.raster_height > 0u ? (ctx->document.raster_height / 2u) : 0u;
     switch (ctx->editor.active_tool) {
         case DRAWING_PROGRAM_TOOL_ERASER:
-            value = 0u;
-            break;
-        case DRAWING_PROGRAM_TOOL_FILL:
-            value = 220u;
-            break;
-        case DRAWING_PROGRAM_TOOL_LINE:
-            value = 200u;
-            break;
-        case DRAWING_PROGRAM_TOOL_RECT:
-            value = 180u;
-            break;
-        case DRAWING_PROGRAM_TOOL_CIRCLE:
-            value = 160u;
-            break;
-        case DRAWING_PROGRAM_TOOL_SELECT:
-            value = 140u;
-            break;
-        case DRAWING_PROGRAM_TOOL_MOVE:
-            value = 120u;
-            break;
-        case DRAWING_PROGRAM_TOOL_PICKER:
-            value = 100u;
+            value = drawing_program_color_eraser_value();
             break;
         case DRAWING_PROGRAM_TOOL_BRUSH:
+        case DRAWING_PROGRAM_TOOL_FILL:
+        case DRAWING_PROGRAM_TOOL_LINE:
+        case DRAWING_PROGRAM_TOOL_RECT:
+        case DRAWING_PROGRAM_TOOL_CIRCLE:
+        case DRAWING_PROGRAM_TOOL_SELECT:
+        case DRAWING_PROGRAM_TOOL_MOVE:
+        case DRAWING_PROGRAM_TOOL_PICKER:
         default:
-            value = 255u;
+            value = drawing_program_color_value_from_index(drawing_program_color_index_clamp(ctx->ui_active_color_index));
             break;
     }
     return drawing_program_history_apply_set_sample_value(&ctx->history, &ctx->document, sx, sy, value);
@@ -105,6 +93,9 @@ CoreResult drawing_program_runtime_orchestration_apply_workflow_control(
             return drawing_program_history_undo(&ctx->history, &ctx->document);
         case DRAWING_PROGRAM_WORKFLOW_CONTROL_REDO:
             return drawing_program_history_redo(&ctx->history, &ctx->document);
+        case DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_HISTORY:
+            drawing_program_history_clear(&ctx->history);
+            return core_result_ok();
         case DRAWING_PROGRAM_WORKFLOW_CONTROL_STAMP_CENTER_SAMPLE:
             return stamp_center_sample(ctx);
         case DRAWING_PROGRAM_WORKFLOW_CONTROL_NONE:

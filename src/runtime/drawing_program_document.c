@@ -1,4 +1,5 @@
 #include "drawing_program/drawing_program_document.h"
+#include "drawing_program/drawing_program_color_model.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -26,7 +27,7 @@ CoreResult drawing_program_document_init_default(DrawingProgramDocument *documen
     }
 
     memset(document, 0, sizeof(*document));
-    document->schema_version = 1u;
+    document->schema_version = 2u;
     document->logical_width = 512u;
     document->logical_height = 512u;
     document->sample_density = 1u;
@@ -46,28 +47,10 @@ CoreResult drawing_program_document_init_default(DrawingProgramDocument *documen
     document->layers[0].visible = 1u;
     document->layers[0].locked = 0u;
 
-    if (document->raster_width > 0u && document->raster_height > 0u && document->raster_sample_count > 0u) {
-        uint32_t x;
-        uint32_t y;
-        for (y = 0u; y < document->raster_height; ++y) {
-            for (x = 0u; x < document->raster_width; ++x) {
-                uint32_t idx = (y * document->raster_width) + x;
-                uint8_t base = ((x / 16u + y / 16u) & 1u) ? 44u : 24u;
-                if (idx >= document->raster_sample_count) {
-                    break;
-                }
-                if (x == y || x + y == document->raster_width - 1u) {
-                    base = 180u;
-                }
-                if (x > document->raster_width / 2u - 2u && x < document->raster_width / 2u + 2u) {
-                    base = 220u;
-                }
-                if (y > document->raster_height / 2u - 2u && y < document->raster_height / 2u + 2u) {
-                    base = 220u;
-                }
-                document->raster_samples[idx] = base;
-            }
-        }
+    if (document->raster_sample_count > 0u) {
+        memset(document->raster_samples,
+               (int)drawing_program_color_eraser_value(),
+               (size_t)document->raster_sample_count);
     }
     return core_result_ok();
 }
@@ -131,5 +114,66 @@ CoreResult drawing_program_document_sample_write(DrawingProgramDocument *documen
         *out_previous_value = document->raster_samples[idx];
     }
     document->raster_samples[idx] = value;
+    return core_result_ok();
+}
+
+CoreResult drawing_program_document_upgrade_legacy_checker_seed(DrawingProgramDocument *document,
+                                                                uint8_t *out_upgraded) {
+    uint32_t x;
+    uint32_t y;
+    uint64_t sample_total = 0u;
+    uint64_t checker_match_count = 0u;
+    uint32_t required_match_percent = 75u;
+    uint8_t upgraded_by_conversion = 0u;
+    uint8_t upgraded = 0u;
+    if (!document) {
+        return drawing_program_document_invalid("invalid legacy checker upgrade request");
+    }
+    if (document->schema_version >= 2u) {
+        /* Recovery lane: tolerate prior bad schema tagging only for near-perfect checker signature. */
+        required_match_percent = 95u;
+    }
+    if (document->raster_sample_count == 0u || document->raster_width == 0u || document->raster_height == 0u) {
+        document->schema_version = 2u;
+        if (out_upgraded) {
+            *out_upgraded = 0u;
+        }
+        return core_result_ok();
+    }
+    for (y = 0u; y < document->raster_height; ++y) {
+        for (x = 0u; x < document->raster_width; ++x) {
+            uint32_t idx = (y * document->raster_width) + x;
+            uint8_t expected = (((x / 16u) + (y / 16u)) & 1u) ? 44u : 24u;
+            if (idx >= document->raster_sample_count) {
+                break;
+            }
+            sample_total += 1u;
+            if (document->raster_samples[idx] == expected) {
+                checker_match_count += 1u;
+            }
+        }
+    }
+    if (sample_total > 0u && (checker_match_count * 100u) >= (sample_total * (uint64_t)required_match_percent)) {
+        for (y = 0u; y < document->raster_height; ++y) {
+            for (x = 0u; x < document->raster_width; ++x) {
+                uint32_t idx = (y * document->raster_width) + x;
+                uint8_t expected = (((x / 16u) + (y / 16u)) & 1u) ? 44u : 24u;
+                if (idx >= document->raster_sample_count) {
+                    break;
+                }
+                if (document->raster_samples[idx] == expected) {
+                    document->raster_samples[idx] = drawing_program_color_eraser_value();
+                    upgraded_by_conversion = 1u;
+                }
+            }
+        }
+    }
+    if (upgraded_by_conversion) {
+        document->schema_version = 2u;
+    }
+    upgraded = upgraded_by_conversion;
+    if (out_upgraded) {
+        *out_upgraded = upgraded;
+    }
     return core_result_ok();
 }

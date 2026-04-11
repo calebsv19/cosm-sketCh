@@ -49,12 +49,24 @@ typedef struct DrawingProgramUiSettingsV2 {
     uint8_t reserved1;
 } DrawingProgramUiSettingsV2;
 
+typedef struct DrawingProgramUiSettingsV3 {
+    uint32_t version;
+    uint32_t theme_preset_id;
+    uint32_t font_preset_id;
+    int32_t font_zoom_step;
+    uint8_t left_panel_slot;
+    uint8_t right_panel_slot;
+    uint8_t active_color_index;
+    uint8_t reserved0;
+} DrawingProgramUiSettingsV3;
+
 enum {
     DRAWING_PROGRAM_WORKSPACE_MAX_NODES = 32u,
     DRAWING_PROGRAM_WORKSPACE_PRESET_VERSION_V1 = 1u,
     DRAWING_PROGRAM_WORKSPACE_PRESET_VERSION_V2 = 2u,
     DRAWING_PROGRAM_UI_SETTINGS_VERSION_V1 = 1u,
-    DRAWING_PROGRAM_UI_SETTINGS_VERSION_V2 = 2u
+    DRAWING_PROGRAM_UI_SETTINGS_VERSION_V2 = 2u,
+    DRAWING_PROGRAM_UI_SETTINGS_VERSION_V3 = 3u
 };
 
 static CoreResult snapshot_invalid(const char *message) {
@@ -196,7 +208,7 @@ static CoreResult drawing_program_rebind_imported_modules(struct DrawingProgramA
 CoreResult drawing_program_snapshot_save(const struct DrawingProgramAppContext *ctx, const char *path) {
     CorePackWriter writer;
     DrawingProgramSnapshotV1 payload;
-    DrawingProgramUiSettingsV2 ui_settings;
+    DrawingProgramUiSettingsV3 ui_settings;
     CoreResult result;
     if (!ctx || !path) {
         return snapshot_invalid("invalid snapshot save request");
@@ -215,23 +227,25 @@ CoreResult drawing_program_snapshot_save(const struct DrawingProgramAppContext *
     memcpy(payload.bindings, ctx->pane_host.module_bindings, sizeof(payload.bindings));
     memcpy(payload.history_entries, ctx->history.entries, sizeof(payload.history_entries));
     memset(&ui_settings, 0, sizeof(ui_settings));
-    ui_settings.version = DRAWING_PROGRAM_UI_SETTINGS_VERSION_V2;
+    ui_settings.version = DRAWING_PROGRAM_UI_SETTINGS_VERSION_V3;
     ui_settings.theme_preset_id = ctx->ui_theme_preset_id;
     ui_settings.font_preset_id = ctx->ui_font_preset_id;
     ui_settings.font_zoom_step = (int32_t)ctx->ui_font_zoom_step;
     ui_settings.left_panel_slot = ctx->ui_left_panel_slot;
     ui_settings.right_panel_slot = ctx->ui_right_panel_slot;
+    ui_settings.active_color_index = ctx->ui_active_color_index;
 
     if (snapshot_trace_enabled()) {
         fprintf(stderr,
-                "drawing_program trace snapshot_save begin path=%s tool=%u theme=%u font=%u zoom=%d slot_l=%u slot_r=%u\n",
+                "drawing_program trace snapshot_save begin path=%s tool=%u theme=%u font=%u zoom=%d slot_l=%u slot_r=%u color=%u\n",
                 path ? path : "(null)",
                 (unsigned)ctx->editor.active_tool,
                 (unsigned)ctx->ui_theme_preset_id,
                 (unsigned)ctx->ui_font_preset_id,
                 (int)ctx->ui_font_zoom_step,
                 (unsigned)ctx->ui_left_panel_slot,
-                (unsigned)ctx->ui_right_panel_slot);
+                (unsigned)ctx->ui_right_panel_slot,
+                (unsigned)ctx->ui_active_color_index);
     }
 
     result = core_pack_writer_open(path, &writer);
@@ -273,6 +287,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
     DrawingProgramSnapshotV1 payload;
     DrawingProgramUiSettingsV1 ui_settings_v1;
     DrawingProgramUiSettingsV2 ui_settings_v2;
+    DrawingProgramUiSettingsV3 ui_settings_v3;
     CoreResult result;
     if (!ctx || !path) {
         return snapshot_invalid("invalid snapshot load request");
@@ -330,9 +345,25 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
     ctx->pane_host.module_binding_count = payload.header.binding_count;
     memset(&ui_settings_v1, 0, sizeof(ui_settings_v1));
     memset(&ui_settings_v2, 0, sizeof(ui_settings_v2));
+    memset(&ui_settings_v3, 0, sizeof(ui_settings_v3));
     result = core_pack_reader_find_chunk(&reader, "DPUI", 0u, &ui_chunk);
     if (result.code == CORE_OK) {
-        if (ui_chunk.size == (uint64_t)sizeof(ui_settings_v2)) {
+        if (ui_chunk.size == (uint64_t)sizeof(ui_settings_v3)) {
+            result = core_pack_reader_read_chunk_data(&reader, &ui_chunk, &ui_settings_v3, (uint64_t)sizeof(ui_settings_v3));
+            if (result.code == CORE_OK &&
+                ui_settings_v3.version == DRAWING_PROGRAM_UI_SETTINGS_VERSION_V3) {
+                if (ui_settings_v3.theme_preset_id < (uint32_t)CORE_THEME_PRESET_COUNT) {
+                    ctx->ui_theme_preset_id = ui_settings_v3.theme_preset_id;
+                }
+                if (ui_settings_v3.font_preset_id < (uint32_t)CORE_FONT_PRESET_COUNT) {
+                    ctx->ui_font_preset_id = ui_settings_v3.font_preset_id;
+                }
+                ctx->ui_font_zoom_step = (int8_t)ui_settings_v3.font_zoom_step;
+                ctx->ui_left_panel_slot = ui_settings_v3.left_panel_slot;
+                ctx->ui_right_panel_slot = ui_settings_v3.right_panel_slot;
+                ctx->ui_active_color_index = ui_settings_v3.active_color_index;
+            }
+        } else if (ui_chunk.size == (uint64_t)sizeof(ui_settings_v2)) {
             result = core_pack_reader_read_chunk_data(&reader, &ui_chunk, &ui_settings_v2, (uint64_t)sizeof(ui_settings_v2));
             if (result.code == CORE_OK &&
                 ui_settings_v2.version == DRAWING_PROGRAM_UI_SETTINGS_VERSION_V2) {
@@ -345,6 +376,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
                 ctx->ui_font_zoom_step = (int8_t)ui_settings_v2.font_zoom_step;
                 ctx->ui_left_panel_slot = ui_settings_v2.left_panel_slot;
                 ctx->ui_right_panel_slot = ui_settings_v2.right_panel_slot;
+                ctx->ui_active_color_index = drawing_program_color_default_index();
             }
         } else if (ui_chunk.size == (uint64_t)sizeof(ui_settings_v1)) {
             result = core_pack_reader_read_chunk_data(&reader, &ui_chunk, &ui_settings_v1, (uint64_t)sizeof(ui_settings_v1));
@@ -355,6 +387,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
                 }
                 ctx->ui_left_panel_slot = ui_settings_v1.left_panel_slot;
                 ctx->ui_right_panel_slot = ui_settings_v1.right_panel_slot;
+                ctx->ui_active_color_index = drawing_program_color_default_index();
             }
         }
     }
@@ -362,7 +395,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
     result = drawing_program_pane_host_rebuild(ctx);
     if (snapshot_trace_enabled()) {
         fprintf(stderr,
-                "drawing_program trace snapshot_load end path=%s code=%d tool=%u theme=%u font=%u zoom=%d slot_l=%u slot_r=%u leafs=%u\n",
+                "drawing_program trace snapshot_load end path=%s code=%d tool=%u theme=%u font=%u zoom=%d slot_l=%u slot_r=%u color=%u leafs=%u\n",
                 path ? path : "(null)",
                 (int)result.code,
                 (unsigned)ctx->editor.active_tool,
@@ -371,6 +404,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
                 (int)ctx->ui_font_zoom_step,
                 (unsigned)ctx->ui_left_panel_slot,
                 (unsigned)ctx->ui_right_panel_slot,
+                (unsigned)ctx->ui_active_color_index,
                 (unsigned)ctx->pane_host.leaf_count);
     }
     return result;
@@ -406,7 +440,10 @@ CoreResult drawing_program_snapshot_export_debug_json(const struct DrawingProgra
     fprintf(f, "    \"font_preset_id\": %u,\n", ctx->ui_font_preset_id);
     fprintf(f, "    \"font_zoom_step\": %d,\n", (int)ctx->ui_font_zoom_step);
     fprintf(f, "    \"left_panel_slot\": %u,\n", (unsigned)ctx->ui_left_panel_slot);
-    fprintf(f, "    \"right_panel_slot\": %u\n", (unsigned)ctx->ui_right_panel_slot);
+    fprintf(f, "    \"right_panel_slot\": %u,\n", (unsigned)ctx->ui_right_panel_slot);
+    fprintf(f, "    \"active_color_index\": %u,\n", (unsigned)ctx->ui_active_color_index);
+    fprintf(f, "    \"active_color_value\": %u\n",
+            (unsigned)drawing_program_color_value_from_index(ctx->ui_active_color_index));
     fprintf(f, "  },\n");
     fprintf(f, "  \"pane\": {\n");
     fprintf(f, "    \"node_count\": %u,\n", ctx->pane_host.node_count);

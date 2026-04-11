@@ -83,6 +83,7 @@ OBJ_DIR := $(BUILD_DIR)/obj
 BIN_DIR := $(BUILD_DIR)/bin
 
 APP_LOCAL_SRCS := \
+	src/runtime/drawing_program_color_model.c \
 	src/runtime/drawing_program_document.c \
 	src/runtime/drawing_program_editor_state.c \
 	src/runtime/drawing_program_history.c \
@@ -98,6 +99,7 @@ APP_LOCAL_SRCS := \
 	src/app/drawing_program_app_visual_main.c
 
 HEADLESS_LOCAL_SRCS := \
+	src/runtime/drawing_program_color_model.c \
 	src/runtime/drawing_program_document.c \
 	src/runtime/drawing_program_editor_state.c \
 	src/runtime/drawing_program_history.c \
@@ -111,6 +113,7 @@ HEADLESS_LOCAL_SRCS := \
 	src/app/drawing_program_app_headless_main.c
 
 TEST_LOCAL_SRCS := \
+	src/runtime/drawing_program_color_model.c \
 	src/runtime/drawing_program_document.c \
 	src/runtime/drawing_program_editor_state.c \
 	src/runtime/drawing_program_history.c \
@@ -211,7 +214,7 @@ run: $(APP_TARGET)
 	"$(APP_TARGET)"
 
 run-headless: $(HEADLESS_TARGET)
-	"$(HEADLESS_TARGET)" --headless --smoke-frames 2 --print-lifecycle
+	"$(HEADLESS_TARGET)" --headless --smoke-frames 2 --print-lifecycle --no-persist
 
 test: $(TEST_TARGET)
 	"$(TEST_TARGET)"

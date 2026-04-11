@@ -1,6 +1,6 @@
 # Current Truth
 
-Status date: 2026-04-09
+Status date: 2026-04-10
 
 - Program scaffold directory created under `drawing_program/`.
 - Identity lock established for brand (`sketCh`) and internal key (`drawing_program`).
@@ -45,6 +45,85 @@ Status date: 2026-04-09
   - phase objective met: interactive UI scaffold is now visibly reactive and usable as a stable editor shell baseline
   - Phase 7 entry boundary is locked to interaction-depth slices (brush geometry, palette model, selection seed)
   - scaffold/runtime contract invariants remain locked (`IR1`, `RS1`, overlay boundary, WSPS bridge)
+- Phase 7 kickoff (`P7-S1`) is complete:
+  - canvas draw path now uses deterministic stroke stepping (radius + spacing stamps) instead of single-sample writes
+  - no-op writes are suppressed via pre-write sample read checks
+  - right canvas panel now exposes active tool geometry (`BRUSH Rn Sn`) for manual stroke validation
+- Phase 7 palette/color model baseline (`P7-S2`) is complete:
+  - active color is now explicit persisted UI state (`ui_active_color_index`) with snapshot `DPUI` v3 storage
+  - right canvas panel now exposes clickable palette swatches and active color telemetry
+  - keyboard color controls are seeded: `1..8`, `[`/`]`
+  - brush-family draw writes now route through active color model instead of hardcoded per-tool grayscale constants
+- Pre-`P7-S3` serialization/session stabilization pass is complete:
+  - default session preset path is runtime-root bound (`<runtime_root>/last_session.pack`) instead of cwd-relative
+  - config load now creates runtime/input/output roots and snapshot parent directories before save
+  - `--no-persist` lane added and wired for non-interactive smoke/self-test paths to avoid clobbering user session state
+  - desktop launcher runtime root now defaults to `~/Library/Application Support/sketCh/runtime` with tmp fallback
+  - lifecycle test now includes persistence restart roundtrip assertions for tool/theme/font-zoom/panel-slots/active-color
+- Pre-`P7-S3` draw visibility follow-up is complete:
+  - center-canvas rendering now uses full raster texture sync/render path (replacing lossy preview subsampling)
+  - brush/eraser writes are visibly reflected on canvas across color selections and zoom levels
+  - visual runtime now cleans up canvas texture state on shutdown
+- Phase 7 selection seed baseline (`P7-S3`) is complete:
+  - `SELECT` tool now supports marquee region capture (bounded seed payload)
+  - `MOVE` tool now supports drag preview + release commit through history-backed sample mutations
+  - center viewport renders selection overlays (marquee + move preview destination/source hints)
+  - direct stroke draw path no longer hijacks `SELECT`/`MOVE`/`PICKER` interactions
+  - app-local history capacity increased to 512 commands to keep bounded selection move undo/redo coherent
+  - title telemetry now includes selection readout (`sel=WxH d=dx,dy`) for debug validation
+- P7-S3 follow-up behavior fix is complete:
+  - selection capture now ignores seeded background-only pixels (sparse payload capture)
+  - move commit restores seeded background at source instead of eraser-white clears
+  - selection/move no longer produces white block artifacts from full-rectangle payload clears
+  - selection seed budget expanded (`16x16` -> `128x128`) so marquee capture is usable on larger canvas regions
+  - right panel now shows `SELECTION WxH Pn` telemetry for capture/move validation
+- tool/canvas stabilization lane (`2026-04-10`) is complete:
+  - `CLEAR HISTORY` action is implemented in workflow/runtime and UI:
+    - right panel `CANVAS` button: `CLEAR HISTORY`
+    - keyboard: `Cmd/Ctrl+K`
+  - history clear resets history stack (`count/cursor`) without mutating document pixels
+  - default canvas seed presentation no longer includes star/cross overlays:
+    - document seed now flat background baseline (eraser/background value), not checker-seeded
+    - viewport center-cross chrome marker removed
+  - legacy checker-seeded snapshots now auto-upgrade on runtime start:
+    - v1 document snapshots are upgraded to v2 on load
+    - if checker-signature coverage is high (>=75% expected checker cells), checker-matching cells are flattened to background and persisted
+    - edited/non-checker pixels are preserved during upgrade
+    - recovery guard exists for previously tagged v2 snapshots: near-perfect checker signature (>=95%) still triggers flattening
+- stabilization `S1` tool contract matrix is now complete:
+  - brush fallthrough removed for non-brush tools
+  - `FILL` uses contiguous flood-fill from clicked sample
+  - `PICKER` samples canvas and updates active palette index
+  - `LINE`/`RECT`/`CIRCLE` use click-drag commit geometry path (preview lane deferred to `S3`)
+  - `ERASER` writes seeded background values per-sample
+- stabilization `S2` raster mutation separation hardening is now complete:
+  - history layer now suppresses no-op sample writes before history push
+  - history layer now suppresses no-op layer visibility writes before history push
+  - lifecycle coverage now asserts no-op mutation calls do not inflate history (`count/cursor`)
+- stabilization `S3` canvas preview + commit affordances are now complete:
+  - `LINE`/`RECT`/`CIRCLE` draw live preview overlays during active shape drag
+  - preview rendering is non-mutating (no raster/history writes until commit)
+  - preview projection follows current viewport pan/zoom state while dragging
+- stabilization `S4` input/hover routing tightening is now complete:
+  - panel clicks are exclusive ownership paths and cancel transient canvas interaction modes
+  - canvas right-click pan now has explicit precedence over draw/shape/select/move transients
+  - tool-switch control paths clear transient interaction state to prevent stale mode carryover
+  - right-panel interaction hints now reflect active pointer ownership and live mode state
+  - window leave/focus-lost paths now cancel active transients and clear hover ownership to prevent sticky pan/draw/select modes
+  - off-pane left-click now clears stale transient interaction state
+  - debug center-module switch hotkey moved to `Cmd/Ctrl+Shift+1..4` to avoid collision with color-select keys `1..8`
+- stabilization `S5` closeout is complete:
+  - lane verification gates are all green from clean build through desktop refresh
+  - docs are synchronized to completed stabilization state
+  - resume boundary is locked to Phase 8 planning by default, with targeted stabilization reopen only for new reproducible regressions
+- pre-`S5` interaction polish is now landed:
+  - canvas world-view grid colors are theme-driven (surface-token derived minor/major grid lines), not fixed palette literals
+  - canvas mutation interactions are grouped into action-level history units:
+    - brush/eraser drag: one grouped history unit per drag
+    - line/rect/circle: one grouped history unit per commit
+    - fill and move-commit paths grouped per action
+  - history HUD now reports grouped units (`cursor/count`) instead of raw per-sample command counts
+  - history backing capacity increased to reduce premature saturation during dense strokes (`16384` command slots)
 - Visual UI settings persistence seed is now implemented:
   - theme preset cycles with `Cmd/Ctrl+Shift+T` (forward) and `Cmd/Ctrl+Shift+Y` (backward)
   - text size step controls are wired: `Cmd/Ctrl +` grow, `Cmd/Ctrl -` shrink, `Cmd/Ctrl 0` reset

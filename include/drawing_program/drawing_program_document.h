@@ -48,6 +48,8 @@ CoreResult drawing_program_document_sample_write(DrawingProgramDocument *documen
                                                  uint32_t sample_y,
                                                  uint8_t value,
                                                  uint8_t *out_previous_value);
+CoreResult drawing_program_document_upgrade_legacy_checker_seed(DrawingProgramDocument *document,
+                                                                uint8_t *out_upgraded);
 
 #ifdef __cplusplus
 }

@@ -5,17 +5,26 @@ SELF_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 CONTENTS_DIR="$(CDPATH= cd -- "$SELF_DIR/.." && pwd)"
 RES_DIR="$CONTENTS_DIR/Resources"
 APP_BIN="$SELF_DIR/drawing-program-bin"
-export DRAWING_PROGRAM_RUNTIME_DIR="$RES_DIR"
+DEFAULT_RUNTIME_BASE="${HOME}/Library/Application Support/sketCh/runtime"
+RUNTIME_BASE="${DRAWING_PROGRAM_RUNTIME_DIR:-$DEFAULT_RUNTIME_BASE}"
+
+if ! mkdir -p "$RUNTIME_BASE" 2>/dev/null; then
+  RUNTIME_BASE="${TMPDIR:-/tmp}/sketch-runtime"
+  mkdir -p "$RUNTIME_BASE" 2>/dev/null || true
+fi
+mkdir -p "$RUNTIME_BASE/input" "$RUNTIME_BASE/output" 2>/dev/null || true
+export DRAWING_PROGRAM_RUNTIME_DIR="$RUNTIME_BASE"
 
 if [ "${1-}" = "--print-config" ]; then
-  echo "DRAWING_PROGRAM_RUNTIME_DIR=$RES_DIR"
+  echo "DRAWING_PROGRAM_RUNTIME_DIR=$DRAWING_PROGRAM_RUNTIME_DIR"
+  echo "DRAWING_PROGRAM_RESOURCES_DIR=$RES_DIR"
   echo "DRAWING_PROGRAM_APP_BIN=$APP_BIN"
   exit 0
 fi
 
 if [ "${1-}" = "--self-test" ]; then
   [ -x "$APP_BIN" ] || { echo "missing app binary: $APP_BIN"; exit 1; }
-  "$APP_BIN" --headless --smoke-frames 1 >/dev/null 2>&1 || {
+  "$APP_BIN" --headless --smoke-frames 1 --no-persist >/dev/null 2>&1 || {
     echo "headless smoke failed"
     exit 1
   }

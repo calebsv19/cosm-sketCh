@@ -1,6 +1,6 @@
 # Future Intent
 
-Status date: 2026-04-09
+Status date: 2026-04-10
 
 Near-term (active):
 - Phase 2 foundations are complete
@@ -31,9 +31,20 @@ Near-term (active):
     - `P6-S4` scaffold guardrail sync complete (`RS1` + data-root checkpoint)
     - `P6-S5` closeout and Phase 7 entry boundary complete
   - next: Phase 7 interaction depth kickoff:
-    - `P7-S1` brush geometry baseline
-    - `P7-S2` palette/color model baseline
-    - `P7-S3` selection seed baseline
+    - `P7-S1` brush geometry baseline complete
+    - `P7-S2` palette/color model baseline complete
+    - pre-`P7-S3` serialization/session stabilization complete
+    - pre-`P7-S3` draw visibility regression fix complete
+    - `P7-S3` selection seed baseline complete
+  - Phase 7 progression is paused at the post-`P7-S3` boundary
+  - tool behavior + canvas UI stabilization lane (`2026-04-10_tool_behavior_and_canvas_ui_stabilization_plan.md`) is complete:
+    - `S0` immediate UX fixes complete
+    - `S1` tool contract matrix complete
+    - `S2` raster mutation separation hardening complete
+    - `S3` canvas preview + commit affordances complete
+    - `S4` input/hover routing tightening complete
+    - `S5` stabilization closeout + resume boundary complete
+  - next: phase 8 planning lane for richer behavior depth
   - keep `WSPS` bridge compatibility and overlay/runtime contract invariants locked while deepening behavior
 - keep workspace preset bridge compatibility maintained while feature depth increases
 

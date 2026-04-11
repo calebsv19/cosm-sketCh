@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+#include <sys/stat.h>
 
 #include "core_font.h"
 #include "core_theme.h"
@@ -54,6 +56,7 @@ static void drawing_program_normalize_ui_state(DrawingProgramAppContext *ctx) {
     if (ctx->ui_right_panel_slot > 1u) {
         ctx->ui_right_panel_slot = 0u;
     }
+    ctx->ui_active_color_index = drawing_program_color_index_clamp(ctx->ui_active_color_index);
 }
 
 static int drawing_program_transition_stage(DrawingProgramAppStage *stage,
@@ -100,6 +103,57 @@ static void drawing_program_seed_data_roots(DrawingProgramAppContext *ctx) {
             (void)snprintf(ctx->output_root_path, sizeof(ctx->output_root_path), "%s/output", ctx->runtime_root_path);
         }
     }
+}
+
+static CoreResult drawing_program_mkdirs_if_needed(const char *dir_path) {
+    char buffer[512];
+    size_t i;
+    size_t len;
+    if (!dir_path || dir_path[0] == '\0') {
+        return core_result_ok();
+    }
+    len = strlen(dir_path);
+    if (len >= sizeof(buffer)) {
+        return (CoreResult){ CORE_ERR_INVALID_ARG, "directory path too long" };
+    }
+    (void)snprintf(buffer, sizeof(buffer), "%s", dir_path);
+    for (i = 1u; i < len; ++i) {
+        if (buffer[i] != '/') {
+            continue;
+        }
+        buffer[i] = '\0';
+        if (buffer[0] != '\0') {
+            if (mkdir(buffer, 0775) != 0 && errno != EEXIST) {
+                return (CoreResult){ CORE_ERR_IO, "failed to create runtime directory segment" };
+            }
+        }
+        buffer[i] = '/';
+    }
+    if (mkdir(buffer, 0775) != 0 && errno != EEXIST) {
+        return (CoreResult){ CORE_ERR_IO, "failed to create runtime directory" };
+    }
+    return core_result_ok();
+}
+
+static CoreResult drawing_program_ensure_parent_dir(const char *file_path) {
+    char buffer[512];
+    char *slash;
+    if (!file_path || file_path[0] == '\0') {
+        return core_result_ok();
+    }
+    if (strlen(file_path) >= sizeof(buffer)) {
+        return (CoreResult){ CORE_ERR_INVALID_ARG, "file path too long" };
+    }
+    (void)snprintf(buffer, sizeof(buffer), "%s", file_path);
+    slash = strrchr(buffer, '/');
+    if (!slash) {
+        return core_result_ok();
+    }
+    *slash = '\0';
+    if (buffer[0] == '\0') {
+        return core_result_ok();
+    }
+    return drawing_program_mkdirs_if_needed(buffer);
 }
 
 static void drawing_program_input_intake(uint64_t frame_index,
@@ -250,7 +304,8 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
 
     memset(ctx, 0, sizeof(*ctx));
     ctx->smoke_frames = 1u;
-    ctx->preset_path = "data/last_session.pack";
+    ctx->persist_enabled = 1u;
+    ctx->preset_path = 0;
     ctx->export_json_path = 0;
     ctx->bridge_workspace_preset_path = "workspace_sandbox/data/presets/sketch_layout_v1.pack";
     ctx->pane_host_bounds_width = 1200.0f;
@@ -259,6 +314,7 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
     ctx->ui_font_preset_id = (uint32_t)CORE_FONT_PRESET_IDE;
     ctx->ui_left_panel_slot = 0u;
     ctx->ui_right_panel_slot = 0u;
+    ctx->ui_active_color_index = drawing_program_color_default_index();
     ctx->ui_font_zoom_step = 0;
     (void)snprintf(ctx->runtime_root_path, sizeof(ctx->runtime_root_path), "data/runtime");
     (void)snprintf(ctx->input_root_path, sizeof(ctx->input_root_path), "data/input");
@@ -280,6 +336,11 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
         }
         if (strcmp(argv[i], "--preset") == 0 && i + 1 < argc) {
             ctx->preset_path = argv[++i];
+            ctx->preset_path_cli_override = 1u;
+            continue;
+        }
+        if (strcmp(argv[i], "--no-persist") == 0) {
+            ctx->persist_enabled = 0u;
             continue;
         }
         if (strcmp(argv[i], "--export-json") == 0 && i + 1 < argc) {
@@ -317,10 +378,37 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
 }
 
 CoreResult drawing_program_app_config_load(DrawingProgramAppContext *ctx) {
+    CoreResult result;
     if (!ctx) {
         return drawing_program_invalid("null app context");
     }
     drawing_program_seed_data_roots(ctx);
+    result = drawing_program_mkdirs_if_needed(ctx->runtime_root_path);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    result = drawing_program_mkdirs_if_needed(ctx->input_root_path);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    result = drawing_program_mkdirs_if_needed(ctx->output_root_path);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    if (!ctx->preset_path_cli_override) {
+        (void)snprintf(ctx->preset_path_buffer, sizeof(ctx->preset_path_buffer), "%s/last_session.pack", ctx->runtime_root_path);
+        ctx->preset_path = ctx->preset_path_buffer;
+    }
+    result = drawing_program_ensure_parent_dir(ctx->preset_path);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    if (ctx->export_json_path) {
+        result = drawing_program_ensure_parent_dir(ctx->export_json_path);
+        if (result.code != CORE_OK) {
+            return result;
+        }
+    }
     return core_result_ok();
 }
 
@@ -363,6 +451,7 @@ CoreResult drawing_program_app_subsystems_init(DrawingProgramAppContext *ctx) {
 CoreResult drawing_program_runtime_start(DrawingProgramAppContext *ctx) {
     CoreResult result;
     CoreResult load_result;
+    uint8_t upgraded_legacy_checker_seed = 0u;
     if (!ctx) {
         return drawing_program_invalid("null app context");
     }
@@ -374,7 +463,7 @@ CoreResult drawing_program_runtime_start(DrawingProgramAppContext *ctx) {
     result = load_result;
     if (drawing_program_trace_ui_state_enabled()) {
         fprintf(stderr,
-                "drawing_program trace runtime_start after_load code=%d tool=%u theme=%u font=%u zoom=%d slot_l=%u slot_r=%u leafs=%u\n",
+                "drawing_program trace runtime_start after_load code=%d tool=%u theme=%u font=%u zoom=%d slot_l=%u slot_r=%u color=%u leafs=%u\n",
                 (int)result.code,
                 (unsigned)ctx->editor.active_tool,
                 (unsigned)ctx->ui_theme_preset_id,
@@ -382,30 +471,41 @@ CoreResult drawing_program_runtime_start(DrawingProgramAppContext *ctx) {
                 (int)ctx->ui_font_zoom_step,
                 (unsigned)ctx->ui_left_panel_slot,
                 (unsigned)ctx->ui_right_panel_slot,
+                (unsigned)ctx->ui_active_color_index,
                 (unsigned)ctx->pane_host.leaf_count);
     }
     ctx->snapshot_loaded_from_preset = (load_result.code == CORE_OK && ctx->pane_host.leaf_count >= 4u) ? 1u : 0u;
     if (!ctx->snapshot_loaded_from_preset) {
         /* Keep scaffold visuals deterministic: fall back to the seeded 4-pane host. */
         (void)drawing_program_pane_host_init(ctx);
-        result = drawing_program_snapshot_save(ctx, ctx->preset_path);
-        if (drawing_program_trace_ui_state_enabled()) {
-            fprintf(stderr,
-                    "drawing_program trace runtime_start fallback_save code=%d path=%s\n",
-                    (int)result.code,
-                    ctx->preset_path ? ctx->preset_path : "(null)");
+        if (ctx->persist_enabled) {
+            result = drawing_program_snapshot_save(ctx, ctx->preset_path);
+            if (drawing_program_trace_ui_state_enabled()) {
+                fprintf(stderr,
+                        "drawing_program trace runtime_start fallback_save code=%d path=%s\n",
+                        (int)result.code,
+                        ctx->preset_path ? ctx->preset_path : "(null)");
+            }
         }
+    }
+    result = drawing_program_document_upgrade_legacy_checker_seed(&ctx->document, &upgraded_legacy_checker_seed);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    if (upgraded_legacy_checker_seed && ctx->persist_enabled) {
+        (void)drawing_program_snapshot_save(ctx, ctx->preset_path);
     }
     drawing_program_normalize_ui_state(ctx);
     if (drawing_program_trace_ui_state_enabled()) {
         fprintf(stderr,
-                "drawing_program trace runtime_start normalized tool=%u theme=%u font=%u zoom=%d slot_l=%u slot_r=%u\n",
+                "drawing_program trace runtime_start normalized tool=%u theme=%u font=%u zoom=%d slot_l=%u slot_r=%u color=%u\n",
                 (unsigned)ctx->editor.active_tool,
                 (unsigned)ctx->ui_theme_preset_id,
                 (unsigned)ctx->ui_font_preset_id,
                 (int)ctx->ui_font_zoom_step,
                 (unsigned)ctx->ui_left_panel_slot,
-                (unsigned)ctx->ui_right_panel_slot);
+                (unsigned)ctx->ui_right_panel_slot,
+                (unsigned)ctx->ui_active_color_index);
     }
 
     if (ctx->bridge_workspace_check_requested) {
@@ -481,10 +581,23 @@ CoreResult drawing_program_app_shutdown(DrawingProgramAppContext *ctx) {
     if (!ctx) {
         return drawing_program_invalid("null app context");
     }
+    if (!ctx->persist_enabled) {
+        if (ctx->export_json_requested) {
+            result = drawing_program_snapshot_export_debug_json(ctx, ctx->export_json_path);
+            if (result.code != CORE_OK) {
+                return result;
+            }
+        }
+        return core_result_ok();
+    }
+    result = drawing_program_ensure_parent_dir(ctx->preset_path);
+    if (result.code != CORE_OK) {
+        return result;
+    }
     result = drawing_program_snapshot_save(ctx, ctx->preset_path);
     if (drawing_program_trace_ui_state_enabled()) {
         fprintf(stderr,
-                "drawing_program trace shutdown save_result code=%d path=%s tool=%u theme=%u font=%u zoom=%d slot_l=%u slot_r=%u\n",
+                "drawing_program trace shutdown save_result code=%d path=%s tool=%u theme=%u font=%u zoom=%d slot_l=%u slot_r=%u color=%u\n",
                 (int)result.code,
                 ctx->preset_path ? ctx->preset_path : "(null)",
                 (unsigned)ctx->editor.active_tool,
@@ -492,7 +605,8 @@ CoreResult drawing_program_app_shutdown(DrawingProgramAppContext *ctx) {
                 (unsigned)ctx->ui_font_preset_id,
                 (int)ctx->ui_font_zoom_step,
                 (unsigned)ctx->ui_left_panel_slot,
-                (unsigned)ctx->ui_right_panel_slot);
+                (unsigned)ctx->ui_right_panel_slot,
+                (unsigned)ctx->ui_active_color_index);
     }
     if (result.code != CORE_OK) {
         fprintf(stderr,

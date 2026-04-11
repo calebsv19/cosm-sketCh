@@ -7,11 +7,144 @@ static CoreResult drawing_program_history_invalid(const char *message) {
     return r;
 }
 
+static void drawing_program_history_push(DrawingProgramHistory *history, const DrawingProgramCommand *command);
+
+static CoreResult history_apply_undo_command(const DrawingProgramCommand *command, DrawingProgramDocument *document) {
+    if (!command || !document) {
+        return drawing_program_history_invalid("invalid undo command request");
+    }
+    if (command->type == DRAWING_PROGRAM_COMMAND_SET_LAYER_VISIBILITY) {
+        return drawing_program_document_set_layer_visibility(document,
+                                                             command->layer_id,
+                                                             command->previous_visibility,
+                                                             0);
+    }
+    if (command->type == DRAWING_PROGRAM_COMMAND_SET_SAMPLE_VALUE) {
+        return drawing_program_document_sample_write(document,
+                                                     command->sample_x,
+                                                     command->sample_y,
+                                                     command->previous_sample_value,
+                                                     0);
+    }
+    return core_result_ok();
+}
+
+static CoreResult history_apply_redo_command(const DrawingProgramCommand *command, DrawingProgramDocument *document) {
+    if (!command || !document) {
+        return drawing_program_history_invalid("invalid redo command request");
+    }
+    if (command->type == DRAWING_PROGRAM_COMMAND_SET_LAYER_VISIBILITY) {
+        return drawing_program_document_set_layer_visibility(document,
+                                                             command->layer_id,
+                                                             command->new_visibility,
+                                                             0);
+    }
+    if (command->type == DRAWING_PROGRAM_COMMAND_SET_SAMPLE_VALUE) {
+        return drawing_program_document_sample_write(document,
+                                                     command->sample_x,
+                                                     command->sample_y,
+                                                     command->new_sample_value,
+                                                     0);
+    }
+    return core_result_ok();
+}
+
+static uint32_t history_count_units_upto(const DrawingProgramHistory *history, uint32_t limit) {
+    uint32_t i;
+    uint32_t units = 0u;
+    int in_group = 0;
+    int group_has_commands = 0;
+    if (!history) {
+        return 0u;
+    }
+    if (limit > history->count) {
+        limit = history->count;
+    }
+    for (i = 0u; i < limit; ++i) {
+        DrawingProgramCommandType type = history->entries[i].type;
+        if (type == DRAWING_PROGRAM_COMMAND_GROUP_BEGIN) {
+            in_group = 1;
+            group_has_commands = 0;
+            continue;
+        }
+        if (type == DRAWING_PROGRAM_COMMAND_GROUP_END) {
+            if (in_group && group_has_commands) {
+                units += 1u;
+            }
+            in_group = 0;
+            group_has_commands = 0;
+            continue;
+        }
+        if (in_group) {
+            group_has_commands = 1;
+        } else {
+            units += 1u;
+        }
+    }
+    if (in_group && group_has_commands) {
+        units += 1u;
+    }
+    return units;
+}
+
 void drawing_program_history_init(DrawingProgramHistory *history) {
     if (!history) {
         return;
     }
     memset(history, 0, sizeof(*history));
+}
+
+void drawing_program_history_clear(DrawingProgramHistory *history) {
+    if (!history) {
+        return;
+    }
+    memset(history, 0, sizeof(*history));
+}
+
+CoreResult drawing_program_history_begin_group(DrawingProgramHistory *history) {
+    DrawingProgramCommand marker;
+    if (!history) {
+        return drawing_program_history_invalid("invalid begin group request");
+    }
+    if (history->cursor < history->count) {
+        history->count = history->cursor;
+    }
+    memset(&marker, 0, sizeof(marker));
+    marker.type = DRAWING_PROGRAM_COMMAND_GROUP_BEGIN;
+    drawing_program_history_push(history, &marker);
+    return core_result_ok();
+}
+
+CoreResult drawing_program_history_end_group(DrawingProgramHistory *history) {
+    DrawingProgramCommand marker;
+    if (!history) {
+        return drawing_program_history_invalid("invalid end group request");
+    }
+    if (history->cursor < history->count) {
+        history->count = history->cursor;
+    }
+    if (history->count > 0u &&
+        history->cursor == history->count &&
+        history->entries[history->count - 1u].type == DRAWING_PROGRAM_COMMAND_GROUP_BEGIN) {
+        history->count -= 1u;
+        history->cursor = history->count;
+        return core_result_ok();
+    }
+    memset(&marker, 0, sizeof(marker));
+    marker.type = DRAWING_PROGRAM_COMMAND_GROUP_END;
+    drawing_program_history_push(history, &marker);
+    return core_result_ok();
+}
+
+void drawing_program_history_query_units(const DrawingProgramHistory *history,
+                                         uint32_t *out_cursor_units,
+                                         uint32_t *out_count_units) {
+    if (out_cursor_units) {
+        *out_cursor_units = history_count_units_upto(history, history ? history->cursor : 0u);
+    }
+    if (out_count_units) {
+        *out_count_units = history_count_units_upto(history, history ? history->count : 0u);
+    }
 }
 
 static void drawing_program_history_push(DrawingProgramHistory *history, const DrawingProgramCommand *command) {
@@ -54,6 +187,9 @@ CoreResult drawing_program_history_apply_set_layer_visibility(DrawingProgramHist
     if (result.code != CORE_OK) {
         return result;
     }
+    if ((prev ? 1u : 0u) == (visible ? 1u : 0u)) {
+        return core_result_ok();
+    }
     command.type = DRAWING_PROGRAM_COMMAND_SET_LAYER_VISIBILITY;
     command.layer_id = layer_id;
     command.new_visibility = visible ? 1u : 0u;
@@ -74,7 +210,14 @@ CoreResult drawing_program_history_apply_set_sample_value(DrawingProgramHistory 
         return drawing_program_history_invalid("invalid sample command request");
     }
 
-    result = drawing_program_document_sample_write(document, sample_x, sample_y, value, &prev);
+    result = drawing_program_document_sample_read(document, sample_x, sample_y, &prev);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    if (prev == value) {
+        return core_result_ok();
+    }
+    result = drawing_program_document_sample_write(document, sample_x, sample_y, value, 0);
     if (result.code != CORE_OK) {
         return result;
     }
@@ -90,32 +233,40 @@ CoreResult drawing_program_history_apply_set_sample_value(DrawingProgramHistory 
 
 CoreResult drawing_program_history_undo(DrawingProgramHistory *history, DrawingProgramDocument *document) {
     const DrawingProgramCommand *command;
+    CoreResult result;
     if (!history || !document) {
         return drawing_program_history_invalid("invalid undo request");
     }
     if (history->cursor == 0u) {
         return (CoreResult){ CORE_ERR_NOT_FOUND, "nothing to undo" };
     }
+    command = &history->entries[history->cursor - 1u];
+    if (command->type == DRAWING_PROGRAM_COMMAND_GROUP_END) {
+        history->cursor -= 1u;
+        while (history->cursor > 0u) {
+            command = &history->entries[history->cursor - 1u];
+            history->cursor -= 1u;
+            if (command->type == DRAWING_PROGRAM_COMMAND_GROUP_BEGIN) {
+                return core_result_ok();
+            }
+            result = history_apply_undo_command(command, document);
+            if (result.code != CORE_OK) {
+                return result;
+            }
+        }
+        return core_result_ok();
+    }
+    if (command->type == DRAWING_PROGRAM_COMMAND_GROUP_BEGIN) {
+        history->cursor -= 1u;
+        return core_result_ok();
+    }
     history->cursor -= 1u;
-    command = &history->entries[history->cursor];
-    if (command->type == DRAWING_PROGRAM_COMMAND_SET_LAYER_VISIBILITY) {
-        return drawing_program_document_set_layer_visibility(document,
-                                                             command->layer_id,
-                                                             command->previous_visibility,
-                                                             0);
-    }
-    if (command->type == DRAWING_PROGRAM_COMMAND_SET_SAMPLE_VALUE) {
-        return drawing_program_document_sample_write(document,
-                                                     command->sample_x,
-                                                     command->sample_y,
-                                                     command->previous_sample_value,
-                                                     0);
-    }
-    return drawing_program_history_invalid("unsupported undo command");
+    return history_apply_undo_command(command, document);
 }
 
 CoreResult drawing_program_history_redo(DrawingProgramHistory *history, DrawingProgramDocument *document) {
     const DrawingProgramCommand *command;
+    CoreResult result;
     if (!history || !document) {
         return drawing_program_history_invalid("invalid redo request");
     }
@@ -123,28 +274,30 @@ CoreResult drawing_program_history_redo(DrawingProgramHistory *history, DrawingP
         return (CoreResult){ CORE_ERR_NOT_FOUND, "nothing to redo" };
     }
     command = &history->entries[history->cursor];
-    if (command->type == DRAWING_PROGRAM_COMMAND_SET_LAYER_VISIBILITY) {
-        CoreResult result = drawing_program_document_set_layer_visibility(document,
-                                                                          command->layer_id,
-                                                                          command->new_visibility,
-                                                                          0);
-        if (result.code != CORE_OK) {
-            return result;
+    if (command->type == DRAWING_PROGRAM_COMMAND_GROUP_BEGIN) {
+        history->cursor += 1u;
+        while (history->cursor < history->count) {
+            command = &history->entries[history->cursor];
+            if (command->type == DRAWING_PROGRAM_COMMAND_GROUP_END) {
+                history->cursor += 1u;
+                return core_result_ok();
+            }
+            result = history_apply_redo_command(command, document);
+            if (result.code != CORE_OK) {
+                return result;
+            }
+            history->cursor += 1u;
         }
+        return core_result_ok();
+    }
+    if (command->type == DRAWING_PROGRAM_COMMAND_GROUP_END) {
         history->cursor += 1u;
         return core_result_ok();
     }
-    if (command->type == DRAWING_PROGRAM_COMMAND_SET_SAMPLE_VALUE) {
-        CoreResult result = drawing_program_document_sample_write(document,
-                                                                  command->sample_x,
-                                                                  command->sample_y,
-                                                                  command->new_sample_value,
-                                                                  0);
-        if (result.code != CORE_OK) {
-            return result;
-        }
-        history->cursor += 1u;
-        return core_result_ok();
+    result = history_apply_redo_command(command, document);
+    if (result.code != CORE_OK) {
+        return result;
     }
-    return drawing_program_history_invalid("unsupported redo command");
+    history->cursor += 1u;
+    return core_result_ok();
 }

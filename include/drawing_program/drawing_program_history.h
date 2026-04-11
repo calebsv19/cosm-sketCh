@@ -10,12 +10,14 @@
 extern "C" {
 #endif
 
-#define DRAWING_PROGRAM_HISTORY_CAPACITY 64u
+#define DRAWING_PROGRAM_HISTORY_CAPACITY 16384u
 
 typedef enum DrawingProgramCommandType {
     DRAWING_PROGRAM_COMMAND_NONE = 0,
     DRAWING_PROGRAM_COMMAND_SET_LAYER_VISIBILITY = 1,
-    DRAWING_PROGRAM_COMMAND_SET_SAMPLE_VALUE = 2
+    DRAWING_PROGRAM_COMMAND_SET_SAMPLE_VALUE = 2,
+    DRAWING_PROGRAM_COMMAND_GROUP_BEGIN = 3,
+    DRAWING_PROGRAM_COMMAND_GROUP_END = 4
 } DrawingProgramCommandType;
 
 typedef struct DrawingProgramCommand {
@@ -36,6 +38,12 @@ typedef struct DrawingProgramHistory {
 } DrawingProgramHistory;
 
 void drawing_program_history_init(DrawingProgramHistory *history);
+void drawing_program_history_clear(DrawingProgramHistory *history);
+CoreResult drawing_program_history_begin_group(DrawingProgramHistory *history);
+CoreResult drawing_program_history_end_group(DrawingProgramHistory *history);
+void drawing_program_history_query_units(const DrawingProgramHistory *history,
+                                         uint32_t *out_cursor_units,
+                                         uint32_t *out_count_units);
 CoreResult drawing_program_history_apply_set_layer_visibility(DrawingProgramHistory *history,
                                                               DrawingProgramDocument *document,
                                                               uint32_t layer_id,

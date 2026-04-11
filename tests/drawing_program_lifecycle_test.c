@@ -1,6 +1,8 @@
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 
+#include "core_theme.h"
 #include "drawing_program/drawing_program_app_main.h"
 #include "drawing_program/drawing_program_runtime_orchestration.h"
 
@@ -52,9 +54,12 @@ int main(void) {
     char arg1[] = "--headless";
     char arg2[] = "--smoke-frames";
     char arg3[] = "2";
-    char *argv[] = { arg0, arg1, arg2, arg3, 0 };
+    char arg4[] = "--no-persist";
+    char *argv[] = { arg0, arg1, arg2, arg3, arg4, 0 };
+    uint8_t expected_draw_value = drawing_program_color_value_from_index(drawing_program_color_default_index());
+    uint8_t expected_eraser_value = drawing_program_color_eraser_value();
 
-    if (!expect_ok(drawing_program_app_bootstrap(&ctx, 4, argv), "bootstrap")) {
+    if (!expect_ok(drawing_program_app_bootstrap(&ctx, 5, argv), "bootstrap")) {
         return 1;
     }
     if (!expect_ok(drawing_program_app_config_load(&ctx), "config_load")) {
@@ -63,7 +68,7 @@ int main(void) {
     if (!expect_ok(drawing_program_app_state_seed(&ctx), "state_seed")) {
         return 1;
     }
-    if (!expect_ok(drawing_program_app_bootstrap(&workflow_ctx, 4, argv), "workflow_bootstrap")) {
+    if (!expect_ok(drawing_program_app_bootstrap(&workflow_ctx, 5, argv), "workflow_bootstrap")) {
         return 1;
     }
     if (!expect_ok(drawing_program_app_config_load(&workflow_ctx), "workflow_config_load")) {
@@ -91,9 +96,10 @@ int main(void) {
                    "workflow_sample_after_eraser_stamp")) {
         return 1;
     }
-    if (workflow_center_value != 0u) {
+    if (workflow_center_value != expected_eraser_value) {
         fprintf(stderr,
-                "lifecycle_test: expected workflow eraser stamp to set center sample to 0 got=%u\n",
+                "lifecycle_test: expected workflow eraser stamp to set center sample to %u got=%u\n",
+                (unsigned)expected_eraser_value,
                 (unsigned)workflow_center_value);
         return 1;
     }
@@ -114,9 +120,10 @@ int main(void) {
                    "workflow_sample_after_brush_stamp")) {
         return 1;
     }
-    if (workflow_center_value != 255u) {
+    if (workflow_center_value != expected_draw_value) {
         fprintf(stderr,
-                "lifecycle_test: expected workflow brush stamp to set center sample to 255 got=%u\n",
+                "lifecycle_test: expected workflow brush stamp to set center sample to %u got=%u\n",
+                (unsigned)expected_draw_value,
                 (unsigned)workflow_center_value);
         return 1;
     }
@@ -203,6 +210,13 @@ int main(void) {
                    "sample_read_center_before")) {
         return 1;
     }
+    if (center_before != expected_eraser_value) {
+        fprintf(stderr,
+                "lifecycle_test: expected seeded center sample to use eraser/background value %u got=%u\n",
+                (unsigned)expected_eraser_value,
+                (unsigned)center_before);
+        return 1;
+    }
     if (ctx.editor.active_tool != DRAWING_PROGRAM_TOOL_BRUSH || ctx.editor.active_layer_id != 1u) {
         fprintf(stderr, "lifecycle_test: unexpected editor seed state tool=%u layer=%u\n",
                 (unsigned)ctx.editor.active_tool,
@@ -218,6 +232,69 @@ int main(void) {
                 ctx.pane_host.leaf_count,
                 ctx.pane_host.module_binding_count);
         return 1;
+    }
+    {
+        DrawingProgramDocument legacy_doc;
+        DrawingProgramDocument legacy_doc_v2;
+        uint8_t upgraded = 0u;
+        uint8_t upgraded_v2 = 0u;
+        uint8_t preserved_sample = 0u;
+        uint32_t x;
+        uint32_t y;
+        memset(&legacy_doc, 0, sizeof(legacy_doc));
+        legacy_doc.schema_version = 1u;
+        legacy_doc.raster_width = 32u;
+        legacy_doc.raster_height = 32u;
+        legacy_doc.raster_sample_count = legacy_doc.raster_width * legacy_doc.raster_height;
+        for (y = 0u; y < legacy_doc.raster_height; ++y) {
+            for (x = 0u; x < legacy_doc.raster_width; ++x) {
+                uint32_t idx = y * legacy_doc.raster_width + x;
+                legacy_doc.raster_samples[idx] = (((x / 16u) + (y / 16u)) & 1u) ? 44u : 24u;
+            }
+        }
+        legacy_doc.raster_samples[5u * legacy_doc.raster_width + 9u] = 200u;
+        if (!expect_ok(drawing_program_document_upgrade_legacy_checker_seed(&legacy_doc, &upgraded),
+                       "document_upgrade_legacy_checker_seed")) {
+            return 1;
+        }
+        preserved_sample = legacy_doc.raster_samples[5u * legacy_doc.raster_width + 9u];
+        if (upgraded != 1u ||
+            legacy_doc.raster_samples[0] != expected_eraser_value ||
+            preserved_sample != 200u ||
+            legacy_doc.schema_version != 2u) {
+            fprintf(stderr,
+                    "lifecycle_test: expected checker legacy upgrade to flatten background and preserve edits"
+                    " value=%u upgraded=%u sample0=%u preserved=%u schema=%u\n",
+                    (unsigned)expected_eraser_value,
+                    (unsigned)upgraded,
+                    (unsigned)legacy_doc.raster_samples[0],
+                    (unsigned)preserved_sample,
+                    (unsigned)legacy_doc.schema_version);
+            return 1;
+        }
+        memset(&legacy_doc_v2, 0, sizeof(legacy_doc_v2));
+        legacy_doc_v2.schema_version = 2u;
+        legacy_doc_v2.raster_width = 32u;
+        legacy_doc_v2.raster_height = 32u;
+        legacy_doc_v2.raster_sample_count = legacy_doc_v2.raster_width * legacy_doc_v2.raster_height;
+        for (y = 0u; y < legacy_doc_v2.raster_height; ++y) {
+            for (x = 0u; x < legacy_doc_v2.raster_width; ++x) {
+                uint32_t idx = y * legacy_doc_v2.raster_width + x;
+                legacy_doc_v2.raster_samples[idx] = (((x / 16u) + (y / 16u)) & 1u) ? 44u : 24u;
+            }
+        }
+        if (!expect_ok(drawing_program_document_upgrade_legacy_checker_seed(&legacy_doc_v2, &upgraded_v2),
+                       "document_upgrade_legacy_checker_seed_v2_recovery")) {
+            return 1;
+        }
+        if (upgraded_v2 != 1u || legacy_doc_v2.raster_samples[0] != expected_eraser_value) {
+            fprintf(stderr,
+                    "lifecycle_test: expected v2 recovery upgrade to flatten checker seed value=%u upgraded=%u sample0=%u\n",
+                    (unsigned)expected_eraser_value,
+                    (unsigned)upgraded_v2,
+                    (unsigned)legacy_doc_v2.raster_samples[0]);
+            return 1;
+        }
     }
     {
         DrawingProgramInputEventRaw raw = { 0 };
@@ -349,6 +426,17 @@ int main(void) {
         fprintf(stderr, "lifecycle_test: expected one applied visibility command\n");
         return 1;
     }
+    if (!expect_ok(drawing_program_history_apply_set_layer_visibility(&ctx.history,
+                                                                      &ctx.document,
+                                                                      1u,
+                                                                      0u),
+                   "history_apply_set_layer_visibility_noop")) {
+        return 1;
+    }
+    if (ctx.history.count != 1u || ctx.history.cursor != 1u) {
+        fprintf(stderr, "lifecycle_test: expected no-op visibility command to avoid history push\n");
+        return 1;
+    }
     if (!expect_ok(drawing_program_history_undo(&ctx.history, &ctx.document), "history_undo")) {
         return 1;
     }
@@ -362,6 +450,93 @@ int main(void) {
     if (ctx.document.layers[0].visible != 0u || ctx.history.cursor != 1u) {
         fprintf(stderr, "lifecycle_test: expected visibility re-applied after redo\n");
         return 1;
+    }
+    if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                       &ctx,
+                       DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_HISTORY),
+                   "workflow_clear_history")) {
+        return 1;
+    }
+    if (ctx.history.count != 0u || ctx.history.cursor != 0u) {
+        fprintf(stderr, "lifecycle_test: expected clear history to reset count/cursor\n");
+        return 1;
+    }
+    {
+        uint32_t unit_cursor = 0u;
+        uint32_t unit_count = 0u;
+        uint8_t before_a = 0u;
+        uint8_t before_b = 0u;
+        uint8_t after_undo_a = 0u;
+        uint8_t after_undo_b = 0u;
+        uint8_t after_redo_a = 0u;
+        uint8_t after_redo_b = 0u;
+        uint32_t ax = center_x;
+        uint32_t ay = center_y;
+        uint32_t bx = (center_x + 1u < ctx.document.raster_width) ? (center_x + 1u) : center_x;
+        uint32_t by = center_y;
+        if (!expect_ok(drawing_program_document_sample_read(&ctx.document, ax, ay, &before_a), "group_seed_read_a")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&ctx.document, bx, by, &before_b), "group_seed_read_b")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_history_begin_group(&ctx.history), "history_begin_group")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_history_apply_set_sample_value(&ctx.history, &ctx.document, ax, ay, 200u),
+                       "history_group_set_sample_a")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_history_apply_set_sample_value(&ctx.history, &ctx.document, bx, by, 201u),
+                       "history_group_set_sample_b")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_history_end_group(&ctx.history), "history_end_group")) {
+            return 1;
+        }
+        drawing_program_history_query_units(&ctx.history, &unit_cursor, &unit_count);
+        if (unit_cursor != 1u || unit_count != 1u) {
+            fprintf(stderr, "lifecycle_test: expected grouped history units 1/1 got %u/%u\n", unit_cursor, unit_count);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_history_undo(&ctx.history, &ctx.document), "history_group_undo")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&ctx.document, ax, ay, &after_undo_a), "group_undo_read_a")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&ctx.document, bx, by, &after_undo_b), "group_undo_read_b")) {
+            return 1;
+        }
+        if (after_undo_a != before_a || after_undo_b != before_b) {
+            fprintf(stderr, "lifecycle_test: grouped undo did not restore both samples\n");
+            return 1;
+        }
+        if (!expect_ok(drawing_program_history_redo(&ctx.history, &ctx.document), "history_group_redo")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&ctx.document, ax, ay, &after_redo_a), "group_redo_read_a")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&ctx.document, bx, by, &after_redo_b), "group_redo_read_b")) {
+            return 1;
+        }
+        if (after_redo_a != 200u || after_redo_b != 201u) {
+            fprintf(stderr, "lifecycle_test: grouped redo did not reapply both samples\n");
+            return 1;
+        }
+    }
+    {
+        CoreResult undo_after_clear = drawing_program_history_undo(&ctx.history, &ctx.document);
+        if (undo_after_clear.code != CORE_OK) {
+            fprintf(stderr, "lifecycle_test: expected undo after grouped write to succeed\n");
+            return 1;
+        }
+        undo_after_clear = drawing_program_history_undo(&ctx.history, &ctx.document);
+        if (undo_after_clear.code != CORE_ERR_NOT_FOUND) {
+            fprintf(stderr, "lifecycle_test: expected undo stack exhaustion to return not_found\n");
+            return 1;
+        }
     }
     if (!expect_ok(drawing_program_runtime_start(&ctx), "runtime_start")) {
         return 1;
@@ -390,9 +565,25 @@ int main(void) {
                    "sample_read_center_after")) {
         return 1;
     }
-    if (center_after != 255u) {
-        fprintf(stderr, "lifecycle_test: expected brush seed to set center sample to 255 got=%u\n",
+    if (center_after != expected_draw_value) {
+        fprintf(stderr, "lifecycle_test: expected brush seed to set center sample to %u got=%u\n",
+                (unsigned)expected_draw_value,
                 (unsigned)center_after);
+        return 1;
+    }
+    if (!expect_ok(drawing_program_history_apply_set_sample_value(&ctx.history,
+                                                                  &ctx.document,
+                                                                  center_x,
+                                                                  center_y,
+                                                                  center_after),
+                   "history_apply_set_sample_value_noop")) {
+        return 1;
+    }
+    if (ctx.history.count != 1u || ctx.history.cursor != 1u) {
+        fprintf(stderr,
+                "lifecycle_test: expected no-op sample command to avoid history push count=%u cursor=%u\n",
+                ctx.history.count,
+                ctx.history.cursor);
         return 1;
     }
     if (ctx.editor.active_tool != DRAWING_PROGRAM_TOOL_SELECT || ctx.tool_switch_total != 1u) {
@@ -482,8 +673,11 @@ int main(void) {
                    "sample_read_center_after_redo")) {
         return 1;
     }
-    if (center_redo != 255u) {
-        fprintf(stderr, "lifecycle_test: expected center sample 255 after redo got=%u\n", (unsigned)center_redo);
+    if (center_redo != expected_draw_value) {
+        fprintf(stderr,
+                "lifecycle_test: expected center sample %u after redo got=%u\n",
+                (unsigned)expected_draw_value,
+                (unsigned)center_redo);
         return 1;
     }
     if (ctx.render_projection.raster_sample_count == 0u ||
@@ -503,6 +697,81 @@ int main(void) {
                 ctx.render_last_active_layer_id,
                 (unsigned)ctx.render_last_has_active_layer);
         return 1;
+    }
+    {
+        DrawingProgramAppContext save_ctx;
+        DrawingProgramAppContext load_ctx;
+        char persist_arg0[] = "drawing_program_persist_roundtrip";
+        char persist_arg1[] = "--headless";
+        char persist_arg2[] = "--smoke-frames";
+        char persist_arg3[] = "1";
+        char persist_arg4[] = "--preset";
+        char persist_arg5[] = "/tmp/drawing_program_persist_roundtrip.pack";
+        char *persist_argv[] = { persist_arg0, persist_arg1, persist_arg2, persist_arg3, persist_arg4, persist_arg5, 0 };
+        (void)unlink(persist_arg5);
+        if (!expect_ok(drawing_program_app_bootstrap(&save_ctx, 6, persist_argv), "persist_roundtrip_bootstrap_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_config_load(&save_ctx), "persist_roundtrip_config_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_state_seed(&save_ctx), "persist_roundtrip_state_seed_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_subsystems_init(&save_ctx), "persist_roundtrip_subsystems_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_runtime_start(&save_ctx), "persist_roundtrip_runtime_start_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &save_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_SET_TOOL_PICKER),
+                       "persist_roundtrip_set_tool_picker")) {
+            return 1;
+        }
+        save_ctx.ui_theme_preset_id = (uint32_t)CORE_THEME_PRESET_LIGHT_DEFAULT;
+        save_ctx.ui_font_zoom_step = 3;
+        save_ctx.ui_left_panel_slot = 1u;
+        save_ctx.ui_right_panel_slot = 1u;
+        save_ctx.ui_active_color_index = 6u;
+        if (!expect_ok(drawing_program_app_shutdown(&save_ctx), "persist_roundtrip_shutdown_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_bootstrap(&load_ctx, 6, persist_argv), "persist_roundtrip_bootstrap_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_config_load(&load_ctx), "persist_roundtrip_config_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_state_seed(&load_ctx), "persist_roundtrip_state_seed_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_subsystems_init(&load_ctx), "persist_roundtrip_subsystems_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_runtime_start(&load_ctx), "persist_roundtrip_runtime_start_load")) {
+            return 1;
+        }
+        if (load_ctx.editor.active_tool != DRAWING_PROGRAM_TOOL_PICKER ||
+            load_ctx.ui_theme_preset_id != (uint32_t)CORE_THEME_PRESET_LIGHT_DEFAULT ||
+            load_ctx.ui_font_zoom_step != 3 ||
+            load_ctx.ui_left_panel_slot != 1u ||
+            load_ctx.ui_right_panel_slot != 1u ||
+            load_ctx.ui_active_color_index != 6u) {
+            fprintf(stderr,
+                    "lifecycle_test: persistence roundtrip mismatch tool=%u theme=%u zoom=%d left=%u right=%u color=%u\n",
+                    (unsigned)load_ctx.editor.active_tool,
+                    (unsigned)load_ctx.ui_theme_preset_id,
+                    (int)load_ctx.ui_font_zoom_step,
+                    (unsigned)load_ctx.ui_left_panel_slot,
+                    (unsigned)load_ctx.ui_right_panel_slot,
+                    (unsigned)load_ctx.ui_active_color_index);
+            return 1;
+        }
+        load_ctx.persist_enabled = 0u;
+        if (!expect_ok(drawing_program_app_shutdown(&load_ctx), "persist_roundtrip_shutdown_load")) {
+            return 1;
+        }
     }
     return 0;
 }
