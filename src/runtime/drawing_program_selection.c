@@ -19,6 +19,39 @@ static uint8_t selection_seeded_background_sample(void) {
     return drawing_program_color_eraser_value();
 }
 
+static void selection_clamp_offset_to_document(const DrawingProgramDocument *document,
+                                               DrawingProgramSelectionState *selection) {
+    int32_t min_offset_x;
+    int32_t max_offset_x;
+    int32_t min_offset_y;
+    int32_t max_offset_y;
+    if (!document || !selection || !selection->has_payload) {
+        return;
+    }
+    if (selection->width == 0u || selection->height == 0u ||
+        document->raster_width == 0u || document->raster_height == 0u) {
+        selection->offset_x = 0;
+        selection->offset_y = 0;
+        return;
+    }
+    min_offset_x = -(int32_t)selection->origin_x;
+    min_offset_y = -(int32_t)selection->origin_y;
+    max_offset_x = (int32_t)document->raster_width - (int32_t)(selection->origin_x + selection->width);
+    max_offset_y = (int32_t)document->raster_height - (int32_t)(selection->origin_y + selection->height);
+    if (selection->offset_x < min_offset_x) {
+        selection->offset_x = min_offset_x;
+    }
+    if (selection->offset_x > max_offset_x) {
+        selection->offset_x = max_offset_x;
+    }
+    if (selection->offset_y < min_offset_y) {
+        selection->offset_y = min_offset_y;
+    }
+    if (selection->offset_y > max_offset_y) {
+        selection->offset_y = max_offset_y;
+    }
+}
+
 static uint32_t selection_resolve_target_layer_id(const DrawingProgramDocument *document,
                                                   const DrawingProgramSelectionState *selection,
                                                   uint32_t active_layer_id) {
@@ -762,6 +795,7 @@ CoreResult drawing_program_selection_commit_move(DrawingProgramDocument *documen
         drawing_program_selection_reset(selection);
         return core_result_ok();
     }
+    selection_clamp_offset_to_document(document, selection);
     if (selection->offset_x == 0 && selection->offset_y == 0) {
         selection->moving = 0u;
         return core_result_ok();

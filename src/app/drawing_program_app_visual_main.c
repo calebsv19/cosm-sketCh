@@ -4271,6 +4271,39 @@ static void apply_selection_move_axis_lock(VisualSelectionState *selection,
     }
 }
 
+static void apply_selection_move_canvas_bounds(const DrawingProgramDocument *document,
+                                               VisualSelectionState *selection) {
+    int32_t min_offset_x;
+    int32_t max_offset_x;
+    int32_t min_offset_y;
+    int32_t max_offset_y;
+    if (!document || !selection || !selection->has_payload) {
+        return;
+    }
+    if (selection->width == 0u || selection->height == 0u ||
+        document->raster_width == 0u || document->raster_height == 0u) {
+        selection->offset_x = 0;
+        selection->offset_y = 0;
+        return;
+    }
+    min_offset_x = -(int32_t)selection->origin_x;
+    min_offset_y = -(int32_t)selection->origin_y;
+    max_offset_x = (int32_t)document->raster_width - (int32_t)(selection->origin_x + selection->width);
+    max_offset_y = (int32_t)document->raster_height - (int32_t)(selection->origin_y + selection->height);
+    if (selection->offset_x < min_offset_x) {
+        selection->offset_x = min_offset_x;
+    }
+    if (selection->offset_x > max_offset_x) {
+        selection->offset_x = max_offset_x;
+    }
+    if (selection->offset_y < min_offset_y) {
+        selection->offset_y = min_offset_y;
+    }
+    if (selection->offset_y > max_offset_y) {
+        selection->offset_y = max_offset_y;
+    }
+}
+
 static void begin_canvas_history_group(DrawingProgramAppContext *ctx) {
     if (!ctx) {
         return;
@@ -4608,6 +4641,7 @@ static int run_visual_mode(int argc, char **argv) {
                             (void)screen_to_canvas_sample_clamped(&app, canvas_pane, release_x, release_y, &sample_x, &sample_y);
                             drawing_program_selection_update_move_offset(&selection_state, sample_x, sample_y);
                             apply_selection_move_axis_lock(&selection_state, &canvas_interaction, SDL_GetModState());
+                            apply_selection_move_canvas_bounds(&app.document, &selection_state);
                         }
                     }
                     if (selection_state.selecting) {
@@ -4685,6 +4719,7 @@ static int run_visual_mode(int argc, char **argv) {
                                                         &sample_y)) {
                         drawing_program_selection_update_move_offset(&selection_state, sample_x, sample_y);
                         apply_selection_move_axis_lock(&selection_state, &canvas_interaction, SDL_GetModState());
+                        apply_selection_move_canvas_bounds(&app.document, &selection_state);
                     }
                 }
                 if (canvas_interaction.drawing_active) {

@@ -14,6 +14,11 @@ Last updated: 2026-04-12
   - subtractive capture compacts selection bounds to remaining payload extents
   - subtractive final-payload removal resets selection state to empty deterministically
   - lifecycle regression coverage now includes subtractive collapse/reset assertions
+- Phase 11 `S3` move transform polish is now implemented:
+  - selection move offsets are now clamped to document bounds in runtime commit path
+  - visual move drag offsets are clamped live to canvas bounds (including axis-lock drags)
+  - move commit no longer allows off-canvas destination commits that clip payload coverage
+  - lifecycle regression coverage now includes min/max bound clamp assertions for move commit
 - Canvas seed shape is no longer fixed square-only:
   - default seed remains `512x512`
   - runtime boot now supports explicit non-square overrides:

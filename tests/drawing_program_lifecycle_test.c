@@ -691,6 +691,132 @@ int main(void) {
             return 1;
         }
     }
+    {
+        uint32_t layer_id = workflow_ctx.editor.active_layer_id;
+        uint8_t seed_a = drawing_program_color_value_from_index(1u);
+        uint8_t seed_b = drawing_program_color_value_from_index(6u);
+        uint8_t probe = 0u;
+        uint32_t max_x = workflow_ctx.document.raster_width - 1u;
+        uint32_t max_y = workflow_ctx.document.raster_height - 1u;
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &workflow_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS),
+                       "selection_move_clamp_clear_canvas")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_history_apply_set_sample_value(&workflow_ctx.history,
+                                                                      &workflow_ctx.document,
+                                                                      &workflow_ctx.layer_rasters,
+                                                                      layer_id,
+                                                                      1u,
+                                                                      1u,
+                                                                      seed_a),
+                       "selection_move_clamp_seed_a")) {
+            return 1;
+        }
+        if (!drawing_program_selection_capture_from_rect(&workflow_ctx.document,
+                                                         &workflow_ctx.layer_rasters,
+                                                         layer_id,
+                                                         &workflow_ctx.selection,
+                                                         1,
+                                                         1,
+                                                         1u,
+                                                         1u)) {
+            fprintf(stderr, "lifecycle_test: expected move-clamp capture at 1,1\n");
+            return 1;
+        }
+        workflow_ctx.selection.offset_x = -100;
+        workflow_ctx.selection.offset_y = -100;
+        if (!expect_ok(drawing_program_selection_commit_move(&workflow_ctx.document,
+                                                             &workflow_ctx.layer_rasters,
+                                                             layer_id,
+                                                             &workflow_ctx.history,
+                                                             &workflow_ctx.selection),
+                       "selection_move_clamp_commit_to_min")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&workflow_ctx.document, 0u, 0u, &probe),
+                       "selection_move_clamp_min_probe_dst")) {
+            return 1;
+        }
+        if (probe != seed_a) {
+            fprintf(stderr,
+                    "lifecycle_test: expected clamped min destination value=%u got=%u\n",
+                    (unsigned)seed_a,
+                    (unsigned)probe);
+            return 1;
+        }
+        if (!workflow_ctx.selection.has_payload ||
+            workflow_ctx.selection.origin_x != 0u ||
+            workflow_ctx.selection.origin_y != 0u) {
+            fprintf(stderr,
+                    "lifecycle_test: expected clamped selection origin at min bound 0,0 got=%u,%u\n",
+                    (unsigned)workflow_ctx.selection.origin_x,
+                    (unsigned)workflow_ctx.selection.origin_y);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &workflow_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS),
+                       "selection_move_clamp_clear_canvas_again")) {
+            return 1;
+        }
+        if (max_x < 1u || max_y < 1u) {
+            fprintf(stderr, "lifecycle_test: raster too small for max-bound move clamp check\n");
+            return 1;
+        }
+        if (!expect_ok(drawing_program_history_apply_set_sample_value(&workflow_ctx.history,
+                                                                      &workflow_ctx.document,
+                                                                      &workflow_ctx.layer_rasters,
+                                                                      layer_id,
+                                                                      max_x - 1u,
+                                                                      max_y - 1u,
+                                                                      seed_b),
+                       "selection_move_clamp_seed_b")) {
+            return 1;
+        }
+        if (!drawing_program_selection_capture_from_rect(&workflow_ctx.document,
+                                                         &workflow_ctx.layer_rasters,
+                                                         layer_id,
+                                                         &workflow_ctx.selection,
+                                                         (int32_t)max_x - 1,
+                                                         (int32_t)max_y - 1,
+                                                         1u,
+                                                         1u)) {
+            fprintf(stderr, "lifecycle_test: expected move-clamp capture near max bound\n");
+            return 1;
+        }
+        workflow_ctx.selection.offset_x = 100;
+        workflow_ctx.selection.offset_y = 100;
+        if (!expect_ok(drawing_program_selection_commit_move(&workflow_ctx.document,
+                                                             &workflow_ctx.layer_rasters,
+                                                             layer_id,
+                                                             &workflow_ctx.history,
+                                                             &workflow_ctx.selection),
+                       "selection_move_clamp_commit_to_max")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&workflow_ctx.document, max_x, max_y, &probe),
+                       "selection_move_clamp_max_probe_dst")) {
+            return 1;
+        }
+        if (probe != seed_b) {
+            fprintf(stderr,
+                    "lifecycle_test: expected clamped max destination value=%u got=%u\n",
+                    (unsigned)seed_b,
+                    (unsigned)probe);
+            return 1;
+        }
+        if (!workflow_ctx.selection.has_payload ||
+            workflow_ctx.selection.origin_x != max_x ||
+            workflow_ctx.selection.origin_y != max_y) {
+            fprintf(stderr,
+                    "lifecycle_test: expected clamped selection origin at max bound %u,%u got=%u,%u\n",
+                    (unsigned)max_x,
+                    (unsigned)max_y,
+                    (unsigned)workflow_ctx.selection.origin_x,
+                    (unsigned)workflow_ctx.selection.origin_y);
+            return 1;
+        }
+    }
     if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
                        &workflow_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_TOGGLE_ACTIVE_LAYER_VISIBILITY),
                    "workflow_toggle_layer_visibility")) {

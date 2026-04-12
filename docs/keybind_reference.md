@@ -64,5 +64,6 @@ Scope: current implemented runtime controls (`sdl-debug` lane)
 - Layer visibility/lock currently gates mutation routes for the active layer.
 - Composited canvas output resolves visible layers in stack order; background/eraser samples are treated as transparent-through for v1 layering.
 - In `MOVE` mode, drag-start hit detection is payload-mask aware; transparent holes inside selection bounds do not start move drag unless a move handle is used.
+- In `MOVE` mode, drag/nudge offsets are clamped to canvas bounds so committed selection payload remains fully in-raster.
 - `CLEAR CANVAS` is available as a right-panel `CANVAS` action button (no keybind assigned yet).
 - `DELETE SELECTED` is available as a right-panel `LAYER` action button (no keybind assigned yet).
