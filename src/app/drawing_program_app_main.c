@@ -90,6 +90,55 @@ static int drawing_program_parse_canvas_size(const char *text,
     return 1;
 }
 
+static uint8_t drawing_program_clamp_percent(uint8_t value) {
+    return (value > 100u) ? 100u : value;
+}
+
+static void drawing_program_ui_layer_opacity_set(DrawingProgramAppContext *ctx,
+                                                 uint32_t layer_id,
+                                                 uint8_t opacity_percent) {
+    uint8_t i;
+    uint8_t opacity = drawing_program_clamp_percent(opacity_percent);
+    if (!ctx || layer_id == 0u) {
+        return;
+    }
+    for (i = 0u; i < ctx->ui_layer_opacity_entry_count; ++i) {
+        if (ctx->ui_layer_opacity_layer_ids[i] == layer_id) {
+            ctx->ui_layer_opacity_values[i] = opacity;
+            return;
+        }
+    }
+    if (ctx->ui_layer_opacity_entry_count >= DRAWING_PROGRAM_MAX_LAYERS) {
+        return;
+    }
+    ctx->ui_layer_opacity_layer_ids[ctx->ui_layer_opacity_entry_count] = layer_id;
+    ctx->ui_layer_opacity_values[ctx->ui_layer_opacity_entry_count] = opacity;
+    ctx->ui_layer_opacity_entry_count += 1u;
+}
+
+static void drawing_program_ui_layer_opacity_sync_with_document(DrawingProgramAppContext *ctx) {
+    uint8_t compact_count = 0u;
+    uint8_t i;
+    if (!ctx) {
+        return;
+    }
+    for (i = 0u; i < ctx->ui_layer_opacity_entry_count; ++i) {
+        uint32_t layer_id = ctx->ui_layer_opacity_layer_ids[i];
+        uint32_t ignored = 0u;
+        if (layer_id != 0u &&
+            drawing_program_document_layer_index_for_id(&ctx->document, layer_id, &ignored).code == CORE_OK) {
+            ctx->ui_layer_opacity_layer_ids[compact_count] = layer_id;
+            ctx->ui_layer_opacity_values[compact_count] =
+                drawing_program_clamp_percent(ctx->ui_layer_opacity_values[i]);
+            compact_count += 1u;
+        }
+    }
+    ctx->ui_layer_opacity_entry_count = compact_count;
+    for (i = 0u; i < ctx->document.layer_count; ++i) {
+        drawing_program_ui_layer_opacity_set(ctx, ctx->document.layers[i].layer_id, 100u);
+    }
+}
+
 static void drawing_program_normalize_ui_state(DrawingProgramAppContext *ctx) {
     if (!ctx) {
         return;
@@ -123,6 +172,16 @@ static void drawing_program_normalize_ui_state(DrawingProgramAppContext *ctx) {
     } else if (ctx->ui_tool_brush_opacity > 100u) {
         ctx->ui_tool_brush_opacity = 100u;
     }
+    if (ctx->ui_tool_brush_spacing < 1u) {
+        ctx->ui_tool_brush_spacing = 1u;
+    } else if (ctx->ui_tool_brush_spacing > 16u) {
+        ctx->ui_tool_brush_spacing = 16u;
+    }
+    if (ctx->ui_tool_brush_hardness < 1u) {
+        ctx->ui_tool_brush_hardness = 1u;
+    } else if (ctx->ui_tool_brush_hardness > 100u) {
+        ctx->ui_tool_brush_hardness = 100u;
+    }
     if (ctx->ui_tool_eraser_size < 1u) {
         ctx->ui_tool_eraser_size = 1u;
     } else if (ctx->ui_tool_eraser_size > 16u) {
@@ -139,6 +198,7 @@ static void drawing_program_normalize_ui_state(DrawingProgramAppContext *ctx) {
     if (ctx->ui_tool_fill_tolerance > 16u) {
         ctx->ui_tool_fill_tolerance = 16u;
     }
+    drawing_program_ui_layer_opacity_sync_with_document(ctx);
 }
 
 static int drawing_program_transition_stage(DrawingProgramAppStage *stage,
@@ -402,6 +462,8 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
     ctx->ui_active_color_index = drawing_program_color_default_index();
     ctx->ui_tool_brush_size = 2u;
     ctx->ui_tool_brush_opacity = 100u;
+    ctx->ui_tool_brush_spacing = 2u;
+    ctx->ui_tool_brush_hardness = 100u;
     ctx->ui_tool_eraser_size = 4u;
     ctx->ui_tool_shape_stroke_width = 1u;
     ctx->ui_tool_shape_mode = 0u;
@@ -555,6 +617,7 @@ CoreResult drawing_program_app_state_seed(DrawingProgramAppContext *ctx) {
     }
     drawing_program_editor_state_init(&ctx->editor, &ctx->document);
     drawing_program_history_init(&ctx->history);
+    drawing_program_ui_layer_opacity_sync_with_document(ctx);
     drawing_program_selection_reset(&ctx->selection);
     adapter_result = drawing_program_overlay_adapter_init(ctx);
     if (!adapter_result.ok) {

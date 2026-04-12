@@ -77,11 +77,16 @@ typedef struct DrawingProgramAppContext {
     uint8_t ui_active_color_index;
     uint8_t ui_tool_brush_size;
     uint8_t ui_tool_brush_opacity;
+    uint8_t ui_tool_brush_spacing;
+    uint8_t ui_tool_brush_hardness;
     uint8_t ui_tool_eraser_size;
     uint8_t ui_tool_shape_stroke_width;
     uint8_t ui_tool_shape_mode;
     uint8_t ui_tool_fill_tolerance;
+    uint8_t ui_layer_opacity_entry_count;
     int8_t ui_font_zoom_step;
+    uint8_t ui_layer_opacity_values[DRAWING_PROGRAM_MAX_LAYERS];
+    uint32_t ui_layer_opacity_layer_ids[DRAWING_PROGRAM_MAX_LAYERS];
     DrawingProgramSelectionState selection;
     DrawingProgramClipboardState clipboard;
     char runtime_root_path[512];

@@ -50,6 +50,14 @@ CoreResult drawing_program_render_compose_visible_samples(
     uint8_t *out_samples,
     uint32_t out_capacity);
 
+CoreResult drawing_program_render_compose_visible_samples_with_layer_opacity(
+    const struct DrawingProgramDocument *document,
+    const struct DrawingProgramLayerRasterStore *layer_rasters,
+    const uint8_t *layer_opacity_percent,
+    uint32_t layer_opacity_count,
+    uint8_t *out_samples,
+    uint32_t out_capacity);
+
 #ifdef __cplusplus
 }
 #endif

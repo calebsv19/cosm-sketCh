@@ -98,6 +98,35 @@ typedef struct DrawingProgramUiSettingsV5 {
     uint8_t reserved1;
 } DrawingProgramUiSettingsV5;
 
+typedef struct DrawingProgramUiSettingsV6 {
+    uint32_t version;
+    uint32_t theme_preset_id;
+    uint32_t font_preset_id;
+    int32_t font_zoom_step;
+    uint8_t left_panel_slot;
+    uint8_t right_panel_slot;
+    uint8_t active_color_index;
+    uint8_t selection_has_payload;
+    uint32_t selection_origin_x;
+    uint32_t selection_origin_y;
+    uint32_t selection_width;
+    uint32_t selection_height;
+    uint8_t tool_brush_size;
+    uint8_t tool_brush_opacity;
+    uint8_t tool_brush_spacing;
+    uint8_t tool_brush_hardness;
+    uint8_t tool_eraser_size;
+    uint8_t tool_shape_stroke_width;
+    uint8_t tool_shape_mode;
+    uint8_t tool_fill_tolerance;
+    uint8_t layer_opacity_entry_count;
+    uint8_t reserved0;
+    uint8_t reserved1;
+    uint8_t reserved2;
+    uint32_t layer_opacity_layer_ids[DRAWING_PROGRAM_MAX_LAYERS];
+    uint8_t layer_opacity_values[DRAWING_PROGRAM_MAX_LAYERS];
+} DrawingProgramUiSettingsV6;
+
 enum {
     DRAWING_PROGRAM_WORKSPACE_MAX_NODES = 32u,
     DRAWING_PROGRAM_WORKSPACE_PRESET_VERSION_V1 = 1u,
@@ -107,7 +136,8 @@ enum {
     DRAWING_PROGRAM_UI_SETTINGS_VERSION_V2 = 2u,
     DRAWING_PROGRAM_UI_SETTINGS_VERSION_V3 = 3u,
     DRAWING_PROGRAM_UI_SETTINGS_VERSION_V4 = 4u,
-    DRAWING_PROGRAM_UI_SETTINGS_VERSION_V5 = 5u
+    DRAWING_PROGRAM_UI_SETTINGS_VERSION_V5 = 5u,
+    DRAWING_PROGRAM_UI_SETTINGS_VERSION_V6 = 6u
 };
 
 static CoreResult snapshot_invalid(const char *message) {
@@ -399,7 +429,7 @@ static CoreResult drawing_program_rebind_imported_modules(struct DrawingProgramA
 CoreResult drawing_program_snapshot_save(const struct DrawingProgramAppContext *ctx, const char *path) {
     CorePackWriter writer;
     DrawingProgramSnapshotV1 payload;
-    DrawingProgramUiSettingsV5 ui_settings;
+    DrawingProgramUiSettingsV6 ui_settings;
     CoreResult result;
     if (!ctx || !path) {
         return snapshot_invalid("invalid snapshot save request");
@@ -418,7 +448,7 @@ CoreResult drawing_program_snapshot_save(const struct DrawingProgramAppContext *
     memcpy(payload.bindings, ctx->pane_host.module_bindings, sizeof(payload.bindings));
     memcpy(payload.history_entries, ctx->history.entries, sizeof(payload.history_entries));
     memset(&ui_settings, 0, sizeof(ui_settings));
-    ui_settings.version = DRAWING_PROGRAM_UI_SETTINGS_VERSION_V5;
+    ui_settings.version = DRAWING_PROGRAM_UI_SETTINGS_VERSION_V6;
     ui_settings.theme_preset_id = ctx->ui_theme_preset_id;
     ui_settings.font_preset_id = ctx->ui_font_preset_id;
     ui_settings.font_zoom_step = (int32_t)ctx->ui_font_zoom_step;
@@ -432,10 +462,22 @@ CoreResult drawing_program_snapshot_save(const struct DrawingProgramAppContext *
     ui_settings.selection_height = ctx->selection.height;
     ui_settings.tool_brush_size = ctx->ui_tool_brush_size;
     ui_settings.tool_brush_opacity = ctx->ui_tool_brush_opacity;
+    ui_settings.tool_brush_spacing = ctx->ui_tool_brush_spacing;
+    ui_settings.tool_brush_hardness = ctx->ui_tool_brush_hardness;
     ui_settings.tool_eraser_size = ctx->ui_tool_eraser_size;
     ui_settings.tool_shape_stroke_width = ctx->ui_tool_shape_stroke_width;
     ui_settings.tool_shape_mode = ctx->ui_tool_shape_mode;
     ui_settings.tool_fill_tolerance = ctx->ui_tool_fill_tolerance;
+    ui_settings.layer_opacity_entry_count = ctx->ui_layer_opacity_entry_count;
+    if (ui_settings.layer_opacity_entry_count > DRAWING_PROGRAM_MAX_LAYERS) {
+        ui_settings.layer_opacity_entry_count = DRAWING_PROGRAM_MAX_LAYERS;
+    }
+    memcpy(ui_settings.layer_opacity_layer_ids,
+           ctx->ui_layer_opacity_layer_ids,
+           sizeof(ui_settings.layer_opacity_layer_ids));
+    memcpy(ui_settings.layer_opacity_values,
+           ctx->ui_layer_opacity_values,
+           sizeof(ui_settings.layer_opacity_values));
 
     if (snapshot_trace_enabled()) {
         fprintf(stderr,
@@ -498,6 +540,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
     DrawingProgramUiSettingsV3 ui_settings_v3;
     DrawingProgramUiSettingsV4 ui_settings_v4;
     DrawingProgramUiSettingsV5 ui_settings_v5;
+    DrawingProgramUiSettingsV6 ui_settings_v6;
     CoreResult result;
     uint8_t *layer_chunk_data = 0;
     if (!ctx || !path) {
@@ -564,6 +607,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
     memset(&ui_settings_v3, 0, sizeof(ui_settings_v3));
     memset(&ui_settings_v4, 0, sizeof(ui_settings_v4));
     memset(&ui_settings_v5, 0, sizeof(ui_settings_v5));
+    memset(&ui_settings_v6, 0, sizeof(ui_settings_v6));
     memset(&layer_chunk, 0, sizeof(layer_chunk));
     result = core_pack_reader_find_chunk(&reader, "DPLR", 0u, &layer_chunk);
     if (result.code == CORE_OK) {
@@ -589,7 +633,53 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
     }
     result = core_pack_reader_find_chunk(&reader, "DPUI", 0u, &ui_chunk);
     if (result.code == CORE_OK) {
-        if (ui_chunk.size == (uint64_t)sizeof(ui_settings_v5)) {
+        if (ui_chunk.size == (uint64_t)sizeof(ui_settings_v6)) {
+            result = core_pack_reader_read_chunk_data(&reader, &ui_chunk, &ui_settings_v6, (uint64_t)sizeof(ui_settings_v6));
+            if (result.code == CORE_OK &&
+                ui_settings_v6.version == DRAWING_PROGRAM_UI_SETTINGS_VERSION_V6) {
+                uint8_t entry_count = ui_settings_v6.layer_opacity_entry_count;
+                if (ui_settings_v6.theme_preset_id < (uint32_t)CORE_THEME_PRESET_COUNT) {
+                    ctx->ui_theme_preset_id = ui_settings_v6.theme_preset_id;
+                }
+                if (ui_settings_v6.font_preset_id < (uint32_t)CORE_FONT_PRESET_COUNT) {
+                    ctx->ui_font_preset_id = ui_settings_v6.font_preset_id;
+                }
+                ctx->ui_font_zoom_step = (int8_t)ui_settings_v6.font_zoom_step;
+                ctx->ui_left_panel_slot = ui_settings_v6.left_panel_slot;
+                ctx->ui_right_panel_slot = ui_settings_v6.right_panel_slot;
+                ctx->ui_active_color_index = ui_settings_v6.active_color_index;
+                ctx->ui_tool_brush_size = ui_settings_v6.tool_brush_size;
+                ctx->ui_tool_brush_opacity = ui_settings_v6.tool_brush_opacity;
+                ctx->ui_tool_brush_spacing = ui_settings_v6.tool_brush_spacing;
+                ctx->ui_tool_brush_hardness = ui_settings_v6.tool_brush_hardness;
+                ctx->ui_tool_eraser_size = ui_settings_v6.tool_eraser_size;
+                ctx->ui_tool_shape_stroke_width = ui_settings_v6.tool_shape_stroke_width;
+                ctx->ui_tool_shape_mode = ui_settings_v6.tool_shape_mode;
+                ctx->ui_tool_fill_tolerance = ui_settings_v6.tool_fill_tolerance;
+                if (entry_count > DRAWING_PROGRAM_MAX_LAYERS) {
+                    entry_count = DRAWING_PROGRAM_MAX_LAYERS;
+                }
+                ctx->ui_layer_opacity_entry_count = entry_count;
+                memcpy(ctx->ui_layer_opacity_layer_ids,
+                       ui_settings_v6.layer_opacity_layer_ids,
+                       sizeof(ctx->ui_layer_opacity_layer_ids));
+                memcpy(ctx->ui_layer_opacity_values,
+                       ui_settings_v6.layer_opacity_values,
+                       sizeof(ctx->ui_layer_opacity_values));
+                if (ui_settings_v6.selection_has_payload) {
+                    (void)drawing_program_selection_capture_from_rect(&ctx->document,
+                                                                      &ctx->layer_rasters,
+                                                                      ctx->editor.active_layer_id,
+                                                                      &ctx->selection,
+                                                                      (int32_t)ui_settings_v6.selection_origin_x,
+                                                                      (int32_t)ui_settings_v6.selection_origin_y,
+                                                                      ui_settings_v6.selection_width,
+                                                                      ui_settings_v6.selection_height);
+                } else {
+                    drawing_program_selection_reset(&ctx->selection);
+                }
+            }
+        } else if (ui_chunk.size == (uint64_t)sizeof(ui_settings_v5)) {
             result = core_pack_reader_read_chunk_data(&reader, &ui_chunk, &ui_settings_v5, (uint64_t)sizeof(ui_settings_v5));
             if (result.code == CORE_OK &&
                 ui_settings_v5.version == DRAWING_PROGRAM_UI_SETTINGS_VERSION_V5) {
@@ -605,6 +695,8 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
                 ctx->ui_active_color_index = ui_settings_v5.active_color_index;
                 ctx->ui_tool_brush_size = ui_settings_v5.tool_brush_size;
                 ctx->ui_tool_brush_opacity = ui_settings_v5.tool_brush_opacity;
+                ctx->ui_tool_brush_spacing = 2u;
+                ctx->ui_tool_brush_hardness = 100u;
                 ctx->ui_tool_eraser_size = ui_settings_v5.tool_eraser_size;
                 ctx->ui_tool_shape_stroke_width = ui_settings_v5.tool_shape_stroke_width;
                 ctx->ui_tool_shape_mode = ui_settings_v5.tool_shape_mode;
@@ -759,10 +851,24 @@ CoreResult drawing_program_snapshot_export_debug_json(const struct DrawingProgra
     fprintf(f, "  \"tool_settings\": {\n");
     fprintf(f, "    \"brush_size\": %u,\n", (unsigned)ctx->ui_tool_brush_size);
     fprintf(f, "    \"brush_opacity\": %u,\n", (unsigned)ctx->ui_tool_brush_opacity);
+    fprintf(f, "    \"brush_spacing\": %u,\n", (unsigned)ctx->ui_tool_brush_spacing);
+    fprintf(f, "    \"brush_hardness\": %u,\n", (unsigned)ctx->ui_tool_brush_hardness);
     fprintf(f, "    \"eraser_size\": %u,\n", (unsigned)ctx->ui_tool_eraser_size);
     fprintf(f, "    \"shape_stroke_width\": %u,\n", (unsigned)ctx->ui_tool_shape_stroke_width);
     fprintf(f, "    \"shape_mode\": %u,\n", (unsigned)ctx->ui_tool_shape_mode);
     fprintf(f, "    \"fill_tolerance\": %u\n", (unsigned)ctx->ui_tool_fill_tolerance);
+    fprintf(f, "  },\n");
+    fprintf(f, "  \"layer_ui\": {\n");
+    fprintf(f, "    \"opacity_entry_count\": %u,\n", (unsigned)ctx->ui_layer_opacity_entry_count);
+    fprintf(f, "    \"opacity_entries\": [\n");
+    for (i = 0u; i < ctx->ui_layer_opacity_entry_count && i < DRAWING_PROGRAM_MAX_LAYERS; ++i) {
+        fprintf(f,
+                "      {\"layer_id\": %u, \"opacity\": %u}%s\n",
+                (unsigned)ctx->ui_layer_opacity_layer_ids[i],
+                (unsigned)ctx->ui_layer_opacity_values[i],
+                ((i + 1u) < ctx->ui_layer_opacity_entry_count && (i + 1u) < DRAWING_PROGRAM_MAX_LAYERS) ? "," : "");
+    }
+    fprintf(f, "    ]\n");
     fprintf(f, "  },\n");
     fprintf(f, "  \"selection\": {\n");
     fprintf(f, "    \"has_payload\": %u,\n", (unsigned)ctx->selection.has_payload);

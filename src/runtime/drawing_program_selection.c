@@ -432,6 +432,61 @@ CoreResult drawing_program_selection_commit_move(DrawingProgramDocument *documen
     return core_result_ok();
 }
 
+CoreResult drawing_program_selection_delete_payload(DrawingProgramDocument *document,
+                                                    DrawingProgramLayerRasterStore *layer_rasters,
+                                                    uint32_t active_layer_id,
+                                                    DrawingProgramHistory *history,
+                                                    DrawingProgramSelectionState *selection) {
+    uint32_t x;
+    uint32_t y;
+    uint8_t background = selection_seeded_background_sample();
+    uint32_t target_layer_id = 0u;
+    CoreResult result;
+    if (!document || !history || !selection || !selection->has_payload) {
+        return core_result_ok();
+    }
+    target_layer_id = selection_resolve_target_layer_id(document, selection, active_layer_id);
+    if (target_layer_id == 0u) {
+        drawing_program_selection_reset(selection);
+        return core_result_ok();
+    }
+    result = drawing_program_history_begin_group(history);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    for (y = 0u; y < selection->height; ++y) {
+        for (x = 0u; x < selection->width; ++x) {
+            uint32_t sx;
+            uint32_t sy;
+            if (!drawing_program_selection_mask_at(selection, x, y)) {
+                continue;
+            }
+            sx = selection->origin_x + x;
+            sy = selection->origin_y + y;
+            if (sx >= document->raster_width || sy >= document->raster_height) {
+                continue;
+            }
+            result = drawing_program_history_apply_set_sample_value(history,
+                                                                    document,
+                                                                    layer_rasters,
+                                                                    target_layer_id,
+                                                                    sx,
+                                                                    sy,
+                                                                    background);
+            if (result.code != CORE_OK) {
+                (void)drawing_program_history_end_group(history);
+                return result;
+            }
+        }
+    }
+    result = drawing_program_history_end_group(history);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    drawing_program_selection_reset(selection);
+    return core_result_ok();
+}
+
 int drawing_program_selection_copy_payload(const DrawingProgramSelectionState *selection,
                                            DrawingProgramClipboardState *clipboard) {
     if (!selection || !clipboard) {

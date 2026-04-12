@@ -92,6 +92,11 @@ CoreResult drawing_program_selection_commit_move(DrawingProgramDocument *documen
                                                  uint32_t active_layer_id,
                                                  DrawingProgramHistory *history,
                                                  DrawingProgramSelectionState *selection);
+CoreResult drawing_program_selection_delete_payload(DrawingProgramDocument *document,
+                                                    DrawingProgramLayerRasterStore *layer_rasters,
+                                                    uint32_t active_layer_id,
+                                                    DrawingProgramHistory *history,
+                                                    DrawingProgramSelectionState *selection);
 int drawing_program_selection_copy_payload(const DrawingProgramSelectionState *selection,
                                            DrawingProgramClipboardState *clipboard);
 CoreResult drawing_program_selection_cut_to_clipboard(DrawingProgramDocument *document,

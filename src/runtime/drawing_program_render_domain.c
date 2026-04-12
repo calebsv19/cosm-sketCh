@@ -64,6 +64,8 @@ static uint32_t render_layer_views_resolve(const DrawingProgramDocument *documen
 
 static uint8_t render_compose_sample_for_index(const DrawingProgramDocument *document,
                                                const uint8_t **layer_views,
+                                               const uint8_t *layer_opacity_percent,
+                                               uint32_t layer_opacity_count,
                                                uint32_t sample_index) {
     uint32_t i;
     uint8_t composed = drawing_program_color_eraser_value();
@@ -73,7 +75,17 @@ static uint8_t render_compose_sample_for_index(const DrawingProgramDocument *doc
     for (i = 0u; i < document->layer_count; ++i) {
         const uint8_t *samples;
         uint8_t sample;
+        uint8_t opacity = 100u;
         if (!document->layers[i].visible) {
+            continue;
+        }
+        if (layer_opacity_percent && i < layer_opacity_count) {
+            opacity = layer_opacity_percent[i];
+            if (opacity > 100u) {
+                opacity = 100u;
+            }
+        }
+        if (opacity == 0u) {
             continue;
         }
         samples = layer_views[i];
@@ -82,15 +94,24 @@ static uint8_t render_compose_sample_for_index(const DrawingProgramDocument *doc
         }
         sample = samples[sample_index];
         if (sample != drawing_program_color_eraser_value()) {
-            composed = sample;
+            if (opacity >= 100u) {
+                composed = sample;
+            } else {
+                uint32_t src = (uint32_t)sample;
+                uint32_t dst = (uint32_t)composed;
+                uint32_t alpha = (uint32_t)opacity;
+                composed = (uint8_t)((src * alpha + dst * (100u - alpha) + 50u) / 100u);
+            }
         }
     }
     return composed;
 }
 
-CoreResult drawing_program_render_compose_visible_samples(
+CoreResult drawing_program_render_compose_visible_samples_with_layer_opacity(
     const struct DrawingProgramDocument *document,
     const struct DrawingProgramLayerRasterStore *layer_rasters,
+    const uint8_t *layer_opacity_percent,
+    uint32_t layer_opacity_count,
     uint8_t *out_samples,
     uint32_t out_capacity) {
     const uint8_t *layer_views[DRAWING_PROGRAM_MAX_LAYERS];
@@ -103,9 +124,26 @@ CoreResult drawing_program_render_compose_visible_samples(
     }
     (void)render_layer_views_resolve(document, layer_rasters, layer_views);
     for (i = 0u; i < document->raster_sample_count; ++i) {
-        out_samples[i] = render_compose_sample_for_index(document, layer_views, i);
+        out_samples[i] = render_compose_sample_for_index(document,
+                                                         layer_views,
+                                                         layer_opacity_percent,
+                                                         layer_opacity_count,
+                                                         i);
     }
     return core_result_ok();
+}
+
+CoreResult drawing_program_render_compose_visible_samples(
+    const struct DrawingProgramDocument *document,
+    const struct DrawingProgramLayerRasterStore *layer_rasters,
+    uint8_t *out_samples,
+    uint32_t out_capacity) {
+    return drawing_program_render_compose_visible_samples_with_layer_opacity(document,
+                                                                             layer_rasters,
+                                                                             0,
+                                                                             0u,
+                                                                             out_samples,
+                                                                             out_capacity);
 }
 
 CoreResult drawing_program_render_project_frame(
@@ -145,7 +183,7 @@ CoreResult drawing_program_render_project_frame(
         }
     }
     for (i = 0u; i < document->raster_sample_count; ++i) {
-        uint8_t composed = render_compose_sample_for_index(document, layer_views, i);
+        uint8_t composed = render_compose_sample_for_index(document, layer_views, 0, 0u, i);
         if (composed != background) {
             out_projection->raster_nonzero_count += 1u;
         }

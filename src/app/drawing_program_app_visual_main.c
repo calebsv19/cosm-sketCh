@@ -137,6 +137,96 @@ static CoreResult active_layer_sample_read_visual(const DrawingProgramAppContext
     return drawing_program_document_sample_read(&ctx->document, sample_x, sample_y, out_value);
 }
 
+static uint8_t clamp_percent_u8(uint8_t value) {
+    return (value > 100u) ? 100u : value;
+}
+
+static void visual_layer_opacity_compact(DrawingProgramAppContext *ctx) {
+    uint8_t compact_count = 0u;
+    uint8_t i;
+    if (!ctx) {
+        return;
+    }
+    for (i = 0u; i < ctx->ui_layer_opacity_entry_count; ++i) {
+        uint32_t layer_id = ctx->ui_layer_opacity_layer_ids[i];
+        uint32_t ignored_index = 0u;
+        if (layer_id != 0u &&
+            drawing_program_document_layer_index_for_id(&ctx->document, layer_id, &ignored_index).code == CORE_OK) {
+            ctx->ui_layer_opacity_layer_ids[compact_count] = layer_id;
+            ctx->ui_layer_opacity_values[compact_count] =
+                clamp_percent_u8(ctx->ui_layer_opacity_values[i]);
+            compact_count += 1u;
+        }
+    }
+    ctx->ui_layer_opacity_entry_count = compact_count;
+}
+
+static uint8_t visual_layer_opacity_get(const DrawingProgramAppContext *ctx, uint32_t layer_id) {
+    uint8_t i;
+    if (!ctx || layer_id == 0u) {
+        return 100u;
+    }
+    for (i = 0u; i < ctx->ui_layer_opacity_entry_count; ++i) {
+        if (ctx->ui_layer_opacity_layer_ids[i] == layer_id) {
+            return clamp_percent_u8(ctx->ui_layer_opacity_values[i]);
+        }
+    }
+    return 100u;
+}
+
+static void visual_layer_opacity_set(DrawingProgramAppContext *ctx,
+                                     uint32_t layer_id,
+                                     uint8_t opacity_percent) {
+    uint8_t i;
+    uint8_t opacity = clamp_percent_u8(opacity_percent);
+    if (!ctx || layer_id == 0u) {
+        return;
+    }
+    for (i = 0u; i < ctx->ui_layer_opacity_entry_count; ++i) {
+        if (ctx->ui_layer_opacity_layer_ids[i] == layer_id) {
+            ctx->ui_layer_opacity_values[i] = opacity;
+            return;
+        }
+    }
+    if (ctx->ui_layer_opacity_entry_count >= DRAWING_PROGRAM_MAX_LAYERS) {
+        return;
+    }
+    ctx->ui_layer_opacity_layer_ids[ctx->ui_layer_opacity_entry_count] = layer_id;
+    ctx->ui_layer_opacity_values[ctx->ui_layer_opacity_entry_count] = opacity;
+    ctx->ui_layer_opacity_entry_count += 1u;
+}
+
+static void visual_layer_opacity_sync_document(DrawingProgramAppContext *ctx) {
+    uint32_t i;
+    if (!ctx) {
+        return;
+    }
+    visual_layer_opacity_compact(ctx);
+    for (i = 0u; i < ctx->document.layer_count; ++i) {
+        visual_layer_opacity_set(ctx, ctx->document.layers[i].layer_id, 100u);
+    }
+}
+
+static CoreResult layer_sample_read_visual(const DrawingProgramAppContext *ctx,
+                                           uint32_t layer_id,
+                                           uint32_t sample_x,
+                                           uint32_t sample_y,
+                                           uint8_t *out_value) {
+    CoreResult result;
+    if (!ctx || !out_value || layer_id == 0u) {
+        return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid layer sample read request" };
+    }
+    result = drawing_program_layer_raster_store_sample_read(&ctx->layer_rasters,
+                                                            layer_id,
+                                                            sample_x,
+                                                            sample_y,
+                                                            out_value);
+    if (result.code == CORE_OK) {
+        return core_result_ok();
+    }
+    return drawing_program_document_sample_read(&ctx->document, sample_x, sample_y, out_value);
+}
+
 static void map_input_to_render_coords(SDL_Window *window,
                                        SDL_Renderer *renderer,
                                        int input_x,
@@ -207,15 +297,23 @@ static uint32_t tool_brush_spacing_samples(const DrawingProgramAppContext *ctx,
                                            DrawingProgramToolKind tool,
                                            uint32_t radius) {
     uint32_t spacing = 1u;
-    (void)ctx;
-    (void)tool;
-    if (radius > 0u) {
+    if (tool == DRAWING_PROGRAM_TOOL_BRUSH && ctx) {
+        spacing = (uint32_t)clamp_setting_u8(ctx->ui_tool_brush_spacing, 1u, 16u);
+    } else if (radius > 0u) {
         spacing = (radius / 2u) + 1u;
     }
     if (spacing < 1u) {
         spacing = 1u;
     }
     return spacing;
+}
+
+static uint8_t tool_brush_hardness_percent(const DrawingProgramAppContext *ctx,
+                                           DrawingProgramToolKind tool) {
+    if (tool == DRAWING_PROGRAM_TOOL_BRUSH && ctx) {
+        return clamp_setting_u8(ctx->ui_tool_brush_hardness, 1u, 100u);
+    }
+    return 100u;
 }
 
 static int tool_uses_direct_sample_stroke(DrawingProgramToolKind tool) {
@@ -322,16 +420,19 @@ static DrawingProgramWorkflowControl workflow_control_for_tool(DrawingProgramToo
 typedef enum VisualToolOptionKind {
     VISUAL_TOOL_OPTION_BRUSH_SIZE = 0,
     VISUAL_TOOL_OPTION_BRUSH_OPACITY,
+    VISUAL_TOOL_OPTION_BRUSH_SPACING,
+    VISUAL_TOOL_OPTION_BRUSH_HARDNESS,
     VISUAL_TOOL_OPTION_ERASER_SIZE,
     VISUAL_TOOL_OPTION_SHAPE_STROKE_WIDTH,
     VISUAL_TOOL_OPTION_SHAPE_MODE,
-    VISUAL_TOOL_OPTION_FILL_TOLERANCE
+    VISUAL_TOOL_OPTION_FILL_TOLERANCE,
+    VISUAL_TOOL_OPTION_SELECT_DELETE
 } VisualToolOptionKind;
 
-static uint32_t visual_tool_option_count(DrawingProgramToolKind tool) {
+static uint32_t visual_tool_option_count(const DrawingProgramAppContext *ctx, DrawingProgramToolKind tool) {
     switch (tool) {
         case DRAWING_PROGRAM_TOOL_BRUSH:
-            return 2u;
+            return 4u;
         case DRAWING_PROGRAM_TOOL_ERASER:
             return 1u;
         case DRAWING_PROGRAM_TOOL_LINE:
@@ -340,15 +441,23 @@ static uint32_t visual_tool_option_count(DrawingProgramToolKind tool) {
             return 2u;
         case DRAWING_PROGRAM_TOOL_FILL:
             return 1u;
+        case DRAWING_PROGRAM_TOOL_SELECT:
+            return (ctx && ctx->selection.has_payload) ? 1u : 0u;
         default:
             return 0u;
     }
 }
 
-static VisualToolOptionKind visual_tool_option_kind_for_index(DrawingProgramToolKind tool, uint32_t index) {
+static VisualToolOptionKind visual_tool_option_kind_for_index(const DrawingProgramAppContext *ctx,
+                                                              DrawingProgramToolKind tool,
+                                                              uint32_t index) {
+    (void)ctx;
     switch (tool) {
         case DRAWING_PROGRAM_TOOL_BRUSH:
-            return (index == 0u) ? VISUAL_TOOL_OPTION_BRUSH_SIZE : VISUAL_TOOL_OPTION_BRUSH_OPACITY;
+            if (index == 0u) return VISUAL_TOOL_OPTION_BRUSH_SIZE;
+            if (index == 1u) return VISUAL_TOOL_OPTION_BRUSH_OPACITY;
+            if (index == 2u) return VISUAL_TOOL_OPTION_BRUSH_SPACING;
+            return VISUAL_TOOL_OPTION_BRUSH_HARDNESS;
         case DRAWING_PROGRAM_TOOL_ERASER:
             return VISUAL_TOOL_OPTION_ERASER_SIZE;
         case DRAWING_PROGRAM_TOOL_LINE:
@@ -357,6 +466,8 @@ static VisualToolOptionKind visual_tool_option_kind_for_index(DrawingProgramTool
             return (index == 0u) ? VISUAL_TOOL_OPTION_SHAPE_STROKE_WIDTH : VISUAL_TOOL_OPTION_SHAPE_MODE;
         case DRAWING_PROGRAM_TOOL_FILL:
             return VISUAL_TOOL_OPTION_FILL_TOLERANCE;
+        case DRAWING_PROGRAM_TOOL_SELECT:
+            return VISUAL_TOOL_OPTION_SELECT_DELETE;
         default:
             return VISUAL_TOOL_OPTION_BRUSH_SIZE;
     }
@@ -366,10 +477,13 @@ static const char *visual_tool_option_label(VisualToolOptionKind option) {
     switch (option) {
         case VISUAL_TOOL_OPTION_BRUSH_SIZE: return "SIZE";
         case VISUAL_TOOL_OPTION_BRUSH_OPACITY: return "OPACITY";
+        case VISUAL_TOOL_OPTION_BRUSH_SPACING: return "SPACING";
+        case VISUAL_TOOL_OPTION_BRUSH_HARDNESS: return "HARDNESS";
         case VISUAL_TOOL_OPTION_ERASER_SIZE: return "SIZE";
         case VISUAL_TOOL_OPTION_SHAPE_STROKE_WIDTH: return "STROKE";
         case VISUAL_TOOL_OPTION_SHAPE_MODE: return "MODE";
         case VISUAL_TOOL_OPTION_FILL_TOLERANCE: return "TOLERANCE";
+        case VISUAL_TOOL_OPTION_SELECT_DELETE: return "SELECTION";
         default: return "VALUE";
     }
 }
@@ -388,6 +502,12 @@ static void visual_tool_option_value_text(const DrawingProgramAppContext *ctx,
         case VISUAL_TOOL_OPTION_BRUSH_OPACITY:
             (void)snprintf(out_text, out_cap, "%u%%", (unsigned)clamp_setting_u8(ctx ? ctx->ui_tool_brush_opacity : 100u, 1u, 100u));
             break;
+        case VISUAL_TOOL_OPTION_BRUSH_SPACING:
+            (void)snprintf(out_text, out_cap, "%u", (unsigned)clamp_setting_u8(ctx ? ctx->ui_tool_brush_spacing : 2u, 1u, 16u));
+            break;
+        case VISUAL_TOOL_OPTION_BRUSH_HARDNESS:
+            (void)snprintf(out_text, out_cap, "%u%%", (unsigned)clamp_setting_u8(ctx ? ctx->ui_tool_brush_hardness : 100u, 1u, 100u));
+            break;
         case VISUAL_TOOL_OPTION_ERASER_SIZE:
             (void)snprintf(out_text, out_cap, "%u", (unsigned)clamp_setting_u8(ctx ? ctx->ui_tool_eraser_size : 4u, 1u, 16u));
             break;
@@ -399,6 +519,9 @@ static void visual_tool_option_value_text(const DrawingProgramAppContext *ctx,
             break;
         case VISUAL_TOOL_OPTION_FILL_TOLERANCE:
             (void)snprintf(out_text, out_cap, "%u", (unsigned)clamp_setting_u8(ctx ? ctx->ui_tool_fill_tolerance : 0u, 0u, 16u));
+            break;
+        case VISUAL_TOOL_OPTION_SELECT_DELETE:
+            (void)snprintf(out_text, out_cap, "DELETE");
             break;
         default:
             (void)snprintf(out_text, out_cap, "-");
@@ -423,6 +546,20 @@ static void visual_tool_option_adjust(DrawingProgramAppContext *ctx, VisualToolO
             if (v < 1) v = 1;
             if (v > 100) v = 100;
             ctx->ui_tool_brush_opacity = (uint8_t)v;
+            break;
+        }
+        case VISUAL_TOOL_OPTION_BRUSH_SPACING: {
+            int v = (int)ctx->ui_tool_brush_spacing + delta;
+            if (v < 1) v = 1;
+            if (v > 16) v = 16;
+            ctx->ui_tool_brush_spacing = (uint8_t)v;
+            break;
+        }
+        case VISUAL_TOOL_OPTION_BRUSH_HARDNESS: {
+            int v = (int)ctx->ui_tool_brush_hardness + (delta * 5);
+            if (v < 1) v = 1;
+            if (v > 100) v = 100;
+            ctx->ui_tool_brush_hardness = (uint8_t)v;
             break;
         }
         case VISUAL_TOOL_OPTION_ERASER_SIZE: {
@@ -457,9 +594,15 @@ static void visual_tool_option_adjust(DrawingProgramAppContext *ctx, VisualToolO
             ctx->ui_tool_fill_tolerance = (uint8_t)v;
             break;
         }
+        case VISUAL_TOOL_OPTION_SELECT_DELETE:
+            break;
         default:
             break;
     }
+}
+
+static int visual_tool_option_is_action_button(VisualToolOptionKind option) {
+    return (option == VISUAL_TOOL_OPTION_SELECT_DELETE) ? 1 : 0;
 }
 
 static SDL_Color sdl_color_from_theme(CoreThemeColor c) {
@@ -819,12 +962,29 @@ static void visual_canvas_texture_shutdown(void) {
     g_visual_canvas_texture.composited_capacity = 0u;
 }
 
+static void visual_collect_layer_opacity_by_index(const DrawingProgramAppContext *ctx,
+                                                  uint8_t *out_opacity,
+                                                  uint32_t out_count) {
+    uint32_t i;
+    if (!ctx || !out_opacity) {
+        return;
+    }
+    for (i = 0u; i < out_count; ++i) {
+        uint8_t opacity = 100u;
+        if (i < ctx->document.layer_count) {
+            opacity = visual_layer_opacity_get(ctx, ctx->document.layers[i].layer_id);
+        }
+        out_opacity[i] = opacity;
+    }
+}
+
 static int visual_canvas_texture_sync(SDL_Renderer *renderer, const DrawingProgramAppContext *ctx) {
     void *pixels = 0;
     int pitch = 0;
     uint32_t x;
     uint32_t y;
     const uint8_t *source_samples = 0;
+    uint8_t layer_opacity[DRAWING_PROGRAM_MAX_LAYERS];
     CoreResult compose_result;
     if (!renderer || !ctx) {
         return 0;
@@ -843,10 +1003,13 @@ static int visual_canvas_texture_sync(SDL_Renderer *renderer, const DrawingProgr
         g_visual_canvas_texture.composited_samples = next_samples;
         g_visual_canvas_texture.composited_capacity = ctx->document.raster_sample_count;
     }
-    compose_result = drawing_program_render_compose_visible_samples(&ctx->document,
-                                                                    &ctx->layer_rasters,
-                                                                    g_visual_canvas_texture.composited_samples,
-                                                                    g_visual_canvas_texture.composited_capacity);
+    visual_collect_layer_opacity_by_index(ctx, layer_opacity, DRAWING_PROGRAM_MAX_LAYERS);
+    compose_result = drawing_program_render_compose_visible_samples_with_layer_opacity(&ctx->document,
+                                                                                        &ctx->layer_rasters,
+                                                                                        layer_opacity,
+                                                                                        DRAWING_PROGRAM_MAX_LAYERS,
+                                                                                        g_visual_canvas_texture.composited_samples,
+                                                                                        g_visual_canvas_texture.composited_capacity);
     if (compose_result.code == CORE_OK) {
         source_samples = g_visual_canvas_texture.composited_samples;
     } else {
@@ -1010,6 +1173,7 @@ typedef struct VisualCanvasInteractionState {
     uint8_t panning_active;
     uint8_t shape_active;
     uint8_t shape_tool;
+    uint8_t move_axis_lock;
     uint8_t has_last_sample;
     uint32_t last_sample_x;
     uint32_t last_sample_y;
@@ -1230,6 +1394,8 @@ static int right_canvas_metrics_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m
 
 typedef enum VisualLayerActionButton {
     VISUAL_LAYER_ACTION_ADD = 0,
+    VISUAL_LAYER_ACTION_DUPLICATE,
+    VISUAL_LAYER_ACTION_RENAME,
     VISUAL_LAYER_ACTION_DELETE,
     VISUAL_LAYER_ACTION_ACTIVE_PREV,
     VISUAL_LAYER_ACTION_ACTIVE_NEXT,
@@ -1254,18 +1420,55 @@ static SDL_Rect right_layer_row_rect(SDL_Rect rect,
     return (SDL_Rect){ rect.x + m.pad_x, y, rect.w - (2 * m.pad_x), m.row_h };
 }
 
-static SDL_Rect right_layer_action_button_rect(SDL_Rect rect,
-                                               VisualPaneLayoutMetrics m,
-                                               uint32_t layer_count,
-                                               VisualLayerActionButton button) {
+static int right_layer_after_rows_y(SDL_Rect rect,
+                                    VisualPaneLayoutMetrics m,
+                                    uint32_t layer_count) {
     int y = right_layer_content_start_y(rect, m);
     y += m.line_h;
     y += (int)layer_count * m.row_h;
     if (layer_count > 1u) {
         y += (int)(layer_count - 1u) * m.section_gap;
     }
+    return y;
+}
+
+static SDL_Rect right_layer_opacity_row_rect(SDL_Rect rect,
+                                             VisualPaneLayoutMetrics m,
+                                             uint32_t layer_count) {
+    int y = right_layer_after_rows_y(rect, m, layer_count);
     y += m.section_gap;
-    y += m.line_h;
+    return (SDL_Rect){ rect.x + m.pad_x, y, rect.w - (2 * m.pad_x), m.row_h };
+}
+
+static SDL_Rect right_layer_opacity_track_rect(SDL_Rect opacity_row, VisualPaneLayoutMetrics m) {
+    SDL_Rect track = opacity_row;
+    int inner_pad = m.tab_gap + 4;
+    if (inner_pad < 6) {
+        inner_pad = 6;
+    }
+    track.x += inner_pad;
+    track.w -= (inner_pad * 2);
+    if (track.w < 24) {
+        track.w = 24;
+    }
+    track.y += (track.h / 2);
+    track.h = (m.row_h > 10) ? (m.row_h / 3) : 3;
+    return track;
+}
+
+static int right_layer_actions_label_y(SDL_Rect rect,
+                                       VisualPaneLayoutMetrics m,
+                                       uint32_t layer_count) {
+    SDL_Rect opacity_row = right_layer_opacity_row_rect(rect, m, layer_count);
+    return opacity_row.y + opacity_row.h + m.section_gap;
+}
+
+static SDL_Rect right_layer_action_button_rect(SDL_Rect rect,
+                                               VisualPaneLayoutMetrics m,
+                                               uint32_t layer_count,
+                                               VisualLayerActionButton button) {
+    int y = right_layer_actions_label_y(rect, m, layer_count);
+    y += m.line_h + m.section_gap;
     y += (int)button * (m.row_h + m.section_gap);
     return (SDL_Rect){ rect.x + m.pad_x, y, rect.w - (2 * m.pad_x), m.row_h };
 }
@@ -1434,41 +1637,6 @@ static int screen_to_canvas_sample_clamped(const DrawingProgramAppContext *ctx,
     *out_sample_x = (uint32_t)sample_x;
     *out_sample_y = (uint32_t)sample_y;
     return 1;
-}
-
-static CoreResult apply_sample_if_changed(DrawingProgramAppContext *ctx,
-                                          uint32_t sample_x,
-                                          uint32_t sample_y,
-                                          uint8_t value) {
-    uint8_t current = 0u;
-    uint32_t active_layer_id = 0u;
-    CoreResult result;
-    if (!ctx) {
-        return (CoreResult){ CORE_ERR_INVALID_ARG, "null app context for sample apply" };
-    }
-    if (!active_layer_allows_edits_visual(ctx)) {
-        return core_result_ok();
-    }
-    if (!active_layer_query(ctx, &active_layer_id, 0, 0, 0)) {
-        return core_result_ok();
-    }
-    if (active_layer_id == 0u) {
-        return core_result_ok();
-    }
-    result = active_layer_sample_read_visual(ctx, sample_x, sample_y, &current);
-    if (result.code != CORE_OK) {
-        return result;
-    }
-    if (current == value) {
-        return core_result_ok();
-    }
-    return drawing_program_history_apply_set_sample_value(&ctx->history,
-                                                          &ctx->document,
-                                                          &ctx->layer_rasters,
-                                                          active_layer_id,
-                                                          sample_x,
-                                                          sample_y,
-                                                          value);
 }
 
 static CoreResult apply_canvas_picker_at_screen(DrawingProgramAppContext *ctx,
@@ -1662,41 +1830,104 @@ static CoreResult apply_sample_if_changed_on_layer(DrawingProgramAppContext *ctx
                                                           value);
 }
 
+static uint8_t blend_sample_value_u8(uint8_t dst, uint8_t src, uint8_t opacity_percent) {
+    uint32_t alpha = (uint32_t)clamp_percent_u8(opacity_percent);
+    return (uint8_t)(((uint32_t)src * alpha + (uint32_t)dst * (100u - alpha) + 50u) / 100u);
+}
+
 static CoreResult apply_canvas_stamp_square_on_layer(DrawingProgramAppContext *ctx,
                                                      uint32_t layer_id,
                                                      int32_t sample_x,
                                                      int32_t sample_y,
                                                      uint8_t value,
-                                                     uint32_t stroke_width) {
+                                                     uint32_t stroke_width,
+                                                     uint8_t hardness_percent) {
     int32_t start_offset;
     int32_t end_offset;
     int32_t y;
     int32_t x;
+    float radius_limit;
+    float inner_radius;
     if (!ctx || layer_id == 0u) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid stamp request" };
     }
     if (stroke_width < 1u) {
         stroke_width = 1u;
     }
+    hardness_percent = clamp_setting_u8(hardness_percent, 1u, 100u);
     start_offset = -((int32_t)stroke_width / 2);
     end_offset = start_offset + (int32_t)stroke_width - 1;
+    if (hardness_percent >= 100u) {
+        for (y = start_offset; y <= end_offset; ++y) {
+            for (x = start_offset; x <= end_offset; ++x) {
+                int32_t tx = sample_x + x;
+                int32_t ty = sample_y + y;
+                CoreResult result;
+                if (tx < 0 || ty < 0 ||
+                    (uint32_t)tx >= ctx->document.raster_width ||
+                    (uint32_t)ty >= ctx->document.raster_height) {
+                    continue;
+                }
+                result = apply_sample_if_changed_on_layer(ctx,
+                                                          layer_id,
+                                                          (uint32_t)tx,
+                                                          (uint32_t)ty,
+                                                          value);
+                if (result.code != CORE_OK) {
+                    return result;
+                }
+            }
+        }
+        return core_result_ok();
+    }
+    radius_limit = ((float)stroke_width * 0.5f);
+    if (radius_limit < 0.5f) {
+        radius_limit = 0.5f;
+    }
+    inner_radius = radius_limit * ((float)hardness_percent / 100.0f);
     for (y = start_offset; y <= end_offset; ++y) {
         for (x = start_offset; x <= end_offset; ++x) {
             int32_t tx = sample_x + x;
             int32_t ty = sample_y + y;
+            float dx = (float)x + 0.5f;
+            float dy = (float)y + 0.5f;
+            float d = sqrtf((dx * dx) + (dy * dy));
+            uint8_t opacity = 100u;
             if (tx < 0 || ty < 0 ||
                 (uint32_t)tx >= ctx->document.raster_width ||
                 (uint32_t)ty >= ctx->document.raster_height) {
                 continue;
             }
+            if (d > radius_limit) {
+                continue;
+            }
+            if (hardness_percent < 100u && d > inner_radius && radius_limit > inner_radius) {
+                float edge_t = (radius_limit - d) / (radius_limit - inner_radius);
+                int edge_alpha = (int)(edge_t * 100.0f);
+                if (edge_alpha < 1) {
+                    edge_alpha = 1;
+                }
+                if (edge_alpha > 100) {
+                    edge_alpha = 100;
+                }
+                opacity = (uint8_t)edge_alpha;
+            }
             {
-                CoreResult result = apply_sample_if_changed_on_layer(ctx,
-                                                                     layer_id,
-                                                                     (uint32_t)tx,
-                                                                     (uint32_t)ty,
-                                                                     value);
+                uint8_t out_value = value;
+                if (opacity < 100u) {
+                    uint8_t current = drawing_program_color_eraser_value();
+                    (void)layer_sample_read_visual(ctx, layer_id, (uint32_t)tx, (uint32_t)ty, &current);
+                    out_value = blend_sample_value_u8(current, value, opacity);
+                }
+                {
+                    CoreResult result = apply_sample_if_changed_on_layer(ctx,
+                                                                         layer_id,
+                                                                         (uint32_t)tx,
+                                                                         (uint32_t)ty,
+                                                                         out_value);
                 if (result.code != CORE_OK) {
                     return result;
+                }
                 }
             }
         }
@@ -1711,7 +1942,8 @@ static CoreResult apply_canvas_line_between_samples_on_layer(DrawingProgramAppCo
                                                              uint32_t x1,
                                                              uint32_t y1,
                                                              uint8_t value,
-                                                             uint32_t stroke_width) {
+                                                             uint32_t stroke_width,
+                                                             uint8_t hardness_percent) {
     int32_t x = (int32_t)x0;
     int32_t y = (int32_t)y0;
     int32_t tx = (int32_t)x1;
@@ -1736,7 +1968,8 @@ static CoreResult apply_canvas_line_between_samples_on_layer(DrawingProgramAppCo
                                                                          x,
                                                                          y,
                                                                          value,
-                                                                         stroke_width);
+                                                                         stroke_width,
+                                                                         hardness_percent);
             if (stamp_result.code != CORE_OK) {
                 return stamp_result;
             }
@@ -1920,7 +2153,7 @@ static CoreResult apply_canvas_circle_outline_between_samples_on_layer(DrawingPr
         outer_r = ay;
     }
     if (outer_r <= 0) {
-        return apply_canvas_stamp_square_on_layer(ctx, layer_id, cx, cy, value, stroke_width);
+        return apply_canvas_stamp_square_on_layer(ctx, layer_id, cx, cy, value, stroke_width, 100u);
     }
     inner_r = outer_r - (int32_t)stroke_width + 1;
     if (inner_r < 0) {
@@ -1989,7 +2222,8 @@ static CoreResult apply_canvas_shape_commit(DrawingProgramAppContext *ctx,
                                                               end_x,
                                                               end_y,
                                                               value,
-                                                              stroke_width);
+                                                              stroke_width,
+                                                              100u);
         case DRAWING_PROGRAM_TOOL_RECT: {
             CoreResult result = core_result_ok();
             if (shape_mode_includes_fill(tool, mode)) {
@@ -2580,8 +2814,11 @@ static CoreResult apply_canvas_draw_at_screen(DrawingProgramAppContext *ctx,
                                               VisualCanvasInteractionState *state) {
     uint32_t sample_x;
     uint32_t sample_y;
+    uint32_t active_layer_id = 0u;
     uint32_t radius;
     uint32_t spacing;
+    uint32_t stamp_width;
+    uint8_t hardness;
     uint8_t value;
     CoreResult result;
     if (!ctx || !state) {
@@ -2593,36 +2830,31 @@ static CoreResult apply_canvas_draw_at_screen(DrawingProgramAppContext *ctx,
     if (!active_layer_allows_edits_visual(ctx)) {
         return core_result_ok();
     }
+    if (!active_layer_query(ctx, &active_layer_id, 0, 0, 0) || active_layer_id == 0u) {
+        return core_result_ok();
+    }
 
     value = sample_value_for_tool(ctx, ctx->editor.active_tool);
     radius = tool_brush_radius_samples(ctx, ctx->editor.active_tool);
     spacing = tool_brush_spacing_samples(ctx, ctx->editor.active_tool, radius);
+    hardness = tool_brush_hardness_percent(ctx, ctx->editor.active_tool);
+    stamp_width = (radius * 2u) + 1u;
 
     if (!state->has_last_sample) {
-        int32_t x;
-        int32_t y;
-        int32_t r = (int32_t)radius;
-        for (y = -r; y <= r; ++y) {
-            for (x = -r; x <= r; ++x) {
-                int32_t tx = (int32_t)sample_x + x;
-                int32_t ty = (int32_t)sample_y + y;
-                uint8_t write_value = value;
-                if ((x * x) + (y * y) > (r * r)) {
-                    continue;
-                }
-                if (tx < 0 || ty < 0 ||
-                    (uint32_t)tx >= ctx->document.raster_width ||
-                    (uint32_t)ty >= ctx->document.raster_height) {
-                    continue;
-                }
-                if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_ERASER) {
-                    write_value = seeded_background_sample_for_coord(&ctx->document, (uint32_t)tx, (uint32_t)ty);
-                }
-                result = apply_sample_if_changed(ctx, (uint32_t)tx, (uint32_t)ty, write_value);
-                if (result.code != CORE_OK) {
-                    return result;
-                }
-            }
+        uint8_t write_value = value;
+        if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_ERASER) {
+            write_value = seeded_background_sample_for_coord(&ctx->document, sample_x, sample_y);
+            hardness = 100u;
+        }
+        result = apply_canvas_stamp_square_on_layer(ctx,
+                                                    active_layer_id,
+                                                    (int32_t)sample_x,
+                                                    (int32_t)sample_y,
+                                                    write_value,
+                                                    stamp_width,
+                                                    hardness);
+        if (result.code != CORE_OK) {
+            return result;
         }
         state->has_last_sample = 1u;
         state->last_sample_x = sample_x;
@@ -2650,33 +2882,23 @@ static CoreResult apply_canvas_draw_at_screen(DrawingProgramAppContext *ctx,
         for (i = 1; i <= steps; ++i) {
             int32_t ix = x0 + (dx * i) / ((steps > 0) ? steps : 1);
             int32_t iy = y0 + (dy * i) / ((steps > 0) ? steps : 1);
-            int32_t sxr;
-            int32_t syr;
-            int32_t rr = (int32_t)radius;
+            uint8_t write_value = value;
             if (((uint32_t)i % stamp_every) != 0u && i != steps) {
                 continue;
             }
-            for (syr = -rr; syr <= rr; ++syr) {
-                for (sxr = -rr; sxr <= rr; ++sxr) {
-                    int32_t tx = ix + sxr;
-                    int32_t ty = iy + syr;
-                    uint8_t write_value = value;
-                    if ((sxr * sxr) + (syr * syr) > (rr * rr)) {
-                        continue;
-                    }
-                    if (tx < 0 || ty < 0 ||
-                        (uint32_t)tx >= ctx->document.raster_width ||
-                        (uint32_t)ty >= ctx->document.raster_height) {
-                        continue;
-                    }
-                    if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_ERASER) {
-                        write_value = seeded_background_sample_for_coord(&ctx->document, (uint32_t)tx, (uint32_t)ty);
-                    }
-                    result = apply_sample_if_changed(ctx, (uint32_t)tx, (uint32_t)ty, write_value);
-                    if (result.code != CORE_OK) {
-                        return result;
-                    }
-                }
+            if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_ERASER) {
+                write_value = seeded_background_sample_for_coord(&ctx->document, (uint32_t)ix, (uint32_t)iy);
+                hardness = 100u;
+            }
+            result = apply_canvas_stamp_square_on_layer(ctx,
+                                                        active_layer_id,
+                                                        ix,
+                                                        iy,
+                                                        write_value,
+                                                        stamp_width,
+                                                        hardness);
+            if (result.code != CORE_OK) {
+                return result;
             }
         }
     }
@@ -2800,6 +3022,26 @@ static int draw_bitmap_text(SDL_Renderer *renderer,
     return cursor_x - x;
 }
 
+static int measure_bitmap_text_width(const char *text, int scale) {
+    TTF_Font *font = 0;
+    int width = 0;
+    int height = 0;
+    size_t i;
+    if (!text || scale < 1) {
+        return 0;
+    }
+    if (g_visual_draw_ctx) {
+        font = visual_get_ttf_font(g_visual_draw_ctx, scale);
+    }
+    if (font && TTF_SizeUTF8(font, text, &width, &height) == 0 && width > 0) {
+        return width;
+    }
+    for (i = 0; text[i] != '\0'; ++i) {
+        width += (5 * scale) + scale;
+    }
+    return width;
+}
+
 static const char *tool_name(DrawingProgramToolKind tool) {
     switch (tool) {
         case DRAWING_PROGRAM_TOOL_BRUSH: return "BRUSH";
@@ -2855,29 +3097,55 @@ static void draw_menu_bar_chrome(SDL_Renderer *renderer,
     VisualPaneLayoutMetrics m;
     VisualThemePalette p;
     SDL_Rect chip;
+    const char *menu_label = "MENU  FILE  EDIT  VIEW  HELP";
+    const char *tool_label = "ACTIVE TOOL:";
+    const char *tool_value = 0;
     int chip_w;
     int chip_x;
-    int header_y;
+    int chip_right;
+    int min_chip_x;
+    int min_chip_w;
+    int available_w;
+    int desired_w;
+    int menu_w;
     int label_w;
-    int tool_x;
+    int tool_w;
+    int header_y;
+    int tool_x = 0;
     if (!renderer || !ctx) {
         return;
     }
     resolve_visual_theme_palette(theme, &p);
     m = make_pane_layout_metrics(ctx);
     header_y = rect.y + m.pad_y;
-    draw_bitmap_text(renderer, rect, rect.x + m.pad_x, header_y, "MENU  FILE  EDIT  VIEW  HELP", p.text_primary, m.title_scale);
-    chip_w = (int)(rect.w * 0.30f);
-    if (chip_w < 170) {
-        chip_w = 170;
+    tool_value = tool_name(ctx->editor.active_tool);
+    draw_bitmap_text(renderer, rect, rect.x + m.pad_x, header_y, menu_label, p.text_primary, m.title_scale);
+
+    menu_w = measure_bitmap_text_width(menu_label, m.title_scale);
+    label_w = measure_bitmap_text_width(tool_label, m.body_scale);
+    tool_w = measure_bitmap_text_width(tool_value, m.body_scale);
+    desired_w = 6 + label_w + 6 + tool_w + 6;
+    min_chip_w = 120;
+    if (desired_w < min_chip_w) {
+        desired_w = min_chip_w;
     }
-    if (chip_w > 300) {
-        chip_w = 300;
+
+    min_chip_x = rect.x + m.pad_x + menu_w + 12;
+    chip_right = rect.x + rect.w - m.pad_x;
+    available_w = chip_right - min_chip_x;
+    if (available_w < min_chip_w) {
+        available_w = min_chip_w;
+        min_chip_x = chip_right - available_w;
     }
-    chip_x = rect.x + rect.w - m.pad_x - chip_w;
-    if (chip_x < rect.x + m.pad_x + 120) {
-        chip_x = rect.x + m.pad_x + 120;
+    chip_w = desired_w;
+    if (chip_w > available_w) {
+        chip_w = available_w;
     }
+    chip_x = chip_right - chip_w;
+    if (chip_x < min_chip_x) {
+        chip_x = min_chip_x;
+    }
+
     chip.x = chip_x;
     chip.y = header_y - 1;
     chip.w = chip_w;
@@ -2886,9 +3154,9 @@ static void draw_menu_bar_chrome(SDL_Renderer *renderer,
     (void)SDL_RenderFillRect(renderer, &chip);
     SDL_SetRenderDrawColor(renderer, p.button_border.r, p.button_border.g, p.button_border.b, p.button_border.a);
     (void)SDL_RenderDrawRect(renderer, &chip);
-    label_w = draw_bitmap_text(renderer, chip, chip.x + 6, chip.y + m.tab_text_y, "ACTIVE TOOL:", p.text_muted, m.body_scale);
+    label_w = draw_bitmap_text(renderer, chip, chip.x + 6, chip.y + m.tab_text_y, tool_label, p.text_muted, m.body_scale);
     tool_x = chip.x + 6 + label_w + 6;
-    draw_bitmap_text(renderer, chip, tool_x, chip.y + m.tab_text_y, tool_name(ctx->editor.active_tool), p.text_primary, m.body_scale);
+    draw_bitmap_text(renderer, chip, tool_x, chip.y + m.tab_text_y, tool_value, p.text_primary, m.body_scale);
 }
 
 static void draw_left_panel_chrome(SDL_Renderer *renderer,
@@ -2943,7 +3211,7 @@ static void draw_left_panel_chrome(SDL_Renderer *renderer,
 
     if (left_slot == VISUAL_LEFT_PANEL_SLOT_TOOLS) {
         int y_cursor = y;
-        uint32_t active_option_count = visual_tool_option_count(ctx->editor.active_tool);
+        uint32_t active_option_count = visual_tool_option_count(ctx, ctx->editor.active_tool);
         for (i = 0u; i < sizeof(k_visual_tools) / sizeof(k_visual_tools[0]); ++i) {
             SDL_Rect row = { rect.x + m.pad_x, y_cursor, rect.w - (2 * m.pad_x), m.row_h };
             int active = (ctx->editor.active_tool == k_visual_tools[i]) ? 1 : 0;
@@ -2959,60 +3227,75 @@ static void draw_left_panel_chrome(SDL_Renderer *renderer,
             if (active && active_option_count > 0u) {
                 uint32_t option_i;
                 for (option_i = 0u; option_i < active_option_count; ++option_i) {
-                    VisualToolOptionKind option_kind = visual_tool_option_kind_for_index(ctx->editor.active_tool, option_i);
+                    VisualToolOptionKind option_kind = visual_tool_option_kind_for_index(ctx, ctx->editor.active_tool, option_i);
                     SDL_Rect option_row = left_tool_option_row_rect(rect, m, y_cursor);
-                    SDL_Rect minus_rect = left_tool_option_minus_rect(option_row, m);
-                    SDL_Rect value_rect = left_tool_option_value_rect(option_row, m);
-                    SDL_Rect plus_rect = left_tool_option_plus_rect(option_row, m);
                     char value_text[48];
                     visual_tool_option_value_text(ctx, option_kind, value_text, sizeof(value_text));
-                    SDL_SetRenderDrawColor(renderer, p.button_fill.r, p.button_fill.g, p.button_fill.b, p.button_fill.a);
-                    (void)SDL_RenderFillRect(renderer, &option_row);
-                    SDL_SetRenderDrawColor(renderer, p.button_border.r, p.button_border.g, p.button_border.b, p.button_border.a);
-                    (void)SDL_RenderDrawRect(renderer, &option_row);
-                    draw_bitmap_text(renderer,
-                                     rect,
-                                     option_row.x + 6,
-                                     option_row.y + m.row_text_y,
-                                     visual_tool_option_label(option_kind),
-                                     p.text_muted,
-                                     m.body_scale);
-                    draw_tab_button(renderer,
-                                    rect,
-                                    minus_rect,
-                                    "-",
-                                    p.button_fill,
-                                    p.button_fill_hover,
-                                    p.button_fill_active,
-                                    p.button_border,
-                                    p.text_primary,
-                                    m.body_scale,
-                                    0,
-                                    ui_hovered(ui, minus_rect));
-                    draw_tab_button(renderer,
-                                    rect,
-                                    value_rect,
-                                    value_text,
-                                    p.button_fill,
-                                    p.button_fill,
-                                    p.button_fill,
-                                    p.button_border,
-                                    p.text_primary,
-                                    m.body_scale,
-                                    0,
-                                    0);
-                    draw_tab_button(renderer,
-                                    rect,
-                                    plus_rect,
-                                    "+",
-                                    p.button_fill,
-                                    p.button_fill_hover,
-                                    p.button_fill_active,
-                                    p.button_border,
-                                    p.text_primary,
-                                    m.body_scale,
-                                    0,
-                                    ui_hovered(ui, plus_rect));
+                    if (visual_tool_option_is_action_button(option_kind)) {
+                        draw_tab_button(renderer,
+                                        rect,
+                                        option_row,
+                                        "DELETE SELECTION",
+                                        p.button_fill,
+                                        p.button_fill_hover,
+                                        p.button_fill_active,
+                                        p.button_border,
+                                        p.text_primary,
+                                        m.body_scale,
+                                        0,
+                                        ui_hovered(ui, option_row));
+                    } else {
+                        SDL_Rect minus_rect = left_tool_option_minus_rect(option_row, m);
+                        SDL_Rect value_rect = left_tool_option_value_rect(option_row, m);
+                        SDL_Rect plus_rect = left_tool_option_plus_rect(option_row, m);
+                        SDL_SetRenderDrawColor(renderer, p.button_fill.r, p.button_fill.g, p.button_fill.b, p.button_fill.a);
+                        (void)SDL_RenderFillRect(renderer, &option_row);
+                        SDL_SetRenderDrawColor(renderer, p.button_border.r, p.button_border.g, p.button_border.b, p.button_border.a);
+                        (void)SDL_RenderDrawRect(renderer, &option_row);
+                        draw_bitmap_text(renderer,
+                                         rect,
+                                         option_row.x + 6,
+                                         option_row.y + m.row_text_y,
+                                         visual_tool_option_label(option_kind),
+                                         p.text_muted,
+                                         m.body_scale);
+                        draw_tab_button(renderer,
+                                        rect,
+                                        minus_rect,
+                                        "-",
+                                        p.button_fill,
+                                        p.button_fill_hover,
+                                        p.button_fill_active,
+                                        p.button_border,
+                                        p.text_primary,
+                                        m.body_scale,
+                                        0,
+                                        ui_hovered(ui, minus_rect));
+                        draw_tab_button(renderer,
+                                        rect,
+                                        value_rect,
+                                        value_text,
+                                        p.button_fill,
+                                        p.button_fill,
+                                        p.button_fill,
+                                        p.button_border,
+                                        p.text_primary,
+                                        m.body_scale,
+                                        0,
+                                        0);
+                        draw_tab_button(renderer,
+                                        rect,
+                                        plus_rect,
+                                        "+",
+                                        p.button_fill,
+                                        p.button_fill_hover,
+                                        p.button_fill_active,
+                                        p.button_border,
+                                        p.text_primary,
+                                        m.body_scale,
+                                        0,
+                                        ui_hovered(ui, plus_rect));
+                    }
                     y_cursor += m.row_h;
                 }
             }
@@ -3061,6 +3344,7 @@ static void draw_right_panel_chrome(SDL_Renderer *renderer,
     int y;
     uint8_t active_visible = 0u;
     uint8_t active_locked = 0u;
+    uint8_t active_opacity = 100u;
     uint32_t i;
     (void)interaction;
     if (!renderer || !ctx) {
@@ -3074,6 +3358,7 @@ static void draw_right_panel_chrome(SDL_Renderer *renderer,
         if (ctx->document.layers[i].layer_id == ctx->editor.active_layer_id) {
             active_visible = ctx->document.layers[i].visible;
             active_locked = ctx->document.layers[i].locked;
+            active_opacity = visual_layer_opacity_get(ctx, ctx->editor.active_layer_id);
             break;
         }
     }
@@ -3165,11 +3450,12 @@ static void draw_right_panel_chrome(SDL_Renderer *renderer,
         if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_BRUSH) {
             (void)snprintf(line,
                            sizeof(line),
-                           "TOOL %s  R%u S%u O%u%%",
+                           "TOOL %s  R%u S%u O%u%% H%u%%",
                            tool_name(ctx->editor.active_tool),
                            brush_radius,
                            brush_spacing,
-                           (unsigned)clamp_setting_u8(ctx->ui_tool_brush_opacity, 1u, 100u));
+                           (unsigned)clamp_setting_u8(ctx->ui_tool_brush_opacity, 1u, 100u),
+                           (unsigned)clamp_setting_u8(ctx->ui_tool_brush_hardness, 1u, 100u));
         } else if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_ERASER) {
             (void)snprintf(line,
                            sizeof(line),
@@ -3197,8 +3483,9 @@ static void draw_right_panel_chrome(SDL_Renderer *renderer,
         y += m.line_h;
         (void)snprintf(line,
                        sizeof(line),
-                       "LAYER %u V%s K%s",
+                       "LAYER %u O%u%% V%s K%s",
                        (unsigned)ctx->editor.active_layer_id,
+                       (unsigned)active_opacity,
                        active_visible ? "ON" : "OFF",
                        active_locked ? "ON" : "OFF");
         draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
@@ -3236,6 +3523,7 @@ static void draw_right_panel_chrome(SDL_Renderer *renderer,
     } else {
         uint32_t display_i;
         SDL_Rect button_rect;
+        SDL_Rect opacity_row_rect;
         draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, "LAYER STACK", p.text_primary, m.body_scale);
         y += m.line_h;
         if (ctx->document.layer_count == 0u) {
@@ -3246,6 +3534,7 @@ static void draw_right_panel_chrome(SDL_Renderer *renderer,
             uint32_t model_i = (ctx->document.layer_count - 1u) - display_i;
             const DrawingProgramLayer *layer = &ctx->document.layers[model_i];
             int is_active = (layer->layer_id == ctx->editor.active_layer_id) ? 1 : 0;
+            uint8_t layer_opacity = visual_layer_opacity_get(ctx, layer->layer_id);
             SDL_Color fill = is_active ? p.button_fill_active : p.button_fill;
             row = right_layer_row_rect(rect, m, display_i);
             if (ui_hovered(ui, row)) {
@@ -3261,9 +3550,10 @@ static void draw_right_panel_chrome(SDL_Renderer *renderer,
             (void)SDL_RenderDrawRect(renderer, &row);
             (void)snprintf(line,
                            sizeof(line),
-                           "%c L%u V%s K%s %s",
+                           "%c L%u O%u%% V%s K%s %s",
                            is_active ? '*' : ' ',
                            (unsigned)layer->layer_id,
+                           (unsigned)layer_opacity,
                            layer->visible ? "ON" : "OFF",
                            layer->locked ? "ON" : "OFF",
                            layer->name);
@@ -3271,11 +3561,52 @@ static void draw_right_panel_chrome(SDL_Renderer *renderer,
             y = row.y + row.h + m.section_gap;
         }
 
-        y = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_ADD).y - m.line_h - m.section_gap;
+        opacity_row_rect = right_layer_opacity_row_rect(rect, m, ctx->document.layer_count);
+        draw_tab_button(renderer,
+                        rect,
+                        opacity_row_rect,
+                        "OPACITY",
+                        p.button_fill,
+                        p.button_fill_hover,
+                        p.button_fill_active,
+                        p.button_border,
+                        p.text_muted,
+                        m.body_scale,
+                        0,
+                        ui_hovered(ui, opacity_row_rect));
+        {
+            SDL_Rect opacity_track = right_layer_opacity_track_rect(opacity_row_rect, m);
+            SDL_SetRenderDrawColor(renderer, p.pane_background_alt.r, p.pane_background_alt.g, p.pane_background_alt.b, p.pane_background_alt.a);
+            (void)SDL_RenderFillRect(renderer, &opacity_track);
+            {
+                SDL_Rect fill_track = opacity_track;
+                int fill_w = (int)(((uint32_t)opacity_track.w * (uint32_t)active_opacity) / 100u);
+                if (fill_w < 1) {
+                    fill_w = 1;
+                }
+                fill_track.w = fill_w;
+                SDL_SetRenderDrawColor(renderer, p.accent_primary.r, p.accent_primary.g, p.accent_primary.b, p.accent_primary.a);
+                (void)SDL_RenderFillRect(renderer, &fill_track);
+            }
+            SDL_SetRenderDrawColor(renderer, p.button_border.r, p.button_border.g, p.button_border.b, p.button_border.a);
+            (void)SDL_RenderDrawRect(renderer, &opacity_track);
+            (void)snprintf(line, sizeof(line), "OPACITY %u%%", (unsigned)active_opacity);
+            draw_bitmap_text(renderer, rect, opacity_row_rect.x + 6, opacity_row_rect.y + m.row_text_y, line, p.text_primary, m.body_scale);
+        }
+
+        y = right_layer_actions_label_y(rect, m, ctx->document.layer_count);
         draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, "ACTIONS", p.text_primary, m.body_scale);
 
         button_rect = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_ADD);
         draw_tab_button(renderer, rect, button_rect, "ADD LAYER",
+                        p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
+                        p.text_primary, m.body_scale, 0, ui_hovered(ui, button_rect));
+        button_rect = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_DUPLICATE);
+        draw_tab_button(renderer, rect, button_rect, "DUPLICATE SELECTED",
+                        p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
+                        p.text_primary, m.body_scale, 0, ui_hovered(ui, button_rect));
+        button_rect = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_RENAME);
+        draw_tab_button(renderer, rect, button_rect, "RENAME SELECTED",
                         p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
                         p.text_primary, m.body_scale, 0, ui_hovered(ui, button_rect));
         button_rect = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_DELETE);
@@ -3339,11 +3670,92 @@ static void apply_workflow_control_if_valid(DrawingProgramAppContext *ctx,
     }
 }
 
+static void apply_layer_rename_auto(DrawingProgramAppContext *ctx) {
+    uint32_t active_index = 0u;
+    if (!ctx || !active_layer_query(ctx, 0, &active_index, 0, 0) || active_index >= ctx->document.layer_count) {
+        return;
+    }
+    (void)snprintf(ctx->document.layers[active_index].name,
+                   sizeof(ctx->document.layers[active_index].name),
+                   "Layer %u",
+                   (unsigned)ctx->document.layers[active_index].layer_id);
+}
+
+static void apply_layer_duplicate_active(DrawingProgramAppContext *ctx) {
+    uint32_t source_index = 0u;
+    uint32_t source_layer_id = 0u;
+    uint32_t source_opacity = 100u;
+    uint8_t *copied_samples = 0;
+    const uint8_t *source_samples = 0;
+    uint32_t source_sample_count = 0u;
+    char source_name[DRAWING_PROGRAM_LAYER_NAME_CAPACITY];
+    CoreResult result;
+    if (!ctx) {
+        return;
+    }
+    if (!active_layer_query(ctx, &source_layer_id, &source_index, 0, 0) ||
+        source_index >= ctx->document.layer_count ||
+        source_layer_id == 0u) {
+        return;
+    }
+    source_opacity = (uint32_t)visual_layer_opacity_get(ctx, source_layer_id);
+    (void)snprintf(source_name, sizeof(source_name), "%s", ctx->document.layers[source_index].name);
+    result = drawing_program_layer_raster_store_export_layer(&ctx->layer_rasters,
+                                                             source_layer_id,
+                                                             &source_samples,
+                                                             &source_sample_count);
+    if (result.code != CORE_OK ||
+        !source_samples ||
+        source_sample_count != ctx->document.raster_sample_count) {
+        if (source_layer_id == 1u) {
+            source_samples = ctx->document.raster_samples;
+            source_sample_count = ctx->document.raster_sample_count;
+        }
+    }
+    if (source_samples &&
+        source_sample_count == ctx->document.raster_sample_count &&
+        source_sample_count > 0u) {
+        copied_samples = (uint8_t *)malloc((size_t)source_sample_count);
+        if (copied_samples) {
+            memcpy(copied_samples, source_samples, (size_t)source_sample_count);
+        }
+    }
+    apply_workflow_control_if_valid(ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_ADD_LAYER);
+    if (ctx->editor.active_layer_id == 0u || ctx->editor.active_layer_id == source_layer_id) {
+        free(copied_samples);
+        return;
+    }
+    if (copied_samples &&
+        source_sample_count == ctx->document.raster_sample_count) {
+        result = drawing_program_layer_raster_store_import_layer(&ctx->layer_rasters,
+                                                                 ctx->editor.active_layer_id,
+                                                                 copied_samples,
+                                                                 source_sample_count);
+        if (result.code != CORE_OK) {
+            fprintf(stderr, "drawing_program: duplicate layer import failed: %s\n", result.message);
+        }
+    } else {
+        fprintf(stderr, "drawing_program: duplicate layer source samples unavailable\n");
+    }
+    free(copied_samples);
+    {
+        uint32_t active_index = 0u;
+        if (active_layer_query(ctx, 0, &active_index, 0, 0) && active_index < ctx->document.layer_count) {
+            (void)snprintf(ctx->document.layers[active_index].name,
+                           sizeof(ctx->document.layers[active_index].name),
+                           "%s Copy",
+                           source_name);
+        }
+    }
+    visual_layer_opacity_set(ctx, ctx->editor.active_layer_id, (uint8_t)source_opacity);
+}
+
 static void handle_left_panel_click(DrawingProgramAppContext *ctx,
                                     SDL_Rect rect,
                                     int x,
                                     int y,
-                                    VisualPanelUiState *ui) {
+                                    VisualPanelUiState *ui,
+                                    VisualSelectionState *selection) {
     VisualPaneLayoutMetrics m;
     int content_y;
     SDL_Rect tab_tools;
@@ -3369,7 +3781,7 @@ static void handle_left_panel_click(DrawingProgramAppContext *ctx,
     }
     if (clamp_left_slot(ctx->ui_left_panel_slot) == VISUAL_LEFT_PANEL_SLOT_TOOLS) {
         int y_cursor = content_y;
-        uint32_t active_option_count = visual_tool_option_count(ctx->editor.active_tool);
+        uint32_t active_option_count = visual_tool_option_count(ctx, ctx->editor.active_tool);
         for (i = 0u; i < sizeof(k_visual_tools) / sizeof(k_visual_tools[0]); ++i) {
             SDL_Rect row = { rect.x + m.pad_x, y_cursor, rect.w - (2 * m.pad_x), m.row_h };
             if (point_in_rect(row, x, y)) {
@@ -3380,17 +3792,32 @@ static void handle_left_panel_click(DrawingProgramAppContext *ctx,
             if (ctx->editor.active_tool == k_visual_tools[i] && active_option_count > 0u) {
                 uint32_t option_i;
                 for (option_i = 0u; option_i < active_option_count; ++option_i) {
-                    VisualToolOptionKind option_kind = visual_tool_option_kind_for_index(ctx->editor.active_tool, option_i);
+                    VisualToolOptionKind option_kind = visual_tool_option_kind_for_index(ctx, ctx->editor.active_tool, option_i);
                     SDL_Rect option_row = left_tool_option_row_rect(rect, m, y_cursor);
-                    SDL_Rect minus_rect = left_tool_option_minus_rect(option_row, m);
-                    SDL_Rect plus_rect = left_tool_option_plus_rect(option_row, m);
-                    if (point_in_rect(minus_rect, x, y)) {
-                        visual_tool_option_adjust(ctx, option_kind, -1);
-                        return;
-                    }
-                    if (point_in_rect(plus_rect, x, y)) {
-                        visual_tool_option_adjust(ctx, option_kind, 1);
-                        return;
+                    if (visual_tool_option_is_action_button(option_kind)) {
+                        if (point_in_rect(option_row, x, y) &&
+                            option_kind == VISUAL_TOOL_OPTION_SELECT_DELETE &&
+                            selection &&
+                            selection->has_payload &&
+                            active_layer_allows_edits_visual(ctx)) {
+                            (void)drawing_program_selection_delete_payload(&ctx->document,
+                                                                           &ctx->layer_rasters,
+                                                                           ctx->editor.active_layer_id,
+                                                                           &ctx->history,
+                                                                           selection);
+                            return;
+                        }
+                    } else {
+                        SDL_Rect minus_rect = left_tool_option_minus_rect(option_row, m);
+                        SDL_Rect plus_rect = left_tool_option_plus_rect(option_row, m);
+                        if (point_in_rect(minus_rect, x, y)) {
+                            visual_tool_option_adjust(ctx, option_kind, -1);
+                            return;
+                        }
+                        if (point_in_rect(plus_rect, x, y)) {
+                            visual_tool_option_adjust(ctx, option_kind, 1);
+                            return;
+                        }
                     }
                     y_cursor += m.row_h;
                 }
@@ -3422,6 +3849,7 @@ static void handle_right_panel_click(DrawingProgramAppContext *ctx,
         return;
     }
     m = make_pane_layout_metrics(ctx);
+    visual_layer_opacity_sync_document(ctx);
     content_y = rect.y + m.pad_y + m.title_glyph_h + m.section_gap;
     tab_canvas = (SDL_Rect){ rect.x + m.pad_x, content_y, (rect.w - (2 * m.pad_x) - m.tab_gap) / 2, m.tab_h };
     tab_layer = (SDL_Rect){ tab_canvas.x + tab_canvas.w + m.tab_gap, content_y, (rect.w - (2 * m.pad_x) - m.tab_gap) / 2, m.tab_h };
@@ -3439,6 +3867,10 @@ static void handle_right_panel_click(DrawingProgramAppContext *ctx,
     if (clamp_right_slot(ctx->ui_right_panel_slot) == VISUAL_RIGHT_PANEL_SLOT_LAYER) {
         uint32_t display_i;
         SDL_Rect action;
+        SDL_Rect opacity_row;
+        SDL_Rect opacity_track;
+        uint32_t active_layer_id = 0u;
+        uint32_t active_layer_index = 0u;
         for (display_i = 0u; display_i < ctx->document.layer_count; ++display_i) {
             uint32_t model_i = (ctx->document.layer_count - 1u) - display_i;
             SDL_Rect row = right_layer_row_rect(rect, m, display_i);
@@ -3447,14 +3879,53 @@ static void handle_right_panel_click(DrawingProgramAppContext *ctx,
                 return;
             }
         }
+        if (active_layer_query(ctx, &active_layer_id, &active_layer_index, 0, 0) &&
+            active_layer_index < ctx->document.layer_count) {
+            opacity_row = right_layer_opacity_row_rect(rect, m, ctx->document.layer_count);
+            opacity_track = right_layer_opacity_track_rect(opacity_row, m);
+            if (point_in_rect(opacity_row, x, y)) {
+                int relative_x = x - opacity_track.x;
+                int opacity = 100;
+                if (relative_x < 0) {
+                    relative_x = 0;
+                }
+                if (relative_x > opacity_track.w) {
+                    relative_x = opacity_track.w;
+                }
+                if (opacity_track.w > 0) {
+                    opacity = (relative_x * 100) / opacity_track.w;
+                }
+                if (opacity < 0) {
+                    opacity = 0;
+                }
+                if (opacity > 100) {
+                    opacity = 100;
+                }
+                visual_layer_opacity_set(ctx, active_layer_id, (uint8_t)opacity);
+                return;
+            }
+        }
         action = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_ADD);
         if (point_in_rect(action, x, y)) {
             apply_workflow_control_if_valid(ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_ADD_LAYER);
+            visual_layer_opacity_sync_document(ctx);
+            return;
+        }
+        action = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_DUPLICATE);
+        if (point_in_rect(action, x, y)) {
+            apply_layer_duplicate_active(ctx);
+            visual_layer_opacity_sync_document(ctx);
+            return;
+        }
+        action = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_RENAME);
+        if (point_in_rect(action, x, y)) {
+            apply_layer_rename_auto(ctx);
             return;
         }
         action = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_DELETE);
         if (point_in_rect(action, x, y)) {
             apply_workflow_control_if_valid(ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_DELETE_ACTIVE_LAYER);
+            visual_layer_opacity_sync_document(ctx);
             return;
         }
         action = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_ACTIVE_PREV);
@@ -3751,11 +4222,38 @@ static void cancel_canvas_draw_and_shape(VisualCanvasInteractionState *interacti
     }
     interaction->drawing_active = 0u;
     interaction->shape_active = 0u;
+    interaction->move_axis_lock = 0u;
     interaction->has_last_sample = 0u;
 }
 
 static void cancel_selection_transient(VisualSelectionState *selection) {
     drawing_program_selection_cancel_transient(selection);
+}
+
+static void apply_selection_move_axis_lock(VisualSelectionState *selection,
+                                           VisualCanvasInteractionState *interaction,
+                                           SDL_Keymod mods) {
+    int32_t dx;
+    int32_t dy;
+    int lock_shift;
+    if (!selection || !interaction || !selection->moving) {
+        return;
+    }
+    lock_shift = (mods & KMOD_SHIFT) ? 1 : 0;
+    if (!lock_shift) {
+        interaction->move_axis_lock = 0u;
+        return;
+    }
+    dx = selection->offset_x - selection->move_anchor_offset_x;
+    dy = selection->offset_y - selection->move_anchor_offset_y;
+    if (interaction->move_axis_lock == 0u) {
+        interaction->move_axis_lock = (abs(dx) >= abs(dy)) ? 1u : 2u;
+    }
+    if (interaction->move_axis_lock == 1u) {
+        selection->offset_y = selection->move_anchor_offset_y;
+    } else if (interaction->move_axis_lock == 2u) {
+        selection->offset_x = selection->move_anchor_offset_x;
+    }
 }
 
 static void begin_canvas_history_group(DrawingProgramAppContext *ctx) {
@@ -4015,7 +4513,7 @@ static int run_visual_mode(int argc, char **argv) {
                 }
                 if (event.button.button == SDL_BUTTON_LEFT && click_on_left) {
                     cancel_all_transient_interactions(&app, &canvas_interaction, &selection_state, 0);
-                    handle_left_panel_click(&app, left_pane, click_x, click_y, &panel_ui);
+                    handle_left_panel_click(&app, left_pane, click_x, click_y, &panel_ui, &selection_state);
                     continue;
                 }
                 if (event.button.button == SDL_BUTTON_LEFT && click_on_right) {
@@ -4043,6 +4541,7 @@ static int run_visual_mode(int argc, char **argv) {
                                 selection_move_handle_hit(&app, canvas_pane, &selection_state, click_x, click_y)) &&
                                screen_to_canvas_sample_clamped(&app, canvas_pane, click_x, click_y, &sample_x, &sample_y)) {
                         drawing_program_selection_begin_move_tracking(&selection_state, sample_x, sample_y);
+                        canvas_interaction.move_axis_lock = 0u;
                         cancel_canvas_draw_and_shape(&canvas_interaction);
                     } else if (app.editor.active_tool == DRAWING_PROGRAM_TOOL_PICKER) {
                         cancel_all_transient_interactions(&app, &canvas_interaction, &selection_state, 0);
@@ -4093,6 +4592,7 @@ static int run_visual_mode(int argc, char **argv) {
                         if (selection_state.moving) {
                             (void)screen_to_canvas_sample_clamped(&app, canvas_pane, release_x, release_y, &sample_x, &sample_y);
                             drawing_program_selection_update_move_offset(&selection_state, sample_x, sample_y);
+                            apply_selection_move_axis_lock(&selection_state, &canvas_interaction, SDL_GetModState());
                         }
                     }
                     if (selection_state.selecting) {
@@ -4162,6 +4662,7 @@ static int run_visual_mode(int argc, char **argv) {
                                                         &sample_x,
                                                         &sample_y)) {
                         drawing_program_selection_update_move_offset(&selection_state, sample_x, sample_y);
+                        apply_selection_move_axis_lock(&selection_state, &canvas_interaction, SDL_GetModState());
                     }
                 }
                 if (canvas_interaction.drawing_active) {
@@ -4364,6 +4865,16 @@ static int run_visual_mode(int argc, char **argv) {
                     }
                     continue;
                 }
+                if ((event.key.keysym.sym == SDLK_BACKSPACE || event.key.keysym.sym == SDLK_DELETE) &&
+                    selection_state.has_payload &&
+                    active_layer_allows_edits_visual(&app)) {
+                    (void)drawing_program_selection_delete_payload(&app.document,
+                                                                   &app.layer_rasters,
+                                                                   app.editor.active_layer_id,
+                                                                   &app.history,
+                                                                   &selection_state);
+                    continue;
+                }
                 switch (event.key.keysym.sym) {
                     case SDLK_b:
                         control = DRAWING_PROGRAM_WORKFLOW_CONTROL_SET_TOOL_BRUSH;
@@ -4432,6 +4943,7 @@ static int run_visual_mode(int argc, char **argv) {
             fprintf(stderr, "drawing_program: run_loop failed: %s\n", result.message);
             break;
         }
+        visual_layer_opacity_sync_document(&app);
         g_visual_draw_ctx = &app;
         if (!draw_visual_debug_frame(window,
                                      renderer,
