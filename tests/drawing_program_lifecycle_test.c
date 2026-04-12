@@ -578,6 +578,60 @@ int main(void) {
     }
     {
         uint32_t layer_id = workflow_ctx.editor.active_layer_id;
+        uint8_t seeded_value = drawing_program_color_value_from_index(4u);
+        uint8_t probe = 0u;
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &workflow_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS),
+                       "selection_delete_payload_clear_canvas")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_history_apply_set_sample_value(&workflow_ctx.history,
+                                                                      &workflow_ctx.document,
+                                                                      &workflow_ctx.layer_rasters,
+                                                                      layer_id,
+                                                                      14u,
+                                                                      14u,
+                                                                      seeded_value),
+                       "selection_delete_payload_seed")) {
+            return 1;
+        }
+        if (!drawing_program_selection_capture_from_rect(&workflow_ctx.document,
+                                                         &workflow_ctx.layer_rasters,
+                                                         layer_id,
+                                                         &workflow_ctx.selection,
+                                                         14,
+                                                         14,
+                                                         1u,
+                                                         1u)) {
+            fprintf(stderr, "lifecycle_test: expected delete payload capture to succeed\n");
+            return 1;
+        }
+        if (!expect_ok(drawing_program_selection_delete_payload(&workflow_ctx.document,
+                                                                &workflow_ctx.layer_rasters,
+                                                                layer_id,
+                                                                &workflow_ctx.history,
+                                                                &workflow_ctx.selection),
+                       "selection_delete_payload_commit")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&workflow_ctx.document, 14u, 14u, &probe),
+                       "selection_delete_payload_probe")) {
+            return 1;
+        }
+        if (probe != expected_eraser_value) {
+            fprintf(stderr,
+                    "lifecycle_test: expected selection delete to clear sample to background=%u got=%u\n",
+                    (unsigned)expected_eraser_value,
+                    (unsigned)probe);
+            return 1;
+        }
+        if (workflow_ctx.selection.has_payload || workflow_ctx.selection.payload_count != 0u) {
+            fprintf(stderr, "lifecycle_test: expected selection delete to reset active payload state\n");
+            return 1;
+        }
+    }
+    {
+        uint32_t layer_id = workflow_ctx.editor.active_layer_id;
         uint8_t value_left = drawing_program_color_value_from_index(0u);
         uint8_t value_right = drawing_program_color_value_from_index(2u);
         uint8_t value_hole = drawing_program_color_value_from_index(5u);

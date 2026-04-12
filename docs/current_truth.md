@@ -19,6 +19,11 @@ Last updated: 2026-04-12
   - visual move drag offsets are clamped live to canvas bounds (including axis-lock drags)
   - move commit no longer allows off-canvas destination commits that clip payload coverage
   - lifecycle regression coverage now includes min/max bound clamp assertions for move commit
+- Phase 11 `S4` marquee/workflow polish is now implemented:
+  - marquee commit mode (`REPLACE` / `ADD` / `SUBTRACT`) is now locked at marquee start using keymod snapshot; releasing modifier keys before mouse-up no longer changes capture intent
+  - right `CANVAS` panel now includes `DELETE SELECTION` action button in the bottom action stack
+  - `DELETE SELECTION` uses the same runtime payload-delete contract as keyboard delete/backspace paths and is edit-gated by active-layer visibility/lock policy
+  - lifecycle regression coverage now includes explicit `drawing_program_selection_delete_payload(...)` clear/reset assertions
 - Canvas seed shape is no longer fixed square-only:
   - default seed remains `512x512`
   - runtime boot now supports explicit non-square overrides:

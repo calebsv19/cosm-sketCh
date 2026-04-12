@@ -1174,6 +1174,7 @@ typedef struct VisualCanvasInteractionState {
     uint8_t shape_active;
     uint8_t shape_tool;
     uint8_t move_axis_lock;
+    uint8_t marquee_commit_mode;
     uint8_t has_last_sample;
     uint32_t last_sample_x;
     uint32_t last_sample_y;
@@ -1208,6 +1209,23 @@ typedef enum VisualMarqueeCommitMode {
     VISUAL_MARQUEE_COMMIT_ADD = 1,
     VISUAL_MARQUEE_COMMIT_SUBTRACT = 2
 } VisualMarqueeCommitMode;
+
+static VisualMarqueeCommitMode visual_marquee_commit_mode_from_mods(SDL_Keymod mods) {
+    if ((mods & KMOD_ALT) != 0) {
+        return VISUAL_MARQUEE_COMMIT_SUBTRACT;
+    }
+    if ((mods & KMOD_SHIFT) != 0) {
+        return VISUAL_MARQUEE_COMMIT_ADD;
+    }
+    return VISUAL_MARQUEE_COMMIT_REPLACE;
+}
+
+static VisualMarqueeCommitMode visual_marquee_commit_mode_clamp(uint8_t raw) {
+    if (raw > (uint8_t)VISUAL_MARQUEE_COMMIT_SUBTRACT) {
+        return VISUAL_MARQUEE_COMMIT_REPLACE;
+    }
+    return (VisualMarqueeCommitMode)raw;
+}
 
 static int visual_selection_capture_from_marquee(DrawingProgramAppContext *ctx,
                                                  VisualSelectionState *selection,
@@ -1382,7 +1400,7 @@ static SDL_Rect right_canvas_palette_swatch_rect(SDL_Rect rect, VisualPaneLayout
 }
 
 static SDL_Rect right_canvas_reset_view_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
-    int y = rect.y + rect.h - m.pad_y - (3 * m.row_h) - (2 * m.section_gap);
+    int y = rect.y + rect.h - m.pad_y - (4 * m.row_h) - (3 * m.section_gap);
     return (SDL_Rect){ rect.x + m.pad_x, y, rect.w - (2 * m.pad_x), m.row_h };
 }
 
@@ -1391,9 +1409,14 @@ static SDL_Rect right_canvas_clear_canvas_button_rect(SDL_Rect rect, VisualPaneL
     return (SDL_Rect){ reset.x, reset.y + reset.h + m.section_gap, reset.w, reset.h };
 }
 
-static SDL_Rect right_canvas_clear_history_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
+static SDL_Rect right_canvas_delete_selection_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
     SDL_Rect clear_canvas = right_canvas_clear_canvas_button_rect(rect, m);
     return (SDL_Rect){ clear_canvas.x, clear_canvas.y + clear_canvas.h + m.section_gap, clear_canvas.w, clear_canvas.h };
+}
+
+static SDL_Rect right_canvas_clear_history_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
+    SDL_Rect delete_selection = right_canvas_delete_selection_button_rect(rect, m);
+    return (SDL_Rect){ delete_selection.x, delete_selection.y + delete_selection.h + m.section_gap, delete_selection.w, delete_selection.h };
 }
 
 static int right_canvas_metrics_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m) {
@@ -3420,6 +3443,7 @@ static void draw_right_panel_chrome(SDL_Renderer *renderer,
         uint8_t swatch_b = 0u;
         SDL_Rect reset_view_button;
         SDL_Rect clear_canvas_button;
+        SDL_Rect delete_selection_button;
         SDL_Rect clear_history_button;
         uint8_t palette_i;
         uint32_t brush_radius = tool_brush_radius_samples(ctx, ctx->editor.active_tool);
@@ -3428,6 +3452,11 @@ static void draw_right_panel_chrome(SDL_Renderer *renderer,
         uint32_t selection_h = (selection && selection->has_payload) ? selection->height : 0u;
         uint32_t selection_payload = (selection && selection->has_payload) ? selection->payload_count : 0u;
         uint32_t selection_layer_id = (selection && selection->has_payload) ? selection->layer_id : 0u;
+        int delete_selection_enabled = (selection &&
+                                        selection->has_payload &&
+                                        active_layer_allows_edits_visual(ctx))
+                                           ? 1
+                                           : 0;
         uint32_t clipboard_w = ctx->clipboard.has_payload ? ctx->clipboard.width : 0u;
         uint32_t clipboard_h = ctx->clipboard.has_payload ? ctx->clipboard.height : 0u;
         uint32_t clipboard_payload = ctx->clipboard.has_payload ? ctx->clipboard.payload_count : 0u;
@@ -3524,6 +3553,7 @@ static void draw_right_panel_chrome(SDL_Renderer *renderer,
 
         reset_view_button = right_canvas_reset_view_button_rect(rect, m);
         clear_canvas_button = right_canvas_clear_canvas_button_rect(rect, m);
+        delete_selection_button = right_canvas_delete_selection_button_rect(rect, m);
         clear_history_button = right_canvas_clear_history_button_rect(rect, m);
 
         draw_tab_button(renderer, rect, reset_view_button, "RESET VIEW",
@@ -3532,6 +3562,10 @@ static void draw_right_panel_chrome(SDL_Renderer *renderer,
         draw_tab_button(renderer, rect, clear_canvas_button, "CLEAR CANVAS",
                         p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
                         p.text_primary, m.body_scale, 0, ui_hovered(ui, clear_canvas_button));
+        draw_tab_button(renderer, rect, delete_selection_button, "DELETE SELECTION",
+                        p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
+                        delete_selection_enabled ? p.text_primary : p.text_muted,
+                        m.body_scale, 0, ui_hovered(ui, delete_selection_button));
         draw_tab_button(renderer, rect, clear_history_button, "CLEAR HISTORY",
                         p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
                         p.text_primary, m.body_scale, 0, ui_hovered(ui, clear_history_button));
@@ -3855,7 +3889,8 @@ static void handle_right_panel_click(DrawingProgramAppContext *ctx,
                                      SDL_Rect rect,
                                      int x,
                                      int y,
-                                     VisualPanelUiState *ui) {
+                                     VisualPanelUiState *ui,
+                                     VisualSelectionState *selection) {
     VisualPaneLayoutMetrics m;
     int content_y;
     SDL_Rect tab_canvas;
@@ -3977,6 +4012,7 @@ static void handle_right_panel_click(DrawingProgramAppContext *ctx,
         uint8_t palette_i;
         SDL_Rect reset_view_button;
         SDL_Rect clear_canvas_button;
+        SDL_Rect delete_selection_button;
         SDL_Rect clear_history_button;
         for (palette_i = 0u; palette_i < (uint8_t)DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT; ++palette_i) {
             SDL_Rect swatch = right_canvas_palette_swatch_rect(rect, m, palette_i);
@@ -3995,6 +4031,18 @@ static void handle_right_panel_click(DrawingProgramAppContext *ctx,
         clear_canvas_button = right_canvas_clear_canvas_button_rect(rect, m);
         if (point_in_rect(clear_canvas_button, x, y)) {
             apply_workflow_control_if_valid(ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS);
+            return;
+        }
+        delete_selection_button = right_canvas_delete_selection_button_rect(rect, m);
+        if (point_in_rect(delete_selection_button, x, y) &&
+            selection &&
+            selection->has_payload &&
+            active_layer_allows_edits_visual(ctx)) {
+            (void)drawing_program_selection_delete_payload(&ctx->document,
+                                                           &ctx->layer_rasters,
+                                                           ctx->editor.active_layer_id,
+                                                           &ctx->history,
+                                                           selection);
             return;
         }
         clear_history_button = right_canvas_clear_history_button_rect(rect, m);
@@ -4238,6 +4286,7 @@ static void cancel_canvas_draw_and_shape(VisualCanvasInteractionState *interacti
     interaction->drawing_active = 0u;
     interaction->shape_active = 0u;
     interaction->move_axis_lock = 0u;
+    interaction->marquee_commit_mode = (uint8_t)VISUAL_MARQUEE_COMMIT_REPLACE;
     interaction->has_last_sample = 0u;
 }
 
@@ -4458,6 +4507,7 @@ static int run_visual_mode(int argc, char **argv) {
     }
     app.ui_font_zoom_step = (int8_t)clamp_font_zoom_step((int)app.ui_font_zoom_step);
     memset(&canvas_interaction, 0, sizeof(canvas_interaction));
+    canvas_interaction.marquee_commit_mode = (uint8_t)VISUAL_MARQUEE_COMMIT_REPLACE;
     memset(&panel_ui, 0, sizeof(panel_ui));
     drawing_program_selection_cancel_transient(&selection_state);
     sync_panel_ui_from_app(&app, &panel_ui);
@@ -4566,7 +4616,7 @@ static int run_visual_mode(int argc, char **argv) {
                 }
                 if (event.button.button == SDL_BUTTON_LEFT && click_on_right) {
                     cancel_all_transient_interactions(&app, &canvas_interaction, &selection_state, 0);
-                    handle_right_panel_click(&app, right_pane, click_x, click_y, &panel_ui);
+                    handle_right_panel_click(&app, right_pane, click_x, click_y, &panel_ui, &selection_state);
                     continue;
                 }
                 if (event.button.button == SDL_BUTTON_LEFT &&
@@ -4582,6 +4632,8 @@ static int run_visual_mode(int argc, char **argv) {
                         screen_to_canvas_sample(&app, canvas_pane, click_x, click_y, &sample_x, &sample_y)) {
                         drawing_program_selection_begin_marquee(&selection_state, sample_x, sample_y);
                         cancel_canvas_draw_and_shape(&canvas_interaction);
+                        canvas_interaction.marquee_commit_mode =
+                            (uint8_t)visual_marquee_commit_mode_from_mods(SDL_GetModState());
                     } else if (app.editor.active_tool == DRAWING_PROGRAM_TOOL_MOVE &&
                                selection_state.has_payload &&
                                ((screen_to_canvas_sample(&app, canvas_pane, click_x, click_y, &sample_x, &sample_y) &&
@@ -4645,13 +4697,8 @@ static int run_visual_mode(int argc, char **argv) {
                         }
                     }
                     if (selection_state.selecting) {
-                        SDL_Keymod mods = SDL_GetModState();
-                        VisualMarqueeCommitMode mode = VISUAL_MARQUEE_COMMIT_REPLACE;
-                        if ((mods & KMOD_ALT) != 0) {
-                            mode = VISUAL_MARQUEE_COMMIT_SUBTRACT;
-                        } else if ((mods & KMOD_SHIFT) != 0) {
-                            mode = VISUAL_MARQUEE_COMMIT_ADD;
-                        }
+                        VisualMarqueeCommitMode mode =
+                            visual_marquee_commit_mode_clamp(canvas_interaction.marquee_commit_mode);
                         (void)visual_selection_capture_from_marquee(&app, &selection_state, mode);
                     }
                     if (selection_state.moving) {
