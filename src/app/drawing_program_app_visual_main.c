@@ -182,19 +182,32 @@ static uint8_t sample_value_for_tool(const DrawingProgramAppContext *ctx, Drawin
     }
 }
 
-static uint32_t tool_brush_radius_samples(DrawingProgramToolKind tool) {
+static uint8_t clamp_setting_u8(uint8_t value, uint8_t min_v, uint8_t max_v) {
+    if (value < min_v) {
+        return min_v;
+    }
+    if (value > max_v) {
+        return max_v;
+    }
+    return value;
+}
+
+static uint32_t tool_brush_radius_samples(const DrawingProgramAppContext *ctx, DrawingProgramToolKind tool) {
     switch (tool) {
         case DRAWING_PROGRAM_TOOL_BRUSH:
-            return 2u;
+            return (uint32_t)clamp_setting_u8(ctx ? ctx->ui_tool_brush_size : 2u, 1u, 16u);
         case DRAWING_PROGRAM_TOOL_ERASER:
-            return 4u;
+            return (uint32_t)clamp_setting_u8(ctx ? ctx->ui_tool_eraser_size : 4u, 1u, 16u);
         default:
             return 0u;
     }
 }
 
-static uint32_t tool_brush_spacing_samples(DrawingProgramToolKind tool, uint32_t radius) {
+static uint32_t tool_brush_spacing_samples(const DrawingProgramAppContext *ctx,
+                                           DrawingProgramToolKind tool,
+                                           uint32_t radius) {
     uint32_t spacing = 1u;
+    (void)ctx;
     (void)tool;
     if (radius > 0u) {
         spacing = (radius / 2u) + 1u;
@@ -221,6 +234,37 @@ static int tool_uses_shape_commit(DrawingProgramToolKind tool) {
             tool == DRAWING_PROGRAM_TOOL_CIRCLE)
                ? 1
                : 0;
+}
+
+static uint8_t tool_shape_mode(const DrawingProgramAppContext *ctx) {
+    return clamp_setting_u8(ctx ? ctx->ui_tool_shape_mode : 0u, 0u, 2u);
+}
+
+static uint32_t tool_shape_stroke_width(const DrawingProgramAppContext *ctx) {
+    return (uint32_t)clamp_setting_u8(ctx ? ctx->ui_tool_shape_stroke_width : 1u, 1u, 16u);
+}
+
+static const char *shape_mode_name(uint8_t mode) {
+    switch (clamp_setting_u8(mode, 0u, 2u)) {
+        case 0u: return "OUTLINE";
+        case 1u: return "FILL";
+        case 2u: return "FILL+OUTLINE";
+        default: return "OUTLINE";
+    }
+}
+
+static int shape_mode_includes_fill(DrawingProgramToolKind tool, uint8_t mode) {
+    if (tool == DRAWING_PROGRAM_TOOL_LINE) {
+        return 0;
+    }
+    return (clamp_setting_u8(mode, 0u, 2u) == 1u || clamp_setting_u8(mode, 0u, 2u) == 2u) ? 1 : 0;
+}
+
+static int shape_mode_includes_outline(DrawingProgramToolKind tool, uint8_t mode) {
+    if (tool == DRAWING_PROGRAM_TOOL_LINE) {
+        return 1;
+    }
+    return (clamp_setting_u8(mode, 0u, 2u) == 1u) ? 0 : 1;
 }
 
 static uint8_t color_index_for_sample(uint8_t sample) {
@@ -272,6 +316,149 @@ static DrawingProgramWorkflowControl workflow_control_for_tool(DrawingProgramToo
         case DRAWING_PROGRAM_TOOL_MOVE: return DRAWING_PROGRAM_WORKFLOW_CONTROL_SET_TOOL_MOVE;
         case DRAWING_PROGRAM_TOOL_PICKER: return DRAWING_PROGRAM_WORKFLOW_CONTROL_SET_TOOL_PICKER;
         default: return DRAWING_PROGRAM_WORKFLOW_CONTROL_NONE;
+    }
+}
+
+typedef enum VisualToolOptionKind {
+    VISUAL_TOOL_OPTION_BRUSH_SIZE = 0,
+    VISUAL_TOOL_OPTION_BRUSH_OPACITY,
+    VISUAL_TOOL_OPTION_ERASER_SIZE,
+    VISUAL_TOOL_OPTION_SHAPE_STROKE_WIDTH,
+    VISUAL_TOOL_OPTION_SHAPE_MODE,
+    VISUAL_TOOL_OPTION_FILL_TOLERANCE
+} VisualToolOptionKind;
+
+static uint32_t visual_tool_option_count(DrawingProgramToolKind tool) {
+    switch (tool) {
+        case DRAWING_PROGRAM_TOOL_BRUSH:
+            return 2u;
+        case DRAWING_PROGRAM_TOOL_ERASER:
+            return 1u;
+        case DRAWING_PROGRAM_TOOL_LINE:
+        case DRAWING_PROGRAM_TOOL_RECT:
+        case DRAWING_PROGRAM_TOOL_CIRCLE:
+            return 2u;
+        case DRAWING_PROGRAM_TOOL_FILL:
+            return 1u;
+        default:
+            return 0u;
+    }
+}
+
+static VisualToolOptionKind visual_tool_option_kind_for_index(DrawingProgramToolKind tool, uint32_t index) {
+    switch (tool) {
+        case DRAWING_PROGRAM_TOOL_BRUSH:
+            return (index == 0u) ? VISUAL_TOOL_OPTION_BRUSH_SIZE : VISUAL_TOOL_OPTION_BRUSH_OPACITY;
+        case DRAWING_PROGRAM_TOOL_ERASER:
+            return VISUAL_TOOL_OPTION_ERASER_SIZE;
+        case DRAWING_PROGRAM_TOOL_LINE:
+        case DRAWING_PROGRAM_TOOL_RECT:
+        case DRAWING_PROGRAM_TOOL_CIRCLE:
+            return (index == 0u) ? VISUAL_TOOL_OPTION_SHAPE_STROKE_WIDTH : VISUAL_TOOL_OPTION_SHAPE_MODE;
+        case DRAWING_PROGRAM_TOOL_FILL:
+            return VISUAL_TOOL_OPTION_FILL_TOLERANCE;
+        default:
+            return VISUAL_TOOL_OPTION_BRUSH_SIZE;
+    }
+}
+
+static const char *visual_tool_option_label(VisualToolOptionKind option) {
+    switch (option) {
+        case VISUAL_TOOL_OPTION_BRUSH_SIZE: return "SIZE";
+        case VISUAL_TOOL_OPTION_BRUSH_OPACITY: return "OPACITY";
+        case VISUAL_TOOL_OPTION_ERASER_SIZE: return "SIZE";
+        case VISUAL_TOOL_OPTION_SHAPE_STROKE_WIDTH: return "STROKE";
+        case VISUAL_TOOL_OPTION_SHAPE_MODE: return "MODE";
+        case VISUAL_TOOL_OPTION_FILL_TOLERANCE: return "TOLERANCE";
+        default: return "VALUE";
+    }
+}
+
+static void visual_tool_option_value_text(const DrawingProgramAppContext *ctx,
+                                          VisualToolOptionKind option,
+                                          char *out_text,
+                                          size_t out_cap) {
+    if (!out_text || out_cap == 0u) {
+        return;
+    }
+    switch (option) {
+        case VISUAL_TOOL_OPTION_BRUSH_SIZE:
+            (void)snprintf(out_text, out_cap, "%u", (unsigned)clamp_setting_u8(ctx ? ctx->ui_tool_brush_size : 2u, 1u, 16u));
+            break;
+        case VISUAL_TOOL_OPTION_BRUSH_OPACITY:
+            (void)snprintf(out_text, out_cap, "%u%%", (unsigned)clamp_setting_u8(ctx ? ctx->ui_tool_brush_opacity : 100u, 1u, 100u));
+            break;
+        case VISUAL_TOOL_OPTION_ERASER_SIZE:
+            (void)snprintf(out_text, out_cap, "%u", (unsigned)clamp_setting_u8(ctx ? ctx->ui_tool_eraser_size : 4u, 1u, 16u));
+            break;
+        case VISUAL_TOOL_OPTION_SHAPE_STROKE_WIDTH:
+            (void)snprintf(out_text, out_cap, "%u", (unsigned)clamp_setting_u8(ctx ? ctx->ui_tool_shape_stroke_width : 1u, 1u, 16u));
+            break;
+        case VISUAL_TOOL_OPTION_SHAPE_MODE:
+            (void)snprintf(out_text, out_cap, "%s", shape_mode_name(tool_shape_mode(ctx)));
+            break;
+        case VISUAL_TOOL_OPTION_FILL_TOLERANCE:
+            (void)snprintf(out_text, out_cap, "%u", (unsigned)clamp_setting_u8(ctx ? ctx->ui_tool_fill_tolerance : 0u, 0u, 16u));
+            break;
+        default:
+            (void)snprintf(out_text, out_cap, "-");
+            break;
+    }
+}
+
+static void visual_tool_option_adjust(DrawingProgramAppContext *ctx, VisualToolOptionKind option, int delta) {
+    if (!ctx || delta == 0) {
+        return;
+    }
+    switch (option) {
+        case VISUAL_TOOL_OPTION_BRUSH_SIZE: {
+            int v = (int)ctx->ui_tool_brush_size + delta;
+            if (v < 1) v = 1;
+            if (v > 16) v = 16;
+            ctx->ui_tool_brush_size = (uint8_t)v;
+            break;
+        }
+        case VISUAL_TOOL_OPTION_BRUSH_OPACITY: {
+            int v = (int)ctx->ui_tool_brush_opacity + (delta * 5);
+            if (v < 1) v = 1;
+            if (v > 100) v = 100;
+            ctx->ui_tool_brush_opacity = (uint8_t)v;
+            break;
+        }
+        case VISUAL_TOOL_OPTION_ERASER_SIZE: {
+            int v = (int)ctx->ui_tool_eraser_size + delta;
+            if (v < 1) v = 1;
+            if (v > 16) v = 16;
+            ctx->ui_tool_eraser_size = (uint8_t)v;
+            break;
+        }
+        case VISUAL_TOOL_OPTION_SHAPE_STROKE_WIDTH: {
+            int v = (int)ctx->ui_tool_shape_stroke_width + delta;
+            if (v < 1) v = 1;
+            if (v > 16) v = 16;
+            ctx->ui_tool_shape_stroke_width = (uint8_t)v;
+            break;
+        }
+        case VISUAL_TOOL_OPTION_SHAPE_MODE: {
+            int v = (int)ctx->ui_tool_shape_mode + delta;
+            while (v < 0) {
+                v += 3;
+            }
+            while (v > 2) {
+                v -= 3;
+            }
+            ctx->ui_tool_shape_mode = (uint8_t)v;
+            break;
+        }
+        case VISUAL_TOOL_OPTION_FILL_TOLERANCE: {
+            int v = (int)ctx->ui_tool_fill_tolerance + delta;
+            if (v < 0) v = 0;
+            if (v > 16) v = 16;
+            ctx->ui_tool_fill_tolerance = (uint8_t)v;
+            break;
+        }
+        default:
+            break;
     }
 }
 
@@ -1083,6 +1270,46 @@ static SDL_Rect right_layer_action_button_rect(SDL_Rect rect,
     return (SDL_Rect){ rect.x + m.pad_x, y, rect.w - (2 * m.pad_x), m.row_h };
 }
 
+static SDL_Rect left_tool_option_row_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, int y) {
+    return (SDL_Rect){
+        rect.x + m.pad_x + m.tab_gap,
+        y,
+        rect.w - (2 * m.pad_x) - m.tab_gap,
+        m.row_h
+    };
+}
+
+static SDL_Rect left_tool_option_minus_rect(SDL_Rect row, VisualPaneLayoutMetrics m) {
+    int button_w = m.tab_h;
+    int value_w = (int)((float)row.w * 0.34f);
+    int value_x;
+    if (value_w < 74) {
+        value_w = 74;
+    }
+    if (value_w > 126) {
+        value_w = 126;
+    }
+    value_x = row.x + row.w - button_w - m.tab_gap - value_w;
+    return (SDL_Rect){ value_x - m.tab_gap - button_w, row.y, button_w, row.h };
+}
+
+static SDL_Rect left_tool_option_plus_rect(SDL_Rect row, VisualPaneLayoutMetrics m) {
+    int button_w = m.tab_h;
+    return (SDL_Rect){ row.x + row.w - button_w, row.y, button_w, row.h };
+}
+
+static SDL_Rect left_tool_option_value_rect(SDL_Rect row, VisualPaneLayoutMetrics m) {
+    SDL_Rect plus = left_tool_option_plus_rect(row, m);
+    int value_w = (int)((float)row.w * 0.34f);
+    if (value_w < 74) {
+        value_w = 74;
+    }
+    if (value_w > 126) {
+        value_w = 126;
+    }
+    return (SDL_Rect){ plus.x - m.tab_gap - value_w, row.y, value_w, row.h };
+}
+
 static int cycle_theme_preset(CoreThemePresetId current, int direction, CoreThemePresetId *out_next) {
     uint32_t i;
     uint32_t count = (uint32_t)(sizeof(k_visual_theme_cycle_order) / sizeof(k_visual_theme_cycle_order[0]));
@@ -1271,7 +1498,7 @@ static CoreResult apply_canvas_fill_at_screen(DrawingProgramAppContext *ctx,
                                               int sx,
                                               int sy) {
     static uint32_t queue[DRAWING_PROGRAM_MAX_RASTER_SAMPLES];
-    static uint8_t visited[DRAWING_PROGRAM_MAX_RASTER_SAMPLES];
+    static uint8_t region_mask[DRAWING_PROGRAM_MAX_RASTER_SAMPLES];
     const uint8_t *active_layer_samples = 0;
     uint32_t start_x = 0u;
     uint32_t start_y = 0u;
@@ -1282,6 +1509,7 @@ static CoreResult apply_canvas_fill_at_screen(DrawingProgramAppContext *ctx,
     uint32_t active_layer_id = 0u;
     uint32_t head = 0u;
     uint32_t tail = 0u;
+    uint32_t fill_region_count = 0u;
     uint8_t target = 0u;
     uint8_t replacement = 0u;
     CoreResult result;
@@ -1322,10 +1550,11 @@ static CoreResult apply_canvas_fill_at_screen(DrawingProgramAppContext *ctx,
     if (target == replacement) {
         return core_result_ok();
     }
-    memset(visited, 0, ctx->document.raster_sample_count * sizeof(visited[0]));
+    memset(region_mask, 0, ctx->document.raster_sample_count * sizeof(region_mask[0]));
     start_index = (start_y * width) + start_x;
     queue[tail++] = start_index;
-    visited[start_index] = 1u;
+    region_mask[start_index] = 1u;
+    fill_region_count = 1u;
     while (head < tail) {
         uint32_t idx = queue[head++];
         uint32_t x = idx % width;
@@ -1334,62 +1563,155 @@ static CoreResult apply_canvas_fill_at_screen(DrawingProgramAppContext *ctx,
         if (current != target) {
             continue;
         }
-        {
-            CoreResult write_result = apply_sample_if_changed(ctx, x, y, replacement);
-            if (write_result.code != CORE_OK) {
-                return write_result;
-            }
-        }
         if (x > 0u) {
             uint32_t n = idx - 1u;
-            if (!visited[n] && active_layer_samples[n] == target) {
+            if (!region_mask[n] && active_layer_samples[n] == target) {
                 if (tail >= ctx->document.raster_sample_count) {
                     return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "fill queue exhausted" };
                 }
-                visited[n] = 1u;
+                region_mask[n] = 1u;
                 queue[tail++] = n;
+                fill_region_count += 1u;
             }
         }
         if (x + 1u < width) {
             uint32_t n = idx + 1u;
-            if (!visited[n] && active_layer_samples[n] == target) {
+            if (!region_mask[n] && active_layer_samples[n] == target) {
                 if (tail >= ctx->document.raster_sample_count) {
                     return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "fill queue exhausted" };
                 }
-                visited[n] = 1u;
+                region_mask[n] = 1u;
                 queue[tail++] = n;
+                fill_region_count += 1u;
             }
         }
         if (y > 0u) {
             uint32_t n = idx - width;
-            if (!visited[n] && active_layer_samples[n] == target) {
+            if (!region_mask[n] && active_layer_samples[n] == target) {
                 if (tail >= ctx->document.raster_sample_count) {
                     return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "fill queue exhausted" };
                 }
-                visited[n] = 1u;
+                region_mask[n] = 1u;
                 queue[tail++] = n;
+                fill_region_count += 1u;
             }
         }
         if (y + 1u < height) {
             uint32_t n = idx + width;
-            if (!visited[n] && active_layer_samples[n] == target) {
+            if (!region_mask[n] && active_layer_samples[n] == target) {
                 if (tail >= ctx->document.raster_sample_count) {
                     return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "fill queue exhausted" };
                 }
-                visited[n] = 1u;
+                region_mask[n] = 1u;
                 queue[tail++] = n;
+                fill_region_count += 1u;
+            }
+        }
+    }
+    if (fill_region_count == 0u) {
+        return core_result_ok();
+    }
+    {
+        uint32_t y;
+        for (y = 0u; y < height; ++y) {
+            uint32_t x = 0u;
+            uint32_t row_start = y * width;
+            while (x < width) {
+                uint32_t span_start_x = x;
+                uint32_t span_len = 0u;
+                while (x < width && !region_mask[row_start + x]) {
+                    x += 1u;
+                }
+                if (x >= width) {
+                    break;
+                }
+                span_start_x = x;
+                while (x < width && region_mask[row_start + x]) {
+                    span_len += 1u;
+                    x += 1u;
+                }
+                if (span_len > 0u) {
+                    CoreResult span_result = drawing_program_history_apply_set_sample_span_value(&ctx->history,
+                                                                                                  &ctx->document,
+                                                                                                  &ctx->layer_rasters,
+                                                                                                  active_layer_id,
+                                                                                                  row_start + span_start_x,
+                                                                                                  span_len,
+                                                                                                  replacement);
+                    if (span_result.code != CORE_OK) {
+                        return span_result;
+                    }
+                }
             }
         }
     }
     return core_result_ok();
 }
 
-static CoreResult apply_canvas_line_between_samples(DrawingProgramAppContext *ctx,
-                                                    uint32_t x0,
-                                                    uint32_t y0,
-                                                    uint32_t x1,
-                                                    uint32_t y1,
-                                                    uint8_t value) {
+static CoreResult apply_sample_if_changed_on_layer(DrawingProgramAppContext *ctx,
+                                                   uint32_t layer_id,
+                                                   uint32_t sample_x,
+                                                   uint32_t sample_y,
+                                                   uint8_t value) {
+    return drawing_program_history_apply_set_sample_value(&ctx->history,
+                                                          &ctx->document,
+                                                          &ctx->layer_rasters,
+                                                          layer_id,
+                                                          sample_x,
+                                                          sample_y,
+                                                          value);
+}
+
+static CoreResult apply_canvas_stamp_square_on_layer(DrawingProgramAppContext *ctx,
+                                                     uint32_t layer_id,
+                                                     int32_t sample_x,
+                                                     int32_t sample_y,
+                                                     uint8_t value,
+                                                     uint32_t stroke_width) {
+    int32_t start_offset;
+    int32_t end_offset;
+    int32_t y;
+    int32_t x;
+    if (!ctx || layer_id == 0u) {
+        return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid stamp request" };
+    }
+    if (stroke_width < 1u) {
+        stroke_width = 1u;
+    }
+    start_offset = -((int32_t)stroke_width / 2);
+    end_offset = start_offset + (int32_t)stroke_width - 1;
+    for (y = start_offset; y <= end_offset; ++y) {
+        for (x = start_offset; x <= end_offset; ++x) {
+            int32_t tx = sample_x + x;
+            int32_t ty = sample_y + y;
+            if (tx < 0 || ty < 0 ||
+                (uint32_t)tx >= ctx->document.raster_width ||
+                (uint32_t)ty >= ctx->document.raster_height) {
+                continue;
+            }
+            {
+                CoreResult result = apply_sample_if_changed_on_layer(ctx,
+                                                                     layer_id,
+                                                                     (uint32_t)tx,
+                                                                     (uint32_t)ty,
+                                                                     value);
+                if (result.code != CORE_OK) {
+                    return result;
+                }
+            }
+        }
+    }
+    return core_result_ok();
+}
+
+static CoreResult apply_canvas_line_between_samples_on_layer(DrawingProgramAppContext *ctx,
+                                                             uint32_t layer_id,
+                                                             uint32_t x0,
+                                                             uint32_t y0,
+                                                             uint32_t x1,
+                                                             uint32_t y1,
+                                                             uint8_t value,
+                                                             uint32_t stroke_width) {
     int32_t x = (int32_t)x0;
     int32_t y = (int32_t)y0;
     int32_t tx = (int32_t)x1;
@@ -1399,14 +1721,24 @@ static CoreResult apply_canvas_line_between_samples(DrawingProgramAppContext *ct
     int32_t dy = -((ty > y) ? (ty - y) : (y - ty));
     int32_t sy = (y < ty) ? 1 : -1;
     int32_t err = dx + dy;
+    if (!ctx || layer_id == 0u) {
+        return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid line request" };
+    }
+    if (stroke_width < 1u) {
+        stroke_width = 1u;
+    }
     while (1) {
-        CoreResult r;
         if (x >= 0 && y >= 0 &&
             (uint32_t)x < ctx->document.raster_width &&
             (uint32_t)y < ctx->document.raster_height) {
-            r = apply_sample_if_changed(ctx, (uint32_t)x, (uint32_t)y, value);
-            if (r.code != CORE_OK) {
-                return r;
+            CoreResult stamp_result = apply_canvas_stamp_square_on_layer(ctx,
+                                                                         layer_id,
+                                                                         x,
+                                                                         y,
+                                                                         value,
+                                                                         stroke_width);
+            if (stamp_result.code != CORE_OK) {
+                return stamp_result;
             }
         }
         if (x == tx && y == ty) {
@@ -1427,78 +1759,201 @@ static CoreResult apply_canvas_line_between_samples(DrawingProgramAppContext *ct
     return core_result_ok();
 }
 
-static CoreResult apply_canvas_rect_between_samples(DrawingProgramAppContext *ctx,
-                                                    uint32_t x0,
-                                                    uint32_t y0,
-                                                    uint32_t x1,
-                                                    uint32_t y1,
-                                                    uint8_t value) {
+static CoreResult apply_canvas_rect_fill_between_samples_on_layer(DrawingProgramAppContext *ctx,
+                                                                  uint32_t layer_id,
+                                                                  uint32_t x0,
+                                                                  uint32_t y0,
+                                                                  uint32_t x1,
+                                                                  uint32_t y1,
+                                                                  uint8_t value) {
     uint32_t min_x = (x0 < x1) ? x0 : x1;
     uint32_t min_y = (y0 < y1) ? y0 : y1;
     uint32_t max_x = (x0 > x1) ? x0 : x1;
     uint32_t max_y = (y0 > y1) ? y0 : y1;
-    CoreResult r;
-    r = apply_canvas_line_between_samples(ctx, min_x, min_y, max_x, min_y, value);
-    if (r.code != CORE_OK) return r;
-    r = apply_canvas_line_between_samples(ctx, min_x, max_y, max_x, max_y, value);
-    if (r.code != CORE_OK) return r;
-    r = apply_canvas_line_between_samples(ctx, min_x, min_y, min_x, max_y, value);
-    if (r.code != CORE_OK) return r;
-    return apply_canvas_line_between_samples(ctx, max_x, min_y, max_x, max_y, value);
+    uint32_t y;
+    uint32_t x;
+    if (!ctx || layer_id == 0u) {
+        return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid rect-fill request" };
+    }
+    for (y = min_y; y <= max_y; ++y) {
+        for (x = min_x; x <= max_x; ++x) {
+            CoreResult result = apply_sample_if_changed_on_layer(ctx, layer_id, x, y, value);
+            if (result.code != CORE_OK) {
+                return result;
+            }
+        }
+    }
+    return core_result_ok();
 }
 
-static CoreResult apply_canvas_circle_between_samples(DrawingProgramAppContext *ctx,
-                                                      uint32_t center_x,
-                                                      uint32_t center_y,
-                                                      uint32_t edge_x,
-                                                      uint32_t edge_y,
-                                                      uint8_t value) {
+static CoreResult apply_canvas_rect_outline_between_samples_on_layer(DrawingProgramAppContext *ctx,
+                                                                     uint32_t layer_id,
+                                                                     uint32_t x0,
+                                                                     uint32_t y0,
+                                                                     uint32_t x1,
+                                                                     uint32_t y1,
+                                                                     uint8_t value,
+                                                                     uint32_t stroke_width) {
+    uint32_t min_x = (x0 < x1) ? x0 : x1;
+    uint32_t min_y = (y0 < y1) ? y0 : y1;
+    uint32_t max_x = (x0 > x1) ? x0 : x1;
+    uint32_t max_y = (y0 > y1) ? y0 : y1;
+    uint32_t y;
+    uint32_t x;
+    uint32_t rect_width;
+    uint32_t rect_height;
+    if (!ctx || layer_id == 0u) {
+        return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid rect-outline request" };
+    }
+    if (stroke_width < 1u) {
+        stroke_width = 1u;
+    }
+    rect_width = (max_x - min_x) + 1u;
+    rect_height = (max_y - min_y) + 1u;
+    if (stroke_width >= rect_width || stroke_width >= rect_height) {
+        return apply_canvas_rect_fill_between_samples_on_layer(ctx, layer_id, min_x, min_y, max_x, max_y, value);
+    }
+    for (y = min_y; y <= max_y; ++y) {
+        for (x = min_x; x <= max_x; ++x) {
+            uint32_t left_dist = x - min_x;
+            uint32_t right_dist = max_x - x;
+            uint32_t top_dist = y - min_y;
+            uint32_t bottom_dist = max_y - y;
+            if (left_dist < stroke_width ||
+                right_dist < stroke_width ||
+                top_dist < stroke_width ||
+                bottom_dist < stroke_width) {
+                CoreResult result = apply_sample_if_changed_on_layer(ctx, layer_id, x, y, value);
+                if (result.code != CORE_OK) {
+                    return result;
+                }
+            }
+        }
+    }
+    return core_result_ok();
+}
+
+static CoreResult apply_canvas_circle_fill_between_samples_on_layer(DrawingProgramAppContext *ctx,
+                                                                    uint32_t layer_id,
+                                                                    uint32_t center_x,
+                                                                    uint32_t center_y,
+                                                                    uint32_t edge_x,
+                                                                    uint32_t edge_y,
+                                                                    uint8_t value) {
     int32_t cx = (int32_t)center_x;
     int32_t cy = (int32_t)center_y;
     int32_t rx = (int32_t)edge_x - cx;
     int32_t ry = (int32_t)edge_y - cy;
     int32_t r = (rx < 0 ? -rx : rx);
     int32_t ay = (ry < 0 ? -ry : ry);
-    int32_t x = 0;
+    int32_t min_x;
+    int32_t max_x;
+    int32_t min_y;
+    int32_t max_y;
     int32_t y;
-    int32_t d;
+    if (!ctx || layer_id == 0u) {
+        return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid circle-fill request" };
+    }
     if (ay > r) {
         r = ay;
     }
     if (r <= 0) {
-        return apply_sample_if_changed(ctx, center_x, center_y, value);
+        return apply_sample_if_changed_on_layer(ctx, layer_id, center_x, center_y, value);
     }
-    y = r;
-    d = 1 - r;
-    while (x <= y) {
-        CoreResult rr;
-#define APPLY_CIRCLE_POINT(px, py)                                                       \
-    do {                                                                                 \
-        if ((px) >= 0 && (py) >= 0 &&                                                    \
-            (uint32_t)(px) < ctx->document.raster_width &&                              \
-            (uint32_t)(py) < ctx->document.raster_height) {                             \
-            rr = apply_sample_if_changed(ctx, (uint32_t)(px), (uint32_t)(py), value);   \
-            if (rr.code != CORE_OK) {                                                    \
-                return rr;                                                               \
-            }                                                                            \
-        }                                                                                \
-    } while (0)
-        APPLY_CIRCLE_POINT(cx + x, cy + y);
-        APPLY_CIRCLE_POINT(cx - x, cy + y);
-        APPLY_CIRCLE_POINT(cx + x, cy - y);
-        APPLY_CIRCLE_POINT(cx - x, cy - y);
-        APPLY_CIRCLE_POINT(cx + y, cy + x);
-        APPLY_CIRCLE_POINT(cx - y, cy + x);
-        APPLY_CIRCLE_POINT(cx + y, cy - x);
-        APPLY_CIRCLE_POINT(cx - y, cy - x);
-#undef APPLY_CIRCLE_POINT
-        if (d < 0) {
-            d += (2 * x) + 3;
-        } else {
-            d += (2 * (x - y)) + 5;
-            y -= 1;
+    min_x = cx - r;
+    max_x = cx + r;
+    min_y = cy - r;
+    max_y = cy + r;
+    for (y = min_y; y <= max_y; ++y) {
+        int32_t x;
+        if (y < 0 || (uint32_t)y >= ctx->document.raster_height) {
+            continue;
         }
-        x += 1;
+        for (x = min_x; x <= max_x; ++x) {
+            int32_t dx;
+            int32_t dy;
+            if (x < 0 || (uint32_t)x >= ctx->document.raster_width) {
+                continue;
+            }
+            dx = x - cx;
+            dy = y - cy;
+            if ((dx * dx) + (dy * dy) <= (r * r)) {
+                CoreResult result = apply_sample_if_changed_on_layer(ctx, layer_id, (uint32_t)x, (uint32_t)y, value);
+                if (result.code != CORE_OK) {
+                    return result;
+                }
+            }
+        }
+    }
+    return core_result_ok();
+}
+
+static CoreResult apply_canvas_circle_outline_between_samples_on_layer(DrawingProgramAppContext *ctx,
+                                                                       uint32_t layer_id,
+                                                                       uint32_t center_x,
+                                                                       uint32_t center_y,
+                                                                       uint32_t edge_x,
+                                                                       uint32_t edge_y,
+                                                                       uint8_t value,
+                                                                       uint32_t stroke_width) {
+    int32_t cx = (int32_t)center_x;
+    int32_t cy = (int32_t)center_y;
+    int32_t rx = (int32_t)edge_x - cx;
+    int32_t ry = (int32_t)edge_y - cy;
+    int32_t outer_r = (rx < 0 ? -rx : rx);
+    int32_t ay = (ry < 0 ? -ry : ry);
+    int32_t inner_r;
+    int32_t min_x;
+    int32_t max_x;
+    int32_t min_y;
+    int32_t max_y;
+    int32_t y;
+    int32_t outer_r2;
+    int32_t inner_r2;
+    if (!ctx || layer_id == 0u) {
+        return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid circle-outline request" };
+    }
+    if (stroke_width < 1u) {
+        stroke_width = 1u;
+    }
+    if (ay > outer_r) {
+        outer_r = ay;
+    }
+    if (outer_r <= 0) {
+        return apply_canvas_stamp_square_on_layer(ctx, layer_id, cx, cy, value, stroke_width);
+    }
+    inner_r = outer_r - (int32_t)stroke_width + 1;
+    if (inner_r < 0) {
+        inner_r = 0;
+    }
+    outer_r2 = outer_r * outer_r;
+    inner_r2 = inner_r * inner_r;
+    min_x = cx - outer_r;
+    max_x = cx + outer_r;
+    min_y = cy - outer_r;
+    max_y = cy + outer_r;
+    for (y = min_y; y <= max_y; ++y) {
+        int32_t x;
+        if (y < 0 || (uint32_t)y >= ctx->document.raster_height) {
+            continue;
+        }
+        for (x = min_x; x <= max_x; ++x) {
+            int32_t dx;
+            int32_t dy;
+            int32_t d2;
+            if (x < 0 || (uint32_t)x >= ctx->document.raster_width) {
+                continue;
+            }
+            dx = x - cx;
+            dy = y - cy;
+            d2 = (dx * dx) + (dy * dy);
+            if (d2 <= outer_r2 && d2 >= inner_r2) {
+                CoreResult result = apply_sample_if_changed_on_layer(ctx, layer_id, (uint32_t)x, (uint32_t)y, value);
+                if (result.code != CORE_OK) {
+                    return result;
+                }
+            }
+        }
     }
     return core_result_ok();
 }
@@ -1510,20 +1965,95 @@ static CoreResult apply_canvas_shape_commit(DrawingProgramAppContext *ctx,
                                             uint32_t end_x,
                                             uint32_t end_y) {
     uint8_t value;
+    uint8_t mode;
+    uint32_t stroke_width;
+    uint32_t active_layer_id = 0u;
     if (!ctx) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "null app context for shape commit" };
     }
+    if (!active_layer_allows_edits_visual(ctx)) {
+        return core_result_ok();
+    }
+    if (!active_layer_query(ctx, &active_layer_id, 0, 0, 0) || active_layer_id == 0u) {
+        return core_result_ok();
+    }
     value = sample_value_for_tool(ctx, tool);
+    mode = tool_shape_mode(ctx);
+    stroke_width = tool_shape_stroke_width(ctx);
     switch (tool) {
         case DRAWING_PROGRAM_TOOL_LINE:
-            return apply_canvas_line_between_samples(ctx, start_x, start_y, end_x, end_y, value);
-        case DRAWING_PROGRAM_TOOL_RECT:
-            return apply_canvas_rect_between_samples(ctx, start_x, start_y, end_x, end_y, value);
-        case DRAWING_PROGRAM_TOOL_CIRCLE:
-            return apply_canvas_circle_between_samples(ctx, start_x, start_y, end_x, end_y, value);
+            return apply_canvas_line_between_samples_on_layer(ctx,
+                                                              active_layer_id,
+                                                              start_x,
+                                                              start_y,
+                                                              end_x,
+                                                              end_y,
+                                                              value,
+                                                              stroke_width);
+        case DRAWING_PROGRAM_TOOL_RECT: {
+            CoreResult result = core_result_ok();
+            if (shape_mode_includes_fill(tool, mode)) {
+                result = apply_canvas_rect_fill_between_samples_on_layer(ctx,
+                                                                         active_layer_id,
+                                                                         start_x,
+                                                                         start_y,
+                                                                         end_x,
+                                                                         end_y,
+                                                                         value);
+                if (result.code != CORE_OK) {
+                    return result;
+                }
+            }
+            if (shape_mode_includes_outline(tool, mode)) {
+                result = apply_canvas_rect_outline_between_samples_on_layer(ctx,
+                                                                            active_layer_id,
+                                                                            start_x,
+                                                                            start_y,
+                                                                            end_x,
+                                                                            end_y,
+                                                                            value,
+                                                                            stroke_width);
+            }
+            return result;
+        }
+        case DRAWING_PROGRAM_TOOL_CIRCLE: {
+            CoreResult result = core_result_ok();
+            if (shape_mode_includes_fill(tool, mode)) {
+                result = apply_canvas_circle_fill_between_samples_on_layer(ctx,
+                                                                           active_layer_id,
+                                                                           start_x,
+                                                                           start_y,
+                                                                           end_x,
+                                                                           end_y,
+                                                                           value);
+                if (result.code != CORE_OK) {
+                    return result;
+                }
+            }
+            if (shape_mode_includes_outline(tool, mode)) {
+                result = apply_canvas_circle_outline_between_samples_on_layer(ctx,
+                                                                              active_layer_id,
+                                                                              start_x,
+                                                                              start_y,
+                                                                              end_x,
+                                                                              end_y,
+                                                                              value,
+                                                                              stroke_width);
+            }
+            return result;
+        }
         default:
             return core_result_ok();
     }
+}
+
+CoreResult drawing_program_app_shape_commit_samples(DrawingProgramAppContext *ctx,
+                                                    DrawingProgramToolKind tool,
+                                                    uint32_t start_x,
+                                                    uint32_t start_y,
+                                                    uint32_t end_x,
+                                                    uint32_t end_y) {
+    return apply_canvas_shape_commit(ctx, tool, start_x, start_y, end_x, end_y);
 }
 
 static int selection_sample_rect_to_screen_rect(const VisualCanvasSheetMetrics *metrics,
@@ -1646,6 +2176,51 @@ static int selection_move_handle_hit(const DrawingProgramAppContext *ctx,
     return 0;
 }
 
+static void draw_selection_payload_preview(SDL_Renderer *renderer,
+                                           const DrawingProgramAppContext *ctx,
+                                           const VisualCanvasSheetMetrics *metrics,
+                                           const VisualSelectionState *selection,
+                                           int32_t origin_x,
+                                           int32_t origin_y,
+                                           uint8_t alpha) {
+    uint32_t x;
+    uint32_t y;
+    if (!renderer || !ctx || !metrics || !selection || !selection->has_payload) {
+        return;
+    }
+    if (selection->width == 0u || selection->height == 0u) {
+        return;
+    }
+    for (y = 0u; y < selection->height; ++y) {
+        for (x = 0u; x < selection->width; ++x) {
+            int32_t sample_x;
+            int32_t sample_y;
+            SDL_Rect sample_rect;
+            uint8_t value;
+            uint8_t r = 0u;
+            uint8_t g = 0u;
+            uint8_t b = 0u;
+            if (!drawing_program_selection_mask_at(selection, x, y)) {
+                continue;
+            }
+            sample_x = origin_x + (int32_t)x;
+            sample_y = origin_y + (int32_t)y;
+            if (sample_x < 0 || sample_y < 0 ||
+                sample_x >= (int32_t)ctx->document.raster_width ||
+                sample_y >= (int32_t)ctx->document.raster_height) {
+                continue;
+            }
+            if (!selection_sample_rect_to_screen_rect(metrics, sample_x, sample_y, 1u, 1u, &sample_rect)) {
+                continue;
+            }
+            value = drawing_program_selection_value_at(selection, x, y);
+            drawing_program_color_rgb_from_sample(value, &r, &g, &b);
+            SDL_SetRenderDrawColor(renderer, r, g, b, alpha);
+            (void)SDL_RenderFillRect(renderer, &sample_rect);
+        }
+    }
+}
+
 static void draw_selection_overlay(SDL_Renderer *renderer,
                                    SDL_Rect pane_rect,
                                    const DrawingProgramAppContext *ctx,
@@ -1696,8 +2271,6 @@ static void draw_selection_overlay(SDL_Renderer *renderer,
                                                  selection->width,
                                                  selection->height,
                                                  &rect)) {
-            SDL_SetRenderDrawColor(renderer, accent_alt.r, accent_alt.g, accent_alt.b, 30u);
-            (void)SDL_RenderFillRect(renderer, &rect);
             SDL_SetRenderDrawColor(renderer, accent_alt.r, accent_alt.g, accent_alt.b, 170u);
             (void)SDL_RenderDrawRect(renderer, &rect);
         }
@@ -1710,8 +2283,9 @@ static void draw_selection_overlay(SDL_Renderer *renderer,
             SDL_Rect handles[VISUAL_SELECTION_HANDLE_COUNT];
             int handle_size = selection_handle_size_for_metrics(metrics);
             int i;
-            SDL_SetRenderDrawColor(renderer, accent.r, accent.g, accent.b, 44u);
-            (void)SDL_RenderFillRect(renderer, &rect);
+            if (selection->moving && (selection->offset_x != 0 || selection->offset_y != 0)) {
+                draw_selection_payload_preview(renderer, ctx, metrics, selection, moved_x, moved_y, 255u);
+            }
             SDL_SetRenderDrawColor(renderer, accent.r, accent.g, accent.b, 255u);
             (void)SDL_RenderDrawRect(renderer, &rect);
             if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_MOVE || selection->moving) {
@@ -1749,6 +2323,150 @@ static int sample_center_to_screen(const VisualCanvasSheetMetrics *metrics,
     return 1;
 }
 
+static int preview_stroke_width_pixels(const VisualCanvasSheetMetrics *metrics, uint32_t stroke_width_samples) {
+    int stroke_px;
+    if (stroke_width_samples < 1u) {
+        stroke_width_samples = 1u;
+    }
+    if (!metrics || metrics->pixel_size <= 0.0f) {
+        return (int)stroke_width_samples;
+    }
+    stroke_px = (int)lroundf((float)stroke_width_samples * metrics->pixel_size);
+    if (stroke_px < 1) {
+        stroke_px = 1;
+    }
+    if (stroke_px > 128) {
+        stroke_px = 128;
+    }
+    return stroke_px;
+}
+
+static void draw_preview_thick_line(SDL_Renderer *renderer,
+                                    int x0,
+                                    int y0,
+                                    int x1,
+                                    int y1,
+                                    int stroke_px,
+                                    SDL_Color color,
+                                    uint8_t alpha) {
+    float dx;
+    float dy;
+    float len;
+    float nx;
+    float ny;
+    int i;
+    int start;
+    if (!renderer) {
+        return;
+    }
+    if (stroke_px < 1) {
+        stroke_px = 1;
+    }
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, alpha);
+    if (stroke_px == 1) {
+        (void)SDL_RenderDrawLine(renderer, x0, y0, x1, y1);
+        return;
+    }
+    dx = (float)(x1 - x0);
+    dy = (float)(y1 - y0);
+    len = sqrtf((dx * dx) + (dy * dy));
+    if (len <= 0.0001f) {
+        SDL_Rect dot = { x0 - (stroke_px / 2), y0 - (stroke_px / 2), stroke_px, stroke_px };
+        (void)SDL_RenderFillRect(renderer, &dot);
+        return;
+    }
+    nx = -dy / len;
+    ny = dx / len;
+    start = -(stroke_px / 2);
+    for (i = 0; i < stroke_px; ++i) {
+        float off = (float)(start + i);
+        int ox = (int)lroundf(nx * off);
+        int oy = (int)lroundf(ny * off);
+        (void)SDL_RenderDrawLine(renderer, x0 + ox, y0 + oy, x1 + ox, y1 + oy);
+    }
+}
+
+static void draw_preview_thick_rect_outline(SDL_Renderer *renderer,
+                                            SDL_Rect rect,
+                                            int stroke_px,
+                                            SDL_Color color,
+                                            uint8_t alpha) {
+    int i;
+    if (!renderer) {
+        return;
+    }
+    if (stroke_px < 1) {
+        stroke_px = 1;
+    }
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, alpha);
+    for (i = 0; i < stroke_px; ++i) {
+        SDL_Rect ring = { rect.x + i, rect.y + i, rect.w - (2 * i), rect.h - (2 * i) };
+        if (ring.w <= 0 || ring.h <= 0) {
+            break;
+        }
+        (void)SDL_RenderDrawRect(renderer, &ring);
+    }
+}
+
+static void draw_preview_circle_fill(SDL_Renderer *renderer,
+                                     int center_x,
+                                     int center_y,
+                                     int radius_px,
+                                     SDL_Color color,
+                                     uint8_t alpha) {
+    int y;
+    if (!renderer) {
+        return;
+    }
+    if (radius_px < 1) {
+        radius_px = 1;
+    }
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, alpha);
+    for (y = -radius_px; y <= radius_px; ++y) {
+        float row = (float)((radius_px * radius_px) - (y * y));
+        int span = (row > 0.0f) ? (int)floorf(sqrtf(row)) : 0;
+        (void)SDL_RenderDrawLine(renderer, center_x - span, center_y + y, center_x + span, center_y + y);
+    }
+}
+
+static void draw_preview_circle_outline(SDL_Renderer *renderer,
+                                        int center_x,
+                                        int center_y,
+                                        int radius_px,
+                                        int stroke_px,
+                                        SDL_Color color,
+                                        uint8_t alpha) {
+    int s;
+    const int segments = 64;
+    const float two_pi = 6.28318530718f;
+    if (!renderer) {
+        return;
+    }
+    if (stroke_px < 1) {
+        stroke_px = 1;
+    }
+    if (radius_px < 1) {
+        radius_px = 1;
+    }
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, alpha);
+    for (s = 0; s < stroke_px; ++s) {
+        float radius = (float)radius_px - (float)(stroke_px / 2) + (float)s;
+        int i;
+        if (radius < 1.0f) {
+            continue;
+        }
+        for (i = 0; i < segments; ++i) {
+            float t0 = ((float)i / (float)segments) * two_pi;
+            float t1 = ((float)(i + 1) / (float)segments) * two_pi;
+            int x0 = center_x + (int)(cosf(t0) * radius);
+            int y0 = center_y + (int)(sinf(t0) * radius);
+            int x1 = center_x + (int)(cosf(t1) * radius);
+            int y1 = center_y + (int)(sinf(t1) * radius);
+            (void)SDL_RenderDrawLine(renderer, x0, y0, x1, y1);
+        }
+    }
+}
+
 static void draw_shape_preview_overlay(SDL_Renderer *renderer,
                                        SDL_Rect pane_rect,
                                        const DrawingProgramAppContext *ctx,
@@ -1783,6 +2501,7 @@ static void draw_shape_preview_overlay(SDL_Renderer *renderer,
             int y0 = 0;
             int x1 = 0;
             int y1 = 0;
+            int stroke_px = preview_stroke_width_pixels(metrics, tool_shape_stroke_width(ctx));
             if (sample_center_to_screen(metrics,
                                         ctx,
                                         interaction->shape_start_sample_x,
@@ -1790,8 +2509,7 @@ static void draw_shape_preview_overlay(SDL_Renderer *renderer,
                                         &x0,
                                         &y0) &&
                 sample_center_to_screen(metrics, ctx, end_x, end_y, &x1, &y1)) {
-                SDL_SetRenderDrawColor(renderer, accent.r, accent.g, accent.b, 230u);
-                (void)SDL_RenderDrawLine(renderer, x0, y0, x1, y1);
+                draw_preview_thick_line(renderer, x0, y0, x1, y1, stroke_px, accent, 230u);
             }
             break;
         }
@@ -1803,11 +2521,16 @@ static void draw_shape_preview_overlay(SDL_Renderer *renderer,
             SDL_Rect rect = { 0, 0, 0, 0 };
             uint32_t w = (max_x - min_x) + 1u;
             uint32_t h = (max_y - min_y) + 1u;
+            uint8_t mode = tool_shape_mode(ctx);
+            int stroke_px = preview_stroke_width_pixels(metrics, tool_shape_stroke_width(ctx));
             if (selection_sample_rect_to_screen_rect(metrics, (int32_t)min_x, (int32_t)min_y, w, h, &rect)) {
-                SDL_SetRenderDrawColor(renderer, accent.r, accent.g, accent.b, 36u);
-                (void)SDL_RenderFillRect(renderer, &rect);
-                SDL_SetRenderDrawColor(renderer, accent.r, accent.g, accent.b, 230u);
-                (void)SDL_RenderDrawRect(renderer, &rect);
+                if (shape_mode_includes_fill(tool, mode)) {
+                    SDL_SetRenderDrawColor(renderer, accent.r, accent.g, accent.b, 36u);
+                    (void)SDL_RenderFillRect(renderer, &rect);
+                }
+                if (shape_mode_includes_outline(tool, mode)) {
+                    draw_preview_thick_rect_outline(renderer, rect, stroke_px, accent, 230u);
+                }
             }
             break;
         }
@@ -1818,10 +2541,9 @@ static void draw_shape_preview_overlay(SDL_Renderer *renderer,
             int32_t dy = (int32_t)end_y - (int32_t)interaction->shape_start_sample_y;
             int32_t r_samples = (dx < 0 ? -dx : dx);
             int32_t ay = (dy < 0 ? -dy : dy);
-            float radius_px;
-            int i;
-            const int segments = 64;
-            const float two_pi = 6.28318530718f;
+            int radius_px;
+            int stroke_px = preview_stroke_width_pixels(metrics, tool_shape_stroke_width(ctx));
+            uint8_t mode = tool_shape_mode(ctx);
             if (ay > r_samples) {
                 r_samples = ay;
             }
@@ -1833,19 +2555,15 @@ static void draw_shape_preview_overlay(SDL_Renderer *renderer,
                                          &cy)) {
                 break;
             }
-            radius_px = ((float)r_samples + 0.5f) * metrics->pixel_size;
-            if (radius_px < 1.0f) {
-                radius_px = 1.0f;
+            radius_px = (int)lroundf((((float)r_samples) + 0.5f) * metrics->pixel_size);
+            if (radius_px < 1) {
+                radius_px = 1;
             }
-            SDL_SetRenderDrawColor(renderer, accent.r, accent.g, accent.b, 230u);
-            for (i = 0; i < segments; ++i) {
-                float t0 = ((float)i / (float)segments) * two_pi;
-                float t1 = ((float)(i + 1) / (float)segments) * two_pi;
-                int x0 = cx + (int)(cosf(t0) * radius_px);
-                int y0 = cy + (int)(sinf(t0) * radius_px);
-                int x1 = cx + (int)(cosf(t1) * radius_px);
-                int y1 = cy + (int)(sinf(t1) * radius_px);
-                (void)SDL_RenderDrawLine(renderer, x0, y0, x1, y1);
+            if (shape_mode_includes_fill(tool, mode)) {
+                draw_preview_circle_fill(renderer, cx, cy, radius_px, accent, 36u);
+            }
+            if (shape_mode_includes_outline(tool, mode)) {
+                draw_preview_circle_outline(renderer, cx, cy, radius_px, stroke_px, accent, 230u);
             }
             break;
         }
@@ -1877,8 +2595,8 @@ static CoreResult apply_canvas_draw_at_screen(DrawingProgramAppContext *ctx,
     }
 
     value = sample_value_for_tool(ctx, ctx->editor.active_tool);
-    radius = tool_brush_radius_samples(ctx->editor.active_tool);
-    spacing = tool_brush_spacing_samples(ctx->editor.active_tool, radius);
+    radius = tool_brush_radius_samples(ctx, ctx->editor.active_tool);
+    spacing = tool_brush_spacing_samples(ctx, ctx->editor.active_tool, radius);
 
     if (!state->has_last_sample) {
         int32_t x;
@@ -2224,8 +2942,10 @@ static void draw_left_panel_chrome(SDL_Renderer *renderer,
     y += m.tab_h + m.section_gap;
 
     if (left_slot == VISUAL_LEFT_PANEL_SLOT_TOOLS) {
+        int y_cursor = y;
+        uint32_t active_option_count = visual_tool_option_count(ctx->editor.active_tool);
         for (i = 0u; i < sizeof(k_visual_tools) / sizeof(k_visual_tools[0]); ++i) {
-            SDL_Rect row = { rect.x + m.pad_x, y + (int)i * m.row_h, rect.w - (2 * m.pad_x), m.row_h };
+            SDL_Rect row = { rect.x + m.pad_x, y_cursor, rect.w - (2 * m.pad_x), m.row_h };
             int active = (ctx->editor.active_tool == k_visual_tools[i]) ? 1 : 0;
             int hovered = ui_hovered(ui, row);
             SDL_Color row_color = active ? p.button_fill_active : (hovered ? p.button_fill_hover : p.button_fill);
@@ -2235,6 +2955,67 @@ static void draw_left_panel_chrome(SDL_Renderer *renderer,
             SDL_SetRenderDrawColor(renderer, p.button_border.r, p.button_border.g, p.button_border.b, p.button_border.a);
             (void)SDL_RenderDrawRect(renderer, &row);
             draw_bitmap_text(renderer, rect, row.x + 6, row.y + m.row_text_y, tool_name(k_visual_tools[i]), label_color, m.body_scale);
+            y_cursor += m.row_h;
+            if (active && active_option_count > 0u) {
+                uint32_t option_i;
+                for (option_i = 0u; option_i < active_option_count; ++option_i) {
+                    VisualToolOptionKind option_kind = visual_tool_option_kind_for_index(ctx->editor.active_tool, option_i);
+                    SDL_Rect option_row = left_tool_option_row_rect(rect, m, y_cursor);
+                    SDL_Rect minus_rect = left_tool_option_minus_rect(option_row, m);
+                    SDL_Rect value_rect = left_tool_option_value_rect(option_row, m);
+                    SDL_Rect plus_rect = left_tool_option_plus_rect(option_row, m);
+                    char value_text[48];
+                    visual_tool_option_value_text(ctx, option_kind, value_text, sizeof(value_text));
+                    SDL_SetRenderDrawColor(renderer, p.button_fill.r, p.button_fill.g, p.button_fill.b, p.button_fill.a);
+                    (void)SDL_RenderFillRect(renderer, &option_row);
+                    SDL_SetRenderDrawColor(renderer, p.button_border.r, p.button_border.g, p.button_border.b, p.button_border.a);
+                    (void)SDL_RenderDrawRect(renderer, &option_row);
+                    draw_bitmap_text(renderer,
+                                     rect,
+                                     option_row.x + 6,
+                                     option_row.y + m.row_text_y,
+                                     visual_tool_option_label(option_kind),
+                                     p.text_muted,
+                                     m.body_scale);
+                    draw_tab_button(renderer,
+                                    rect,
+                                    minus_rect,
+                                    "-",
+                                    p.button_fill,
+                                    p.button_fill_hover,
+                                    p.button_fill_active,
+                                    p.button_border,
+                                    p.text_primary,
+                                    m.body_scale,
+                                    0,
+                                    ui_hovered(ui, minus_rect));
+                    draw_tab_button(renderer,
+                                    rect,
+                                    value_rect,
+                                    value_text,
+                                    p.button_fill,
+                                    p.button_fill,
+                                    p.button_fill,
+                                    p.button_border,
+                                    p.text_primary,
+                                    m.body_scale,
+                                    0,
+                                    0);
+                    draw_tab_button(renderer,
+                                    rect,
+                                    plus_rect,
+                                    "+",
+                                    p.button_fill,
+                                    p.button_fill_hover,
+                                    p.button_fill_active,
+                                    p.button_border,
+                                    p.text_primary,
+                                    m.body_scale,
+                                    0,
+                                    ui_hovered(ui, plus_rect));
+                    y_cursor += m.row_h;
+                }
+            }
         }
     } else {
         char line[96];
@@ -2341,8 +3122,8 @@ static void draw_right_panel_chrome(SDL_Renderer *renderer,
         SDL_Rect clear_canvas_button;
         SDL_Rect clear_history_button;
         uint8_t palette_i;
-        uint32_t brush_radius = tool_brush_radius_samples(ctx->editor.active_tool);
-        uint32_t brush_spacing = tool_brush_spacing_samples(ctx->editor.active_tool, brush_radius);
+        uint32_t brush_radius = tool_brush_radius_samples(ctx, ctx->editor.active_tool);
+        uint32_t brush_spacing = tool_brush_spacing_samples(ctx, ctx->editor.active_tool, brush_radius);
         uint32_t selection_w = (selection && selection->has_payload) ? selection->width : 0u;
         uint32_t selection_h = (selection && selection->has_payload) ? selection->height : 0u;
         uint32_t selection_payload = (selection && selection->has_payload) ? selection->payload_count : 0u;
@@ -2381,7 +3162,37 @@ static void draw_right_panel_chrome(SDL_Renderer *renderer,
         (void)snprintf(line, sizeof(line), "HISTORY %u/%u", history_cursor_units, history_count_units);
         draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
         y += m.line_h;
-        (void)snprintf(line, sizeof(line), "TOOL %s  BRUSH R%u S%u", tool_name(ctx->editor.active_tool), brush_radius, brush_spacing);
+        if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_BRUSH) {
+            (void)snprintf(line,
+                           sizeof(line),
+                           "TOOL %s  R%u S%u O%u%%",
+                           tool_name(ctx->editor.active_tool),
+                           brush_radius,
+                           brush_spacing,
+                           (unsigned)clamp_setting_u8(ctx->ui_tool_brush_opacity, 1u, 100u));
+        } else if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_ERASER) {
+            (void)snprintf(line,
+                           sizeof(line),
+                           "TOOL %s  R%u S%u",
+                           tool_name(ctx->editor.active_tool),
+                           brush_radius,
+                           brush_spacing);
+        } else if (tool_uses_shape_commit(ctx->editor.active_tool)) {
+            (void)snprintf(line,
+                           sizeof(line),
+                           "TOOL %s  W%u MODE %s",
+                           tool_name(ctx->editor.active_tool),
+                           (unsigned)clamp_setting_u8(ctx->ui_tool_shape_stroke_width, 1u, 16u),
+                           shape_mode_name(tool_shape_mode(ctx)));
+        } else if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_FILL) {
+            (void)snprintf(line,
+                           sizeof(line),
+                           "TOOL %s  TOL %u",
+                           tool_name(ctx->editor.active_tool),
+                           (unsigned)clamp_setting_u8(ctx->ui_tool_fill_tolerance, 0u, 16u));
+        } else {
+            (void)snprintf(line, sizeof(line), "TOOL %s", tool_name(ctx->editor.active_tool));
+        }
         draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
         y += m.line_h;
         (void)snprintf(line,
@@ -2557,11 +3368,32 @@ static void handle_left_panel_click(DrawingProgramAppContext *ctx,
         return;
     }
     if (clamp_left_slot(ctx->ui_left_panel_slot) == VISUAL_LEFT_PANEL_SLOT_TOOLS) {
+        int y_cursor = content_y;
+        uint32_t active_option_count = visual_tool_option_count(ctx->editor.active_tool);
         for (i = 0u; i < sizeof(k_visual_tools) / sizeof(k_visual_tools[0]); ++i) {
-            SDL_Rect row = { rect.x + m.pad_x, content_y + (int)i * m.row_h, rect.w - (2 * m.pad_x), m.row_h };
+            SDL_Rect row = { rect.x + m.pad_x, y_cursor, rect.w - (2 * m.pad_x), m.row_h };
             if (point_in_rect(row, x, y)) {
                 apply_workflow_control_if_valid(ctx, workflow_control_for_tool(k_visual_tools[i]));
                 return;
+            }
+            y_cursor += m.row_h;
+            if (ctx->editor.active_tool == k_visual_tools[i] && active_option_count > 0u) {
+                uint32_t option_i;
+                for (option_i = 0u; option_i < active_option_count; ++option_i) {
+                    VisualToolOptionKind option_kind = visual_tool_option_kind_for_index(ctx->editor.active_tool, option_i);
+                    SDL_Rect option_row = left_tool_option_row_rect(rect, m, y_cursor);
+                    SDL_Rect minus_rect = left_tool_option_minus_rect(option_row, m);
+                    SDL_Rect plus_rect = left_tool_option_plus_rect(option_row, m);
+                    if (point_in_rect(minus_rect, x, y)) {
+                        visual_tool_option_adjust(ctx, option_kind, -1);
+                        return;
+                    }
+                    if (point_in_rect(plus_rect, x, y)) {
+                        visual_tool_option_adjust(ctx, option_kind, 1);
+                        return;
+                    }
+                    y_cursor += m.row_h;
+                }
             }
         }
     } else {

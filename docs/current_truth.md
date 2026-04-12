@@ -1,8 +1,57 @@
 # Current Truth
 
-Last updated: 2026-04-11
+Last updated: 2026-04-12
 
 - Canonical input map is documented in `docs/keybind_reference.md`.
+- Canvas seed shape is no longer fixed square-only:
+  - default seed remains `512x512`
+  - runtime boot now supports explicit non-square overrides:
+    - `--canvas-size <W>x<H>`
+    - `--canvas-width <W> --canvas-height <H>`
+  - explicit canvas-size override bypasses snapshot-load document restore so requested shape is applied deterministically
+- Phase 10 `S4` select/move correctness slice is now implemented:
+  - move begin-hit detection now resolves against selection payload mask (not just selection bounds)
+  - transparent holes inside selection bounds no longer start move drags
+  - selection overlay no longer paints a solid interior block over active payload bounds
+  - move-preview now renders true payload samples at destination (instead of placeholder white-square fill)
+  - marquee capture capacity is widened from `128x128` to `512x512` so committed selection bounds no longer collapse to a small fixed square on normal canvas sizes
+  - move commit path now uses grouped two-pass history writes (clear source mask -> write destination payload), removing the prior stack-heavy affected-sample scratch buffer
+  - move commit regression lane now validates sparse payload overlap transport:
+    - source payload samples clear to background deterministically
+    - destination receives payload values
+    - transparent holes preserve pre-existing destination samples
+- Phase 10 `S5` closeout is now complete:
+  - phase gates (build/test/smoke/package/desktop refresh) passed on the current lane
+  - regression guard added for large rectangular selection capture (`300x140`) to keep marquee finalize bounds stable
+  - next boundary locked to Phase 11 tool-depth behavior polish
+- Phase 10 `S3` shape mode policy slice is now implemented:
+  - shape commit path now applies mode policy for `LINE/RECT/CIRCLE`:
+    - `OUTLINE`
+    - `FILL`
+    - `FILL+OUTLINE`
+  - shape stroke width is now consumed in raster commit behavior:
+    - thick line stamp bands
+    - rect outline thickness
+    - circle ring thickness
+  - shape preview overlay now reflects mode + stroke width, keeping preview/commit policy aligned
+  - lifecycle regression lane now includes deterministic shape-mode/stroke assertions
+- Phase 10 `S2` active-tool options lane is now implemented:
+  - left tools pane now expands active-tool option rows inline (`- / value / +` controls)
+  - expanded rows are metric-driven and push subsequent tool rows downward
+  - persisted option fields are now part of app UI state:
+    - brush size, brush opacity
+    - eraser size
+    - shape stroke width + shape mode placeholder binding
+    - fill tolerance placeholder
+  - snapshot `DPUI` payload is upgraded to v5 with backward-compatible load support for older UI chunks
+  - right panel canvas telemetry now reflects active tool option values
+- Phase 10 `S1` fill performance slice is now implemented:
+  - canvas fill now performs a bounded two-step flow:
+    - contiguous region mask capture on active layer
+    - row-span history commits (`SET_SAMPLE_SPAN_VALUE`) rather than per-pixel history commands
+  - history now supports span mutation replay via `drawing_program_history_apply_set_sample_span_value(...)`
+  - undo/redo determinism for span commits is covered in lifecycle tests
+  - worst-case command-pressure drop for 512x512 full fill: `262,144` single-sample commands -> `512` span commands
 - Phase 9 `S1` true-layer compositing foundation slice is now implemented:
   - app runtime owns a dedicated heap-backed per-layer raster store (`DrawingProgramLayerRasterStore`)
   - snapshot lane now persists optional layer-raster chunk (`DPLR`, v1) while keeping `DPS2` compatibility
@@ -145,7 +194,7 @@ Last updated: 2026-04-11
   - selection capture now ignores seeded background-only pixels (sparse payload capture)
   - move commit restores seeded background at source instead of eraser-white clears
   - selection/move no longer produces white block artifacts from full-rectangle payload clears
-  - selection seed budget expanded (`16x16` -> `128x128`) so marquee capture is usable on larger canvas regions
+  - selection seed budget expanded (`16x16` -> `128x128`) in the original fix, and later widened again to `512x512` in Phase 10 S4 hardening
   - right panel now shows `SELECTION WxH Pn` telemetry for capture/move validation
 - tool/canvas stabilization lane (`2026-04-10`) is complete:
   - `CLEAR HISTORY` action is implemented in workflow/runtime and UI:

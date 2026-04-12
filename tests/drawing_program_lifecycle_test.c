@@ -127,6 +127,7 @@ static int write_legacy_snapshot_without_layer_chunk(const char *source_pack_pat
 int main(void) {
     DrawingProgramAppContext ctx;
     DrawingProgramAppContext workflow_ctx;
+    static DrawingProgramAppContext size_ctx;
     DrawingProgramClipboardState workflow_clipboard;
     uint32_t center_x;
     uint32_t center_y;
@@ -142,7 +143,10 @@ int main(void) {
     char arg2[] = "--smoke-frames";
     char arg3[] = "2";
     char arg4[] = "--no-persist";
+    char arg5[] = "--canvas-size";
+    char arg6[] = "640x360";
     char *argv[] = { arg0, arg1, arg2, arg3, arg4, 0 };
+    char *size_argv[] = { arg0, arg1, arg2, arg3, arg4, arg5, arg6, 0 };
     uint8_t expected_draw_value = drawing_program_color_value_from_index(drawing_program_color_default_index());
     uint8_t expected_eraser_value = drawing_program_color_eraser_value();
     drawing_program_clipboard_reset(&workflow_clipboard);
@@ -163,6 +167,27 @@ int main(void) {
         return 1;
     }
     if (!expect_ok(drawing_program_app_state_seed(&workflow_ctx), "workflow_state_seed")) {
+        return 1;
+    }
+    if (!expect_ok(drawing_program_app_bootstrap(&size_ctx, 7, size_argv), "size_bootstrap")) {
+        return 1;
+    }
+    if (!expect_ok(drawing_program_app_config_load(&size_ctx), "size_config_load")) {
+        return 1;
+    }
+    if (!expect_ok(drawing_program_app_state_seed(&size_ctx), "size_state_seed")) {
+        return 1;
+    }
+    if (size_ctx.document.logical_width != 640u ||
+        size_ctx.document.logical_height != 360u ||
+        size_ctx.document.raster_width != 640u ||
+        size_ctx.document.raster_height != 360u) {
+        fprintf(stderr,
+                "lifecycle_test: expected non-square canvas seed 640x360 got logical=%ux%u raster=%ux%u\n",
+                (unsigned)size_ctx.document.logical_width,
+                (unsigned)size_ctx.document.logical_height,
+                (unsigned)size_ctx.document.raster_width,
+                (unsigned)size_ctx.document.raster_height);
         return 1;
     }
     workflow_center_x = workflow_ctx.document.raster_width / 2u;
@@ -214,6 +239,46 @@ int main(void) {
                 (unsigned)expected_draw_value,
                 (unsigned)workflow_center_value);
         return 1;
+    }
+    {
+        uint32_t marquee_w = 300u;
+        uint32_t marquee_h = 140u;
+        int32_t marquee_x = 0;
+        int32_t marquee_y = 0;
+        if (workflow_ctx.document.raster_width <= marquee_w || workflow_ctx.document.raster_height <= marquee_h) {
+            fprintf(stderr,
+                    "lifecycle_test: raster too small for marquee regression %ux%u raster=%ux%u\n",
+                    (unsigned)marquee_w,
+                    (unsigned)marquee_h,
+                    (unsigned)workflow_ctx.document.raster_width,
+                    (unsigned)workflow_ctx.document.raster_height);
+            return 1;
+        }
+        marquee_x = (int32_t)((workflow_ctx.document.raster_width - marquee_w) / 2u);
+        marquee_y = (int32_t)((workflow_ctx.document.raster_height - marquee_h) / 2u);
+        if (!drawing_program_selection_capture_from_rect(&workflow_ctx.document,
+                                                         &workflow_ctx.layer_rasters,
+                                                         workflow_ctx.editor.active_layer_id,
+                                                         &workflow_ctx.selection,
+                                                         marquee_x,
+                                                         marquee_y,
+                                                         marquee_w,
+                                                         marquee_h)) {
+            fprintf(stderr,
+                    "lifecycle_test: expected marquee-size selection capture to succeed for %ux%u\n",
+                    (unsigned)marquee_w,
+                    (unsigned)marquee_h);
+            return 1;
+        }
+        if (workflow_ctx.selection.width != marquee_w || workflow_ctx.selection.height != marquee_h) {
+            fprintf(stderr,
+                    "lifecycle_test: expected marquee selection size=%ux%u got=%ux%u\n",
+                    (unsigned)marquee_w,
+                    (unsigned)marquee_h,
+                    (unsigned)workflow_ctx.selection.width,
+                    (unsigned)workflow_ctx.selection.height);
+            return 1;
+        }
     }
     if (!drawing_program_selection_select_all(&workflow_ctx.document,
                                               &workflow_ctx.layer_rasters,
@@ -370,6 +435,121 @@ int main(void) {
                 (unsigned)expected_draw_value,
                 (unsigned)workflow_center_value);
         return 1;
+    }
+    {
+        uint32_t layer_id = workflow_ctx.editor.active_layer_id;
+        uint8_t value_left = drawing_program_color_value_from_index(0u);
+        uint8_t value_right = drawing_program_color_value_from_index(2u);
+        uint8_t value_hole = drawing_program_color_value_from_index(5u);
+        uint8_t probe = 0u;
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &workflow_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS),
+                       "selection_move_mask_semantics_clear_canvas")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_history_apply_set_sample_value(&workflow_ctx.history,
+                                                                      &workflow_ctx.document,
+                                                                      &workflow_ctx.layer_rasters,
+                                                                      layer_id,
+                                                                      10u,
+                                                                      10u,
+                                                                      value_left),
+                       "selection_move_mask_semantics_seed_left")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_history_apply_set_sample_value(&workflow_ctx.history,
+                                                                      &workflow_ctx.document,
+                                                                      &workflow_ctx.layer_rasters,
+                                                                      layer_id,
+                                                                      12u,
+                                                                      10u,
+                                                                      value_right),
+                       "selection_move_mask_semantics_seed_right")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_history_apply_set_sample_value(&workflow_ctx.history,
+                                                                      &workflow_ctx.document,
+                                                                      &workflow_ctx.layer_rasters,
+                                                                      layer_id,
+                                                                      13u,
+                                                                      10u,
+                                                                      value_hole),
+                       "selection_move_mask_semantics_seed_hole_keep")) {
+            return 1;
+        }
+        if (!drawing_program_selection_capture_from_rect(&workflow_ctx.document,
+                                                         &workflow_ctx.layer_rasters,
+                                                         layer_id,
+                                                         &workflow_ctx.selection,
+                                                         10,
+                                                         10,
+                                                         3u,
+                                                         1u)) {
+            fprintf(stderr, "lifecycle_test: expected masked move selection capture\n");
+            return 1;
+        }
+        if (drawing_program_selection_begin_move(&workflow_ctx.selection, 11u, 10u)) {
+            fprintf(stderr, "lifecycle_test: expected move begin to reject transparent hole hit\n");
+            return 1;
+        }
+        if (!drawing_program_selection_begin_move(&workflow_ctx.selection, 10u, 10u)) {
+            fprintf(stderr, "lifecycle_test: expected move begin to accept payload hit\n");
+            return 1;
+        }
+        workflow_ctx.selection.offset_x = 2;
+        workflow_ctx.selection.offset_y = 0;
+        if (!expect_ok(drawing_program_selection_commit_move(&workflow_ctx.document,
+                                                             &workflow_ctx.layer_rasters,
+                                                             layer_id,
+                                                             &workflow_ctx.history,
+                                                             &workflow_ctx.selection),
+                       "selection_move_mask_semantics_commit")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&workflow_ctx.document, 10u, 10u, &probe),
+                       "selection_move_mask_semantics_src_left")) {
+            return 1;
+        }
+        if (probe != expected_eraser_value) {
+            fprintf(stderr,
+                    "lifecycle_test: expected source-left clear to background=%u got=%u\n",
+                    (unsigned)expected_eraser_value,
+                    (unsigned)probe);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&workflow_ctx.document, 12u, 10u, &probe),
+                       "selection_move_mask_semantics_dst_overlap")) {
+            return 1;
+        }
+        if (probe != value_left) {
+            fprintf(stderr,
+                    "lifecycle_test: expected overlap destination value=%u got=%u\n",
+                    (unsigned)value_left,
+                    (unsigned)probe);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&workflow_ctx.document, 13u, 10u, &probe),
+                       "selection_move_mask_semantics_hole_preserve")) {
+            return 1;
+        }
+        if (probe != value_hole) {
+            fprintf(stderr,
+                    "lifecycle_test: expected transparent-hole destination preserve=%u got=%u\n",
+                    (unsigned)value_hole,
+                    (unsigned)probe);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&workflow_ctx.document, 14u, 10u, &probe),
+                       "selection_move_mask_semantics_dst_right")) {
+            return 1;
+        }
+        if (probe != value_right) {
+            fprintf(stderr,
+                    "lifecycle_test: expected destination-right value=%u got=%u\n",
+                    (unsigned)value_right,
+                    (unsigned)probe);
+            return 1;
+        }
     }
     if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
                        &workflow_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_TOGGLE_ACTIVE_LAYER_VISIBILITY),
@@ -1352,6 +1532,118 @@ int main(void) {
         }
     }
     {
+        uint32_t unit_cursor_before = 0u;
+        uint32_t unit_count_before = 0u;
+        uint32_t unit_cursor_after = 0u;
+        uint32_t unit_count_after = 0u;
+        uint32_t span_start_x = center_x;
+        uint32_t span_start_y = center_y;
+        uint32_t span_max = (ctx.document.raster_width > span_start_x) ? (ctx.document.raster_width - span_start_x) : 0u;
+        uint32_t span_len = (span_max >= 8u) ? 8u : span_max;
+        uint32_t i;
+        uint8_t span_seed_value = 0u;
+        if (span_len == 0u) {
+            fprintf(stderr, "lifecycle_test: invalid span length for span history test\n");
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&ctx.document,
+                                                            span_start_x,
+                                                            span_start_y,
+                                                            &span_seed_value),
+                       "span_seed_read")) {
+            return 1;
+        }
+        for (i = 1u; i < span_len; ++i) {
+            if (!expect_ok(drawing_program_history_apply_set_sample_value(&ctx.history,
+                                                                          &ctx.document,
+                                                                          &ctx.layer_rasters,
+                                                                          ctx.editor.active_layer_id,
+                                                                          span_start_x + i,
+                                                                          span_start_y,
+                                                                          span_seed_value),
+                           "span_seed_normalize")) {
+                return 1;
+            }
+        }
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &ctx,
+                           DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_HISTORY),
+                       "span_seed_clear_history")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_history_begin_group(&ctx.history), "history_begin_group_span")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_history_apply_set_sample_span_value(&ctx.history,
+                                                                           &ctx.document,
+                                                                           &ctx.layer_rasters,
+                                                                           ctx.editor.active_layer_id,
+                                                                           (span_start_y * ctx.document.raster_width) + span_start_x,
+                                                                           span_len,
+                                                                           77u),
+                       "history_span_apply")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_history_end_group(&ctx.history), "history_end_group_span")) {
+            return 1;
+        }
+        for (i = 0u; i < span_len; ++i) {
+            uint8_t sample = 0u;
+            if (!expect_ok(drawing_program_document_sample_read(&ctx.document,
+                                                                span_start_x + i,
+                                                                span_start_y,
+                                                                &sample),
+                           "span_read_after_apply")) {
+                return 1;
+            }
+            if (sample != 77u) {
+                fprintf(stderr, "lifecycle_test: expected span sample value 77 at offset %u got %u\n", i, sample);
+                return 1;
+            }
+        }
+        drawing_program_history_query_units(&ctx.history, &unit_cursor_before, &unit_count_before);
+        if (!expect_ok(drawing_program_history_undo(&ctx.history, &ctx.document, &ctx.layer_rasters), "history_span_undo")) {
+            return 1;
+        }
+        for (i = 0u; i < span_len; ++i) {
+            uint8_t sample = 0u;
+            if (!expect_ok(drawing_program_document_sample_read(&ctx.document,
+                                                                span_start_x + i,
+                                                                span_start_y,
+                                                                &sample),
+                           "span_read_after_undo")) {
+                return 1;
+            }
+            if (sample == 77u) {
+                fprintf(stderr, "lifecycle_test: span undo did not restore sample at offset %u\n", i);
+                return 1;
+            }
+        }
+        if (!expect_ok(drawing_program_history_redo(&ctx.history, &ctx.document, &ctx.layer_rasters), "history_span_redo")) {
+            return 1;
+        }
+        for (i = 0u; i < span_len; ++i) {
+            uint8_t sample = 0u;
+            if (!expect_ok(drawing_program_document_sample_read(&ctx.document,
+                                                                span_start_x + i,
+                                                                span_start_y,
+                                                                &sample),
+                           "span_read_after_redo")) {
+                return 1;
+            }
+            if (sample != 77u) {
+                fprintf(stderr, "lifecycle_test: span redo did not reapply sample at offset %u\n", i);
+                return 1;
+            }
+        }
+        drawing_program_history_query_units(&ctx.history, &unit_cursor_after, &unit_count_after);
+        if (unit_cursor_after < unit_cursor_before || unit_count_after < unit_count_before) {
+            fprintf(stderr, "lifecycle_test: span command units regressed unexpectedly (%u/%u -> %u/%u)\n",
+                    unit_cursor_before, unit_count_before, unit_cursor_after, unit_count_after);
+            return 1;
+        }
+    }
+    {
         CoreResult undo_after_clear = drawing_program_history_undo(&ctx.history, &ctx.document, &ctx.layer_rasters);
         if (undo_after_clear.code != CORE_OK) {
             fprintf(stderr, "lifecycle_test: expected undo after grouped write to succeed\n");
@@ -1657,6 +1949,114 @@ int main(void) {
         return 1;
     }
     {
+        uint8_t sample = 0u;
+        uint8_t bg = drawing_program_color_eraser_value();
+        ctx.ui_active_color_index = drawing_program_color_default_index();
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS),
+                       "s3_shape_mode_clear_canvas_fill_rect")) {
+            return 1;
+        }
+        ctx.ui_tool_shape_mode = 1u; /* FILL */
+        ctx.ui_tool_shape_stroke_width = 1u;
+        if (!expect_ok(drawing_program_app_shape_commit_samples(&ctx,
+                                                                DRAWING_PROGRAM_TOOL_RECT,
+                                                                8u,
+                                                                8u,
+                                                                12u,
+                                                                12u),
+                       "s3_shape_mode_rect_fill_commit")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&ctx.document, 10u, 10u, &sample),
+                       "s3_shape_mode_rect_fill_center_sample")) {
+            return 1;
+        }
+        if (sample != expected_draw_value) {
+            fprintf(stderr,
+                    "lifecycle_test: expected rect fill center=%u got=%u\n",
+                    (unsigned)expected_draw_value,
+                    (unsigned)sample);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS),
+                       "s3_shape_mode_clear_canvas_outline_rect")) {
+            return 1;
+        }
+        ctx.ui_tool_shape_mode = 0u; /* OUTLINE */
+        ctx.ui_tool_shape_stroke_width = 1u;
+        if (!expect_ok(drawing_program_app_shape_commit_samples(&ctx,
+                                                                DRAWING_PROGRAM_TOOL_RECT,
+                                                                8u,
+                                                                8u,
+                                                                12u,
+                                                                12u),
+                       "s3_shape_mode_rect_outline_commit")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&ctx.document, 10u, 10u, &sample),
+                       "s3_shape_mode_rect_outline_center_sample")) {
+            return 1;
+        }
+        if (sample != bg) {
+            fprintf(stderr,
+                    "lifecycle_test: expected rect outline center background=%u got=%u\n",
+                    (unsigned)bg,
+                    (unsigned)sample);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&ctx.document, 8u, 10u, &sample),
+                       "s3_shape_mode_rect_outline_edge_sample")) {
+            return 1;
+        }
+        if (sample != expected_draw_value) {
+            fprintf(stderr,
+                    "lifecycle_test: expected rect outline edge=%u got=%u\n",
+                    (unsigned)expected_draw_value,
+                    (unsigned)sample);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS),
+                       "s3_shape_mode_clear_canvas_line_width")) {
+            return 1;
+        }
+        ctx.ui_tool_shape_mode = 0u; /* OUTLINE */
+        ctx.ui_tool_shape_stroke_width = 3u;
+        if (!expect_ok(drawing_program_app_shape_commit_samples(&ctx,
+                                                                DRAWING_PROGRAM_TOOL_LINE,
+                                                                40u,
+                                                                20u,
+                                                                40u,
+                                                                28u),
+                       "s3_shape_mode_line_stroke_commit")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&ctx.document, 41u, 24u, &sample),
+                       "s3_shape_mode_line_stroke_adjacent_sample")) {
+            return 1;
+        }
+        if (sample != expected_draw_value) {
+            fprintf(stderr,
+                    "lifecycle_test: expected thick line adjacent=%u got=%u\n",
+                    (unsigned)expected_draw_value,
+                    (unsigned)sample);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&ctx.document, 43u, 24u, &sample),
+                       "s3_shape_mode_line_stroke_outside_sample")) {
+            return 1;
+        }
+        if (sample != bg) {
+            fprintf(stderr,
+                    "lifecycle_test: expected thick line outside background=%u got=%u\n",
+                    (unsigned)bg,
+                    (unsigned)sample);
+            return 1;
+        }
+    }
+    {
         DrawingProgramAppContext save_ctx;
         DrawingProgramAppContext load_ctx;
         char persist_arg0[] = "drawing_program_persist_roundtrip";
@@ -1692,6 +2092,12 @@ int main(void) {
         save_ctx.ui_left_panel_slot = 1u;
         save_ctx.ui_right_panel_slot = 1u;
         save_ctx.ui_active_color_index = 6u;
+        save_ctx.ui_tool_brush_size = 7u;
+        save_ctx.ui_tool_brush_opacity = 65u;
+        save_ctx.ui_tool_eraser_size = 5u;
+        save_ctx.ui_tool_shape_stroke_width = 4u;
+        save_ctx.ui_tool_shape_mode = 2u;
+        save_ctx.ui_tool_fill_tolerance = 3u;
         if (!expect_ok(drawing_program_app_shutdown(&save_ctx), "persist_roundtrip_shutdown_save")) {
             return 1;
         }
@@ -1715,15 +2121,27 @@ int main(void) {
             load_ctx.ui_font_zoom_step != 3 ||
             load_ctx.ui_left_panel_slot != 1u ||
             load_ctx.ui_right_panel_slot != 1u ||
-            load_ctx.ui_active_color_index != 6u) {
+            load_ctx.ui_active_color_index != 6u ||
+            load_ctx.ui_tool_brush_size != 7u ||
+            load_ctx.ui_tool_brush_opacity != 65u ||
+            load_ctx.ui_tool_eraser_size != 5u ||
+            load_ctx.ui_tool_shape_stroke_width != 4u ||
+            load_ctx.ui_tool_shape_mode != 2u ||
+            load_ctx.ui_tool_fill_tolerance != 3u) {
             fprintf(stderr,
-                    "lifecycle_test: persistence roundtrip mismatch tool=%u theme=%u zoom=%d left=%u right=%u color=%u\n",
+                    "lifecycle_test: persistence roundtrip mismatch tool=%u theme=%u zoom=%d left=%u right=%u color=%u brush=%u/%u eraser=%u shape=%u mode=%u fill_tol=%u\n",
                     (unsigned)load_ctx.editor.active_tool,
                     (unsigned)load_ctx.ui_theme_preset_id,
                     (int)load_ctx.ui_font_zoom_step,
                     (unsigned)load_ctx.ui_left_panel_slot,
                     (unsigned)load_ctx.ui_right_panel_slot,
-                    (unsigned)load_ctx.ui_active_color_index);
+                    (unsigned)load_ctx.ui_active_color_index,
+                    (unsigned)load_ctx.ui_tool_brush_size,
+                    (unsigned)load_ctx.ui_tool_brush_opacity,
+                    (unsigned)load_ctx.ui_tool_eraser_size,
+                    (unsigned)load_ctx.ui_tool_shape_stroke_width,
+                    (unsigned)load_ctx.ui_tool_shape_mode,
+                    (unsigned)load_ctx.ui_tool_fill_tolerance);
             return 1;
         }
         load_ctx.persist_enabled = 0u;

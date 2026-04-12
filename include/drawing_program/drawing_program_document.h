@@ -35,6 +35,10 @@ typedef struct DrawingProgramDocument {
 } DrawingProgramDocument;
 
 CoreResult drawing_program_document_init_default(DrawingProgramDocument *document);
+CoreResult drawing_program_document_init_with_shape(DrawingProgramDocument *document,
+                                                    uint32_t logical_width,
+                                                    uint32_t logical_height,
+                                                    uint32_t sample_density);
 CoreResult drawing_program_document_set_layer_visibility(DrawingProgramDocument *document,
                                                          uint32_t layer_id,
                                                          uint8_t visible,

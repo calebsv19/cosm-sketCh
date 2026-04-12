@@ -52,6 +52,24 @@ static CoreResult history_sample_read(const DrawingProgramDocument *document,
     return drawing_program_document_sample_read(document, sample_x, sample_y, out_value);
 }
 
+static CoreResult history_sample_read_index(const DrawingProgramDocument *document,
+                                            const DrawingProgramLayerRasterStore *layer_rasters,
+                                            uint32_t layer_id,
+                                            uint32_t sample_index,
+                                            uint8_t *out_value) {
+    uint32_t x;
+    uint32_t y;
+    if (!document || document->raster_width == 0u) {
+        return drawing_program_history_invalid("invalid sample-index read request");
+    }
+    if (sample_index >= document->raster_sample_count) {
+        return (CoreResult){ CORE_ERR_NOT_FOUND, "sample index out of bounds" };
+    }
+    x = sample_index % document->raster_width;
+    y = sample_index / document->raster_width;
+    return history_sample_read(document, layer_rasters, layer_id, x, y, out_value);
+}
+
 static CoreResult history_compose_sample_from_layers(const DrawingProgramDocument *document,
                                                      const DrawingProgramLayerRasterStore *layer_rasters,
                                                      uint32_t sample_x,
@@ -112,6 +130,24 @@ static CoreResult history_sample_write(DrawingProgramDocument *document,
     return drawing_program_document_sample_write(document, sample_x, sample_y, value, 0);
 }
 
+static CoreResult history_sample_write_index(DrawingProgramDocument *document,
+                                             DrawingProgramLayerRasterStore *layer_rasters,
+                                             uint32_t layer_id,
+                                             uint32_t sample_index,
+                                             uint8_t value) {
+    uint32_t x;
+    uint32_t y;
+    if (!document || document->raster_width == 0u) {
+        return drawing_program_history_invalid("invalid sample-index write request");
+    }
+    if (sample_index >= document->raster_sample_count) {
+        return (CoreResult){ CORE_ERR_NOT_FOUND, "sample index out of bounds" };
+    }
+    x = sample_index % document->raster_width;
+    y = sample_index / document->raster_width;
+    return history_sample_write(document, layer_rasters, layer_id, x, y, value);
+}
+
 static CoreResult history_apply_undo_command(const DrawingProgramCommand *command,
                                              DrawingProgramDocument *document,
                                              DrawingProgramLayerRasterStore *layer_rasters) {
@@ -131,6 +167,22 @@ static CoreResult history_apply_undo_command(const DrawingProgramCommand *comman
                                     command->sample_x,
                                     command->sample_y,
                                     command->previous_sample_value);
+    }
+    if (command->type == DRAWING_PROGRAM_COMMAND_SET_SAMPLE_SPAN_VALUE) {
+        uint32_t i;
+        uint32_t start_index = command->sample_x;
+        uint32_t span_length = command->sample_y;
+        for (i = 0u; i < span_length; ++i) {
+            CoreResult result = history_sample_write_index(document,
+                                                           layer_rasters,
+                                                           command->layer_id,
+                                                           start_index + i,
+                                                           command->previous_sample_value);
+            if (result.code != CORE_OK) {
+                return result;
+            }
+        }
+        return core_result_ok();
     }
     return core_result_ok();
 }
@@ -154,6 +206,22 @@ static CoreResult history_apply_redo_command(const DrawingProgramCommand *comman
                                     command->sample_x,
                                     command->sample_y,
                                     command->new_sample_value);
+    }
+    if (command->type == DRAWING_PROGRAM_COMMAND_SET_SAMPLE_SPAN_VALUE) {
+        uint32_t i;
+        uint32_t start_index = command->sample_x;
+        uint32_t span_length = command->sample_y;
+        for (i = 0u; i < span_length; ++i) {
+            CoreResult result = history_sample_write_index(document,
+                                                           layer_rasters,
+                                                           command->layer_id,
+                                                           start_index + i,
+                                                           command->new_sample_value);
+            if (result.code != CORE_OK) {
+                return result;
+            }
+        }
+        return core_result_ok();
     }
     return core_result_ok();
 }
@@ -338,6 +406,62 @@ CoreResult drawing_program_history_apply_set_sample_value(DrawingProgramHistory 
     command.layer_id = layer_id;
     command.sample_x = sample_x;
     command.sample_y = sample_y;
+    command.new_sample_value = value;
+    command.previous_sample_value = prev;
+    drawing_program_history_push(history, &command);
+    return core_result_ok();
+}
+
+CoreResult drawing_program_history_apply_set_sample_span_value(DrawingProgramHistory *history,
+                                                               DrawingProgramDocument *document,
+                                                               DrawingProgramLayerRasterStore *layer_rasters,
+                                                               uint32_t layer_id,
+                                                               uint32_t span_start_index,
+                                                               uint32_t span_length,
+                                                               uint8_t value) {
+    DrawingProgramCommand command;
+    CoreResult result;
+    uint8_t prev = 0u;
+    uint32_t i;
+    if (!history || !document || layer_id == 0u) {
+        return drawing_program_history_invalid("invalid sample-span command request");
+    }
+    if (span_length == 0u) {
+        return core_result_ok();
+    }
+    if (span_start_index >= document->raster_sample_count ||
+        span_length > document->raster_sample_count ||
+        span_start_index > (document->raster_sample_count - span_length)) {
+        return (CoreResult){ CORE_ERR_INVALID_ARG, "sample-span bounds exceed raster range" };
+    }
+    result = history_sample_read_index(document, layer_rasters, layer_id, span_start_index, &prev);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    if (prev == value) {
+        return core_result_ok();
+    }
+    for (i = 1u; i < span_length; ++i) {
+        uint8_t probe = 0u;
+        result = history_sample_read_index(document, layer_rasters, layer_id, span_start_index + i, &probe);
+        if (result.code != CORE_OK) {
+            return result;
+        }
+        if (probe != prev) {
+            return (CoreResult){ CORE_ERR_INVALID_ARG, "sample-span previous values are not uniform" };
+        }
+    }
+    for (i = 0u; i < span_length; ++i) {
+        result = history_sample_write_index(document, layer_rasters, layer_id, span_start_index + i, value);
+        if (result.code != CORE_OK) {
+            return result;
+        }
+    }
+    memset(&command, 0, sizeof(command));
+    command.type = DRAWING_PROGRAM_COMMAND_SET_SAMPLE_SPAN_VALUE;
+    command.layer_id = layer_id;
+    command.sample_x = span_start_index;
+    command.sample_y = span_length;
     command.new_sample_value = value;
     command.previous_sample_value = prev;
     drawing_program_history_push(history, &command);

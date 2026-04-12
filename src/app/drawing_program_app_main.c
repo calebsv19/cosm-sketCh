@@ -34,6 +34,62 @@ static int drawing_program_trace_ui_state_enabled(void) {
     return 1;
 }
 
+static int drawing_program_parse_u32_strict(const char *text, uint32_t *out_value) {
+    char *end = 0;
+    unsigned long parsed = 0ul;
+    if (!text || !text[0] || !out_value) {
+        return 0;
+    }
+    parsed = strtoul(text, &end, 10);
+    if (!end || *end != '\0') {
+        return 0;
+    }
+    if (parsed == 0ul || parsed > 65535ul) {
+        return 0;
+    }
+    *out_value = (uint32_t)parsed;
+    return 1;
+}
+
+static int drawing_program_parse_canvas_size(const char *text,
+                                             uint32_t *out_width,
+                                             uint32_t *out_height) {
+    const char *sep = 0;
+    char width_buf[16];
+    char height_buf[16];
+    size_t width_len;
+    size_t height_len;
+    uint32_t width = 0u;
+    uint32_t height = 0u;
+    if (!text || !out_width || !out_height) {
+        return 0;
+    }
+    sep = strchr(text, 'x');
+    if (!sep) {
+        sep = strchr(text, 'X');
+    }
+    if (!sep || sep == text || sep[1] == '\0') {
+        return 0;
+    }
+    width_len = (size_t)(sep - text);
+    height_len = strlen(sep + 1);
+    if (width_len == 0u || height_len == 0u ||
+        width_len >= sizeof(width_buf) || height_len >= sizeof(height_buf)) {
+        return 0;
+    }
+    memcpy(width_buf, text, width_len);
+    width_buf[width_len] = '\0';
+    memcpy(height_buf, sep + 1, height_len);
+    height_buf[height_len] = '\0';
+    if (!drawing_program_parse_u32_strict(width_buf, &width) ||
+        !drawing_program_parse_u32_strict(height_buf, &height)) {
+        return 0;
+    }
+    *out_width = width;
+    *out_height = height;
+    return 1;
+}
+
 static void drawing_program_normalize_ui_state(DrawingProgramAppContext *ctx) {
     if (!ctx) {
         return;
@@ -57,6 +113,32 @@ static void drawing_program_normalize_ui_state(DrawingProgramAppContext *ctx) {
         ctx->ui_right_panel_slot = 0u;
     }
     ctx->ui_active_color_index = drawing_program_color_index_clamp(ctx->ui_active_color_index);
+    if (ctx->ui_tool_brush_size < 1u) {
+        ctx->ui_tool_brush_size = 1u;
+    } else if (ctx->ui_tool_brush_size > 16u) {
+        ctx->ui_tool_brush_size = 16u;
+    }
+    if (ctx->ui_tool_brush_opacity < 1u) {
+        ctx->ui_tool_brush_opacity = 1u;
+    } else if (ctx->ui_tool_brush_opacity > 100u) {
+        ctx->ui_tool_brush_opacity = 100u;
+    }
+    if (ctx->ui_tool_eraser_size < 1u) {
+        ctx->ui_tool_eraser_size = 1u;
+    } else if (ctx->ui_tool_eraser_size > 16u) {
+        ctx->ui_tool_eraser_size = 16u;
+    }
+    if (ctx->ui_tool_shape_stroke_width < 1u) {
+        ctx->ui_tool_shape_stroke_width = 1u;
+    } else if (ctx->ui_tool_shape_stroke_width > 16u) {
+        ctx->ui_tool_shape_stroke_width = 16u;
+    }
+    if (ctx->ui_tool_shape_mode > 2u) {
+        ctx->ui_tool_shape_mode = 0u;
+    }
+    if (ctx->ui_tool_fill_tolerance > 16u) {
+        ctx->ui_tool_fill_tolerance = 16u;
+    }
 }
 
 static int drawing_program_transition_stage(DrawingProgramAppStage *stage,
@@ -306,6 +388,8 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
     memset(ctx, 0, sizeof(*ctx));
     ctx->smoke_frames = 1u;
     ctx->persist_enabled = 1u;
+    ctx->seed_canvas_logical_width = 512u;
+    ctx->seed_canvas_logical_height = 512u;
     ctx->preset_path = 0;
     ctx->export_json_path = 0;
     ctx->bridge_workspace_preset_path = "workspace_sandbox/data/presets/sketch_layout_v1.pack";
@@ -316,6 +400,12 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
     ctx->ui_left_panel_slot = 0u;
     ctx->ui_right_panel_slot = 0u;
     ctx->ui_active_color_index = drawing_program_color_default_index();
+    ctx->ui_tool_brush_size = 2u;
+    ctx->ui_tool_brush_opacity = 100u;
+    ctx->ui_tool_eraser_size = 4u;
+    ctx->ui_tool_shape_stroke_width = 1u;
+    ctx->ui_tool_shape_mode = 0u;
+    ctx->ui_tool_fill_tolerance = 0u;
     ctx->ui_font_zoom_step = 0;
     (void)snprintf(ctx->runtime_root_path, sizeof(ctx->runtime_root_path), "data/runtime");
     (void)snprintf(ctx->input_root_path, sizeof(ctx->input_root_path), "data/input");
@@ -333,6 +423,35 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
         if (strcmp(argv[i], "--smoke-frames") == 0 && i + 1 < argc) {
             unsigned long parsed = strtoul(argv[++i], 0, 10);
             ctx->smoke_frames = (parsed > 0ul) ? (uint32_t)parsed : 1u;
+            continue;
+        }
+        if (strcmp(argv[i], "--canvas-size") == 0 && i + 1 < argc) {
+            uint32_t parsed_w = 0u;
+            uint32_t parsed_h = 0u;
+            if (!drawing_program_parse_canvas_size(argv[++i], &parsed_w, &parsed_h)) {
+                return drawing_program_invalid("invalid --canvas-size (expected WxH)");
+            }
+            ctx->seed_canvas_logical_width = parsed_w;
+            ctx->seed_canvas_logical_height = parsed_h;
+            ctx->canvas_size_cli_override = 1u;
+            continue;
+        }
+        if (strcmp(argv[i], "--canvas-width") == 0 && i + 1 < argc) {
+            uint32_t parsed_w = 0u;
+            if (!drawing_program_parse_u32_strict(argv[++i], &parsed_w)) {
+                return drawing_program_invalid("invalid --canvas-width");
+            }
+            ctx->seed_canvas_logical_width = parsed_w;
+            ctx->canvas_size_cli_override = 1u;
+            continue;
+        }
+        if (strcmp(argv[i], "--canvas-height") == 0 && i + 1 < argc) {
+            uint32_t parsed_h = 0u;
+            if (!drawing_program_parse_u32_strict(argv[++i], &parsed_h)) {
+                return drawing_program_invalid("invalid --canvas-height");
+            }
+            ctx->seed_canvas_logical_height = parsed_h;
+            ctx->canvas_size_cli_override = 1u;
             continue;
         }
         if (strcmp(argv[i], "--preset") == 0 && i + 1 < argc) {
@@ -423,7 +542,10 @@ CoreResult drawing_program_app_state_seed(DrawingProgramAppContext *ctx) {
     if (result.code != CORE_OK) {
         return result;
     }
-    result = drawing_program_document_init_default(&ctx->document);
+    result = drawing_program_document_init_with_shape(&ctx->document,
+                                                      ctx->seed_canvas_logical_width,
+                                                      ctx->seed_canvas_logical_height,
+                                                      1u);
     if (result.code != CORE_OK) {
         return result;
     }
@@ -466,7 +588,11 @@ CoreResult drawing_program_runtime_start(DrawingProgramAppContext *ctx) {
         return drawing_program_invalid("subsystems must be initialized before runtime start");
     }
 
-    load_result = drawing_program_snapshot_load(ctx, ctx->preset_path);
+    if (ctx->canvas_size_cli_override) {
+        load_result = (CoreResult){ CORE_ERR_NOT_FOUND, "snapshot load bypassed by explicit canvas-size override" };
+    } else {
+        load_result = drawing_program_snapshot_load(ctx, ctx->preset_path);
+    }
     result = load_result;
     if (drawing_program_trace_ui_state_enabled()) {
         fprintf(stderr,

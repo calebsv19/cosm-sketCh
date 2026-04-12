@@ -31,7 +31,10 @@ typedef struct DrawingProgramAppContext {
     uint8_t runtime_root_cli_override;
     uint8_t input_root_cli_override;
     uint8_t output_root_cli_override;
+    uint8_t canvas_size_cli_override;
     uint32_t smoke_frames;
+    uint32_t seed_canvas_logical_width;
+    uint32_t seed_canvas_logical_height;
     uint64_t frame_counter;
     uint8_t state_seeded;
     uint8_t subsystems_ready;
@@ -72,6 +75,12 @@ typedef struct DrawingProgramAppContext {
     uint8_t ui_left_panel_slot;
     uint8_t ui_right_panel_slot;
     uint8_t ui_active_color_index;
+    uint8_t ui_tool_brush_size;
+    uint8_t ui_tool_brush_opacity;
+    uint8_t ui_tool_eraser_size;
+    uint8_t ui_tool_shape_stroke_width;
+    uint8_t ui_tool_shape_mode;
+    uint8_t ui_tool_fill_tolerance;
     int8_t ui_font_zoom_step;
     DrawingProgramSelectionState selection;
     DrawingProgramClipboardState clipboard;
@@ -149,6 +158,12 @@ CoreResult drawing_program_app_shutdown(DrawingProgramAppContext *ctx);
 CoreResult drawing_program_app_set_pane_host_bounds(DrawingProgramAppContext *ctx,
                                                      float width,
                                                      float height);
+CoreResult drawing_program_app_shape_commit_samples(DrawingProgramAppContext *ctx,
+                                                    DrawingProgramToolKind tool,
+                                                    uint32_t start_x,
+                                                    uint32_t start_y,
+                                                    uint32_t end_x,
+                                                    uint32_t end_y);
 
 int drawing_program_app_main(int argc, char **argv);
 int drawing_program_app_visual_main(int argc, char **argv);

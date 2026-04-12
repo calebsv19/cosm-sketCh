@@ -75,6 +75,29 @@ typedef struct DrawingProgramUiSettingsV4 {
     uint32_t selection_height;
 } DrawingProgramUiSettingsV4;
 
+typedef struct DrawingProgramUiSettingsV5 {
+    uint32_t version;
+    uint32_t theme_preset_id;
+    uint32_t font_preset_id;
+    int32_t font_zoom_step;
+    uint8_t left_panel_slot;
+    uint8_t right_panel_slot;
+    uint8_t active_color_index;
+    uint8_t selection_has_payload;
+    uint32_t selection_origin_x;
+    uint32_t selection_origin_y;
+    uint32_t selection_width;
+    uint32_t selection_height;
+    uint8_t tool_brush_size;
+    uint8_t tool_brush_opacity;
+    uint8_t tool_eraser_size;
+    uint8_t tool_shape_stroke_width;
+    uint8_t tool_shape_mode;
+    uint8_t tool_fill_tolerance;
+    uint8_t reserved0;
+    uint8_t reserved1;
+} DrawingProgramUiSettingsV5;
+
 enum {
     DRAWING_PROGRAM_WORKSPACE_MAX_NODES = 32u,
     DRAWING_PROGRAM_WORKSPACE_PRESET_VERSION_V1 = 1u,
@@ -83,7 +106,8 @@ enum {
     DRAWING_PROGRAM_UI_SETTINGS_VERSION_V1 = 1u,
     DRAWING_PROGRAM_UI_SETTINGS_VERSION_V2 = 2u,
     DRAWING_PROGRAM_UI_SETTINGS_VERSION_V3 = 3u,
-    DRAWING_PROGRAM_UI_SETTINGS_VERSION_V4 = 4u
+    DRAWING_PROGRAM_UI_SETTINGS_VERSION_V4 = 4u,
+    DRAWING_PROGRAM_UI_SETTINGS_VERSION_V5 = 5u
 };
 
 static CoreResult snapshot_invalid(const char *message) {
@@ -375,7 +399,7 @@ static CoreResult drawing_program_rebind_imported_modules(struct DrawingProgramA
 CoreResult drawing_program_snapshot_save(const struct DrawingProgramAppContext *ctx, const char *path) {
     CorePackWriter writer;
     DrawingProgramSnapshotV1 payload;
-    DrawingProgramUiSettingsV4 ui_settings;
+    DrawingProgramUiSettingsV5 ui_settings;
     CoreResult result;
     if (!ctx || !path) {
         return snapshot_invalid("invalid snapshot save request");
@@ -394,7 +418,7 @@ CoreResult drawing_program_snapshot_save(const struct DrawingProgramAppContext *
     memcpy(payload.bindings, ctx->pane_host.module_bindings, sizeof(payload.bindings));
     memcpy(payload.history_entries, ctx->history.entries, sizeof(payload.history_entries));
     memset(&ui_settings, 0, sizeof(ui_settings));
-    ui_settings.version = DRAWING_PROGRAM_UI_SETTINGS_VERSION_V4;
+    ui_settings.version = DRAWING_PROGRAM_UI_SETTINGS_VERSION_V5;
     ui_settings.theme_preset_id = ctx->ui_theme_preset_id;
     ui_settings.font_preset_id = ctx->ui_font_preset_id;
     ui_settings.font_zoom_step = (int32_t)ctx->ui_font_zoom_step;
@@ -406,6 +430,12 @@ CoreResult drawing_program_snapshot_save(const struct DrawingProgramAppContext *
     ui_settings.selection_origin_y = ctx->selection.origin_y;
     ui_settings.selection_width = ctx->selection.width;
     ui_settings.selection_height = ctx->selection.height;
+    ui_settings.tool_brush_size = ctx->ui_tool_brush_size;
+    ui_settings.tool_brush_opacity = ctx->ui_tool_brush_opacity;
+    ui_settings.tool_eraser_size = ctx->ui_tool_eraser_size;
+    ui_settings.tool_shape_stroke_width = ctx->ui_tool_shape_stroke_width;
+    ui_settings.tool_shape_mode = ctx->ui_tool_shape_mode;
+    ui_settings.tool_fill_tolerance = ctx->ui_tool_fill_tolerance;
 
     if (snapshot_trace_enabled()) {
         fprintf(stderr,
@@ -467,6 +497,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
     DrawingProgramUiSettingsV2 ui_settings_v2;
     DrawingProgramUiSettingsV3 ui_settings_v3;
     DrawingProgramUiSettingsV4 ui_settings_v4;
+    DrawingProgramUiSettingsV5 ui_settings_v5;
     CoreResult result;
     uint8_t *layer_chunk_data = 0;
     if (!ctx || !path) {
@@ -532,6 +563,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
     memset(&ui_settings_v2, 0, sizeof(ui_settings_v2));
     memset(&ui_settings_v3, 0, sizeof(ui_settings_v3));
     memset(&ui_settings_v4, 0, sizeof(ui_settings_v4));
+    memset(&ui_settings_v5, 0, sizeof(ui_settings_v5));
     memset(&layer_chunk, 0, sizeof(layer_chunk));
     result = core_pack_reader_find_chunk(&reader, "DPLR", 0u, &layer_chunk);
     if (result.code == CORE_OK) {
@@ -557,7 +589,40 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
     }
     result = core_pack_reader_find_chunk(&reader, "DPUI", 0u, &ui_chunk);
     if (result.code == CORE_OK) {
-        if (ui_chunk.size == (uint64_t)sizeof(ui_settings_v4)) {
+        if (ui_chunk.size == (uint64_t)sizeof(ui_settings_v5)) {
+            result = core_pack_reader_read_chunk_data(&reader, &ui_chunk, &ui_settings_v5, (uint64_t)sizeof(ui_settings_v5));
+            if (result.code == CORE_OK &&
+                ui_settings_v5.version == DRAWING_PROGRAM_UI_SETTINGS_VERSION_V5) {
+                if (ui_settings_v5.theme_preset_id < (uint32_t)CORE_THEME_PRESET_COUNT) {
+                    ctx->ui_theme_preset_id = ui_settings_v5.theme_preset_id;
+                }
+                if (ui_settings_v5.font_preset_id < (uint32_t)CORE_FONT_PRESET_COUNT) {
+                    ctx->ui_font_preset_id = ui_settings_v5.font_preset_id;
+                }
+                ctx->ui_font_zoom_step = (int8_t)ui_settings_v5.font_zoom_step;
+                ctx->ui_left_panel_slot = ui_settings_v5.left_panel_slot;
+                ctx->ui_right_panel_slot = ui_settings_v5.right_panel_slot;
+                ctx->ui_active_color_index = ui_settings_v5.active_color_index;
+                ctx->ui_tool_brush_size = ui_settings_v5.tool_brush_size;
+                ctx->ui_tool_brush_opacity = ui_settings_v5.tool_brush_opacity;
+                ctx->ui_tool_eraser_size = ui_settings_v5.tool_eraser_size;
+                ctx->ui_tool_shape_stroke_width = ui_settings_v5.tool_shape_stroke_width;
+                ctx->ui_tool_shape_mode = ui_settings_v5.tool_shape_mode;
+                ctx->ui_tool_fill_tolerance = ui_settings_v5.tool_fill_tolerance;
+                if (ui_settings_v5.selection_has_payload) {
+                    (void)drawing_program_selection_capture_from_rect(&ctx->document,
+                                                                      &ctx->layer_rasters,
+                                                                      ctx->editor.active_layer_id,
+                                                                      &ctx->selection,
+                                                                      (int32_t)ui_settings_v5.selection_origin_x,
+                                                                      (int32_t)ui_settings_v5.selection_origin_y,
+                                                                      ui_settings_v5.selection_width,
+                                                                      ui_settings_v5.selection_height);
+                } else {
+                    drawing_program_selection_reset(&ctx->selection);
+                }
+            }
+        } else if (ui_chunk.size == (uint64_t)sizeof(ui_settings_v4)) {
             result = core_pack_reader_read_chunk_data(&reader, &ui_chunk, &ui_settings_v4, (uint64_t)sizeof(ui_settings_v4));
             if (result.code == CORE_OK &&
                 ui_settings_v4.version == DRAWING_PROGRAM_UI_SETTINGS_VERSION_V4) {
@@ -690,6 +755,14 @@ CoreResult drawing_program_snapshot_export_debug_json(const struct DrawingProgra
     fprintf(f, "    \"active_color_index\": %u,\n", (unsigned)ctx->ui_active_color_index);
     fprintf(f, "    \"active_color_value\": %u\n",
             (unsigned)drawing_program_color_value_from_index(ctx->ui_active_color_index));
+    fprintf(f, "  },\n");
+    fprintf(f, "  \"tool_settings\": {\n");
+    fprintf(f, "    \"brush_size\": %u,\n", (unsigned)ctx->ui_tool_brush_size);
+    fprintf(f, "    \"brush_opacity\": %u,\n", (unsigned)ctx->ui_tool_brush_opacity);
+    fprintf(f, "    \"eraser_size\": %u,\n", (unsigned)ctx->ui_tool_eraser_size);
+    fprintf(f, "    \"shape_stroke_width\": %u,\n", (unsigned)ctx->ui_tool_shape_stroke_width);
+    fprintf(f, "    \"shape_mode\": %u,\n", (unsigned)ctx->ui_tool_shape_mode);
+    fprintf(f, "    \"fill_tolerance\": %u\n", (unsigned)ctx->ui_tool_fill_tolerance);
     fprintf(f, "  },\n");
     fprintf(f, "  \"selection\": {\n");
     fprintf(f, "    \"has_payload\": %u,\n", (unsigned)ctx->selection.has_payload);

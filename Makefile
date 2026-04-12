@@ -110,6 +110,7 @@ HEADLESS_LOCAL_SRCS := \
 	src/runtime/drawing_program_snapshot.c \
 	src/runtime/drawing_program_viewport.c \
 	src/runtime/drawing_program_render_domain.c \
+	src/runtime/drawing_program_render_backend.c \
 	src/runtime/drawing_program_runtime_orchestration.c \
 	src/runtime/drawing_program_pane_host.c \
 	src/runtime/drawing_program_overlay_adapter.c \
@@ -126,10 +127,12 @@ TEST_LOCAL_SRCS := \
 	src/runtime/drawing_program_snapshot.c \
 	src/runtime/drawing_program_viewport.c \
 	src/runtime/drawing_program_render_domain.c \
+	src/runtime/drawing_program_render_backend.c \
 	src/runtime/drawing_program_runtime_orchestration.c \
 	src/runtime/drawing_program_pane_host.c \
 	src/runtime/drawing_program_overlay_adapter.c \
 	src/app/drawing_program_app_main.c \
+	src/app/drawing_program_app_visual_main.c \
 	tests/drawing_program_lifecycle_test.c
 
 APP_OBJS := $(APP_LOCAL_SRCS:%=$(OBJ_DIR)/%.o)
@@ -214,7 +217,7 @@ $(HEADLESS_TARGET): $(HEADLESS_OBJS) $(SHARED_LIBS)
 
 $(TEST_TARGET): $(TEST_OBJS) $(SHARED_LIBS)
 	@mkdir -p "$(BIN_DIR)"
-	$(CC) $(TEST_OBJS) $(SHARED_LIBS) -o "$@" $(LDLIBS)
+	$(CC) $(TEST_OBJS) $(SHARED_LIBS) -o "$@" $(APP_LDLIBS)
 
 run: $(APP_TARGET)
 	"$(APP_TARGET)"

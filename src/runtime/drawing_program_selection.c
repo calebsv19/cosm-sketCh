@@ -4,14 +4,6 @@
 
 #include "drawing_program/drawing_program_color_model.h"
 
-typedef struct DrawingProgramSelectionAffectedSample {
-    uint8_t used;
-    uint32_t x;
-    uint32_t y;
-    uint8_t previous;
-    uint8_t next;
-} DrawingProgramSelectionAffectedSample;
-
 static int32_t selection_clamp_i32(int32_t value, int32_t min_value, int32_t max_value) {
     if (value < min_value) {
         return min_value;
@@ -264,6 +256,8 @@ int drawing_program_selection_contains_sample(const DrawingProgramSelectionState
     int32_t top;
     int32_t right;
     int32_t bottom;
+    int32_t local_x;
+    int32_t local_y;
     if (!selection || !selection->has_payload || selection->width == 0u || selection->height == 0u) {
         return 0;
     }
@@ -271,12 +265,21 @@ int drawing_program_selection_contains_sample(const DrawingProgramSelectionState
     top = (int32_t)selection->origin_y + selection->offset_y;
     right = left + (int32_t)selection->width;
     bottom = top + (int32_t)selection->height;
-    return ((int32_t)sample_x >= left &&
-            (int32_t)sample_y >= top &&
-            (int32_t)sample_x < right &&
-            (int32_t)sample_y < bottom)
-               ? 1
-               : 0;
+    if (!((int32_t)sample_x >= left &&
+          (int32_t)sample_y >= top &&
+          (int32_t)sample_x < right &&
+          (int32_t)sample_y < bottom)) {
+        return 0;
+    }
+    local_x = (int32_t)sample_x - left;
+    local_y = (int32_t)sample_y - top;
+    if (local_x < 0 || local_y < 0) {
+        return 0;
+    }
+    if ((uint32_t)local_x >= selection->width || (uint32_t)local_y >= selection->height) {
+        return 0;
+    }
+    return drawing_program_selection_mask_at(selection, (uint32_t)local_x, (uint32_t)local_y) ? 1 : 0;
 }
 
 int drawing_program_selection_begin_move(const DrawingProgramSelectionState *selection,
@@ -327,57 +330,18 @@ void drawing_program_selection_update_move_offset(DrawingProgramSelectionState *
     selection->offset_y = selection->move_anchor_offset_y + dy;
 }
 
-static int drawing_program_selection_track_affected(DrawingProgramSelectionAffectedSample *affected,
-                                                    uint32_t *io_count,
-                                                    const DrawingProgramDocument *document,
-                                                    const DrawingProgramLayerRasterStore *layer_rasters,
-                                                    uint32_t active_layer_id,
-                                                    uint32_t x,
-                                                    uint32_t y) {
-    uint32_t i;
-    uint8_t previous = 0u;
-    if (!affected || !io_count || !document) {
-        return -1;
-    }
-    for (i = 0u; i < *io_count; ++i) {
-        if (affected[i].used && affected[i].x == x && affected[i].y == y) {
-            return (int)i;
-        }
-    }
-    if (*io_count >= DRAWING_PROGRAM_SELECTION_MAX_AFFECTED) {
-        return -1;
-    }
-    if (selection_sample_read_from_active_layer(document,
-                                                layer_rasters,
-                                                active_layer_id,
-                                                x,
-                                                y,
-                                                &previous)
-            .code != CORE_OK) {
-        return -1;
-    }
-    affected[*io_count].used = 1u;
-    affected[*io_count].x = x;
-    affected[*io_count].y = y;
-    affected[*io_count].previous = previous;
-    affected[*io_count].next = previous;
-    *io_count += 1u;
-    return (int)(*io_count - 1u);
-}
-
 CoreResult drawing_program_selection_commit_move(DrawingProgramDocument *document,
                                                  DrawingProgramLayerRasterStore *layer_rasters,
                                                  uint32_t active_layer_id,
                                                  DrawingProgramHistory *history,
                                                  DrawingProgramSelectionState *selection) {
-    DrawingProgramSelectionAffectedSample affected[DRAWING_PROGRAM_SELECTION_MAX_AFFECTED];
-    uint32_t affected_count = 0u;
+    uint8_t background = selection_seeded_background_sample();
     uint32_t x;
     uint32_t y;
     int32_t target_origin_x;
     int32_t target_origin_y;
     uint32_t target_layer_id = 0u;
-    memset(affected, 0, sizeof(affected));
+    CoreResult result;
     if (!document || !history || !selection || !selection->has_payload) {
         return core_result_ok();
     }
@@ -390,35 +354,37 @@ CoreResult drawing_program_selection_commit_move(DrawingProgramDocument *documen
         selection->moving = 0u;
         return core_result_ok();
     }
+    result = drawing_program_history_begin_group(history);
+    if (result.code != CORE_OK) {
+        return result;
+    }
     for (y = 0u; y < selection->height; ++y) {
         for (x = 0u; x < selection->width; ++x) {
             uint32_t sx = selection->origin_x + x;
             uint32_t sy = selection->origin_y + y;
-            int idx;
             if (!drawing_program_selection_mask_at(selection, x, y)) {
                 continue;
             }
             if (sx >= document->raster_width || sy >= document->raster_height) {
                 continue;
             }
-            idx = drawing_program_selection_track_affected(affected,
-                                                           &affected_count,
-                                                           document,
-                                                           layer_rasters,
-                                                           target_layer_id,
-                                                           sx,
-                                                           sy);
-            if (idx < 0) {
-                return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "selection move exceeded seed affected sample budget" };
+            result = drawing_program_history_apply_set_sample_value(history,
+                                                                    document,
+                                                                    layer_rasters,
+                                                                    target_layer_id,
+                                                                    sx,
+                                                                    sy,
+                                                                    background);
+            if (result.code != CORE_OK) {
+                (void)drawing_program_history_end_group(history);
+                return result;
             }
-            affected[idx].next = selection_seeded_background_sample();
         }
     }
     for (y = 0u; y < selection->height; ++y) {
         for (x = 0u; x < selection->width; ++x) {
             int32_t dx;
             int32_t dy;
-            int idx;
             uint8_t value;
             if (!drawing_program_selection_mask_at(selection, x, y)) {
                 continue;
@@ -431,35 +397,22 @@ CoreResult drawing_program_selection_commit_move(DrawingProgramDocument *documen
                 continue;
             }
             value = drawing_program_selection_value_at(selection, x, y);
-            idx = drawing_program_selection_track_affected(affected,
-                                                           &affected_count,
-                                                           document,
-                                                           layer_rasters,
-                                                           target_layer_id,
-                                                           (uint32_t)dx,
-                                                           (uint32_t)dy);
-            if (idx < 0) {
-                return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "selection move exceeded seed affected sample budget" };
-            }
-            affected[idx].next = value;
-        }
-    }
-    for (x = 0u; x < affected_count; ++x) {
-        if (affected[x].next == affected[x].previous) {
-            continue;
-        }
-        {
-            CoreResult result = drawing_program_history_apply_set_sample_value(history,
-                                                                                document,
-                                                                                layer_rasters,
-                                                                                target_layer_id,
-                                                                                affected[x].x,
-                                                                                affected[x].y,
-                                                                                affected[x].next);
+            result = drawing_program_history_apply_set_sample_value(history,
+                                                                    document,
+                                                                    layer_rasters,
+                                                                    target_layer_id,
+                                                                    (uint32_t)dx,
+                                                                    (uint32_t)dy,
+                                                                    value);
             if (result.code != CORE_OK) {
+                (void)drawing_program_history_end_group(history);
                 return result;
             }
         }
+    }
+    result = drawing_program_history_end_group(history);
+    if (result.code != CORE_OK) {
+        return result;
     }
     target_origin_x = (int32_t)selection->origin_x + selection->offset_x;
     target_origin_y = (int32_t)selection->origin_y + selection->offset_y;

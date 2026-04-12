@@ -4,16 +4,37 @@
 #include <stdio.h>
 #include <string.h>
 
-static uint32_t drawing_program_document_raster_count(uint32_t logical_width,
-                                                      uint32_t logical_height,
-                                                      uint32_t sample_density) {
-    uint64_t raster_w = (uint64_t)logical_width * (uint64_t)sample_density;
-    uint64_t raster_h = (uint64_t)logical_height * (uint64_t)sample_density;
-    uint64_t total = raster_w * raster_h;
-    if (total > (uint64_t)DRAWING_PROGRAM_MAX_RASTER_SAMPLES) {
-        return DRAWING_PROGRAM_MAX_RASTER_SAMPLES;
+static int drawing_program_document_validate_shape(uint32_t logical_width,
+                                                   uint32_t logical_height,
+                                                   uint32_t sample_density,
+                                                   uint32_t *out_raster_width,
+                                                   uint32_t *out_raster_height,
+                                                   uint32_t *out_raster_sample_count) {
+    uint64_t raster_w;
+    uint64_t raster_h;
+    uint64_t total;
+    if (!out_raster_width || !out_raster_height || !out_raster_sample_count) {
+        return 0;
     }
-    return (uint32_t)total;
+    if (logical_width == 0u || logical_height == 0u || sample_density == 0u) {
+        return 0;
+    }
+    raster_w = (uint64_t)logical_width * (uint64_t)sample_density;
+    raster_h = (uint64_t)logical_height * (uint64_t)sample_density;
+    total = raster_w * raster_h;
+    if (raster_w == 0u || raster_h == 0u || total == 0u) {
+        return 0;
+    }
+    if (raster_w > (uint64_t)UINT32_MAX || raster_h > (uint64_t)UINT32_MAX) {
+        return 0;
+    }
+    if (total > (uint64_t)DRAWING_PROGRAM_MAX_RASTER_SAMPLES) {
+        return 0;
+    }
+    *out_raster_width = (uint32_t)raster_w;
+    *out_raster_height = (uint32_t)raster_h;
+    *out_raster_sample_count = (uint32_t)total;
+    return 1;
 }
 
 static CoreResult drawing_program_document_invalid(const char *message) {
@@ -37,21 +58,33 @@ static CoreResult drawing_program_document_find_layer_index_internal(const Drawi
     return (CoreResult){ CORE_ERR_NOT_FOUND, "layer not found" };
 }
 
-CoreResult drawing_program_document_init_default(DrawingProgramDocument *document) {
+CoreResult drawing_program_document_init_with_shape(DrawingProgramDocument *document,
+                                                    uint32_t logical_width,
+                                                    uint32_t logical_height,
+                                                    uint32_t sample_density) {
+    uint32_t raster_width = 0u;
+    uint32_t raster_height = 0u;
+    uint32_t raster_sample_count = 0u;
     if (!document) {
         return drawing_program_document_invalid("null document");
+    }
+    if (!drawing_program_document_validate_shape(logical_width,
+                                                 logical_height,
+                                                 sample_density,
+                                                 &raster_width,
+                                                 &raster_height,
+                                                 &raster_sample_count)) {
+        return drawing_program_document_invalid("invalid or oversized document shape");
     }
 
     memset(document, 0, sizeof(*document));
     document->schema_version = 2u;
-    document->logical_width = 512u;
-    document->logical_height = 512u;
-    document->sample_density = 1u;
-    document->raster_width = document->logical_width * document->sample_density;
-    document->raster_height = document->logical_height * document->sample_density;
-    document->raster_sample_count = drawing_program_document_raster_count(document->logical_width,
-                                                                          document->logical_height,
-                                                                          document->sample_density);
+    document->logical_width = logical_width;
+    document->logical_height = logical_height;
+    document->sample_density = sample_density;
+    document->raster_width = raster_width;
+    document->raster_height = raster_height;
+    document->raster_sample_count = raster_sample_count;
     document->next_layer_id = 2u;
     document->layer_count = 1u;
 
@@ -69,6 +102,10 @@ CoreResult drawing_program_document_init_default(DrawingProgramDocument *documen
                (size_t)document->raster_sample_count);
     }
     return core_result_ok();
+}
+
+CoreResult drawing_program_document_init_default(DrawingProgramDocument *document) {
+    return drawing_program_document_init_with_shape(document, 512u, 512u, 1u);
 }
 
 CoreResult drawing_program_document_set_layer_visibility(DrawingProgramDocument *document,

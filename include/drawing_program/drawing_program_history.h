@@ -18,7 +18,8 @@ typedef enum DrawingProgramCommandType {
     DRAWING_PROGRAM_COMMAND_SET_LAYER_VISIBILITY = 1,
     DRAWING_PROGRAM_COMMAND_SET_SAMPLE_VALUE = 2,
     DRAWING_PROGRAM_COMMAND_GROUP_BEGIN = 3,
-    DRAWING_PROGRAM_COMMAND_GROUP_END = 4
+    DRAWING_PROGRAM_COMMAND_GROUP_END = 4,
+    DRAWING_PROGRAM_COMMAND_SET_SAMPLE_SPAN_VALUE = 5
 } DrawingProgramCommandType;
 
 typedef struct DrawingProgramCommand {
@@ -56,6 +57,13 @@ CoreResult drawing_program_history_apply_set_sample_value(DrawingProgramHistory 
                                                           uint32_t sample_x,
                                                           uint32_t sample_y,
                                                           uint8_t value);
+CoreResult drawing_program_history_apply_set_sample_span_value(DrawingProgramHistory *history,
+                                                               DrawingProgramDocument *document,
+                                                               DrawingProgramLayerRasterStore *layer_rasters,
+                                                               uint32_t layer_id,
+                                                               uint32_t span_start_index,
+                                                               uint32_t span_length,
+                                                               uint8_t value);
 CoreResult drawing_program_history_undo(DrawingProgramHistory *history,
                                         DrawingProgramDocument *document,
                                         DrawingProgramLayerRasterStore *layer_rasters);

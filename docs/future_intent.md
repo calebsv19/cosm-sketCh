@@ -1,6 +1,6 @@
 # Future Intent
 
-Last updated: 2026-04-11
+Last updated: 2026-04-12
 
 Near-term (active):
 - Phase 2 foundations are complete
@@ -58,6 +58,15 @@ Near-term (active):
     - `S5` complete: closeout + next-boundary lock, with active-layer id/index routing regression guard
   - next: Phase 10 tool-quality depth lane (fill performance, shape fill/outline policy, deeper per-tool behavior quality)
     - kickoff doc: `docs/private_program_docs/drawing_program/2026-04-11_drawing_program_phase_10_tool_quality_depth_plan.md`
+    - `S1` complete: fill path refactored to contiguous-region + span-history commits with lifecycle regression coverage
+    - `S2` complete: active-tool dropdown lane + persisted tool settings (`DPUI` v5)
+    - `S3` complete: shape mode policy wired to commit + preview (`OUTLINE`, `FILL`, `FILL+OUTLINE`) with stroke width consumption
+    - `S4` complete: select/move correctness pass (payload-mask move hit gating + overlap/hole-preserve regression coverage)
+    - `S5` complete: phase closeout, regression guard for large marquee bounds, and boundary lock
+  - next: Phase 11 tool-depth lane:
+    - select/move fidelity upgrades (true multi-shape selection behavior + transform polish)
+    - shape/fill depth (mode controls expansion, tolerance semantics, large-canvas responsiveness)
+    - continued UI/control polish while preserving locked runtime/overlay contracts
   - in-flight source split continuity (active worktree):
     - runtime helpers are now explicitly split into `drawing_program_layer_raster.*` and `drawing_program_selection.*`
     - keep doc updates coupled to these slices before phase closeout commit
