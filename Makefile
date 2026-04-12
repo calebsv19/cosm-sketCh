@@ -87,6 +87,8 @@ APP_LOCAL_SRCS := \
 	src/runtime/drawing_program_document.c \
 	src/runtime/drawing_program_editor_state.c \
 	src/runtime/drawing_program_history.c \
+	src/runtime/drawing_program_layer_raster.c \
+	src/runtime/drawing_program_selection.c \
 	src/runtime/drawing_program_snapshot.c \
 	src/runtime/drawing_program_viewport.c \
 	src/runtime/drawing_program_render_domain.c \
@@ -103,6 +105,8 @@ HEADLESS_LOCAL_SRCS := \
 	src/runtime/drawing_program_document.c \
 	src/runtime/drawing_program_editor_state.c \
 	src/runtime/drawing_program_history.c \
+	src/runtime/drawing_program_layer_raster.c \
+	src/runtime/drawing_program_selection.c \
 	src/runtime/drawing_program_snapshot.c \
 	src/runtime/drawing_program_viewport.c \
 	src/runtime/drawing_program_render_domain.c \
@@ -117,6 +121,8 @@ TEST_LOCAL_SRCS := \
 	src/runtime/drawing_program_document.c \
 	src/runtime/drawing_program_editor_state.c \
 	src/runtime/drawing_program_history.c \
+	src/runtime/drawing_program_layer_raster.c \
+	src/runtime/drawing_program_selection.c \
 	src/runtime/drawing_program_snapshot.c \
 	src/runtime/drawing_program_viewport.c \
 	src/runtime/drawing_program_render_domain.c \

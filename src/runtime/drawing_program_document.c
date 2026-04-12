@@ -21,6 +21,22 @@ static CoreResult drawing_program_document_invalid(const char *message) {
     return r;
 }
 
+static CoreResult drawing_program_document_find_layer_index_internal(const DrawingProgramDocument *document,
+                                                                     uint32_t layer_id,
+                                                                     uint32_t *out_layer_index) {
+    uint32_t i;
+    if (!document || !out_layer_index || layer_id == 0u) {
+        return drawing_program_document_invalid("invalid layer index query");
+    }
+    for (i = 0u; i < document->layer_count; ++i) {
+        if (document->layers[i].layer_id == layer_id) {
+            *out_layer_index = i;
+            return core_result_ok();
+        }
+    }
+    return (CoreResult){ CORE_ERR_NOT_FOUND, "layer not found" };
+}
+
 CoreResult drawing_program_document_init_default(DrawingProgramDocument *document) {
     if (!document) {
         return drawing_program_document_invalid("null document");
@@ -59,20 +75,169 @@ CoreResult drawing_program_document_set_layer_visibility(DrawingProgramDocument 
                                                          uint32_t layer_id,
                                                          uint8_t visible,
                                                          uint8_t *out_previous_visibility) {
-    uint32_t i;
+    uint32_t index = 0u;
+    CoreResult result;
     if (!document || layer_id == 0u) {
         return drawing_program_document_invalid("invalid layer visibility request");
     }
-    for (i = 0u; i < document->layer_count; ++i) {
-        if (document->layers[i].layer_id == layer_id) {
-            if (out_previous_visibility) {
-                *out_previous_visibility = document->layers[i].visible;
-            }
-            document->layers[i].visible = visible ? 1u : 0u;
-            return core_result_ok();
-        }
+    result = drawing_program_document_find_layer_index_internal(document, layer_id, &index);
+    if (result.code != CORE_OK) {
+        return result;
     }
-    return (CoreResult){ CORE_ERR_NOT_FOUND, "layer not found" };
+    if (out_previous_visibility) {
+        *out_previous_visibility = document->layers[index].visible;
+    }
+    document->layers[index].visible = visible ? 1u : 0u;
+    return core_result_ok();
+}
+
+CoreResult drawing_program_document_set_layer_locked(DrawingProgramDocument *document,
+                                                     uint32_t layer_id,
+                                                     uint8_t locked,
+                                                     uint8_t *out_previous_locked) {
+    uint32_t index = 0u;
+    CoreResult result;
+    if (!document || layer_id == 0u) {
+        return drawing_program_document_invalid("invalid layer lock request");
+    }
+    result = drawing_program_document_find_layer_index_internal(document, layer_id, &index);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    if (out_previous_locked) {
+        *out_previous_locked = document->layers[index].locked;
+    }
+    document->layers[index].locked = locked ? 1u : 0u;
+    return core_result_ok();
+}
+
+CoreResult drawing_program_document_layer_index_for_id(const DrawingProgramDocument *document,
+                                                       uint32_t layer_id,
+                                                       uint32_t *out_layer_index) {
+    return drawing_program_document_find_layer_index_internal(document, layer_id, out_layer_index);
+}
+
+CoreResult drawing_program_document_add_layer(DrawingProgramDocument *document,
+                                              const char *name,
+                                              uint32_t *out_layer_id) {
+    DrawingProgramLayer *layer = 0;
+    uint32_t next_index = 0u;
+    uint32_t layer_id = 0u;
+    uint32_t probe_count = 0u;
+    if (!document) {
+        return drawing_program_document_invalid("invalid add layer request");
+    }
+    if (document->layer_count >= DRAWING_PROGRAM_MAX_LAYERS) {
+        return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "layer capacity reached" };
+    }
+    if (document->next_layer_id == 0u) {
+        document->next_layer_id = 1u;
+    }
+    layer_id = document->next_layer_id;
+    while (probe_count < DRAWING_PROGRAM_MAX_LAYERS) {
+        CoreResult exists;
+        uint32_t ignored_index = 0u;
+        exists = drawing_program_document_find_layer_index_internal(document, layer_id, &ignored_index);
+        if (exists.code == CORE_ERR_NOT_FOUND) {
+            break;
+        }
+        layer_id += 1u;
+        if (layer_id == 0u) {
+            layer_id = 1u;
+        }
+        probe_count += 1u;
+    }
+    if (probe_count >= DRAWING_PROGRAM_MAX_LAYERS) {
+        return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "unable to allocate unique layer id" };
+    }
+    next_index = document->layer_count;
+    layer = &document->layers[next_index];
+    memset(layer, 0, sizeof(*layer));
+    layer->layer_id = layer_id;
+    if (name && name[0] != '\0') {
+        (void)snprintf(layer->name, sizeof(layer->name), "%s", name);
+    } else {
+        (void)snprintf(layer->name, sizeof(layer->name), "Layer %u", layer_id);
+    }
+    layer->visible = 1u;
+    layer->locked = 0u;
+    document->layer_count += 1u;
+    document->next_layer_id = layer_id + 1u;
+    if (document->next_layer_id == 0u) {
+        document->next_layer_id = 1u;
+    }
+    if (out_layer_id) {
+        *out_layer_id = layer_id;
+    }
+    return core_result_ok();
+}
+
+CoreResult drawing_program_document_remove_layer(DrawingProgramDocument *document,
+                                                 uint32_t layer_id,
+                                                 uint32_t *out_removed_index) {
+    uint32_t index = 0u;
+    uint32_t i;
+    CoreResult result;
+    if (!document || layer_id == 0u) {
+        return drawing_program_document_invalid("invalid remove layer request");
+    }
+    if (document->layer_count <= 1u) {
+        return (CoreResult){ CORE_ERR_INVALID_ARG, "cannot remove the last remaining layer" };
+    }
+    result = drawing_program_document_find_layer_index_internal(document, layer_id, &index);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    if (out_removed_index) {
+        *out_removed_index = index;
+    }
+    for (i = index + 1u; i < document->layer_count; ++i) {
+        document->layers[i - 1u] = document->layers[i];
+    }
+    memset(&document->layers[document->layer_count - 1u], 0, sizeof(document->layers[document->layer_count - 1u]));
+    document->layer_count -= 1u;
+    return core_result_ok();
+}
+
+CoreResult drawing_program_document_move_layer(DrawingProgramDocument *document,
+                                               uint32_t layer_id,
+                                               int32_t direction,
+                                               uint32_t *out_new_index) {
+    uint32_t index = 0u;
+    uint32_t target = 0u;
+    CoreResult result;
+    DrawingProgramLayer temp;
+    if (!document || layer_id == 0u) {
+        return drawing_program_document_invalid("invalid layer move request");
+    }
+    result = drawing_program_document_find_layer_index_internal(document, layer_id, &index);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    target = index;
+    if (direction < 0) {
+        if (index > 0u) {
+            target = index - 1u;
+        }
+    } else if (direction > 0) {
+        if (index + 1u < document->layer_count) {
+            target = index + 1u;
+        }
+    } else {
+        if (out_new_index) {
+            *out_new_index = index;
+        }
+        return core_result_ok();
+    }
+    if (target != index) {
+        temp = document->layers[index];
+        document->layers[index] = document->layers[target];
+        document->layers[target] = temp;
+    }
+    if (out_new_index) {
+        *out_new_index = target;
+    }
+    return core_result_ok();
 }
 
 CoreResult drawing_program_document_sample_read(const DrawingProgramDocument *document,

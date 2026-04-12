@@ -1,6 +1,6 @@
 # Future Intent
 
-Status date: 2026-04-10
+Last updated: 2026-04-11
 
 Near-term (active):
 - Phase 2 foundations are complete
@@ -44,7 +44,23 @@ Near-term (active):
     - `S3` canvas preview + commit affordances complete
     - `S4` input/hover routing tightening complete
     - `S5` stabilization closeout + resume boundary complete
-  - next: phase 8 planning lane for richer behavior depth
+  - Phase 8 selection/composition foundation lane is complete (`2026-04-10_drawing_program_phase_8_selection_composition_foundation_plan.md`):
+    - `S1` selection model contract complete (app-owned selection state, runtime selection module, `Cmd/Ctrl+A` select-all, `Cmd/Ctrl+D` clear, snapshot `DPUI` v4 selection restore)
+    - `S2` transform handles + keyboard nudge baseline complete
+    - `S3` layer stack semantics seed complete (create/reorder/visibility/lock + layer-tab controls + lock-gated mutation writes)
+    - `S4` composition command grouping + clipboard seed complete (`Cmd/Ctrl+C/X/V`, grouped cut/paste history units, clipboard telemetry)
+    - `S5` closeout complete (phase boundary locked + canonical keybind reference published)
+  - Phase 9 true-layer compositing lane is complete (`2026-04-11_drawing_program_phase_9_true_layer_compositing_foundation_plan.md`):
+    - `S1` complete: per-layer raster data model + snapshot migration seam
+    - `S2` complete: composited render pass from visible layers in stack order
+    - `S3` complete: active-layer-targeted mutation routing
+    - `S4` complete: layered selection/clipboard policy/alignment lock (`ACTIVE_LAYER_ONLY` capture, source-layer cut/move, active-layer paste targeting)
+    - `S5` complete: closeout + next-boundary lock, with active-layer id/index routing regression guard
+  - next: Phase 10 tool-quality depth lane (fill performance, shape fill/outline policy, deeper per-tool behavior quality)
+    - kickoff doc: `docs/private_program_docs/drawing_program/2026-04-11_drawing_program_phase_10_tool_quality_depth_plan.md`
+  - in-flight source split continuity (active worktree):
+    - runtime helpers are now explicitly split into `drawing_program_layer_raster.*` and `drawing_program_selection.*`
+    - keep doc updates coupled to these slices before phase closeout commit
   - keep `WSPS` bridge compatibility and overlay/runtime contract invariants locked while deepening behavior
 - keep workspace preset bridge compatibility maintained while feature depth increases
 

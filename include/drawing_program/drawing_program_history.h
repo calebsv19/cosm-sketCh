@@ -5,6 +5,7 @@
 
 #include "core_base.h"
 #include "drawing_program/drawing_program_document.h"
+#include "drawing_program/drawing_program_layer_raster.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -50,11 +51,17 @@ CoreResult drawing_program_history_apply_set_layer_visibility(DrawingProgramHist
                                                               uint8_t visible);
 CoreResult drawing_program_history_apply_set_sample_value(DrawingProgramHistory *history,
                                                           DrawingProgramDocument *document,
+                                                          DrawingProgramLayerRasterStore *layer_rasters,
+                                                          uint32_t layer_id,
                                                           uint32_t sample_x,
                                                           uint32_t sample_y,
                                                           uint8_t value);
-CoreResult drawing_program_history_undo(DrawingProgramHistory *history, DrawingProgramDocument *document);
-CoreResult drawing_program_history_redo(DrawingProgramHistory *history, DrawingProgramDocument *document);
+CoreResult drawing_program_history_undo(DrawingProgramHistory *history,
+                                        DrawingProgramDocument *document,
+                                        DrawingProgramLayerRasterStore *layer_rasters);
+CoreResult drawing_program_history_redo(DrawingProgramHistory *history,
+                                        DrawingProgramDocument *document,
+                                        DrawingProgramLayerRasterStore *layer_rasters);
 
 #ifdef __cplusplus
 }

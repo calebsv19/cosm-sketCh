@@ -24,9 +24,17 @@ typedef enum DrawingProgramWorkflowControl {
     DRAWING_PROGRAM_WORKFLOW_CONTROL_SET_TOOL_SELECT,
     DRAWING_PROGRAM_WORKFLOW_CONTROL_SET_TOOL_MOVE,
     DRAWING_PROGRAM_WORKFLOW_CONTROL_SET_TOOL_PICKER,
+    DRAWING_PROGRAM_WORKFLOW_CONTROL_ADD_LAYER,
+    DRAWING_PROGRAM_WORKFLOW_CONTROL_DELETE_ACTIVE_LAYER,
+    DRAWING_PROGRAM_WORKFLOW_CONTROL_SELECT_LAYER_PREV,
+    DRAWING_PROGRAM_WORKFLOW_CONTROL_SELECT_LAYER_NEXT,
+    DRAWING_PROGRAM_WORKFLOW_CONTROL_MOVE_ACTIVE_LAYER_UP,
+    DRAWING_PROGRAM_WORKFLOW_CONTROL_MOVE_ACTIVE_LAYER_DOWN,
     DRAWING_PROGRAM_WORKFLOW_CONTROL_TOGGLE_ACTIVE_LAYER_VISIBILITY,
+    DRAWING_PROGRAM_WORKFLOW_CONTROL_TOGGLE_ACTIVE_LAYER_LOCK,
     DRAWING_PROGRAM_WORKFLOW_CONTROL_UNDO,
     DRAWING_PROGRAM_WORKFLOW_CONTROL_REDO,
+    DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS,
     DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_HISTORY,
     DRAWING_PROGRAM_WORKFLOW_CONTROL_STAMP_CENTER_SAMPLE
 } DrawingProgramWorkflowControl;
@@ -34,6 +42,15 @@ typedef enum DrawingProgramWorkflowControl {
 CoreResult drawing_program_runtime_orchestration_apply_workflow_control(
     DrawingProgramAppContext *ctx,
     DrawingProgramWorkflowControl control);
+CoreResult drawing_program_runtime_orchestration_set_active_layer_id(
+    DrawingProgramAppContext *ctx,
+    uint32_t layer_id);
+CoreResult drawing_program_runtime_orchestration_resolve_active_layer(
+    const DrawingProgramAppContext *ctx,
+    uint32_t *out_layer_id,
+    uint32_t *out_layer_index,
+    uint8_t *out_visible,
+    uint8_t *out_locked);
 
 CoreResult drawing_program_runtime_orchestration_dispatch_immediate(
     DrawingProgramAppContext *ctx,

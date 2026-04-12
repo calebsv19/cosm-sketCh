@@ -1,6 +1,6 @@
 # Architecture
 
-Status date: 2026-04-08
+Last updated: 2026-04-11
 
 Current state:
 - scaffold shell lane with lifecycle skeleton implemented
@@ -11,6 +11,9 @@ Current state:
 - document, editor/session, and command/history foundations are now explicit runtime modules
 - snapshot persistence module now provides pack save/load and debug JSON export seams
 - viewport/navigation transforms and render-domain projection baseline are implemented
+- true-layer compositing foundation lanes are now explicit:
+  - runtime layer-raster ownership (`drawing_program_layer_raster.*`)
+  - runtime selection ownership (`drawing_program_selection.*`)
 - remaining follow-on depth:
   - tool-domain behavior depth
 

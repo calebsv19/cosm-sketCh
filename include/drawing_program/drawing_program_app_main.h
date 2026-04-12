@@ -8,9 +8,11 @@
 #include "drawing_program/drawing_program_document.h"
 #include "drawing_program/drawing_program_editor_state.h"
 #include "drawing_program/drawing_program_history.h"
+#include "drawing_program/drawing_program_layer_raster.h"
 #include "drawing_program/drawing_program_overlay_adapter.h"
 #include "drawing_program/drawing_program_pane_host.h"
 #include "drawing_program/drawing_program_render_domain.h"
+#include "drawing_program/drawing_program_selection.h"
 #include "drawing_program/drawing_program_snapshot.h"
 #include "drawing_program/drawing_program_viewport.h"
 
@@ -60,6 +62,7 @@ typedef struct DrawingProgramAppContext {
     DrawingProgramDocument document;
     DrawingProgramEditorState editor;
     DrawingProgramHistory history;
+    DrawingProgramLayerRasterStore layer_rasters;
     DrawingProgramPaneHost pane_host;
     DrawingProgramOverlayAdapterState overlay_adapter;
     float pane_host_bounds_width;
@@ -70,6 +73,8 @@ typedef struct DrawingProgramAppContext {
     uint8_t ui_right_panel_slot;
     uint8_t ui_active_color_index;
     int8_t ui_font_zoom_step;
+    DrawingProgramSelectionState selection;
+    DrawingProgramClipboardState clipboard;
     char runtime_root_path[512];
     char input_root_path[512];
     char output_root_path[512];

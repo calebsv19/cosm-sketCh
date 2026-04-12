@@ -7,4 +7,6 @@ ide_files/
 
 # Runtime/session state
 data/last_session.pack
+data/runtime/
+data/last_session_debug.json
 *.log

@@ -21,13 +21,124 @@ static CoreResult set_active_tool(DrawingProgramAppContext *ctx, DrawingProgramT
     return core_result_ok();
 }
 
+static CoreResult find_layer_index(const DrawingProgramAppContext *ctx, uint32_t layer_id, uint32_t *out_index) {
+    if (!ctx) {
+        return orchestration_invalid("null app context for layer index query");
+    }
+    return drawing_program_document_layer_index_for_id(&ctx->document, layer_id, out_index);
+}
+
+static CoreResult sync_layer_raster_bindings(DrawingProgramAppContext *ctx) {
+    if (!ctx) {
+        return orchestration_invalid("null app context for layer raster sync");
+    }
+    return drawing_program_layer_raster_store_sync_document_layers(&ctx->layer_rasters, &ctx->document);
+}
+
+static CoreResult set_active_layer_id_internal(DrawingProgramAppContext *ctx, uint32_t layer_id) {
+    CoreResult result;
+    uint32_t ignored_index = 0u;
+    if (!ctx || layer_id == 0u) {
+        return orchestration_invalid("invalid set active layer request");
+    }
+    result = find_layer_index(ctx, layer_id, &ignored_index);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    ctx->editor.active_layer_id = layer_id;
+    return core_result_ok();
+}
+
+CoreResult drawing_program_runtime_orchestration_set_active_layer_id(
+    DrawingProgramAppContext *ctx,
+    uint32_t layer_id) {
+    return set_active_layer_id_internal(ctx, layer_id);
+}
+
+CoreResult drawing_program_runtime_orchestration_resolve_active_layer(
+    const DrawingProgramAppContext *ctx,
+    uint32_t *out_layer_id,
+    uint32_t *out_layer_index,
+    uint8_t *out_visible,
+    uint8_t *out_locked) {
+    uint32_t index = 0u;
+    CoreResult result;
+    if (!ctx) {
+        return orchestration_invalid("null app context for active layer resolve");
+    }
+    if (!out_layer_id && !out_layer_index && !out_visible && !out_locked) {
+        return orchestration_invalid("no output requested for active layer resolve");
+    }
+    if (ctx->editor.active_layer_id == 0u) {
+        return (CoreResult){ CORE_ERR_NOT_FOUND, "active layer not set" };
+    }
+    result = find_layer_index(ctx, ctx->editor.active_layer_id, &index);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    if (out_layer_id) {
+        *out_layer_id = ctx->document.layers[index].layer_id;
+    }
+    if (out_layer_index) {
+        *out_layer_index = index;
+    }
+    if (out_visible) {
+        *out_visible = ctx->document.layers[index].visible;
+    }
+    if (out_locked) {
+        *out_locked = ctx->document.layers[index].locked;
+    }
+    return core_result_ok();
+}
+
+static int active_layer_allows_edits(const DrawingProgramAppContext *ctx, uint32_t *out_layer_index) {
+    uint32_t index = 0u;
+    CoreResult result;
+    if (!ctx || ctx->editor.active_layer_id == 0u) {
+        return 0;
+    }
+    result = find_layer_index(ctx, ctx->editor.active_layer_id, &index);
+    if (result.code != CORE_OK) {
+        return 0;
+    }
+    if (out_layer_index) {
+        *out_layer_index = index;
+    }
+    return (ctx->document.layers[index].visible && !ctx->document.layers[index].locked) ? 1 : 0;
+}
+
+static CoreResult cycle_active_layer(DrawingProgramAppContext *ctx, int direction) {
+    uint32_t index = 0u;
+    CoreResult result;
+    if (!ctx || ctx->document.layer_count == 0u) {
+        return orchestration_invalid("invalid active layer cycle request");
+    }
+    result = find_layer_index(ctx, ctx->editor.active_layer_id, &index);
+    if (result.code != CORE_OK) {
+        ctx->editor.active_layer_id = ctx->document.layers[0].layer_id;
+        return core_result_ok();
+    }
+    if (direction < 0) {
+        index = (index == 0u) ? (ctx->document.layer_count - 1u) : (index - 1u);
+    } else {
+        index = (index + 1u) % ctx->document.layer_count;
+    }
+    ctx->editor.active_layer_id = ctx->document.layers[index].layer_id;
+    return core_result_ok();
+}
+
 static CoreResult stamp_center_sample(DrawingProgramAppContext *ctx) {
     uint32_t sx;
     uint32_t sy;
+    uint32_t active_index = 0u;
     uint8_t value = drawing_program_color_value_from_index(
         ctx ? drawing_program_color_index_clamp(ctx->ui_active_color_index) : drawing_program_color_default_index());
     if (!ctx) {
         return orchestration_invalid("null app context for stamp center sample");
+    }
+    if (!active_layer_allows_edits(ctx, &active_index)) {
+        (void)active_index;
+        return core_result_ok();
     }
     sx = ctx->document.raster_width > 0u ? (ctx->document.raster_width / 2u) : 0u;
     sy = ctx->document.raster_height > 0u ? (ctx->document.raster_height / 2u) : 0u;
@@ -47,7 +158,51 @@ static CoreResult stamp_center_sample(DrawingProgramAppContext *ctx) {
             value = drawing_program_color_value_from_index(drawing_program_color_index_clamp(ctx->ui_active_color_index));
             break;
     }
-    return drawing_program_history_apply_set_sample_value(&ctx->history, &ctx->document, sx, sy, value);
+    return drawing_program_history_apply_set_sample_value(&ctx->history,
+                                                          &ctx->document,
+                                                          &ctx->layer_rasters,
+                                                          ctx->editor.active_layer_id,
+                                                          sx,
+                                                          sy,
+                                                          value);
+}
+
+static CoreResult clear_canvas_samples(DrawingProgramAppContext *ctx) {
+    uint8_t clear_value;
+    uint32_t slot;
+    uint32_t active_index = 0u;
+    CoreResult result;
+    if (!ctx) {
+        return orchestration_invalid("null app context for clear canvas");
+    }
+    clear_value = drawing_program_color_eraser_value();
+    if (ctx->document.raster_sample_count > 0u) {
+        memset(ctx->document.raster_samples, (int)clear_value, (size_t)ctx->document.raster_sample_count);
+    }
+    if (ctx->layer_rasters.slot_samples &&
+        ctx->layer_rasters.sample_count == ctx->document.raster_sample_count &&
+        ctx->layer_rasters.sample_count > 0u) {
+        for (slot = 0u; slot < ctx->layer_rasters.slot_capacity; ++slot) {
+            if (ctx->layer_rasters.slot_layer_ids[slot] == 0u) {
+                continue;
+            }
+            memset(ctx->layer_rasters.slot_samples + ((size_t)slot * (size_t)ctx->layer_rasters.sample_count),
+                   (int)clear_value,
+                   (size_t)ctx->layer_rasters.sample_count);
+        }
+    }
+    result = find_layer_index(ctx, ctx->editor.active_layer_id, &active_index);
+    if (result.code != CORE_OK && ctx->document.layer_count > 0u) {
+        ctx->editor.active_layer_id = ctx->document.layers[0].layer_id;
+        active_index = 0u;
+        result = core_result_ok();
+    }
+    if (result.code == CORE_OK && active_index < ctx->document.layer_count) {
+        ctx->document.layers[active_index].visible = 1u;
+        ctx->document.layers[active_index].locked = 0u;
+    }
+    drawing_program_selection_reset(&ctx->selection);
+    return core_result_ok();
 }
 
 CoreResult drawing_program_runtime_orchestration_apply_workflow_control(
@@ -76,6 +231,69 @@ CoreResult drawing_program_runtime_orchestration_apply_workflow_control(
             return set_active_tool(ctx, DRAWING_PROGRAM_TOOL_MOVE);
         case DRAWING_PROGRAM_WORKFLOW_CONTROL_SET_TOOL_PICKER:
             return set_active_tool(ctx, DRAWING_PROGRAM_TOOL_PICKER);
+        case DRAWING_PROGRAM_WORKFLOW_CONTROL_ADD_LAYER: {
+            uint32_t layer_id = 0u;
+            CoreResult result = drawing_program_document_add_layer(&ctx->document, 0, &layer_id);
+            if (result.code != CORE_OK) {
+                return result;
+            }
+            result = sync_layer_raster_bindings(ctx);
+            if (result.code != CORE_OK) {
+                return result;
+            }
+            drawing_program_selection_reset(&ctx->selection);
+            return set_active_layer_id_internal(ctx, layer_id);
+        }
+        case DRAWING_PROGRAM_WORKFLOW_CONTROL_DELETE_ACTIVE_LAYER: {
+            uint32_t removed_index = 0u;
+            uint32_t next_active_index = 0u;
+            CoreResult result;
+            if (ctx->editor.active_layer_id == 0u) {
+                return (CoreResult){ CORE_ERR_NOT_FOUND, "active layer not set" };
+            }
+            result = drawing_program_document_remove_layer(&ctx->document,
+                                                           ctx->editor.active_layer_id,
+                                                           &removed_index);
+            if (result.code != CORE_OK) {
+                return result;
+            }
+            result = sync_layer_raster_bindings(ctx);
+            if (result.code != CORE_OK) {
+                return result;
+            }
+            if (ctx->document.layer_count == 0u) {
+                ctx->editor.active_layer_id = 0u;
+            } else {
+                next_active_index = (removed_index >= ctx->document.layer_count)
+                                        ? (ctx->document.layer_count - 1u)
+                                        : removed_index;
+                ctx->editor.active_layer_id = ctx->document.layers[next_active_index].layer_id;
+                ctx->document.layers[next_active_index].visible = 1u;
+            }
+            drawing_program_selection_reset(&ctx->selection);
+            return core_result_ok();
+        }
+        case DRAWING_PROGRAM_WORKFLOW_CONTROL_SELECT_LAYER_PREV:
+            return cycle_active_layer(ctx, -1);
+        case DRAWING_PROGRAM_WORKFLOW_CONTROL_SELECT_LAYER_NEXT:
+            return cycle_active_layer(ctx, 1);
+        case DRAWING_PROGRAM_WORKFLOW_CONTROL_MOVE_ACTIVE_LAYER_UP:
+        case DRAWING_PROGRAM_WORKFLOW_CONTROL_MOVE_ACTIVE_LAYER_DOWN: {
+            int direction = (control == DRAWING_PROGRAM_WORKFLOW_CONTROL_MOVE_ACTIVE_LAYER_UP) ? 1 : -1;
+            uint32_t moved_index = 0u;
+            CoreResult result;
+            if (ctx->editor.active_layer_id == 0u) {
+                return (CoreResult){ CORE_ERR_NOT_FOUND, "active layer not set" };
+            }
+            result = drawing_program_document_move_layer(&ctx->document,
+                                                         ctx->editor.active_layer_id,
+                                                         direction,
+                                                         &moved_index);
+            if (result.code != CORE_OK) {
+                return result;
+            }
+            return sync_layer_raster_bindings(ctx);
+        }
         case DRAWING_PROGRAM_WORKFLOW_CONTROL_TOGGLE_ACTIVE_LAYER_VISIBILITY:
             if (ctx->editor.active_layer_id == 0u) {
                 return (CoreResult){ CORE_ERR_NOT_FOUND, "active layer not set" };
@@ -89,10 +307,25 @@ CoreResult drawing_program_runtime_orchestration_apply_workflow_control(
                 }
             }
             return (CoreResult){ CORE_ERR_NOT_FOUND, "active layer not found" };
+        case DRAWING_PROGRAM_WORKFLOW_CONTROL_TOGGLE_ACTIVE_LAYER_LOCK:
+            if (ctx->editor.active_layer_id == 0u) {
+                return (CoreResult){ CORE_ERR_NOT_FOUND, "active layer not set" };
+            }
+            for (i = 0u; i < ctx->document.layer_count; ++i) {
+                if (ctx->document.layers[i].layer_id == ctx->editor.active_layer_id) {
+                    return drawing_program_document_set_layer_locked(&ctx->document,
+                                                                     ctx->editor.active_layer_id,
+                                                                     (uint8_t)!ctx->document.layers[i].locked,
+                                                                     0);
+                }
+            }
+            return (CoreResult){ CORE_ERR_NOT_FOUND, "active layer not found" };
         case DRAWING_PROGRAM_WORKFLOW_CONTROL_UNDO:
-            return drawing_program_history_undo(&ctx->history, &ctx->document);
+            return drawing_program_history_undo(&ctx->history, &ctx->document, &ctx->layer_rasters);
         case DRAWING_PROGRAM_WORKFLOW_CONTROL_REDO:
-            return drawing_program_history_redo(&ctx->history, &ctx->document);
+            return drawing_program_history_redo(&ctx->history, &ctx->document, &ctx->layer_rasters);
+        case DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS:
+            return clear_canvas_samples(ctx);
         case DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_HISTORY:
             drawing_program_history_clear(&ctx->history);
             return core_result_ok();

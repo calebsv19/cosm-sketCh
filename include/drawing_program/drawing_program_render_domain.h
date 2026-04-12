@@ -11,6 +11,7 @@ extern "C" {
 
 struct DrawingProgramDocument;
 struct DrawingProgramEditorState;
+struct DrawingProgramLayerRasterStore;
 
 typedef struct DrawingProgramRenderInvalidation {
     uint8_t full_invalidate;
@@ -38,9 +39,16 @@ typedef struct DrawingProgramRenderFrameProjection {
 
 CoreResult drawing_program_render_project_frame(
     const struct DrawingProgramDocument *document,
+    const struct DrawingProgramLayerRasterStore *layer_rasters,
     const struct DrawingProgramEditorState *editor,
     const DrawingProgramRenderInvalidation *invalidation,
     DrawingProgramRenderFrameProjection *out_projection);
+
+CoreResult drawing_program_render_compose_visible_samples(
+    const struct DrawingProgramDocument *document,
+    const struct DrawingProgramLayerRasterStore *layer_rasters,
+    uint8_t *out_samples,
+    uint32_t out_capacity);
 
 #ifdef __cplusplus
 }

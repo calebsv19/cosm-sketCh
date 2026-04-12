@@ -2,6 +2,8 @@
 
 #include <string.h>
 
+#include "drawing_program/drawing_program_color_model.h"
+
 static CoreResult drawing_program_history_invalid(const char *message) {
     CoreResult r = { CORE_ERR_INVALID_ARG, message };
     return r;
@@ -9,7 +11,110 @@ static CoreResult drawing_program_history_invalid(const char *message) {
 
 static void drawing_program_history_push(DrawingProgramHistory *history, const DrawingProgramCommand *command);
 
-static CoreResult history_apply_undo_command(const DrawingProgramCommand *command, DrawingProgramDocument *document) {
+static uint32_t history_legacy_surface_layer_id(const DrawingProgramDocument *document) {
+    uint32_t i;
+    if (!document || document->layer_count == 0u) {
+        return 0u;
+    }
+    for (i = 0u; i < document->layer_count; ++i) {
+        if (document->layers[i].layer_id == 1u) {
+            return 1u;
+        }
+    }
+    return document->layers[0].layer_id;
+}
+
+static int history_layer_raster_store_usable(const DrawingProgramDocument *document,
+                                             const DrawingProgramLayerRasterStore *layer_rasters) {
+    return document &&
+           layer_rasters &&
+           layer_rasters->sample_count == document->raster_sample_count &&
+           layer_rasters->raster_width == document->raster_width &&
+           layer_rasters->raster_height == document->raster_height;
+}
+
+static CoreResult history_sample_read(const DrawingProgramDocument *document,
+                                      const DrawingProgramLayerRasterStore *layer_rasters,
+                                      uint32_t layer_id,
+                                      uint32_t sample_x,
+                                      uint32_t sample_y,
+                                      uint8_t *out_value) {
+    CoreResult result;
+    if (!document || !out_value || layer_id == 0u) {
+        return drawing_program_history_invalid("invalid history sample read request");
+    }
+    if (history_layer_raster_store_usable(document, layer_rasters)) {
+        result = drawing_program_layer_raster_store_sample_read(layer_rasters, layer_id, sample_x, sample_y, out_value);
+        if (result.code == CORE_OK) {
+            return core_result_ok();
+        }
+    }
+    return drawing_program_document_sample_read(document, sample_x, sample_y, out_value);
+}
+
+static CoreResult history_compose_sample_from_layers(const DrawingProgramDocument *document,
+                                                     const DrawingProgramLayerRasterStore *layer_rasters,
+                                                     uint32_t sample_x,
+                                                     uint32_t sample_y,
+                                                     uint8_t *out_value) {
+    uint32_t i;
+    uint32_t legacy_layer_id;
+    uint8_t composed = drawing_program_color_eraser_value();
+    if (!document || !out_value) {
+        return drawing_program_history_invalid("invalid history compose sample request");
+    }
+    legacy_layer_id = history_legacy_surface_layer_id(document);
+    for (i = 0u; i < document->layer_count; ++i) {
+        uint32_t layer_id = document->layers[i].layer_id;
+        uint8_t sample = drawing_program_color_eraser_value();
+        if (!document->layers[i].visible) {
+            continue;
+        }
+        if (history_layer_raster_store_usable(document, layer_rasters) &&
+            drawing_program_layer_raster_store_sample_read(layer_rasters, layer_id, sample_x, sample_y, &sample).code == CORE_OK) {
+            if (sample != drawing_program_color_eraser_value()) {
+                composed = sample;
+            }
+            continue;
+        }
+        if (layer_id == legacy_layer_id &&
+            drawing_program_document_sample_read(document, sample_x, sample_y, &sample).code == CORE_OK &&
+            sample != drawing_program_color_eraser_value()) {
+            composed = sample;
+        }
+    }
+    *out_value = composed;
+    return core_result_ok();
+}
+
+static CoreResult history_sample_write(DrawingProgramDocument *document,
+                                       DrawingProgramLayerRasterStore *layer_rasters,
+                                       uint32_t layer_id,
+                                       uint32_t sample_x,
+                                       uint32_t sample_y,
+                                       uint8_t value) {
+    CoreResult result;
+    if (!document || layer_id == 0u) {
+        return drawing_program_history_invalid("invalid history sample write request");
+    }
+    if (history_layer_raster_store_usable(document, layer_rasters)) {
+        uint8_t composed = drawing_program_color_eraser_value();
+        result = drawing_program_layer_raster_store_sample_write(layer_rasters, layer_id, sample_x, sample_y, value, 0);
+        if (result.code != CORE_OK) {
+            return result;
+        }
+        result = history_compose_sample_from_layers(document, layer_rasters, sample_x, sample_y, &composed);
+        if (result.code != CORE_OK) {
+            return result;
+        }
+        return drawing_program_document_sample_write(document, sample_x, sample_y, composed, 0);
+    }
+    return drawing_program_document_sample_write(document, sample_x, sample_y, value, 0);
+}
+
+static CoreResult history_apply_undo_command(const DrawingProgramCommand *command,
+                                             DrawingProgramDocument *document,
+                                             DrawingProgramLayerRasterStore *layer_rasters) {
     if (!command || !document) {
         return drawing_program_history_invalid("invalid undo command request");
     }
@@ -20,16 +125,19 @@ static CoreResult history_apply_undo_command(const DrawingProgramCommand *comman
                                                              0);
     }
     if (command->type == DRAWING_PROGRAM_COMMAND_SET_SAMPLE_VALUE) {
-        return drawing_program_document_sample_write(document,
-                                                     command->sample_x,
-                                                     command->sample_y,
-                                                     command->previous_sample_value,
-                                                     0);
+        return history_sample_write(document,
+                                    layer_rasters,
+                                    command->layer_id,
+                                    command->sample_x,
+                                    command->sample_y,
+                                    command->previous_sample_value);
     }
     return core_result_ok();
 }
 
-static CoreResult history_apply_redo_command(const DrawingProgramCommand *command, DrawingProgramDocument *document) {
+static CoreResult history_apply_redo_command(const DrawingProgramCommand *command,
+                                             DrawingProgramDocument *document,
+                                             DrawingProgramLayerRasterStore *layer_rasters) {
     if (!command || !document) {
         return drawing_program_history_invalid("invalid redo command request");
     }
@@ -40,11 +148,12 @@ static CoreResult history_apply_redo_command(const DrawingProgramCommand *comman
                                                              0);
     }
     if (command->type == DRAWING_PROGRAM_COMMAND_SET_SAMPLE_VALUE) {
-        return drawing_program_document_sample_write(document,
-                                                     command->sample_x,
-                                                     command->sample_y,
-                                                     command->new_sample_value,
-                                                     0);
+        return history_sample_write(document,
+                                    layer_rasters,
+                                    command->layer_id,
+                                    command->sample_x,
+                                    command->sample_y,
+                                    command->new_sample_value);
     }
     return core_result_ok();
 }
@@ -190,6 +299,7 @@ CoreResult drawing_program_history_apply_set_layer_visibility(DrawingProgramHist
     if ((prev ? 1u : 0u) == (visible ? 1u : 0u)) {
         return core_result_ok();
     }
+    memset(&command, 0, sizeof(command));
     command.type = DRAWING_PROGRAM_COMMAND_SET_LAYER_VISIBILITY;
     command.layer_id = layer_id;
     command.new_visibility = visible ? 1u : 0u;
@@ -200,29 +310,32 @@ CoreResult drawing_program_history_apply_set_layer_visibility(DrawingProgramHist
 
 CoreResult drawing_program_history_apply_set_sample_value(DrawingProgramHistory *history,
                                                           DrawingProgramDocument *document,
+                                                          DrawingProgramLayerRasterStore *layer_rasters,
+                                                          uint32_t layer_id,
                                                           uint32_t sample_x,
                                                           uint32_t sample_y,
                                                           uint8_t value) {
     DrawingProgramCommand command;
     CoreResult result;
     uint8_t prev = 0u;
-    if (!history || !document) {
+    if (!history || !document || layer_id == 0u) {
         return drawing_program_history_invalid("invalid sample command request");
     }
 
-    result = drawing_program_document_sample_read(document, sample_x, sample_y, &prev);
+    result = history_sample_read(document, layer_rasters, layer_id, sample_x, sample_y, &prev);
     if (result.code != CORE_OK) {
         return result;
     }
     if (prev == value) {
         return core_result_ok();
     }
-    result = drawing_program_document_sample_write(document, sample_x, sample_y, value, 0);
+    result = history_sample_write(document, layer_rasters, layer_id, sample_x, sample_y, value);
     if (result.code != CORE_OK) {
         return result;
     }
     memset(&command, 0, sizeof(command));
     command.type = DRAWING_PROGRAM_COMMAND_SET_SAMPLE_VALUE;
+    command.layer_id = layer_id;
     command.sample_x = sample_x;
     command.sample_y = sample_y;
     command.new_sample_value = value;
@@ -231,7 +344,9 @@ CoreResult drawing_program_history_apply_set_sample_value(DrawingProgramHistory 
     return core_result_ok();
 }
 
-CoreResult drawing_program_history_undo(DrawingProgramHistory *history, DrawingProgramDocument *document) {
+CoreResult drawing_program_history_undo(DrawingProgramHistory *history,
+                                        DrawingProgramDocument *document,
+                                        DrawingProgramLayerRasterStore *layer_rasters) {
     const DrawingProgramCommand *command;
     CoreResult result;
     if (!history || !document) {
@@ -249,7 +364,7 @@ CoreResult drawing_program_history_undo(DrawingProgramHistory *history, DrawingP
             if (command->type == DRAWING_PROGRAM_COMMAND_GROUP_BEGIN) {
                 return core_result_ok();
             }
-            result = history_apply_undo_command(command, document);
+            result = history_apply_undo_command(command, document, layer_rasters);
             if (result.code != CORE_OK) {
                 return result;
             }
@@ -261,10 +376,12 @@ CoreResult drawing_program_history_undo(DrawingProgramHistory *history, DrawingP
         return core_result_ok();
     }
     history->cursor -= 1u;
-    return history_apply_undo_command(command, document);
+    return history_apply_undo_command(command, document, layer_rasters);
 }
 
-CoreResult drawing_program_history_redo(DrawingProgramHistory *history, DrawingProgramDocument *document) {
+CoreResult drawing_program_history_redo(DrawingProgramHistory *history,
+                                        DrawingProgramDocument *document,
+                                        DrawingProgramLayerRasterStore *layer_rasters) {
     const DrawingProgramCommand *command;
     CoreResult result;
     if (!history || !document) {
@@ -282,7 +399,7 @@ CoreResult drawing_program_history_redo(DrawingProgramHistory *history, DrawingP
                 history->cursor += 1u;
                 return core_result_ok();
             }
-            result = history_apply_redo_command(command, document);
+            result = history_apply_redo_command(command, document, layer_rasters);
             if (result.code != CORE_OK) {
                 return result;
             }
@@ -294,7 +411,7 @@ CoreResult drawing_program_history_redo(DrawingProgramHistory *history, DrawingP
         history->cursor += 1u;
         return core_result_ok();
     }
-    result = history_apply_redo_command(command, document);
+    result = history_apply_redo_command(command, document, layer_rasters);
     if (result.code != CORE_OK) {
         return result;
     }

@@ -198,6 +198,7 @@ static CoreResult drawing_program_render_project_and_update_counters(
     render_invalidation.full_invalidation_count = invalidation->full_invalidation_count;
 
     result = drawing_program_render_project_frame(&ctx->document,
+                                                  &ctx->layer_rasters,
                                                   &ctx->editor,
                                                   &render_invalidation,
                                                   &ctx->render_projection);
@@ -426,11 +427,17 @@ CoreResult drawing_program_app_state_seed(DrawingProgramAppContext *ctx) {
     if (result.code != CORE_OK) {
         return result;
     }
+    result = drawing_program_layer_raster_store_init_from_document(&ctx->layer_rasters, &ctx->document);
+    if (result.code != CORE_OK) {
+        return result;
+    }
     drawing_program_editor_state_init(&ctx->editor, &ctx->document);
     drawing_program_history_init(&ctx->history);
+    drawing_program_selection_reset(&ctx->selection);
     adapter_result = drawing_program_overlay_adapter_init(ctx);
     if (!adapter_result.ok) {
         CoreResult err = { CORE_ERR_FORMAT, adapter_result.reason };
+        drawing_program_layer_raster_store_dispose(&ctx->layer_rasters);
         return err;
     }
     ctx->state_seeded = 1u;
@@ -495,6 +502,7 @@ CoreResult drawing_program_runtime_start(DrawingProgramAppContext *ctx) {
     if (upgraded_legacy_checker_seed && ctx->persist_enabled) {
         (void)drawing_program_snapshot_save(ctx, ctx->preset_path);
     }
+    drawing_program_selection_cancel_transient(&ctx->selection);
     drawing_program_normalize_ui_state(ctx);
     if (drawing_program_trace_ui_state_enabled()) {
         fprintf(stderr,
@@ -577,7 +585,7 @@ CoreResult drawing_program_app_run_loop(DrawingProgramAppContext *ctx) {
 }
 
 CoreResult drawing_program_app_shutdown(DrawingProgramAppContext *ctx) {
-    CoreResult result;
+    CoreResult result = core_result_ok();
     if (!ctx) {
         return drawing_program_invalid("null app context");
     }
@@ -585,13 +593,16 @@ CoreResult drawing_program_app_shutdown(DrawingProgramAppContext *ctx) {
         if (ctx->export_json_requested) {
             result = drawing_program_snapshot_export_debug_json(ctx, ctx->export_json_path);
             if (result.code != CORE_OK) {
+                drawing_program_layer_raster_store_dispose(&ctx->layer_rasters);
                 return result;
             }
         }
+        drawing_program_layer_raster_store_dispose(&ctx->layer_rasters);
         return core_result_ok();
     }
     result = drawing_program_ensure_parent_dir(ctx->preset_path);
     if (result.code != CORE_OK) {
+        drawing_program_layer_raster_store_dispose(&ctx->layer_rasters);
         return result;
     }
     result = drawing_program_snapshot_save(ctx, ctx->preset_path);
@@ -614,6 +625,7 @@ CoreResult drawing_program_app_shutdown(DrawingProgramAppContext *ctx) {
                 (int)result.code,
                 result.message ? result.message : "(null)",
                 ctx->preset_path ? ctx->preset_path : "(null)");
+        drawing_program_layer_raster_store_dispose(&ctx->layer_rasters);
         return result;
     }
     if (ctx->export_json_requested) {
@@ -624,12 +636,14 @@ CoreResult drawing_program_app_shutdown(DrawingProgramAppContext *ctx) {
                     (int)result.code,
                     result.message ? result.message : "(null)",
                     ctx->export_json_path ? ctx->export_json_path : "(null)");
+            drawing_program_layer_raster_store_dispose(&ctx->layer_rasters);
             return result;
         }
         printf("drawing_program snapshot debug export OK: preset=%s json=%s\n",
                ctx->preset_path ? ctx->preset_path : "(null)",
                ctx->export_json_path ? ctx->export_json_path : "(null)");
     }
+    drawing_program_layer_raster_store_dispose(&ctx->layer_rasters);
     return core_result_ok();
 }
 

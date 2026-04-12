@@ -1,7 +1,77 @@
 # Current Truth
 
-Status date: 2026-04-10
+Last updated: 2026-04-11
 
+- Canonical input map is documented in `docs/keybind_reference.md`.
+- Phase 9 `S1` true-layer compositing foundation slice is now implemented:
+  - app runtime owns a dedicated heap-backed per-layer raster store (`DrawingProgramLayerRasterStore`)
+  - snapshot lane now persists optional layer-raster chunk (`DPLR`, v1) while keeping `DPS2` compatibility
+  - legacy snapshots without `DPLR` auto-migrate by seeding base-layer raster from legacy document surface
+  - lifecycle coverage includes `DPLR` roundtrip assertions and explicit legacy (`DPS2` + `DPUI`) migration assertions
+- Layer-raster lifecycle ownership is explicit:
+  - seeded during `state_seed`
+  - synchronized on layer add/reorder workflow controls
+  - disposed during `shutdown` across persist/no-persist paths
+- Phase 9 `S2` compositor slice is now implemented:
+  - shared render-domain compositor API added (`drawing_program_render_compose_visible_samples(...)`)
+  - compositing resolves visible layers in stack order, with eraser/background treated as transparent-through for layering
+  - visual canvas texture upload now uses composited-visible samples (not raw `document.raster_samples`)
+  - render projection hash/nonzero metrics now derive from composited-visible output
+  - lifecycle coverage now verifies visibility toggle impact on composited projection hash/count
+- Phase 9 `S3` mutation-targeting slice is now implemented:
+  - history sample command contract is active-layer keyed (`layer_id` required for sample writes)
+  - history apply/undo/redo sample paths now route through `DrawingProgramLayerRasterStore` first, with document surface kept synchronized to composited-visible output for compatibility seams
+  - render layer-view resolve now prefers layer-raster storage for every layer (legacy document surface only as fallback)
+  - visual mutation lanes now target active layer explicitly:
+    - brush/eraser stroke writes
+    - fill writes
+    - shape commit writes (`line`/`rect`/`circle`)
+    - selection move/cut/paste writes
+  - selection capture/select-all now sample active layer payload from layer-raster storage (not global shared surface)
+  - lifecycle coverage now includes explicit active-layer mutation assertions:
+    - visible unlocked active-layer stamp updates active layer without mutating base layer
+    - hidden active-layer stamp path is deterministic no-op
+    - grouped history sample replay uses active-layer routing and remains undo/redo coherent
+- Phase 9 `S4` layered selection/clipboard alignment slice is now implemented:
+  - selection payload scope is now explicitly locked to active-layer capture policy (`ACTIVE_LAYER_ONLY`)
+  - selection state now stores source layer provenance (`selection.layer_id`)
+  - clipboard state now stores source layer provenance (`clipboard.source_layer_id`)
+  - selection move/cut operations now bind to selection source layer id even if active layer is changed before commit
+  - paste operations target active layer id (with source-layer fallback when active id is unavailable)
+  - right panel telemetry now includes selection/clipboard layer provenance:
+    - `SELSCOPE ACTIVE_LAYER_ONLY L<id>`
+    - `CLIP SRC L<id>`
+  - lifecycle coverage now includes layered selection/clipboard policy assertions:
+    - active-layer selection capture excludes non-active-layer pixels from same marquee rect
+    - cross-layer cut preserves non-source layer samples and clears only source layer payload
+    - paste targets active layer and rebinds resulting selection provenance to target layer
+- Canvas right-panel UI cleanup pass is now implemented:
+  - canvas telemetry rows are reduced to avoid overlap at larger UI font steps
+  - active color + palette are moved to the top of the `CANVAS` panel
+  - action buttons are bottom-aligned in fixed order:
+    - `RESET VIEW`
+    - `CLEAR CANVAS`
+    - `CLEAR HISTORY`
+  - `CLEAR CANVAS` is now a workflow action that clears all layer raster buffers to background and resets active selection payload
+  - `CLEAR CANVAS` also normalizes active-layer editability (`visible=1`, `locked=0`) so brush input remains valid immediately after clear
+- Layer delete/action stabilization pass is now implemented:
+  - right `LAYER` tab now includes `DELETE SELECTED` action button (wired to active-layer delete workflow control)
+  - delete keeps at least one layer in document (`cannot remove last layer` guard)
+  - after delete, active layer is reassigned to a valid surviving layer and re-synchronized with layer-raster bindings
+  - visual mutation routing now correctly resolves active `layer_id` (not layer index) for brush/fill writes, fixing cross-layer draw misrouting where L2 edits could appear on L1
+  - lifecycle coverage includes:
+    - clear-canvas -> immediate active-layer write regression check
+    - delete-active-layer workflow behavior and active-layer reassignment check
+- Phase 9 source-lane additions are present in runtime/include lanes:
+  - `src/runtime/drawing_program_layer_raster.c`
+  - `include/drawing_program/drawing_program_layer_raster.h`
+  - `src/runtime/drawing_program_selection.c`
+  - `include/drawing_program/drawing_program_selection.h`
+- Phase 9 `S5` closeout + boundary lock is complete:
+  - added shared active-layer resolve helper: `drawing_program_runtime_orchestration_resolve_active_layer(...)`
+  - lifecycle regression coverage now asserts active-layer id/index/metadata coherence after add+activate layer flow
+  - visual draw/fill mutation routing resolves active `layer_id` via shared helper (prevents index/id drift)
+  - next boundary is Phase 10 tool-quality depth
 - Program scaffold directory created under `drawing_program/`.
 - Identity lock established for brand (`sketCh`) and internal key (`drawing_program`).
 - Lifecycle skeleton is implemented with canonical stage functions and order checks:
@@ -116,6 +186,62 @@ Status date: 2026-04-10
   - lane verification gates are all green from clean build through desktop refresh
   - docs are synchronized to completed stabilization state
   - resume boundary is locked to Phase 8 planning by default, with targeted stabilization reopen only for new reproducible regressions
+- Phase 8 `S1` selection model contract is now complete:
+  - selection state is owned by `DrawingProgramAppContext` (not visual-local scratch state)
+  - dedicated runtime selection contract module added (`drawing_program_selection.*`)
+  - visual runtime uses contract helpers for marquee/move/commit/transient-cancel
+  - keyboard hooks:
+    - `Cmd/Ctrl+A` select-all (non-background content bounds, bounded by v1 selection capacity)
+    - `Cmd/Ctrl+D` clear selection
+  - snapshot UI payload upgraded to `DPUI` v4 with selection bounds/presence; load restores by recapturing selection from document bounds
+  - snapshot debug JSON now includes selection metadata
+  - lifecycle tests cover selection select-all, clear, and snapshot round-trip restore
+- Phase 8 `S2` transform/nudge baseline is now complete:
+  - active `MOVE` selection shows 8 transform handles (corners + edge midpoints)
+  - clicking a handle enters move tracking path
+  - move tracking uses clamped sample mapping for stable drag at sheet edges
+  - keyboard nudge is available for active selection in `MOVE` mode:
+    - `Arrow`: move by 1 sample
+    - `Shift+Arrow`: move by 10 samples
+  - nudge operations commit through grouped history mutation path (no direct bypass writes)
+  - right panel now surfaces nudge hints when applicable
+  - lifecycle coverage includes selection nudge commit behavior and origin update assertions
+- Phase 8 `S3` layer-stack semantics seed is now complete:
+  - document/runtime supports layer add, layer index lookup, lock toggles, and single-step reorder
+  - workflow controls expanded for:
+    - add layer
+    - active-layer prev/next cycle
+    - move active layer up/down
+    - toggle active layer lock
+  - right panel `LAYER` tab now renders stack rows + action controls (row-select active layer, add/reorder/visibility/lock actions)
+  - keyboard seed controls:
+    - `Cmd/Ctrl+Shift+N` add layer
+    - `Cmd/Ctrl+[ / ]` cycle active layer
+    - `K` toggle active-layer lock
+  - raster mutation paths now short-circuit when active layer is hidden or locked
+  - lifecycle tests now validate add/select/reorder/lock behavior and locked-stamp no-op semantics
+- Phase 8 `S4` composition clipboard seed is now complete:
+  - app-owned clipboard state added (`DrawingProgramClipboardState` + `DrawingProgramAppContext.clipboard`)
+  - selection clipboard APIs are implemented:
+    - copy selection payload
+    - cut selection payload (grouped history clear path)
+    - paste clipboard payload (grouped history write path)
+  - visual runtime hotkeys are wired:
+    - `Cmd/Ctrl+C` copy
+    - `Cmd/Ctrl+X` cut
+    - `Cmd/Ctrl+V` paste
+  - paste placement seed:
+    - selection origin when available
+    - otherwise centered fallback
+    - mouse-over-canvas sample placement when pointer is over canvas
+  - right canvas panel now reports clipboard telemetry (`CLIPBOARD WxH Pn`)
+  - lifecycle tests now validate copy/cut/paste behavior and payload mutation correctness
+- Phase 8 closeout (`S5`) is complete:
+  - phase gates + docs + memory closeout are complete through `S4` implementation
+  - canonical keybind reference is now published in `docs/keybind_reference.md`
+  - known next-boundary limitation is explicit:
+    - active-layer visibility/lock mutation gating is implemented
+    - true per-layer isolated compositing/render visibility behavior remains a follow-up lane
 - pre-`S5` interaction polish is now landed:
   - canvas world-view grid colors are theme-driven (surface-token derived minor/major grid lines), not fixed palette literals
   - canvas mutation interactions are grouped into action-level history units:
