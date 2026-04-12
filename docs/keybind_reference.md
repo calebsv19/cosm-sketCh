@@ -1,6 +1,6 @@
 # sketCh Keybind Reference
 
-Last updated: 2026-04-11
+Last updated: 2026-04-12
 Scope: current implemented runtime controls (`sdl-debug` lane)
 
 ## Tool Selection
@@ -48,6 +48,7 @@ Scope: current implemented runtime controls (`sdl-debug` lane)
 - `Left click` (`FILL`): flood fill
 - `Left drag` (`LINE` / `RECT` / `CIRCLE`): preview then commit on release
 - `Left drag` (`SELECT`): marquee select
+- `Shift + Left drag` (`SELECT`): add marquee payload to current selection
 - `Left drag` (`MOVE`, with active selection): move selection
 - `Arrow` (`MOVE`, with active selection): nudge by 1 sample
 - `Shift+Arrow` (`MOVE`, with active selection): nudge by 10 samples

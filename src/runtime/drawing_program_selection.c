@@ -1,5 +1,6 @@
 #include "drawing_program/drawing_program_selection.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 #include "drawing_program/drawing_program_color_model.h"
@@ -212,6 +213,173 @@ int drawing_program_selection_capture_from_rect(const DrawingProgramDocument *do
     return 1;
 }
 
+int drawing_program_selection_add_from_rect(const DrawingProgramDocument *document,
+                                            const DrawingProgramLayerRasterStore *layer_rasters,
+                                            uint32_t active_layer_id,
+                                            DrawingProgramSelectionState *selection,
+                                            int32_t x0,
+                                            int32_t y0,
+                                            uint32_t width,
+                                            uint32_t height) {
+    DrawingProgramSelectionState incoming;
+    uint32_t min_x;
+    uint32_t min_y;
+    uint32_t max_x;
+    uint32_t max_y;
+    uint32_t merged_w;
+    uint32_t merged_h;
+    uint32_t merged_area;
+    uint8_t *merged_mask = 0;
+    uint8_t *merged_value = 0;
+    uint32_t merged_payload_count = 0u;
+    uint32_t x;
+    uint32_t y;
+    if (!document || !selection || width == 0u || height == 0u) {
+        return 0;
+    }
+    drawing_program_selection_reset(&incoming);
+    if (!drawing_program_selection_capture_from_rect(document,
+                                                     layer_rasters,
+                                                     active_layer_id,
+                                                     &incoming,
+                                                     x0,
+                                                     y0,
+                                                     width,
+                                                     height)) {
+        /* additive-empty capture should preserve current payload */
+        if (selection->has_payload) {
+            selection->selecting = 0u;
+            selection->moving = 0u;
+            selection->offset_x = 0;
+            selection->offset_y = 0;
+            return 1;
+        }
+        drawing_program_selection_reset(selection);
+        return 0;
+    }
+    if (!selection->has_payload ||
+        selection->payload_count == 0u ||
+        selection->width == 0u ||
+        selection->height == 0u ||
+        selection->layer_id != incoming.layer_id) {
+        *selection = incoming;
+        selection->selecting = 0u;
+        selection->moving = 0u;
+        selection->offset_x = 0;
+        selection->offset_y = 0;
+        return 1;
+    }
+
+    min_x = (selection->origin_x < incoming.origin_x) ? selection->origin_x : incoming.origin_x;
+    min_y = (selection->origin_y < incoming.origin_y) ? selection->origin_y : incoming.origin_y;
+    max_x = ((selection->origin_x + selection->width) > (incoming.origin_x + incoming.width))
+                ? (selection->origin_x + selection->width - 1u)
+                : (incoming.origin_x + incoming.width - 1u);
+    max_y = ((selection->origin_y + selection->height) > (incoming.origin_y + incoming.height))
+                ? (selection->origin_y + selection->height - 1u)
+                : (incoming.origin_y + incoming.height - 1u);
+    merged_w = max_x - min_x + 1u;
+    merged_h = max_y - min_y + 1u;
+    if (merged_w > DRAWING_PROGRAM_SELECTION_MAX_WIDTH ||
+        merged_h > DRAWING_PROGRAM_SELECTION_MAX_HEIGHT) {
+        /* preserve prior selection when requested union exceeds bounded v1 capacity */
+        selection->selecting = 0u;
+        selection->moving = 0u;
+        selection->offset_x = 0;
+        selection->offset_y = 0;
+        return 0;
+    }
+    merged_area = merged_w * merged_h;
+    if (merged_area == 0u || merged_area > DRAWING_PROGRAM_SELECTION_MAX_AREA) {
+        selection->selecting = 0u;
+        selection->moving = 0u;
+        selection->offset_x = 0;
+        selection->offset_y = 0;
+        return 0;
+    }
+    merged_mask = (uint8_t *)calloc(merged_area, sizeof(uint8_t));
+    merged_value = (uint8_t *)calloc(merged_area, sizeof(uint8_t));
+    if (!merged_mask || !merged_value) {
+        free(merged_mask);
+        free(merged_value);
+        selection->selecting = 0u;
+        selection->moving = 0u;
+        selection->offset_x = 0;
+        selection->offset_y = 0;
+        return 0;
+    }
+
+    for (y = 0u; y < selection->height; ++y) {
+        for (x = 0u; x < selection->width; ++x) {
+            uint32_t src_index = y * selection->width + x;
+            uint32_t dx;
+            uint32_t dy;
+            uint32_t dst_index;
+            if (src_index >= DRAWING_PROGRAM_SELECTION_MAX_AREA || !selection->payload_mask[src_index]) {
+                continue;
+            }
+            dx = selection->origin_x + x - min_x;
+            dy = selection->origin_y + y - min_y;
+            dst_index = dy * merged_w + dx;
+            if (dst_index >= merged_area) {
+                continue;
+            }
+            if (!merged_mask[dst_index]) {
+                merged_mask[dst_index] = 1u;
+                merged_payload_count += 1u;
+            }
+            merged_value[dst_index] = selection->payload_value[src_index];
+        }
+    }
+    for (y = 0u; y < incoming.height; ++y) {
+        for (x = 0u; x < incoming.width; ++x) {
+            uint32_t src_index = y * incoming.width + x;
+            uint32_t dx;
+            uint32_t dy;
+            uint32_t dst_index;
+            if (src_index >= DRAWING_PROGRAM_SELECTION_MAX_AREA || !incoming.payload_mask[src_index]) {
+                continue;
+            }
+            dx = incoming.origin_x + x - min_x;
+            dy = incoming.origin_y + y - min_y;
+            dst_index = dy * merged_w + dx;
+            if (dst_index >= merged_area) {
+                continue;
+            }
+            if (!merged_mask[dst_index]) {
+                merged_mask[dst_index] = 1u;
+                merged_payload_count += 1u;
+            }
+            /* incoming marquee region overwrites value when both overlap */
+            merged_value[dst_index] = incoming.payload_value[src_index];
+        }
+    }
+
+    memset(selection->payload_mask, 0, sizeof(selection->payload_mask));
+    memset(selection->payload_value, 0, sizeof(selection->payload_value));
+    memcpy(selection->payload_mask, merged_mask, merged_area);
+    memcpy(selection->payload_value, merged_value, merged_area);
+    selection->has_payload = (merged_payload_count > 0u) ? 1u : 0u;
+    selection->selecting = 0u;
+    selection->moving = 0u;
+    selection->layer_id = incoming.layer_id;
+    selection->origin_x = min_x;
+    selection->origin_y = min_y;
+    selection->width = merged_w;
+    selection->height = merged_h;
+    selection->offset_x = 0;
+    selection->offset_y = 0;
+    selection->payload_count = merged_payload_count;
+
+    free(merged_mask);
+    free(merged_value);
+    if (selection->payload_count == 0u) {
+        drawing_program_selection_reset(selection);
+        return 0;
+    }
+    return 1;
+}
+
 int drawing_program_selection_capture_from_marquee(const DrawingProgramDocument *document,
                                                    const DrawingProgramLayerRasterStore *layer_rasters,
                                                    uint32_t active_layer_id,
@@ -247,6 +415,43 @@ int drawing_program_selection_capture_from_marquee(const DrawingProgramDocument 
                                                        (int32_t)min_y,
                                                        width,
                                                        height);
+}
+
+int drawing_program_selection_add_from_marquee(const DrawingProgramDocument *document,
+                                               const DrawingProgramLayerRasterStore *layer_rasters,
+                                               uint32_t active_layer_id,
+                                               DrawingProgramSelectionState *selection) {
+    uint32_t min_x;
+    uint32_t min_y;
+    uint32_t max_x;
+    uint32_t max_y;
+    uint32_t width;
+    uint32_t height;
+    if (!document || !selection || !selection->selecting) {
+        return 0;
+    }
+    min_x = (selection->marquee_start_x < selection->marquee_end_x)
+                ? selection->marquee_start_x
+                : selection->marquee_end_x;
+    min_y = (selection->marquee_start_y < selection->marquee_end_y)
+                ? selection->marquee_start_y
+                : selection->marquee_end_y;
+    max_x = (selection->marquee_start_x > selection->marquee_end_x)
+                ? selection->marquee_start_x
+                : selection->marquee_end_x;
+    max_y = (selection->marquee_start_y > selection->marquee_end_y)
+                ? selection->marquee_start_y
+                : selection->marquee_end_y;
+    width = max_x - min_x + 1u;
+    height = max_y - min_y + 1u;
+    return drawing_program_selection_add_from_rect(document,
+                                                   layer_rasters,
+                                                   active_layer_id,
+                                                   selection,
+                                                   (int32_t)min_x,
+                                                   (int32_t)min_y,
+                                                   width,
+                                                   height);
 }
 
 int drawing_program_selection_contains_sample(const DrawingProgramSelectionState *selection,

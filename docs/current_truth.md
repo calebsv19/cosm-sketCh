@@ -3,6 +3,11 @@
 Last updated: 2026-04-12
 
 - Canonical input map is documented in `docs/keybind_reference.md`.
+- Phase 11 `S1` selection-fidelity kickoff is now implemented:
+  - runtime selection contract now supports additive marquee capture (`drawing_program_selection_add_from_rect`, `drawing_program_selection_add_from_marquee`)
+  - visual input path binds `Shift + SELECT marquee drag` to additive capture (existing selection payload is preserved and merged)
+  - additive-empty marquee over background now preserves current selection payload instead of clearing it
+  - lifecycle regression coverage now includes additive merge bounds/payload assertions
 - Canvas seed shape is no longer fixed square-only:
   - default seed remains `512x512`
   - runtime boot now supports explicit non-square overrides:

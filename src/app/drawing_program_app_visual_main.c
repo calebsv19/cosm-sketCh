@@ -1204,9 +1204,16 @@ typedef struct VisualPanelUiState {
 } VisualPanelUiState;
 
 static int visual_selection_capture_from_marquee(DrawingProgramAppContext *ctx,
-                                                 VisualSelectionState *selection) {
+                                                 VisualSelectionState *selection,
+                                                 uint8_t additive) {
     if (!ctx) {
         return 0;
+    }
+    if (additive) {
+        return drawing_program_selection_add_from_marquee(&ctx->document,
+                                                          &ctx->layer_rasters,
+                                                          ctx->editor.active_layer_id,
+                                                          selection);
     }
     return drawing_program_selection_capture_from_marquee(&ctx->document,
                                                           &ctx->layer_rasters,
@@ -4596,7 +4603,8 @@ static int run_visual_mode(int argc, char **argv) {
                         }
                     }
                     if (selection_state.selecting) {
-                        (void)visual_selection_capture_from_marquee(&app, &selection_state);
+                        uint8_t additive = ((SDL_GetModState() & KMOD_SHIFT) != 0) ? 1u : 0u;
+                        (void)visual_selection_capture_from_marquee(&app, &selection_state, additive);
                     }
                     if (selection_state.moving) {
                         begin_canvas_history_group(&app);

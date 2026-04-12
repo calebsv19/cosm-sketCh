@@ -280,6 +280,104 @@ int main(void) {
             return 1;
         }
     }
+    {
+        uint32_t p1x = workflow_center_x;
+        uint32_t p1y = workflow_center_y;
+        uint32_t p2x = workflow_center_x + 7u;
+        uint32_t p2y = workflow_center_y + 5u;
+        uint32_t min_x;
+        uint32_t min_y;
+        uint32_t max_x;
+        uint32_t max_y;
+        uint32_t local1_index;
+        uint32_t local2_index;
+        if (p2x >= workflow_ctx.document.raster_width) {
+            p2x = workflow_ctx.document.raster_width - 1u;
+        }
+        if (p2y >= workflow_ctx.document.raster_height) {
+            p2y = workflow_ctx.document.raster_height - 1u;
+        }
+        if (!expect_ok(drawing_program_history_apply_set_sample_value(&workflow_ctx.history,
+                                                                       &workflow_ctx.document,
+                                                                       &workflow_ctx.layer_rasters,
+                                                                       workflow_ctx.editor.active_layer_id,
+                                                                       p2x,
+                                                                       p2y,
+                                                                       expected_draw_value),
+                       "selection_additive_seed_second_sample")) {
+            return 1;
+        }
+        drawing_program_selection_reset(&workflow_ctx.selection);
+        if (!drawing_program_selection_capture_from_rect(&workflow_ctx.document,
+                                                         &workflow_ctx.layer_rasters,
+                                                         workflow_ctx.editor.active_layer_id,
+                                                         &workflow_ctx.selection,
+                                                         (int32_t)p1x,
+                                                         (int32_t)p1y,
+                                                         1u,
+                                                         1u)) {
+            fprintf(stderr, "lifecycle_test: expected base 1x1 capture for additive selection\n");
+            return 1;
+        }
+        if (!drawing_program_selection_add_from_rect(&workflow_ctx.document,
+                                                     &workflow_ctx.layer_rasters,
+                                                     workflow_ctx.editor.active_layer_id,
+                                                     &workflow_ctx.selection,
+                                                     (int32_t)p2x,
+                                                     (int32_t)p2y,
+                                                     1u,
+                                                     1u)) {
+            fprintf(stderr, "lifecycle_test: expected additive marquee capture to succeed\n");
+            return 1;
+        }
+        if (!workflow_ctx.selection.has_payload || workflow_ctx.selection.payload_count != 2u) {
+            fprintf(stderr,
+                    "lifecycle_test: expected additive selection payload_count=2 got=%u\n",
+                    (unsigned)workflow_ctx.selection.payload_count);
+            return 1;
+        }
+        min_x = (p1x < p2x) ? p1x : p2x;
+        min_y = (p1y < p2y) ? p1y : p2y;
+        max_x = (p1x > p2x) ? p1x : p2x;
+        max_y = (p1y > p2y) ? p1y : p2y;
+        if (workflow_ctx.selection.origin_x != min_x ||
+            workflow_ctx.selection.origin_y != min_y ||
+            workflow_ctx.selection.width != (max_x - min_x + 1u) ||
+            workflow_ctx.selection.height != (max_y - min_y + 1u)) {
+            fprintf(stderr,
+                    "lifecycle_test: additive selection bounds mismatch origin=%u,%u size=%ux%u expected_origin=%u,%u expected_size=%ux%u\n",
+                    (unsigned)workflow_ctx.selection.origin_x,
+                    (unsigned)workflow_ctx.selection.origin_y,
+                    (unsigned)workflow_ctx.selection.width,
+                    (unsigned)workflow_ctx.selection.height,
+                    (unsigned)min_x,
+                    (unsigned)min_y,
+                    (unsigned)(max_x - min_x + 1u),
+                    (unsigned)(max_y - min_y + 1u));
+            return 1;
+        }
+        local1_index = (p1y - min_y) * workflow_ctx.selection.width + (p1x - min_x);
+        local2_index = (p2y - min_y) * workflow_ctx.selection.width + (p2x - min_x);
+        if (local1_index >= DRAWING_PROGRAM_SELECTION_MAX_AREA ||
+            local2_index >= DRAWING_PROGRAM_SELECTION_MAX_AREA ||
+            workflow_ctx.selection.payload_mask[local1_index] == 0u ||
+            workflow_ctx.selection.payload_mask[local2_index] == 0u) {
+            fprintf(stderr, "lifecycle_test: additive selection missing one of expected payload points\n");
+            return 1;
+        }
+        if (!drawing_program_selection_add_from_rect(&workflow_ctx.document,
+                                                     &workflow_ctx.layer_rasters,
+                                                     workflow_ctx.editor.active_layer_id,
+                                                     &workflow_ctx.selection,
+                                                     -32,
+                                                     -32,
+                                                     1u,
+                                                     1u) ||
+            workflow_ctx.selection.payload_count != 2u) {
+            fprintf(stderr, "lifecycle_test: additive empty marquee should preserve current selection payload\n");
+            return 1;
+        }
+    }
     if (!drawing_program_selection_select_all(&workflow_ctx.document,
                                               &workflow_ctx.layer_rasters,
                                               workflow_ctx.editor.active_layer_id,
