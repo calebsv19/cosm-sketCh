@@ -8,6 +8,12 @@ Last updated: 2026-04-12
   - visual input path binds `Shift + SELECT marquee drag` to additive capture (existing selection payload is preserved and merged)
   - additive-empty marquee over background now preserves current selection payload instead of clearing it
   - lifecycle regression coverage now includes additive merge bounds/payload assertions
+- Phase 11 `S2` subtractive marquee baseline is now implemented:
+  - runtime selection contract now supports subtractive marquee capture (`drawing_program_selection_subtract_from_rect`, `drawing_program_selection_subtract_from_marquee`)
+  - visual input path binds `Alt/Option + SELECT marquee drag` to subtract selected payload region
+  - subtractive capture compacts selection bounds to remaining payload extents
+  - subtractive final-payload removal resets selection state to empty deterministically
+  - lifecycle regression coverage now includes subtractive collapse/reset assertions
 - Canvas seed shape is no longer fixed square-only:
   - default seed remains `512x512`
   - runtime boot now supports explicit non-square overrides:

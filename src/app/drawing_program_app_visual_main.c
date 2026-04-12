@@ -1203,17 +1203,25 @@ typedef struct VisualPanelUiState {
     int mouse_y;
 } VisualPanelUiState;
 
+typedef enum VisualMarqueeCommitMode {
+    VISUAL_MARQUEE_COMMIT_REPLACE = 0,
+    VISUAL_MARQUEE_COMMIT_ADD = 1,
+    VISUAL_MARQUEE_COMMIT_SUBTRACT = 2
+} VisualMarqueeCommitMode;
+
 static int visual_selection_capture_from_marquee(DrawingProgramAppContext *ctx,
                                                  VisualSelectionState *selection,
-                                                 uint8_t additive) {
+                                                 VisualMarqueeCommitMode mode) {
     if (!ctx) {
         return 0;
     }
-    if (additive) {
-        return drawing_program_selection_add_from_marquee(&ctx->document,
-                                                          &ctx->layer_rasters,
-                                                          ctx->editor.active_layer_id,
-                                                          selection);
+    if (mode == VISUAL_MARQUEE_COMMIT_ADD) {
+        return drawing_program_selection_add_from_marquee(
+            &ctx->document, &ctx->layer_rasters, ctx->editor.active_layer_id, selection);
+    }
+    if (mode == VISUAL_MARQUEE_COMMIT_SUBTRACT) {
+        return drawing_program_selection_subtract_from_marquee(
+            &ctx->document, &ctx->layer_rasters, ctx->editor.active_layer_id, selection);
     }
     return drawing_program_selection_capture_from_marquee(&ctx->document,
                                                           &ctx->layer_rasters,
@@ -4603,8 +4611,14 @@ static int run_visual_mode(int argc, char **argv) {
                         }
                     }
                     if (selection_state.selecting) {
-                        uint8_t additive = ((SDL_GetModState() & KMOD_SHIFT) != 0) ? 1u : 0u;
-                        (void)visual_selection_capture_from_marquee(&app, &selection_state, additive);
+                        SDL_Keymod mods = SDL_GetModState();
+                        VisualMarqueeCommitMode mode = VISUAL_MARQUEE_COMMIT_REPLACE;
+                        if ((mods & KMOD_ALT) != 0) {
+                            mode = VISUAL_MARQUEE_COMMIT_SUBTRACT;
+                        } else if ((mods & KMOD_SHIFT) != 0) {
+                            mode = VISUAL_MARQUEE_COMMIT_ADD;
+                        }
+                        (void)visual_selection_capture_from_marquee(&app, &selection_state, mode);
                     }
                     if (selection_state.moving) {
                         begin_canvas_history_group(&app);

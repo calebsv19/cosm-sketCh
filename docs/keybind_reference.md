@@ -49,6 +49,7 @@ Scope: current implemented runtime controls (`sdl-debug` lane)
 - `Left drag` (`LINE` / `RECT` / `CIRCLE`): preview then commit on release
 - `Left drag` (`SELECT`): marquee select
 - `Shift + Left drag` (`SELECT`): add marquee payload to current selection
+- `Alt/Option + Left drag` (`SELECT`): subtract marquee payload from current selection
 - `Left drag` (`MOVE`, with active selection): move selection
 - `Arrow` (`MOVE`, with active selection): nudge by 1 sample
 - `Shift+Arrow` (`MOVE`, with active selection): nudge by 10 samples

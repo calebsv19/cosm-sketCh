@@ -76,6 +76,14 @@ int drawing_program_selection_add_from_rect(const DrawingProgramDocument *docume
                                             int32_t y0,
                                             uint32_t width,
                                             uint32_t height);
+int drawing_program_selection_subtract_from_rect(const DrawingProgramDocument *document,
+                                                 const DrawingProgramLayerRasterStore *layer_rasters,
+                                                 uint32_t active_layer_id,
+                                                 DrawingProgramSelectionState *selection,
+                                                 int32_t x0,
+                                                 int32_t y0,
+                                                 uint32_t width,
+                                                 uint32_t height);
 int drawing_program_selection_capture_from_marquee(const DrawingProgramDocument *document,
                                                    const DrawingProgramLayerRasterStore *layer_rasters,
                                                    uint32_t active_layer_id,
@@ -84,6 +92,10 @@ int drawing_program_selection_add_from_marquee(const DrawingProgramDocument *doc
                                                const DrawingProgramLayerRasterStore *layer_rasters,
                                                uint32_t active_layer_id,
                                                DrawingProgramSelectionState *selection);
+int drawing_program_selection_subtract_from_marquee(const DrawingProgramDocument *document,
+                                                    const DrawingProgramLayerRasterStore *layer_rasters,
+                                                    uint32_t active_layer_id,
+                                                    DrawingProgramSelectionState *selection);
 int drawing_program_selection_contains_sample(const DrawingProgramSelectionState *selection,
                                               uint32_t sample_x,
                                               uint32_t sample_y);

@@ -380,6 +380,176 @@ int drawing_program_selection_add_from_rect(const DrawingProgramDocument *docume
     return 1;
 }
 
+int drawing_program_selection_subtract_from_rect(const DrawingProgramDocument *document,
+                                                 const DrawingProgramLayerRasterStore *layer_rasters,
+                                                 uint32_t active_layer_id,
+                                                 DrawingProgramSelectionState *selection,
+                                                 int32_t x0,
+                                                 int32_t y0,
+                                                 uint32_t width,
+                                                 uint32_t height) {
+    DrawingProgramSelectionState incoming;
+    uint32_t x;
+    uint32_t y;
+    uint32_t min_local_x = 0u;
+    uint32_t min_local_y = 0u;
+    uint32_t max_local_x = 0u;
+    uint32_t max_local_y = 0u;
+    uint8_t found = 0u;
+    uint32_t new_w;
+    uint32_t new_h;
+    uint32_t new_area;
+    uint8_t *new_mask = 0;
+    uint8_t *new_value = 0;
+    uint32_t new_payload_count = 0u;
+    if (!document || !selection || width == 0u || height == 0u) {
+        return 0;
+    }
+    if (!selection->has_payload ||
+        selection->payload_count == 0u ||
+        selection->width == 0u ||
+        selection->height == 0u) {
+        drawing_program_selection_reset(selection);
+        return 0;
+    }
+    drawing_program_selection_reset(&incoming);
+    if (!drawing_program_selection_capture_from_rect(document,
+                                                     layer_rasters,
+                                                     active_layer_id,
+                                                     &incoming,
+                                                     x0,
+                                                     y0,
+                                                     width,
+                                                     height)) {
+        selection->selecting = 0u;
+        selection->moving = 0u;
+        selection->offset_x = 0;
+        selection->offset_y = 0;
+        return 1;
+    }
+    if (incoming.layer_id != selection->layer_id) {
+        selection->selecting = 0u;
+        selection->moving = 0u;
+        selection->offset_x = 0;
+        selection->offset_y = 0;
+        return 1;
+    }
+    for (y = 0u; y < selection->height; ++y) {
+        for (x = 0u; x < selection->width; ++x) {
+            uint32_t src_index = y * selection->width + x;
+            uint32_t global_x = selection->origin_x + x;
+            uint32_t global_y = selection->origin_y + y;
+            if (src_index >= DRAWING_PROGRAM_SELECTION_MAX_AREA || !selection->payload_mask[src_index]) {
+                continue;
+            }
+            if (global_x >= incoming.origin_x &&
+                global_x < (incoming.origin_x + incoming.width) &&
+                global_y >= incoming.origin_y &&
+                global_y < (incoming.origin_y + incoming.height)) {
+                uint32_t incoming_local_x = global_x - incoming.origin_x;
+                uint32_t incoming_local_y = global_y - incoming.origin_y;
+                uint32_t incoming_index = incoming_local_y * incoming.width + incoming_local_x;
+                if (incoming_index < DRAWING_PROGRAM_SELECTION_MAX_AREA &&
+                    incoming.payload_mask[incoming_index]) {
+                    continue;
+                }
+            }
+            if (!found) {
+                min_local_x = x;
+                min_local_y = y;
+                max_local_x = x;
+                max_local_y = y;
+                found = 1u;
+            } else {
+                if (x < min_local_x) {
+                    min_local_x = x;
+                }
+                if (y < min_local_y) {
+                    min_local_y = y;
+                }
+                if (x > max_local_x) {
+                    max_local_x = x;
+                }
+                if (y > max_local_y) {
+                    max_local_y = y;
+                }
+            }
+        }
+    }
+    if (!found) {
+        drawing_program_selection_reset(selection);
+        return 0;
+    }
+    new_w = max_local_x - min_local_x + 1u;
+    new_h = max_local_y - min_local_y + 1u;
+    new_area = new_w * new_h;
+    if (new_w == 0u || new_h == 0u || new_area > DRAWING_PROGRAM_SELECTION_MAX_AREA) {
+        drawing_program_selection_reset(selection);
+        return 0;
+    }
+    new_mask = (uint8_t *)calloc(new_area, sizeof(uint8_t));
+    new_value = (uint8_t *)calloc(new_area, sizeof(uint8_t));
+    if (!new_mask || !new_value) {
+        free(new_mask);
+        free(new_value);
+        return 0;
+    }
+    for (y = min_local_y; y <= max_local_y; ++y) {
+        for (x = min_local_x; x <= max_local_x; ++x) {
+            uint32_t src_index = y * selection->width + x;
+            uint32_t global_x = selection->origin_x + x;
+            uint32_t global_y = selection->origin_y + y;
+            uint32_t dst_x = x - min_local_x;
+            uint32_t dst_y = y - min_local_y;
+            uint32_t dst_index = dst_y * new_w + dst_x;
+            if (src_index >= DRAWING_PROGRAM_SELECTION_MAX_AREA || !selection->payload_mask[src_index]) {
+                continue;
+            }
+            if (global_x >= incoming.origin_x &&
+                global_x < (incoming.origin_x + incoming.width) &&
+                global_y >= incoming.origin_y &&
+                global_y < (incoming.origin_y + incoming.height)) {
+                uint32_t incoming_local_x = global_x - incoming.origin_x;
+                uint32_t incoming_local_y = global_y - incoming.origin_y;
+                uint32_t incoming_index = incoming_local_y * incoming.width + incoming_local_x;
+                if (incoming_index < DRAWING_PROGRAM_SELECTION_MAX_AREA &&
+                    incoming.payload_mask[incoming_index]) {
+                    continue;
+                }
+            }
+            if (dst_index >= new_area) {
+                continue;
+            }
+            new_mask[dst_index] = 1u;
+            new_value[dst_index] = selection->payload_value[src_index];
+            new_payload_count += 1u;
+        }
+    }
+    if (new_payload_count == 0u) {
+        free(new_mask);
+        free(new_value);
+        drawing_program_selection_reset(selection);
+        return 0;
+    }
+    memset(selection->payload_mask, 0, sizeof(selection->payload_mask));
+    memset(selection->payload_value, 0, sizeof(selection->payload_value));
+    memcpy(selection->payload_mask, new_mask, new_area);
+    memcpy(selection->payload_value, new_value, new_area);
+    selection->origin_x += min_local_x;
+    selection->origin_y += min_local_y;
+    selection->width = new_w;
+    selection->height = new_h;
+    selection->payload_count = new_payload_count;
+    selection->has_payload = 1u;
+    selection->selecting = 0u;
+    selection->moving = 0u;
+    selection->offset_x = 0;
+    selection->offset_y = 0;
+    free(new_mask);
+    free(new_value);
+    return 1;
+}
+
 int drawing_program_selection_capture_from_marquee(const DrawingProgramDocument *document,
                                                    const DrawingProgramLayerRasterStore *layer_rasters,
                                                    uint32_t active_layer_id,
@@ -452,6 +622,43 @@ int drawing_program_selection_add_from_marquee(const DrawingProgramDocument *doc
                                                    (int32_t)min_y,
                                                    width,
                                                    height);
+}
+
+int drawing_program_selection_subtract_from_marquee(const DrawingProgramDocument *document,
+                                                    const DrawingProgramLayerRasterStore *layer_rasters,
+                                                    uint32_t active_layer_id,
+                                                    DrawingProgramSelectionState *selection) {
+    uint32_t min_x;
+    uint32_t min_y;
+    uint32_t max_x;
+    uint32_t max_y;
+    uint32_t width;
+    uint32_t height;
+    if (!document || !selection || !selection->selecting) {
+        return 0;
+    }
+    min_x = (selection->marquee_start_x < selection->marquee_end_x)
+                ? selection->marquee_start_x
+                : selection->marquee_end_x;
+    min_y = (selection->marquee_start_y < selection->marquee_end_y)
+                ? selection->marquee_start_y
+                : selection->marquee_end_y;
+    max_x = (selection->marquee_start_x > selection->marquee_end_x)
+                ? selection->marquee_start_x
+                : selection->marquee_end_x;
+    max_y = (selection->marquee_start_y > selection->marquee_end_y)
+                ? selection->marquee_start_y
+                : selection->marquee_end_y;
+    width = max_x - min_x + 1u;
+    height = max_y - min_y + 1u;
+    return drawing_program_selection_subtract_from_rect(document,
+                                                        layer_rasters,
+                                                        active_layer_id,
+                                                        selection,
+                                                        (int32_t)min_x,
+                                                        (int32_t)min_y,
+                                                        width,
+                                                        height);
 }
 
 int drawing_program_selection_contains_sample(const DrawingProgramSelectionState *selection,

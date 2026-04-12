@@ -65,6 +65,7 @@ Near-term (active):
     - `S5` complete: phase closeout, regression guard for large marquee bounds, and boundary lock
   - next: Phase 11 tool-depth lane:
     - `S1` complete: additive marquee selection baseline (`Shift+SELECT` drag merge + lifecycle regression coverage)
+    - `S2` complete: subtractive marquee selection baseline (`Alt/Option+SELECT` drag carve-out + selection-bound compaction)
     - next: select/move fidelity upgrades (transform polish and multi-region quality beyond additive merge baseline)
     - shape/fill depth (mode controls expansion, tolerance semantics, large-canvas responsiveness)
     - continued UI/control polish while preserving locked runtime/overlay contracts

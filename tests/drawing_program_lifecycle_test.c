@@ -377,6 +377,48 @@ int main(void) {
             fprintf(stderr, "lifecycle_test: additive empty marquee should preserve current selection payload\n");
             return 1;
         }
+        if (!drawing_program_selection_subtract_from_rect(&workflow_ctx.document,
+                                                          &workflow_ctx.layer_rasters,
+                                                          workflow_ctx.editor.active_layer_id,
+                                                          &workflow_ctx.selection,
+                                                          (int32_t)p2x,
+                                                          (int32_t)p2y,
+                                                          1u,
+                                                          1u)) {
+            fprintf(stderr, "lifecycle_test: expected subtractive selection capture to succeed\n");
+            return 1;
+        }
+        if (!workflow_ctx.selection.has_payload ||
+            workflow_ctx.selection.payload_count != 1u ||
+            workflow_ctx.selection.origin_x != p1x ||
+            workflow_ctx.selection.origin_y != p1y ||
+            workflow_ctx.selection.width != 1u ||
+            workflow_ctx.selection.height != 1u ||
+            workflow_ctx.selection.payload_mask[0] == 0u) {
+            fprintf(stderr,
+                    "lifecycle_test: subtractive selection did not collapse to remaining payload origin=%u,%u size=%ux%u count=%u\n",
+                    (unsigned)workflow_ctx.selection.origin_x,
+                    (unsigned)workflow_ctx.selection.origin_y,
+                    (unsigned)workflow_ctx.selection.width,
+                    (unsigned)workflow_ctx.selection.height,
+                    (unsigned)workflow_ctx.selection.payload_count);
+            return 1;
+        }
+        if (drawing_program_selection_subtract_from_rect(&workflow_ctx.document,
+                                                         &workflow_ctx.layer_rasters,
+                                                         workflow_ctx.editor.active_layer_id,
+                                                         &workflow_ctx.selection,
+                                                         (int32_t)p1x,
+                                                         (int32_t)p1y,
+                                                         1u,
+                                                         1u)) {
+            fprintf(stderr, "lifecycle_test: subtractive selection should clear and return 0 on final payload removal\n");
+            return 1;
+        }
+        if (workflow_ctx.selection.has_payload || workflow_ctx.selection.payload_count != 0u) {
+            fprintf(stderr, "lifecycle_test: subtractive final removal should reset selection state\n");
+            return 1;
+        }
     }
     if (!drawing_program_selection_select_all(&workflow_ctx.document,
                                               &workflow_ctx.layer_rasters,
