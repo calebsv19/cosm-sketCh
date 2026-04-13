@@ -3600,7 +3600,7 @@ static void draw_right_panel_chrome(SDL_Renderer *renderer,
                                     const VisualPanelUiState *ui,
                                     const VisualSelectionState *selection,
                                     const VisualCanvasInteractionState *interaction) {
-    char line[96];
+    char line[160];
     uint8_t right_slot;
     VisualPaneLayoutMetrics m;
     VisualThemePalette p;
@@ -3612,7 +3612,6 @@ static void draw_right_panel_chrome(SDL_Renderer *renderer,
     uint8_t active_locked = 0u;
     uint8_t active_opacity = 100u;
     uint32_t i;
-    (void)interaction;
     if (!renderer || !ctx) {
         return;
     }
@@ -3662,6 +3661,7 @@ static void draw_right_panel_chrome(SDL_Renderer *renderer,
 
     if (right_slot == VISUAL_RIGHT_PANEL_SLOT_CANVAS) {
         const char *pointer_state = "POINTER: PANEL";
+        const char *interaction_hint = "LMB: DRAW  RMB: PAN VIEW  WHEEL: ZOOM";
         uint32_t history_cursor_units = 0u;
         uint32_t history_count_units = 0u;
         uint8_t active_color_index = drawing_program_color_index_clamp(ctx->ui_active_color_index);
@@ -3680,6 +3680,7 @@ static void draw_right_panel_chrome(SDL_Renderer *renderer,
         uint32_t selection_h = (selection && selection->has_payload) ? selection->height : 0u;
         uint32_t selection_payload = (selection && selection->has_payload) ? selection->payload_count : 0u;
         uint32_t selection_layer_id = (selection && selection->has_payload) ? selection->layer_id : 0u;
+        uint32_t selection_regions = 0u;
         int delete_selection_enabled = (selection &&
                                         selection->has_payload &&
                                         active_layer_allows_edits_visual(ctx))
@@ -3689,11 +3690,39 @@ static void draw_right_panel_chrome(SDL_Renderer *renderer,
         uint32_t clipboard_h = ctx->clipboard.has_payload ? ctx->clipboard.height : 0u;
         uint32_t clipboard_payload = ctx->clipboard.has_payload ? ctx->clipboard.payload_count : 0u;
         uint32_t clipboard_source_layer_id = ctx->clipboard.has_payload ? ctx->clipboard.source_layer_id : 0u;
+        const char *transform_axis = "FREE";
         if (ui && ui->mouse_known) {
             SDL_Rect canvas_rect = { 0, 0, 0, 0 };
             if (pane_rect_for_module_type(ctx, 1u, &canvas_rect) &&
                 point_in_rect(canvas_rect, ui->mouse_x, ui->mouse_y)) {
                 pointer_state = "POINTER: CANVAS";
+            }
+        }
+        if (selection && selection->has_payload) {
+            VisualSelectionComponentBounds components[VISUAL_SELECTION_MAX_COMPONENT_BOUNDS];
+            selection_regions = collect_selection_component_bounds(selection,
+                                                                   components,
+                                                                   VISUAL_SELECTION_MAX_COMPONENT_BOUNDS);
+            if (selection_regions == 0u) {
+                selection_regions = 1u;
+            }
+        }
+        if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_SELECT) {
+            interaction_hint = "LMB: MARQUEE  SHIFT:ADD  ALT:SUBTRACT";
+        } else if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_MOVE) {
+            interaction_hint = selection && selection->has_payload
+                                   ? "LMB: MOVE SEL  ARROWS:NUDGE  SHIFT+ARROW:x10"
+                                   : "MOVE TOOL: NO ACTIVE SELECTION";
+        } else if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_FILL) {
+            interaction_hint = "LMB: FILL REGION  TOLERANCE CONTROLS MATCH RANGE";
+        } else if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_PICKER) {
+            interaction_hint = "LMB: PICK COLOR";
+        }
+        if (selection && selection->moving) {
+            if (interaction && interaction->move_axis_lock == 1u) {
+                transform_axis = "X";
+            } else if (interaction && interaction->move_axis_lock == 2u) {
+                transform_axis = "Y";
             }
         }
         drawing_program_history_query_units(&ctx->history, &history_cursor_units, &history_count_units);
@@ -3774,19 +3803,42 @@ static void draw_right_panel_chrome(SDL_Renderer *renderer,
         (void)snprintf(line, sizeof(line), "VIEW Z%.2fx PAN %d,%d", (double)ctx->editor.viewport.zoom, (int)ctx->editor.viewport.pan_x, (int)ctx->editor.viewport.pan_y);
         draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
         y += m.line_h;
-        (void)snprintf(line, sizeof(line), "RASTER %ux%u", ctx->document.raster_width, ctx->document.raster_height);
+        if (selection && selection->has_payload) {
+            (void)snprintf(line,
+                           sizeof(line),
+                           "SELECTION %ux%u P%u R%u L%u",
+                           selection_w,
+                           selection_h,
+                           selection_payload,
+                           selection_regions,
+                           selection_layer_id);
+        } else {
+            (void)snprintf(line, sizeof(line), "SELECTION NONE");
+        }
         draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
         y += m.line_h;
-        (void)snprintf(line, sizeof(line), "SELECTION %ux%u P%u L%u", selection_w, selection_h, selection_payload, selection_layer_id);
+        if (selection && selection->moving) {
+            (void)snprintf(line,
+                           sizeof(line),
+                           "TRANSFORM MOVE d(%d,%d) AXIS %s",
+                           (int)selection->offset_x,
+                           (int)selection->offset_y,
+                           transform_axis);
+        } else if (selection && selection->selecting) {
+            (void)snprintf(line, sizeof(line), "TRANSFORM MARQUEE ACTIVE");
+        } else {
+            (void)snprintf(line, sizeof(line), "TRANSFORM IDLE");
+        }
         draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
         y += m.line_h;
-        (void)snprintf(line, sizeof(line), "CLIPBOARD %ux%u P%u L%u", clipboard_w, clipboard_h, clipboard_payload, clipboard_source_layer_id);
-        draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
-        y += m.line_h;
-        (void)snprintf(line, sizeof(line), "SELSCOPE %s", drawing_program_selection_scope_policy_label());
-        draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
-        y += m.line_h;
+        if (ctx->clipboard.has_payload) {
+            (void)snprintf(line, sizeof(line), "CLIPBOARD %ux%u P%u L%u", clipboard_w, clipboard_h, clipboard_payload, clipboard_source_layer_id);
+            draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
+            y += m.line_h;
+        }
         draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, pointer_state, p.text_muted, m.body_scale);
+        y += m.line_h;
+        draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, interaction_hint, p.text_muted, m.body_scale);
 
         reset_view_button = right_canvas_reset_view_button_rect(rect, m);
         clear_canvas_button = right_canvas_clear_canvas_button_rect(rect, m);

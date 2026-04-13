@@ -51,6 +51,13 @@ Last updated: 2026-04-12
     - line tool now exposes stroke width only (mode toggle removed for line)
     - telemetry distinguishes `LINE` (width only) vs `RECT/CIRCLE` (width + mode)
   - lifecycle regression coverage now asserts out-of-range fill tolerance persistence clamps to max
+- Phase 12 `S4` interaction/telemetry polish is now implemented:
+  - right `CANVAS` panel telemetry is tightened to high-signal rows and runtime-driven status:
+    - selection row includes sparse payload region count
+    - transform row reports `IDLE` / `MARQUEE ACTIVE` / active move delta + axis lock
+    - clipboard row is conditional (shown only when clipboard payload exists)
+  - runtime context hint row now switches by active tool state (`SELECT`/`MOVE`/`FILL`/`PICKER`) and reflects active-selection requirements for move operations
+  - pointer/selection/transform telemetry is now derived from live frame state instead of static always-on status text
 - Canvas seed shape is no longer fixed square-only:
   - default seed remains `512x512`
   - runtime boot now supports explicit non-square overrides:

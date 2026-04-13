@@ -74,8 +74,8 @@ Near-term (active):
     - `S1` complete: selection-set baseline (plain marquee replace semantics + border-only marquee visualization + replace-after-add regression coverage)
     - `S2` complete: transform-session v2 baseline (move-session contract unification for drag + nudge commit paths)
     - `S3` complete: shape/fill depth (tolerance semantics, bounded row-span fill pass, line-mode control cleanup)
-    - next: `S4` interaction/telemetry polish
-    - pending: `S5` closeout + next-boundary lock
+    - `S4` complete: interaction/telemetry polish (runtime-driven selection/transform rows + context hints)
+    - next: `S5` closeout + next-boundary lock
   - in-flight source split continuity (active worktree):
     - runtime helpers are now explicitly split into `drawing_program_layer_raster.*` and `drawing_program_selection.*`
     - keep doc updates coupled to these slices before phase closeout commit
