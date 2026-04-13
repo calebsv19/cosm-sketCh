@@ -377,6 +377,51 @@ int main(void) {
             fprintf(stderr, "lifecycle_test: additive empty marquee should preserve current selection payload\n");
             return 1;
         }
+        if (!drawing_program_selection_capture_from_rect(&workflow_ctx.document,
+                                                         &workflow_ctx.layer_rasters,
+                                                         workflow_ctx.editor.active_layer_id,
+                                                         &workflow_ctx.selection,
+                                                         (int32_t)p1x,
+                                                         (int32_t)p1y,
+                                                         1u,
+                                                         1u)) {
+            fprintf(stderr, "lifecycle_test: expected plain marquee replace capture to succeed\n");
+            return 1;
+        }
+        if (!workflow_ctx.selection.has_payload ||
+            workflow_ctx.selection.payload_count != 1u ||
+            workflow_ctx.selection.origin_x != p1x ||
+            workflow_ctx.selection.origin_y != p1y ||
+            workflow_ctx.selection.width != 1u ||
+            workflow_ctx.selection.height != 1u ||
+            workflow_ctx.selection.payload_mask[0] == 0u) {
+            fprintf(stderr,
+                    "lifecycle_test: expected plain marquee replace to clear prior additive payload and keep only replace rect\n");
+            return 1;
+        }
+        drawing_program_selection_reset(&workflow_ctx.selection);
+        if (!drawing_program_selection_capture_from_rect(&workflow_ctx.document,
+                                                         &workflow_ctx.layer_rasters,
+                                                         workflow_ctx.editor.active_layer_id,
+                                                         &workflow_ctx.selection,
+                                                         (int32_t)p1x,
+                                                         (int32_t)p1y,
+                                                         1u,
+                                                         1u)) {
+            fprintf(stderr, "lifecycle_test: expected base 1x1 recapture for subtractive regression\n");
+            return 1;
+        }
+        if (!drawing_program_selection_add_from_rect(&workflow_ctx.document,
+                                                     &workflow_ctx.layer_rasters,
+                                                     workflow_ctx.editor.active_layer_id,
+                                                     &workflow_ctx.selection,
+                                                     (int32_t)p2x,
+                                                     (int32_t)p2y,
+                                                     1u,
+                                                     1u)) {
+            fprintf(stderr, "lifecycle_test: expected additive recapture before subtractive regression\n");
+            return 1;
+        }
         if (!drawing_program_selection_subtract_from_rect(&workflow_ctx.document,
                                                           &workflow_ctx.layer_rasters,
                                                           workflow_ctx.editor.active_layer_id,

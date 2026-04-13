@@ -28,6 +28,11 @@ Last updated: 2026-04-12
   - phase lane documented in private plan: `docs/private_program_docs/drawing_program/2026-04-12_drawing_program_phase_11_tool_depth_selection_fidelity_plan.md`
   - S4 implementation gates were completed on current head (`make clean && make`, `make test`, `make run-headless`, `make visual-harness`, `make package-desktop-self-test`, `make package-desktop-refresh`)
   - boundary lock advanced to Phase 12 behavior-depth work (selection/move multi-region quality + shape/fill depth)
+- Phase 12 `S1` selection-set baseline is now implemented:
+  - plain marquee replace behavior is explicitly locked (`SELECT + drag` replaces prior selection)
+  - additive/subtractive marquee behavior remains explicit (`Shift` add, `Alt/Option` subtract) with drag-start intent lock from Phase 11
+  - live marquee visualization is border-only (no interior overlay tint), keeping selected canvas content visible during drag
+  - lifecycle regression coverage now asserts replace-after-add selection semantics
 - Canvas seed shape is no longer fixed square-only:
   - default seed remains `512x512`
   - runtime boot now supports explicit non-square overrides:

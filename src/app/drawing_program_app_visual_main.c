@@ -2524,10 +2524,13 @@ static void draw_selection_overlay(SDL_Renderer *renderer,
         uint32_t w = (uint32_t)(max_x - min_x + 1);
         uint32_t h = (uint32_t)(max_y - min_y + 1);
         if (selection_sample_rect_to_screen_rect(metrics, min_x, min_y, w, h, &rect)) {
-            SDL_SetRenderDrawColor(renderer, accent.r, accent.g, accent.b, 32u);
-            (void)SDL_RenderFillRect(renderer, &rect);
             SDL_SetRenderDrawColor(renderer, accent.r, accent.g, accent.b, 240u);
             (void)SDL_RenderDrawRect(renderer, &rect);
+            if (rect.w > 2 && rect.h > 2) {
+                SDL_Rect inner = { rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2 };
+                SDL_SetRenderDrawColor(renderer, accent_alt.r, accent_alt.g, accent_alt.b, 220u);
+                (void)SDL_RenderDrawRect(renderer, &inner);
+            }
         }
     }
     if (selection->has_payload && selection->width > 0u && selection->height > 0u) {

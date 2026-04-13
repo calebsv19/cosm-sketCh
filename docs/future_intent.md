@@ -70,9 +70,12 @@ Near-term (active):
     - `S4` complete: marquee-intent lock + canvas-panel delete-selection workflow action
     - `S5` complete: phase closeout + boundary lock
   - next: Phase 12 behavior-depth lane:
-    - select/move multi-region quality and transform affordance depth beyond clamp + intent-lock baseline
-    - shape/fill depth (mode-control expansion, tolerance semantics, large-canvas responsiveness)
-    - continued UI/control polish while preserving locked runtime/overlay contracts
+    - kickoff doc: `docs/private_program_docs/drawing_program/2026-04-12_drawing_program_phase_12_behavior_depth_plan.md`
+    - `S1` complete: selection-set baseline (plain marquee replace semantics + border-only marquee visualization + replace-after-add regression coverage)
+    - next: `S2` transform-session v2 (move-first session contract unification)
+    - pending: `S3` shape/fill depth (mode-control expansion, tolerance semantics, large-canvas responsiveness)
+    - pending: `S4` interaction/telemetry polish
+    - pending: `S5` closeout + next-boundary lock
   - in-flight source split continuity (active worktree):
     - runtime helpers are now explicitly split into `drawing_program_layer_raster.*` and `drawing_program_selection.*`
     - keep doc updates coupled to these slices before phase closeout commit

@@ -66,6 +66,7 @@ Scope: current implemented runtime controls (`sdl-debug` lane)
 - In `MOVE` mode, drag-start hit detection is payload-mask aware; transparent holes inside selection bounds do not start move drag unless a move handle is used.
 - In `MOVE` mode, drag/nudge offsets are clamped to canvas bounds so committed selection payload remains fully in-raster.
 - Marquee intent modifiers (`Shift` add, `Alt/Option` subtract) are captured at marquee start and held through mouse-up for deterministic commit mode.
+- Live marquee drag visualization is border-only (no interior tint fill).
 - `CLEAR CANVAS` is available as a right-panel `CANVAS` action button (no keybind assigned yet).
 - `DELETE SELECTION` is available as a right-panel `CANVAS` action button (no keybind assigned yet).
 - `DELETE SELECTED` is available as a right-panel `LAYER` action button (no keybind assigned yet).
