@@ -73,8 +73,8 @@ Near-term (active):
     - kickoff doc: `docs/private_program_docs/drawing_program/2026-04-12_drawing_program_phase_12_behavior_depth_plan.md`
     - `S1` complete: selection-set baseline (plain marquee replace semantics + border-only marquee visualization + replace-after-add regression coverage)
     - `S2` complete: transform-session v2 baseline (move-session contract unification for drag + nudge commit paths)
-    - next: `S3` shape/fill depth (mode-control expansion, tolerance semantics, large-canvas responsiveness)
-    - pending: `S4` interaction/telemetry polish
+    - `S3` complete: shape/fill depth (tolerance semantics, bounded row-span fill pass, line-mode control cleanup)
+    - next: `S4` interaction/telemetry polish
     - pending: `S5` closeout + next-boundary lock
   - in-flight source split continuity (active worktree):
     - runtime helpers are now explicitly split into `drawing_program_layer_raster.*` and `drawing_program_selection.*`

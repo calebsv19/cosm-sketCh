@@ -342,6 +342,29 @@ static uint32_t tool_shape_stroke_width(const DrawingProgramAppContext *ctx) {
     return (uint32_t)clamp_setting_u8(ctx ? ctx->ui_tool_shape_stroke_width : 1u, 1u, 16u);
 }
 
+static uint8_t tool_fill_tolerance_setting(const DrawingProgramAppContext *ctx) {
+    return clamp_setting_u8(ctx ? ctx->ui_tool_fill_tolerance : 0u,
+                            0u,
+                            (uint8_t)DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX);
+}
+
+static uint8_t fill_tolerance_sample_delta(uint8_t tolerance_setting) {
+    uint32_t delta = (uint32_t)tolerance_setting * (uint32_t)DRAWING_PROGRAM_UI_FILL_TOLERANCE_SAMPLE_SCALE;
+    if (delta > 255u) {
+        delta = 255u;
+    }
+    return (uint8_t)delta;
+}
+
+static int fill_sample_matches_tolerance(uint8_t sample, uint8_t target, uint8_t tolerance_setting) {
+    int diff = (int)sample - (int)target;
+    uint8_t threshold = fill_tolerance_sample_delta(tolerance_setting);
+    if (diff < 0) {
+        diff = -diff;
+    }
+    return (diff <= (int)threshold) ? 1 : 0;
+}
+
 static const char *shape_mode_name(uint8_t mode) {
     switch (clamp_setting_u8(mode, 0u, 2u)) {
         case 0u: return "OUTLINE";
@@ -436,6 +459,7 @@ static uint32_t visual_tool_option_count(const DrawingProgramAppContext *ctx, Dr
         case DRAWING_PROGRAM_TOOL_ERASER:
             return 1u;
         case DRAWING_PROGRAM_TOOL_LINE:
+            return 1u;
         case DRAWING_PROGRAM_TOOL_RECT:
         case DRAWING_PROGRAM_TOOL_CIRCLE:
             return 2u;
@@ -461,6 +485,7 @@ static VisualToolOptionKind visual_tool_option_kind_for_index(const DrawingProgr
         case DRAWING_PROGRAM_TOOL_ERASER:
             return VISUAL_TOOL_OPTION_ERASER_SIZE;
         case DRAWING_PROGRAM_TOOL_LINE:
+            return VISUAL_TOOL_OPTION_SHAPE_STROKE_WIDTH;
         case DRAWING_PROGRAM_TOOL_RECT:
         case DRAWING_PROGRAM_TOOL_CIRCLE:
             return (index == 0u) ? VISUAL_TOOL_OPTION_SHAPE_STROKE_WIDTH : VISUAL_TOOL_OPTION_SHAPE_MODE;
@@ -518,7 +543,7 @@ static void visual_tool_option_value_text(const DrawingProgramAppContext *ctx,
             (void)snprintf(out_text, out_cap, "%s", shape_mode_name(tool_shape_mode(ctx)));
             break;
         case VISUAL_TOOL_OPTION_FILL_TOLERANCE:
-            (void)snprintf(out_text, out_cap, "%u", (unsigned)clamp_setting_u8(ctx ? ctx->ui_tool_fill_tolerance : 0u, 0u, 16u));
+            (void)snprintf(out_text, out_cap, "%u", (unsigned)tool_fill_tolerance_setting(ctx));
             break;
         case VISUAL_TOOL_OPTION_SELECT_DELETE:
             (void)snprintf(out_text, out_cap, "DELETE");
@@ -590,7 +615,7 @@ static void visual_tool_option_adjust(DrawingProgramAppContext *ctx, VisualToolO
         case VISUAL_TOOL_OPTION_FILL_TOLERANCE: {
             int v = (int)ctx->ui_tool_fill_tolerance + delta;
             if (v < 0) v = 0;
-            if (v > 16) v = 16;
+            if (v > (int)DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX) v = (int)DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX;
             ctx->ui_tool_fill_tolerance = (uint8_t)v;
             break;
         }
@@ -1723,8 +1748,11 @@ static CoreResult apply_canvas_fill_at_screen(DrawingProgramAppContext *ctx,
     uint32_t head = 0u;
     uint32_t tail = 0u;
     uint32_t fill_region_count = 0u;
+    uint32_t min_region_y = 0u;
+    uint32_t max_region_y = 0u;
     uint8_t target = 0u;
     uint8_t replacement = 0u;
+    uint8_t tolerance_setting = 0u;
     CoreResult result;
     if (!ctx) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "null app context for fill" };
@@ -1747,6 +1775,7 @@ static CoreResult apply_canvas_fill_at_screen(DrawingProgramAppContext *ctx,
         return core_result_ok();
     }
     replacement = sample_value_for_tool(ctx, ctx->editor.active_tool);
+    tolerance_setting = tool_fill_tolerance_setting(ctx);
     result = drawing_program_layer_raster_store_export_layer(&ctx->layer_rasters,
                                                              active_layer_id,
                                                              &active_layer_samples,
@@ -1768,17 +1797,20 @@ static CoreResult apply_canvas_fill_at_screen(DrawingProgramAppContext *ctx,
     queue[tail++] = start_index;
     region_mask[start_index] = 1u;
     fill_region_count = 1u;
+    min_region_y = start_y;
+    max_region_y = start_y;
     while (head < tail) {
         uint32_t idx = queue[head++];
         uint32_t x = idx % width;
         uint32_t y = idx / width;
         uint8_t current = active_layer_samples[idx];
-        if (current != target) {
+        if (!fill_sample_matches_tolerance(current, target, tolerance_setting)) {
             continue;
         }
         if (x > 0u) {
             uint32_t n = idx - 1u;
-            if (!region_mask[n] && active_layer_samples[n] == target) {
+            if (!region_mask[n] &&
+                fill_sample_matches_tolerance(active_layer_samples[n], target, tolerance_setting)) {
                 if (tail >= ctx->document.raster_sample_count) {
                     return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "fill queue exhausted" };
                 }
@@ -1789,7 +1821,8 @@ static CoreResult apply_canvas_fill_at_screen(DrawingProgramAppContext *ctx,
         }
         if (x + 1u < width) {
             uint32_t n = idx + 1u;
-            if (!region_mask[n] && active_layer_samples[n] == target) {
+            if (!region_mask[n] &&
+                fill_sample_matches_tolerance(active_layer_samples[n], target, tolerance_setting)) {
                 if (tail >= ctx->document.raster_sample_count) {
                     return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "fill queue exhausted" };
                 }
@@ -1800,25 +1833,39 @@ static CoreResult apply_canvas_fill_at_screen(DrawingProgramAppContext *ctx,
         }
         if (y > 0u) {
             uint32_t n = idx - width;
-            if (!region_mask[n] && active_layer_samples[n] == target) {
+            if (!region_mask[n] &&
+                fill_sample_matches_tolerance(active_layer_samples[n], target, tolerance_setting)) {
                 if (tail >= ctx->document.raster_sample_count) {
                     return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "fill queue exhausted" };
                 }
                 region_mask[n] = 1u;
                 queue[tail++] = n;
                 fill_region_count += 1u;
+                if (y - 1u < min_region_y) {
+                    min_region_y = y - 1u;
+                }
             }
         }
         if (y + 1u < height) {
             uint32_t n = idx + width;
-            if (!region_mask[n] && active_layer_samples[n] == target) {
+            if (!region_mask[n] &&
+                fill_sample_matches_tolerance(active_layer_samples[n], target, tolerance_setting)) {
                 if (tail >= ctx->document.raster_sample_count) {
                     return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "fill queue exhausted" };
                 }
                 region_mask[n] = 1u;
                 queue[tail++] = n;
                 fill_region_count += 1u;
+                if (y + 1u > max_region_y) {
+                    max_region_y = y + 1u;
+                }
             }
+        }
+        if (y < min_region_y) {
+            min_region_y = y;
+        }
+        if (y > max_region_y) {
+            max_region_y = y;
         }
     }
     if (fill_region_count == 0u) {
@@ -1826,7 +1873,7 @@ static CoreResult apply_canvas_fill_at_screen(DrawingProgramAppContext *ctx,
     }
     {
         uint32_t y;
-        for (y = 0u; y < height; ++y) {
+        for (y = min_region_y; y <= max_region_y && y < height; ++y) {
             uint32_t x = 0u;
             uint32_t row_start = y * width;
             while (x < width) {
@@ -3689,18 +3736,27 @@ static void draw_right_panel_chrome(SDL_Renderer *renderer,
                            brush_radius,
                            brush_spacing);
         } else if (tool_uses_shape_commit(ctx->editor.active_tool)) {
-            (void)snprintf(line,
-                           sizeof(line),
-                           "TOOL %s  W%u MODE %s",
-                           tool_name(ctx->editor.active_tool),
-                           (unsigned)clamp_setting_u8(ctx->ui_tool_shape_stroke_width, 1u, 16u),
-                           shape_mode_name(tool_shape_mode(ctx)));
+            if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_LINE) {
+                (void)snprintf(line,
+                               sizeof(line),
+                               "TOOL %s  W%u",
+                               tool_name(ctx->editor.active_tool),
+                               (unsigned)clamp_setting_u8(ctx->ui_tool_shape_stroke_width, 1u, 16u));
+            } else {
+                (void)snprintf(line,
+                               sizeof(line),
+                               "TOOL %s  W%u MODE %s",
+                               tool_name(ctx->editor.active_tool),
+                               (unsigned)clamp_setting_u8(ctx->ui_tool_shape_stroke_width, 1u, 16u),
+                               shape_mode_name(tool_shape_mode(ctx)));
+            }
         } else if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_FILL) {
             (void)snprintf(line,
                            sizeof(line),
-                           "TOOL %s  TOL %u",
+                           "TOOL %s  TOL %u (d%u)",
                            tool_name(ctx->editor.active_tool),
-                           (unsigned)clamp_setting_u8(ctx->ui_tool_fill_tolerance, 0u, 16u));
+                           (unsigned)tool_fill_tolerance_setting(ctx),
+                           (unsigned)fill_tolerance_sample_delta(tool_fill_tolerance_setting(ctx)));
         } else {
             (void)snprintf(line, sizeof(line), "TOOL %s", tool_name(ctx->editor.active_tool));
         }

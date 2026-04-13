@@ -195,8 +195,8 @@ static void drawing_program_normalize_ui_state(DrawingProgramAppContext *ctx) {
     if (ctx->ui_tool_shape_mode > 2u) {
         ctx->ui_tool_shape_mode = 0u;
     }
-    if (ctx->ui_tool_fill_tolerance > 16u) {
-        ctx->ui_tool_fill_tolerance = 16u;
+    if (ctx->ui_tool_fill_tolerance > DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX) {
+        ctx->ui_tool_fill_tolerance = DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX;
     }
     drawing_program_ui_layer_opacity_sync_with_document(ctx);
 }

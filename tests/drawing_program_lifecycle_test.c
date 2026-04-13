@@ -2560,7 +2560,7 @@ int main(void) {
         save_ctx.ui_tool_eraser_size = 5u;
         save_ctx.ui_tool_shape_stroke_width = 4u;
         save_ctx.ui_tool_shape_mode = 2u;
-        save_ctx.ui_tool_fill_tolerance = 3u;
+        save_ctx.ui_tool_fill_tolerance = 255u;
         if (!expect_ok(drawing_program_app_shutdown(&save_ctx), "persist_roundtrip_shutdown_save")) {
             return 1;
         }
@@ -2590,9 +2590,9 @@ int main(void) {
             load_ctx.ui_tool_eraser_size != 5u ||
             load_ctx.ui_tool_shape_stroke_width != 4u ||
             load_ctx.ui_tool_shape_mode != 2u ||
-            load_ctx.ui_tool_fill_tolerance != 3u) {
+            load_ctx.ui_tool_fill_tolerance != DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX) {
             fprintf(stderr,
-                    "lifecycle_test: persistence roundtrip mismatch tool=%u theme=%u zoom=%d left=%u right=%u color=%u brush=%u/%u eraser=%u shape=%u mode=%u fill_tol=%u\n",
+                    "lifecycle_test: persistence roundtrip mismatch tool=%u theme=%u zoom=%d left=%u right=%u color=%u brush=%u/%u eraser=%u shape=%u mode=%u fill_tol=%u expected_fill_tol_max=%u\n",
                     (unsigned)load_ctx.editor.active_tool,
                     (unsigned)load_ctx.ui_theme_preset_id,
                     (int)load_ctx.ui_font_zoom_step,
@@ -2604,7 +2604,8 @@ int main(void) {
                     (unsigned)load_ctx.ui_tool_eraser_size,
                     (unsigned)load_ctx.ui_tool_shape_stroke_width,
                     (unsigned)load_ctx.ui_tool_shape_mode,
-                    (unsigned)load_ctx.ui_tool_fill_tolerance);
+                    (unsigned)load_ctx.ui_tool_fill_tolerance,
+                    (unsigned)DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX);
             return 1;
         }
         load_ctx.persist_enabled = 0u;

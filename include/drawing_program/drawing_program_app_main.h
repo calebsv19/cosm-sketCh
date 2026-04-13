@@ -20,6 +20,9 @@
 extern "C" {
 #endif
 
+#define DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX 32u
+#define DRAWING_PROGRAM_UI_FILL_TOLERANCE_SAMPLE_SCALE 8u
+
 typedef struct DrawingProgramAppContext {
     uint8_t headless;
     uint8_t print_lifecycle;

@@ -41,6 +41,16 @@ Last updated: 2026-04-12
   - this prevents disjoint multi-region selections from being inflated by unrelated pixels inside the moved bounding extent
   - selection overlay now renders disjoint payload components as multiple region outlines (connected-component bounds) instead of always showing one monolithic bounding box
   - lifecycle regression coverage now includes explicit move-tracking commit assertions to lock source-clear + destination-write parity
+- Phase 12 `S3` shape/fill depth pass is now implemented:
+  - fill tolerance semantics are now explicit and runtime-bound:
+    - setting range expanded to `0..32`
+    - sample-delta mapping uses scaled threshold (`setting * 8`, clamped)
+    - flood fill region matching now uses tolerance-aware comparisons instead of strict equality-only matching
+  - fill write pass now scans only touched row range during span commits (`min_region_y..max_region_y`) to keep large-canvas fills bounded
+  - shape mode control semantics are tightened for `LINE`:
+    - line tool now exposes stroke width only (mode toggle removed for line)
+    - telemetry distinguishes `LINE` (width only) vs `RECT/CIRCLE` (width + mode)
+  - lifecycle regression coverage now asserts out-of-range fill tolerance persistence clamps to max
 - Canvas seed shape is no longer fixed square-only:
   - default seed remains `512x512`
   - runtime boot now supports explicit non-square overrides:
