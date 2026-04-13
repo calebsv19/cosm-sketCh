@@ -24,6 +24,10 @@ Last updated: 2026-04-12
   - right `CANVAS` panel now includes `DELETE SELECTION` action button in the bottom action stack
   - `DELETE SELECTION` uses the same runtime payload-delete contract as keyboard delete/backspace paths and is edit-gated by active-layer visibility/lock policy
   - lifecycle regression coverage now includes explicit `drawing_program_selection_delete_payload(...)` clear/reset assertions
+- Phase 11 `S5` closeout is complete:
+  - phase lane documented in private plan: `docs/private_program_docs/drawing_program/2026-04-12_drawing_program_phase_11_tool_depth_selection_fidelity_plan.md`
+  - S4 implementation gates were completed on current head (`make clean && make`, `make test`, `make run-headless`, `make visual-harness`, `make package-desktop-self-test`, `make package-desktop-refresh`)
+  - boundary lock advanced to Phase 12 behavior-depth work (selection/move multi-region quality + shape/fill depth)
 - Canvas seed shape is no longer fixed square-only:
   - default seed remains `512x512`
   - runtime boot now supports explicit non-square overrides:

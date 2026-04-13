@@ -63,13 +63,15 @@ Near-term (active):
     - `S3` complete: shape mode policy wired to commit + preview (`OUTLINE`, `FILL`, `FILL+OUTLINE`) with stroke width consumption
     - `S4` complete: select/move correctness pass (payload-mask move hit gating + overlap/hole-preserve regression coverage)
     - `S5` complete: phase closeout, regression guard for large marquee bounds, and boundary lock
-  - next: Phase 11 tool-depth lane:
+  - Phase 11 tool-depth lane is complete (`docs/private_program_docs/drawing_program/2026-04-12_drawing_program_phase_11_tool_depth_selection_fidelity_plan.md`):
     - `S1` complete: additive marquee selection baseline (`Shift+SELECT` drag merge + lifecycle regression coverage)
     - `S2` complete: subtractive marquee selection baseline (`Alt/Option+SELECT` drag carve-out + selection-bound compaction)
     - `S3` complete: selection move transform polish (runtime + visual clamp-to-canvas bounds with min/max regression coverage)
     - `S4` complete: marquee-intent lock + canvas-panel delete-selection workflow action
-    - next: select/move fidelity upgrades (multi-region quality and transform affordance depth beyond clamp + intent-lock baseline)
-    - shape/fill depth (mode controls expansion, tolerance semantics, large-canvas responsiveness)
+    - `S5` complete: phase closeout + boundary lock
+  - next: Phase 12 behavior-depth lane:
+    - select/move multi-region quality and transform affordance depth beyond clamp + intent-lock baseline
+    - shape/fill depth (mode-control expansion, tolerance semantics, large-canvas responsiveness)
     - continued UI/control polish while preserving locked runtime/overlay contracts
   - in-flight source split continuity (active worktree):
     - runtime helpers are now explicitly split into `drawing_program_layer_raster.*` and `drawing_program_selection.*`
