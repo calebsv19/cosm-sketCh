@@ -365,6 +365,20 @@ int main(void) {
             fprintf(stderr, "lifecycle_test: additive selection missing one of expected payload points\n");
             return 1;
         }
+        if (max_x > min_x) {
+            uint32_t gap_x = min_x + 1u;
+            uint32_t gap_y = min_y;
+            uint32_t gap_index = (gap_y - min_y) * workflow_ctx.selection.width + (gap_x - min_x);
+            if (gap_index < DRAWING_PROGRAM_SELECTION_MAX_AREA &&
+                workflow_ctx.selection.payload_mask[gap_index] != 0u &&
+                !(gap_x == p1x && gap_y == p1y) &&
+                !(gap_x == p2x && gap_y == p2y)) {
+                fprintf(stderr,
+                        "lifecycle_test: additive selection unexpectedly filled interior gap at local index=%u\n",
+                        (unsigned)gap_index);
+                return 1;
+            }
+        }
         if (!drawing_program_selection_add_from_rect(&workflow_ctx.document,
                                                      &workflow_ctx.layer_rasters,
                                                      workflow_ctx.editor.active_layer_id,
@@ -857,6 +871,20 @@ int main(void) {
                     "lifecycle_test: expected destination-right value=%u got=%u\n",
                     (unsigned)value_right,
                     (unsigned)probe);
+            return 1;
+        }
+        if (!workflow_ctx.selection.has_payload ||
+            workflow_ctx.selection.origin_x != 12u ||
+            workflow_ctx.selection.origin_y != 10u ||
+            workflow_ctx.selection.width != 3u ||
+            workflow_ctx.selection.height != 1u ||
+            workflow_ctx.selection.payload_count != 2u ||
+            drawing_program_selection_mask_at(&workflow_ctx.selection, 0u, 0u) != 1u ||
+            drawing_program_selection_mask_at(&workflow_ctx.selection, 1u, 0u) != 0u ||
+            drawing_program_selection_mask_at(&workflow_ctx.selection, 2u, 0u) != 1u) {
+            fprintf(stderr,
+                    "lifecycle_test: expected sparse selection payload preserved after move "
+                    "(origin=12,10 size=3x1 count=2 mask=1/0/1)\n");
             return 1;
         }
     }

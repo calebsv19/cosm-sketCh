@@ -865,16 +865,18 @@ CoreResult drawing_program_selection_commit_move(DrawingProgramDocument *documen
     selection->moving = 0u;
     selection->offset_x = 0;
     selection->offset_y = 0;
-    if (!drawing_program_selection_capture_from_rect(document,
-                                                     layer_rasters,
-                                                     target_layer_id,
-                                                     selection,
-                                                     target_origin_x,
-                                                     target_origin_y,
-                                                     selection->width,
-                                                     selection->height)) {
+    if (target_origin_x < 0 || target_origin_y < 0 ||
+        target_origin_x >= (int32_t)document->raster_width ||
+        target_origin_y >= (int32_t)document->raster_height) {
         drawing_program_selection_reset(selection);
+        return core_result_ok();
     }
+    /* Preserve the existing sparse payload mask/values after move commit.
+       Re-capturing from the moved bounding rect can incorrectly absorb unrelated
+       non-background pixels and collapse disjoint selections into a solid region. */
+    selection->origin_x = (uint32_t)target_origin_x;
+    selection->origin_y = (uint32_t)target_origin_y;
+    selection->layer_id = target_layer_id;
     return core_result_ok();
 }
 

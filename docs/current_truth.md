@@ -37,6 +37,9 @@ Last updated: 2026-04-12
   - visual runtime now uses an explicit move-session contract (`begin`, `update`, `commit`, `reset`) rather than split ad-hoc paths
   - drag-move and keyboard nudge now share the same transform commit pathway, keeping bounds clamp + commit behavior consistent
   - transform cancel/reset semantics are centralized in one helper path to avoid stale move state during tool/session transitions
+  - move commit now preserves the active sparse selection mask/value payload in-place (origin translation), instead of recapturing from a moved bounding rectangle
+  - this prevents disjoint multi-region selections from being inflated by unrelated pixels inside the moved bounding extent
+  - selection overlay now renders disjoint payload components as multiple region outlines (connected-component bounds) instead of always showing one monolithic bounding box
   - lifecycle regression coverage now includes explicit move-tracking commit assertions to lock source-clear + destination-write parity
 - Canvas seed shape is no longer fixed square-only:
   - default seed remains `512x512`

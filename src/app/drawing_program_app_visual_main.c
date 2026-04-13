@@ -2366,6 +2366,14 @@ static int selection_sample_rect_to_screen_rect(const VisualCanvasSheetMetrics *
 }
 
 #define VISUAL_SELECTION_HANDLE_COUNT 8
+#define VISUAL_SELECTION_MAX_COMPONENT_BOUNDS 128u
+
+typedef struct VisualSelectionComponentBounds {
+    uint32_t min_x;
+    uint32_t min_y;
+    uint32_t max_x;
+    uint32_t max_y;
+} VisualSelectionComponentBounds;
 
 static int selection_handle_size_for_metrics(const VisualCanvasSheetMetrics *metrics) {
     int handle_size = 8;
@@ -2500,6 +2508,148 @@ static void draw_selection_payload_preview(SDL_Renderer *renderer,
     }
 }
 
+static uint32_t collect_selection_component_bounds(const VisualSelectionState *selection,
+                                                   VisualSelectionComponentBounds *out_bounds,
+                                                   uint32_t max_bounds) {
+    uint32_t width;
+    uint32_t height;
+    uint32_t area;
+    uint8_t *visited = 0;
+    uint32_t *queue = 0;
+    uint32_t idx;
+    uint32_t component_count = 0u;
+    if (!selection || !selection->has_payload || !out_bounds || max_bounds == 0u) {
+        return 0u;
+    }
+    width = selection->width;
+    height = selection->height;
+    if (width == 0u || height == 0u) {
+        return 0u;
+    }
+    area = width * height;
+    if (area == 0u || area > DRAWING_PROGRAM_SELECTION_MAX_AREA) {
+        return 0u;
+    }
+    visited = (uint8_t *)calloc(area, sizeof(uint8_t));
+    queue = (uint32_t *)malloc(area * sizeof(uint32_t));
+    if (!visited || !queue) {
+        free(visited);
+        free(queue);
+        return 0u;
+    }
+    for (idx = 0u; idx < area; ++idx) {
+        uint32_t head;
+        uint32_t tail;
+        uint32_t seed_x;
+        uint32_t seed_y;
+        uint32_t min_x;
+        uint32_t min_y;
+        uint32_t max_x;
+        uint32_t max_y;
+        if (!selection->payload_mask[idx] || visited[idx]) {
+            continue;
+        }
+        seed_x = idx % width;
+        seed_y = idx / width;
+        min_x = seed_x;
+        min_y = seed_y;
+        max_x = seed_x;
+        max_y = seed_y;
+        head = 0u;
+        tail = 0u;
+        queue[tail++] = idx;
+        visited[idx] = 1u;
+        while (head < tail) {
+            uint32_t current = queue[head++];
+            uint32_t x = current % width;
+            uint32_t y = current / width;
+            if (x > 0u) {
+                uint32_t neighbor = current - 1u;
+                if (selection->payload_mask[neighbor] && !visited[neighbor]) {
+                    visited[neighbor] = 1u;
+                    queue[tail++] = neighbor;
+                    if (x - 1u < min_x) {
+                        min_x = x - 1u;
+                    }
+                }
+            }
+            if ((x + 1u) < width) {
+                uint32_t neighbor = current + 1u;
+                if (selection->payload_mask[neighbor] && !visited[neighbor]) {
+                    visited[neighbor] = 1u;
+                    queue[tail++] = neighbor;
+                    if (x + 1u > max_x) {
+                        max_x = x + 1u;
+                    }
+                }
+            }
+            if (y > 0u) {
+                uint32_t neighbor = current - width;
+                if (selection->payload_mask[neighbor] && !visited[neighbor]) {
+                    visited[neighbor] = 1u;
+                    queue[tail++] = neighbor;
+                    if (y - 1u < min_y) {
+                        min_y = y - 1u;
+                    }
+                }
+            }
+            if ((y + 1u) < height) {
+                uint32_t neighbor = current + width;
+                if (selection->payload_mask[neighbor] && !visited[neighbor]) {
+                    visited[neighbor] = 1u;
+                    queue[tail++] = neighbor;
+                    if (y + 1u > max_y) {
+                        max_y = y + 1u;
+                    }
+                }
+            }
+        }
+        if (component_count < max_bounds) {
+            out_bounds[component_count].min_x = min_x;
+            out_bounds[component_count].min_y = min_y;
+            out_bounds[component_count].max_x = max_x;
+            out_bounds[component_count].max_y = max_y;
+            component_count += 1u;
+        }
+    }
+    free(visited);
+    free(queue);
+    return component_count;
+}
+
+static uint32_t draw_selection_component_outlines(SDL_Renderer *renderer,
+                                                  const VisualCanvasSheetMetrics *metrics,
+                                                  const VisualSelectionState *selection,
+                                                  int32_t delta_x,
+                                                  int32_t delta_y,
+                                                  SDL_Color color,
+                                                  uint8_t alpha) {
+    VisualSelectionComponentBounds components[VISUAL_SELECTION_MAX_COMPONENT_BOUNDS];
+    uint32_t component_count;
+    uint32_t i;
+    if (!renderer || !metrics || !selection || !selection->has_payload) {
+        return 0u;
+    }
+    component_count = collect_selection_component_bounds(selection,
+                                                         components,
+                                                         VISUAL_SELECTION_MAX_COMPONENT_BOUNDS);
+    if (component_count == 0u) {
+        return 0u;
+    }
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, alpha);
+    for (i = 0u; i < component_count; ++i) {
+        int32_t sample_x = (int32_t)selection->origin_x + (int32_t)components[i].min_x + delta_x;
+        int32_t sample_y = (int32_t)selection->origin_y + (int32_t)components[i].min_y + delta_y;
+        uint32_t region_w = components[i].max_x - components[i].min_x + 1u;
+        uint32_t region_h = components[i].max_y - components[i].min_y + 1u;
+        SDL_Rect rect;
+        if (selection_sample_rect_to_screen_rect(metrics, sample_x, sample_y, region_w, region_h, &rect)) {
+            (void)SDL_RenderDrawRect(renderer, &rect);
+        }
+    }
+    return component_count;
+}
+
 static void draw_selection_overlay(SDL_Renderer *renderer,
                                    SDL_Rect pane_rect,
                                    const DrawingProgramAppContext *ctx,
@@ -2545,15 +2695,38 @@ static void draw_selection_overlay(SDL_Renderer *renderer,
         int32_t base_y = (int32_t)selection->origin_y;
         int32_t moved_x = base_x + selection->offset_x;
         int32_t moved_y = base_y + selection->offset_y;
+        uint32_t moved_component_count = 0u;
         if (selection->moving &&
-            (selection->offset_x != 0 || selection->offset_y != 0) &&
+            (selection->offset_x != 0 || selection->offset_y != 0)) {
+            uint32_t base_component_count =
+                draw_selection_component_outlines(renderer, metrics, selection, 0, 0, accent_alt, 170u);
+            if (base_component_count == 0u &&
+                selection_sample_rect_to_screen_rect(metrics,
+                                                     base_x,
+                                                     base_y,
+                                                     selection->width,
+                                                     selection->height,
+                                                     &rect)) {
+                SDL_SetRenderDrawColor(renderer, accent_alt.r, accent_alt.g, accent_alt.b, 170u);
+                (void)SDL_RenderDrawRect(renderer, &rect);
+            }
+        }
+        moved_component_count =
+            draw_selection_component_outlines(renderer,
+                                              metrics,
+                                              selection,
+                                              selection->offset_x,
+                                              selection->offset_y,
+                                              accent,
+                                              255u);
+        if (moved_component_count == 0u &&
             selection_sample_rect_to_screen_rect(metrics,
-                                                 base_x,
-                                                 base_y,
+                                                 moved_x,
+                                                 moved_y,
                                                  selection->width,
                                                  selection->height,
                                                  &rect)) {
-            SDL_SetRenderDrawColor(renderer, accent_alt.r, accent_alt.g, accent_alt.b, 170u);
+            SDL_SetRenderDrawColor(renderer, accent.r, accent.g, accent.b, 255u);
             (void)SDL_RenderDrawRect(renderer, &rect);
         }
         if (selection_sample_rect_to_screen_rect(metrics,
@@ -2568,8 +2741,6 @@ static void draw_selection_overlay(SDL_Renderer *renderer,
             if (selection->moving && (selection->offset_x != 0 || selection->offset_y != 0)) {
                 draw_selection_payload_preview(renderer, ctx, metrics, selection, moved_x, moved_y, 255u);
             }
-            SDL_SetRenderDrawColor(renderer, accent.r, accent.g, accent.b, 255u);
-            (void)SDL_RenderDrawRect(renderer, &rect);
             if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_MOVE || selection->moving) {
                 selection_populate_handle_rects(&rect, handle_size, handles);
                 for (i = 0; i < VISUAL_SELECTION_HANDLE_COUNT; ++i) {
