@@ -58,6 +58,10 @@ Last updated: 2026-04-12
     - clipboard row is conditional (shown only when clipboard payload exists)
   - runtime context hint row now switches by active tool state (`SELECT`/`MOVE`/`FILL`/`PICKER`) and reflects active-selection requirements for move operations
   - pointer/selection/transform telemetry is now derived from live frame state instead of static always-on status text
+- Phase 12 `S5` closeout is complete:
+  - phase lane documented in private plan: `docs/private_program_docs/drawing_program/2026-04-12_drawing_program_phase_12_behavior_depth_plan.md`
+  - `S1..S4` implementation gates were completed on current head (`make clean && make`, `make test`, `make run-headless`, `make visual-harness`, `make package-desktop-self-test`, `make package-desktop-refresh`)
+  - boundary lock advanced to Phase 13 object-model foundation work (entity graph + object hit-testing + object transform seed)
 - Canvas seed shape is no longer fixed square-only:
   - default seed remains `512x512`
   - runtime boot now supports explicit non-square overrides:
