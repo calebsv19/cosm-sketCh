@@ -1173,6 +1173,8 @@ typedef struct VisualCanvasInteractionState {
     uint8_t panning_active;
     uint8_t shape_active;
     uint8_t shape_tool;
+    uint8_t transform_active;
+    uint8_t transform_kind;
     uint8_t move_axis_lock;
     uint8_t marquee_commit_mode;
     uint8_t has_last_sample;
@@ -1209,6 +1211,11 @@ typedef enum VisualMarqueeCommitMode {
     VISUAL_MARQUEE_COMMIT_ADD = 1,
     VISUAL_MARQUEE_COMMIT_SUBTRACT = 2
 } VisualMarqueeCommitMode;
+
+typedef enum VisualTransformSessionKind {
+    VISUAL_TRANSFORM_SESSION_NONE = 0,
+    VISUAL_TRANSFORM_SESSION_MOVE = 1
+} VisualTransformSessionKind;
 
 static VisualMarqueeCommitMode visual_marquee_commit_mode_from_mods(SDL_Keymod mods) {
     if ((mods & KMOD_ALT) != 0) {
@@ -4288,6 +4295,8 @@ static void cancel_canvas_draw_and_shape(VisualCanvasInteractionState *interacti
     }
     interaction->drawing_active = 0u;
     interaction->shape_active = 0u;
+    interaction->transform_active = 0u;
+    interaction->transform_kind = (uint8_t)VISUAL_TRANSFORM_SESSION_NONE;
     interaction->move_axis_lock = 0u;
     interaction->marquee_commit_mode = (uint8_t)VISUAL_MARQUEE_COMMIT_REPLACE;
     interaction->has_last_sample = 0u;
@@ -4356,6 +4365,88 @@ static void apply_selection_move_canvas_bounds(const DrawingProgramDocument *doc
     }
 }
 
+static void visual_transform_session_reset(VisualCanvasInteractionState *interaction) {
+    if (!interaction) {
+        return;
+    }
+    interaction->transform_active = 0u;
+    interaction->transform_kind = (uint8_t)VISUAL_TRANSFORM_SESSION_NONE;
+    interaction->move_axis_lock = 0u;
+}
+
+static int visual_transform_session_is_move_active(const VisualCanvasInteractionState *interaction) {
+    if (!interaction) {
+        return 0;
+    }
+    return interaction->transform_active &&
+                   interaction->transform_kind == (uint8_t)VISUAL_TRANSFORM_SESSION_MOVE
+               ? 1
+               : 0;
+}
+
+static void visual_transform_session_begin_move(VisualCanvasInteractionState *interaction,
+                                                VisualSelectionState *selection,
+                                                uint32_t sample_x,
+                                                uint32_t sample_y) {
+    if (!interaction || !selection) {
+        return;
+    }
+    drawing_program_selection_begin_move_tracking(selection, sample_x, sample_y);
+    interaction->transform_active = 1u;
+    interaction->transform_kind = (uint8_t)VISUAL_TRANSFORM_SESSION_MOVE;
+    interaction->move_axis_lock = 0u;
+}
+
+static void visual_transform_session_update_move(const DrawingProgramAppContext *ctx,
+                                                 VisualCanvasInteractionState *interaction,
+                                                 VisualSelectionState *selection,
+                                                 uint32_t sample_x,
+                                                 uint32_t sample_y,
+                                                 SDL_Keymod mods) {
+    if (!ctx || !selection || !visual_transform_session_is_move_active(interaction) || !selection->moving) {
+        return;
+    }
+    drawing_program_selection_update_move_offset(selection, sample_x, sample_y);
+    apply_selection_move_axis_lock(selection, interaction, mods);
+    apply_selection_move_canvas_bounds(&ctx->document, selection);
+}
+
+static CoreResult visual_transform_session_commit_move(DrawingProgramAppContext *ctx,
+                                                       VisualCanvasInteractionState *interaction,
+                                                       VisualSelectionState *selection) {
+    CoreResult move_commit;
+    if (!ctx || !selection || !visual_transform_session_is_move_active(interaction)) {
+        return core_result_ok();
+    }
+    move_commit = visual_selection_commit_move(ctx, selection);
+    if (move_commit.code != CORE_OK) {
+        selection->moving = 0u;
+        selection->offset_x = 0;
+        selection->offset_y = 0;
+    }
+    visual_transform_session_reset(interaction);
+    return move_commit;
+}
+
+static CoreResult visual_transform_session_nudge_move(DrawingProgramAppContext *ctx,
+                                                      VisualCanvasInteractionState *interaction,
+                                                      VisualSelectionState *selection,
+                                                      int32_t dx,
+                                                      int32_t dy) {
+    uint32_t anchor_x = 0u;
+    uint32_t anchor_y = 0u;
+    if (!ctx || !selection || !selection->has_payload) {
+        return core_result_ok();
+    }
+    anchor_x = selection->origin_x;
+    anchor_y = selection->origin_y;
+    visual_transform_session_begin_move(interaction, selection, anchor_x, anchor_y);
+    selection->offset_x = dx;
+    selection->offset_y = dy;
+    apply_selection_move_canvas_bounds(&ctx->document, selection);
+    return visual_transform_session_commit_move(ctx, interaction, selection);
+}
+
 static void begin_canvas_history_group(DrawingProgramAppContext *ctx) {
     if (!ctx) {
         return;
@@ -4380,6 +4471,7 @@ static void cancel_all_transient_interactions(DrawingProgramAppContext *ctx,
     if (clear_pan_state && interaction) {
         interaction->panning_active = 0u;
     }
+    visual_transform_session_reset(interaction);
 }
 
 static int run_visual_mode(int argc, char **argv) {
@@ -4643,9 +4735,8 @@ static int run_visual_mode(int argc, char **argv) {
                                  visual_selection_begin_move(&selection_state, sample_x, sample_y)) ||
                                 selection_move_handle_hit(&app, canvas_pane, &selection_state, click_x, click_y)) &&
                                screen_to_canvas_sample_clamped(&app, canvas_pane, click_x, click_y, &sample_x, &sample_y)) {
-                        drawing_program_selection_begin_move_tracking(&selection_state, sample_x, sample_y);
-                        canvas_interaction.move_axis_lock = 0u;
                         cancel_canvas_draw_and_shape(&canvas_interaction);
+                        visual_transform_session_begin_move(&canvas_interaction, &selection_state, sample_x, sample_y);
                     } else if (app.editor.active_tool == DRAWING_PROGRAM_TOOL_PICKER) {
                         cancel_all_transient_interactions(&app, &canvas_interaction, &selection_state, 0);
                         (void)apply_canvas_picker_at_screen(&app, canvas_pane, click_x, click_y);
@@ -4692,11 +4783,14 @@ static int run_visual_mode(int argc, char **argv) {
                             selection_state.marquee_end_x = sample_x;
                             selection_state.marquee_end_y = sample_y;
                         }
-                        if (selection_state.moving) {
+                        if (visual_transform_session_is_move_active(&canvas_interaction) && selection_state.moving) {
                             (void)screen_to_canvas_sample_clamped(&app, canvas_pane, release_x, release_y, &sample_x, &sample_y);
-                            drawing_program_selection_update_move_offset(&selection_state, sample_x, sample_y);
-                            apply_selection_move_axis_lock(&selection_state, &canvas_interaction, SDL_GetModState());
-                            apply_selection_move_canvas_bounds(&app.document, &selection_state);
+                            visual_transform_session_update_move(&app,
+                                                                 &canvas_interaction,
+                                                                 &selection_state,
+                                                                 sample_x,
+                                                                 sample_y,
+                                                                 SDL_GetModState());
                         }
                     }
                     if (selection_state.selecting) {
@@ -4704,15 +4798,11 @@ static int run_visual_mode(int argc, char **argv) {
                             visual_marquee_commit_mode_clamp(canvas_interaction.marquee_commit_mode);
                         (void)visual_selection_capture_from_marquee(&app, &selection_state, mode);
                     }
-                    if (selection_state.moving) {
-                        begin_canvas_history_group(&app);
-                        CoreResult move_commit = visual_selection_commit_move(&app, &selection_state);
-                        end_canvas_history_group(&app);
+                    if (visual_transform_session_is_move_active(&canvas_interaction) && selection_state.moving) {
+                        CoreResult move_commit =
+                            visual_transform_session_commit_move(&app, &canvas_interaction, &selection_state);
                         if (move_commit.code != CORE_OK) {
                             fprintf(stderr, "drawing_program: selection move commit failed: %s\n", move_commit.message);
-                            selection_state.moving = 0u;
-                            selection_state.offset_x = 0;
-                            selection_state.offset_y = 0;
                         }
                     }
                     if (canvas_interaction.shape_active &&
@@ -4758,7 +4848,9 @@ static int run_visual_mode(int argc, char **argv) {
                         selection_state.marquee_end_y = sample_y;
                     }
                 }
-                if (selection_state.moving && app.editor.active_tool == DRAWING_PROGRAM_TOOL_MOVE) {
+                if (visual_transform_session_is_move_active(&canvas_interaction) &&
+                    selection_state.moving &&
+                    app.editor.active_tool == DRAWING_PROGRAM_TOOL_MOVE) {
                     uint32_t sample_x = 0u;
                     uint32_t sample_y = 0u;
                     if (screen_to_canvas_sample_clamped(&app,
@@ -4767,9 +4859,12 @@ static int run_visual_mode(int argc, char **argv) {
                                                         panel_ui.mouse_y,
                                                         &sample_x,
                                                         &sample_y)) {
-                        drawing_program_selection_update_move_offset(&selection_state, sample_x, sample_y);
-                        apply_selection_move_axis_lock(&selection_state, &canvas_interaction, SDL_GetModState());
-                        apply_selection_move_canvas_bounds(&app.document, &selection_state);
+                        visual_transform_session_update_move(&app,
+                                                             &canvas_interaction,
+                                                             &selection_state,
+                                                             sample_x,
+                                                             sample_y,
+                                                             SDL_GetModState());
                     }
                 }
                 if (canvas_interaction.drawing_active) {
@@ -4960,11 +5055,8 @@ static int run_visual_mode(int argc, char **argv) {
                     }
                     cancel_canvas_draw_and_shape(&canvas_interaction);
                     cancel_selection_transient(&selection_state);
-                    selection_state.offset_x = dx;
-                    selection_state.offset_y = dy;
-                    begin_canvas_history_group(&app);
-                    move_commit = visual_selection_commit_move(&app, &selection_state);
-                    end_canvas_history_group(&app);
+                    move_commit =
+                        visual_transform_session_nudge_move(&app, &canvas_interaction, &selection_state, dx, dy);
                     if (move_commit.code != CORE_OK) {
                         fprintf(stderr, "drawing_program: selection nudge commit failed: %s\n", move_commit.message);
                         selection_state.offset_x = 0;

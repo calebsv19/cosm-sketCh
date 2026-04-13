@@ -527,6 +527,76 @@ int main(void) {
             return 1;
         }
     }
+    {
+        uint8_t moved_from = 0u;
+        uint8_t moved_to = 0u;
+        uint32_t move_dx = 3u;
+        uint32_t move_dy = 2u;
+        uint32_t seed_x = workflow_center_x;
+        uint32_t seed_y = workflow_center_y;
+        if (seed_x + move_dx >= workflow_ctx.document.raster_width) {
+            seed_x = workflow_ctx.document.raster_width - move_dx - 1u;
+        }
+        if (seed_y + move_dy >= workflow_ctx.document.raster_height) {
+            seed_y = workflow_ctx.document.raster_height - move_dy - 1u;
+        }
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &workflow_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS),
+                       "selection_move_tracking_clear_canvas")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_history_apply_set_sample_value(&workflow_ctx.history,
+                                                                      &workflow_ctx.document,
+                                                                      &workflow_ctx.layer_rasters,
+                                                                      workflow_ctx.editor.active_layer_id,
+                                                                      seed_x,
+                                                                      seed_y,
+                                                                      expected_draw_value),
+                       "selection_move_tracking_seed")) {
+            return 1;
+        }
+        if (!drawing_program_selection_capture_from_rect(&workflow_ctx.document,
+                                                         &workflow_ctx.layer_rasters,
+                                                         workflow_ctx.editor.active_layer_id,
+                                                         &workflow_ctx.selection,
+                                                         (int32_t)seed_x,
+                                                         (int32_t)seed_y,
+                                                         1u,
+                                                         1u)) {
+            fprintf(stderr, "lifecycle_test: expected selection capture for move-tracking regression\n");
+            return 1;
+        }
+        drawing_program_selection_begin_move_tracking(&workflow_ctx.selection, seed_x, seed_y);
+        drawing_program_selection_update_move_offset(&workflow_ctx.selection, seed_x + move_dx, seed_y + move_dy);
+        if (!expect_ok(drawing_program_selection_commit_move(&workflow_ctx.document,
+                                                             &workflow_ctx.layer_rasters,
+                                                             workflow_ctx.editor.active_layer_id,
+                                                             &workflow_ctx.history,
+                                                             &workflow_ctx.selection),
+                       "selection_move_tracking_commit")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&workflow_ctx.document, seed_x, seed_y, &moved_from),
+                       "selection_move_tracking_probe_from")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&workflow_ctx.document,
+                                                            seed_x + move_dx,
+                                                            seed_y + move_dy,
+                                                            &moved_to),
+                       "selection_move_tracking_probe_to")) {
+            return 1;
+        }
+        if (moved_from != expected_eraser_value || moved_to != expected_draw_value) {
+            fprintf(stderr,
+                    "lifecycle_test: expected move-tracking commit to move sample from=%u to=%u got_from=%u got_to=%u\n",
+                    (unsigned)expected_eraser_value,
+                    (unsigned)expected_draw_value,
+                    (unsigned)moved_from,
+                    (unsigned)moved_to);
+            return 1;
+        }
+    }
     if (!expect_ok(drawing_program_snapshot_save(&workflow_ctx, "/tmp/drawing_program_selection_roundtrip.pack"),
                    "snapshot_save_selection_roundtrip")) {
         return 1;

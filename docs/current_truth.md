@@ -33,6 +33,11 @@ Last updated: 2026-04-12
   - additive/subtractive marquee behavior remains explicit (`Shift` add, `Alt/Option` subtract) with drag-start intent lock from Phase 11
   - live marquee visualization is border-only (no interior overlay tint), keeping selected canvas content visible during drag
   - lifecycle regression coverage now asserts replace-after-add selection semantics
+- Phase 12 `S2` transform-session v2 baseline is now implemented:
+  - visual runtime now uses an explicit move-session contract (`begin`, `update`, `commit`, `reset`) rather than split ad-hoc paths
+  - drag-move and keyboard nudge now share the same transform commit pathway, keeping bounds clamp + commit behavior consistent
+  - transform cancel/reset semantics are centralized in one helper path to avoid stale move state during tool/session transitions
+  - lifecycle regression coverage now includes explicit move-tracking commit assertions to lock source-clear + destination-write parity
 - Canvas seed shape is no longer fixed square-only:
   - default seed remains `512x512`
   - runtime boot now supports explicit non-square overrides:

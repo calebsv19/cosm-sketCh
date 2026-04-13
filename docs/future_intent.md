@@ -72,8 +72,8 @@ Near-term (active):
   - next: Phase 12 behavior-depth lane:
     - kickoff doc: `docs/private_program_docs/drawing_program/2026-04-12_drawing_program_phase_12_behavior_depth_plan.md`
     - `S1` complete: selection-set baseline (plain marquee replace semantics + border-only marquee visualization + replace-after-add regression coverage)
-    - next: `S2` transform-session v2 (move-first session contract unification)
-    - pending: `S3` shape/fill depth (mode-control expansion, tolerance semantics, large-canvas responsiveness)
+    - `S2` complete: transform-session v2 baseline (move-session contract unification for drag + nudge commit paths)
+    - next: `S3` shape/fill depth (mode-control expansion, tolerance semantics, large-canvas responsiveness)
     - pending: `S4` interaction/telemetry polish
     - pending: `S5` closeout + next-boundary lock
   - in-flight source split continuity (active worktree):
