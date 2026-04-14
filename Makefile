@@ -94,8 +94,29 @@ APP_LOCAL_SRCS := \
 	src/runtime/drawing_program_render_domain.c \
 	src/runtime/drawing_program_render_backend.c \
 	src/runtime/drawing_program_runtime_orchestration.c \
+	src/runtime/drawing_program_visual_canvas_stroke_ops.c \
 	src/runtime/drawing_program_pane_host.c \
 	src/runtime/drawing_program_overlay_adapter.c \
+	src/render/drawing_program_visual_canvas_world_render.c \
+	src/render/drawing_program_visual_frame_render.c \
+	src/render/drawing_program_visual_overlay_render.c \
+	src/input/drawing_program_visual_canvas_action_ops.c \
+	src/input/drawing_program_visual_canvas_coords.c \
+	src/input/drawing_program_visual_canvas_draw_action_ops.c \
+	src/input/drawing_program_visual_shape_ops.c \
+	src/input/drawing_program_visual_transform_ops.c \
+	src/input/drawing_program_visual_layer_actions.c \
+	src/input/drawing_program_visual_input_core.c \
+	src/input/drawing_program_visual_input_keymap.c \
+	src/input/drawing_program_visual_input_handlers.c \
+	src/ui/drawing_program_visual_layout.c \
+	src/ui/drawing_program_visual_layer_opacity.c \
+	src/ui/drawing_program_visual_pane_bindings.c \
+	src/ui/drawing_program_visual_panel_render.c \
+	src/ui/drawing_program_visual_theme.c \
+	src/ui/drawing_program_visual_resources.c \
+	src/ui/drawing_program_visual_tool_options.c \
+	src/ui/drawing_program_visual_text_render.c \
 	src/app/drawing_program_app_main.c \
 	src/app/main.c \
 	src/app/drawing_program_app_visual_main.c
@@ -112,6 +133,7 @@ HEADLESS_LOCAL_SRCS := \
 	src/runtime/drawing_program_render_domain.c \
 	src/runtime/drawing_program_render_backend.c \
 	src/runtime/drawing_program_runtime_orchestration.c \
+	src/runtime/drawing_program_visual_canvas_stroke_ops.c \
 	src/runtime/drawing_program_pane_host.c \
 	src/runtime/drawing_program_overlay_adapter.c \
 	src/app/drawing_program_app_main.c \
@@ -129,8 +151,29 @@ TEST_LOCAL_SRCS := \
 	src/runtime/drawing_program_render_domain.c \
 	src/runtime/drawing_program_render_backend.c \
 	src/runtime/drawing_program_runtime_orchestration.c \
+	src/runtime/drawing_program_visual_canvas_stroke_ops.c \
 	src/runtime/drawing_program_pane_host.c \
 	src/runtime/drawing_program_overlay_adapter.c \
+	src/render/drawing_program_visual_canvas_world_render.c \
+	src/render/drawing_program_visual_frame_render.c \
+	src/render/drawing_program_visual_overlay_render.c \
+	src/input/drawing_program_visual_canvas_action_ops.c \
+	src/input/drawing_program_visual_canvas_coords.c \
+	src/input/drawing_program_visual_canvas_draw_action_ops.c \
+	src/input/drawing_program_visual_shape_ops.c \
+	src/input/drawing_program_visual_transform_ops.c \
+	src/input/drawing_program_visual_layer_actions.c \
+	src/input/drawing_program_visual_input_core.c \
+	src/input/drawing_program_visual_input_keymap.c \
+	src/input/drawing_program_visual_input_handlers.c \
+	src/ui/drawing_program_visual_layout.c \
+	src/ui/drawing_program_visual_layer_opacity.c \
+	src/ui/drawing_program_visual_pane_bindings.c \
+	src/ui/drawing_program_visual_panel_render.c \
+	src/ui/drawing_program_visual_theme.c \
+	src/ui/drawing_program_visual_resources.c \
+	src/ui/drawing_program_visual_tool_options.c \
+	src/ui/drawing_program_visual_text_render.c \
 	src/app/drawing_program_app_main.c \
 	src/app/drawing_program_app_visual_main.c \
 	tests/drawing_program_lifecycle_test.c
