@@ -171,6 +171,7 @@ uint8_t drawing_program_visual_sample_value_for_tool(const DrawingProgramAppCont
         case DRAWING_PROGRAM_TOOL_SELECT:
         case DRAWING_PROGRAM_TOOL_MOVE:
         case DRAWING_PROGRAM_TOOL_PICKER:
+        case DRAWING_PROGRAM_TOOL_PATH:
         default:
             return drawing_program_color_value_from_index(color_index);
     }

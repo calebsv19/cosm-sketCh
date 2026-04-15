@@ -407,7 +407,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                                    : "LMB: MARQUEE  SHIFT:ADD  ALT:SUBTRACT";
         } else if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_MOVE) {
             if (ctx->object_selection.count > 0u) {
-                interaction_hint = "LMB: MOVE OBJECTS  ARROWS:NUDGE  SHIFT+ARROW:x10  CMD+R:RASTERIZE";
+                interaction_hint = "LMB: MOVE OBJECTS  ALT+LMB POINT: MOVE VERTEX  ARROWS:NUDGE  SHIFT+ARROW:x10";
             } else {
                 interaction_hint = selection && selection->has_payload
                                        ? "LMB: MOVE SEL  ARROWS:NUDGE  SHIFT+ARROW:x10"
@@ -417,6 +417,8 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
             interaction_hint = "LMB: FILL REGION  TOLERANCE CONTROLS MATCH RANGE";
         } else if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_PICKER) {
             interaction_hint = "LMB: PICK COLOR";
+        } else if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_PATH) {
+            interaction_hint = "LMB: ADD POINT  ENTER: COMMIT CLOSED PATH  ESC: CANCEL  BACKSPACE: UNDO POINT";
         } else if (ctx->object_selection.count > 0u) {
             interaction_hint = "OBJECTS SELECTED  USE SELECT/MOVE OR CMD+R RASTERIZE";
         }
@@ -502,6 +504,13 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                            "TOOL %s  MODE %s",
                            hooks->tool_name(ctx->editor.active_tool),
                            select_mode_name(hooks->clamp_setting_u8(ctx->ui_tool_select_mode, 0u, 2u)));
+        } else if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_PATH) {
+            (void)snprintf(line,
+                           sizeof(line),
+                           "TOOL %s  W%u MODE %s",
+                           hooks->tool_name(ctx->editor.active_tool),
+                           (unsigned)hooks->clamp_setting_u8(ctx->ui_tool_shape_stroke_width, 1u, 16u),
+                           hooks->shape_mode_name(hooks->tool_shape_mode(ctx)));
         } else {
             (void)snprintf(line, sizeof(line), "TOOL %s", hooks->tool_name(ctx->editor.active_tool));
         }

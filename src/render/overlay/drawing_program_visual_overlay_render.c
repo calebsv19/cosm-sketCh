@@ -520,6 +520,350 @@ static void draw_object_ellipse(SDL_Renderer *renderer,
     }
 }
 
+static double path_segment_distance_sq(double px,
+                                       double py,
+                                       double x0,
+                                       double y0,
+                                       double x1,
+                                       double y1) {
+    double dx = x1 - x0;
+    double dy = y1 - y0;
+    double len_sq = (dx * dx) + (dy * dy);
+    double t;
+    double rx;
+    double ry;
+    if (len_sq <= 0.0) {
+        rx = px - x0;
+        ry = py - y0;
+        return (rx * rx) + (ry * ry);
+    }
+    t = (((px - x0) * dx) + ((py - y0) * dy)) / len_sq;
+    if (t < 0.0) {
+        t = 0.0;
+    } else if (t > 1.0) {
+        t = 1.0;
+    }
+    rx = px - (x0 + (t * dx));
+    ry = py - (y0 + (t * dy));
+    return (rx * rx) + (ry * ry);
+}
+
+static int draw_object_path_contains_fill(const DrawingProgramObjectRecord *object,
+                                          int32_t delta_x,
+                                          int32_t delta_y,
+                                          double px,
+                                          double py) {
+    uint32_t i;
+    uint32_t j;
+    int inside = 0;
+    uint32_t point_count;
+    if (!object || !object->path_closed) {
+        return 0;
+    }
+    point_count = (uint32_t)object->path_point_count;
+    if (point_count < 3u || point_count > DRAWING_PROGRAM_OBJECT_PATH_MAX_POINTS) {
+        return 0;
+    }
+    for (i = 0u, j = point_count - 1u; i < point_count; j = i++) {
+        const double xi = (double)(object->path_points[i].x + delta_x) + 0.5;
+        const double yi = (double)(object->path_points[i].y + delta_y) + 0.5;
+        const double xj = (double)(object->path_points[j].x + delta_x) + 0.5;
+        const double yj = (double)(object->path_points[j].y + delta_y) + 0.5;
+        const int y_cross = ((yi > py) != (yj > py));
+        if (!y_cross) {
+            continue;
+        }
+        if (fabs(yj - yi) < 1e-6) {
+            continue;
+        }
+        if (px < (((xj - xi) * (py - yi)) / (yj - yi)) + xi) {
+            inside = !inside;
+        }
+    }
+    return inside;
+}
+
+static int draw_object_path_contains_outline(const DrawingProgramObjectRecord *object,
+                                             int32_t delta_x,
+                                             int32_t delta_y,
+                                             double px,
+                                             double py) {
+    uint32_t point_count;
+    uint32_t segment_count;
+    uint32_t i;
+    double half_width;
+    double threshold_sq;
+    if (!object) {
+        return 0;
+    }
+    point_count = (uint32_t)object->path_point_count;
+    if (point_count < 2u || point_count > DRAWING_PROGRAM_OBJECT_PATH_MAX_POINTS) {
+        return 0;
+    }
+    segment_count = point_count - 1u;
+    if (object->path_closed) {
+        segment_count += 1u;
+    }
+    if (segment_count == 0u) {
+        return 0;
+    }
+    half_width = ((double)(object->stroke_width == 0u ? 1u : object->stroke_width)) * 0.5;
+    if (half_width < 0.6) {
+        half_width = 0.6;
+    }
+    threshold_sq = half_width * half_width;
+    for (i = 0u; i < segment_count; ++i) {
+        uint32_t a = i;
+        uint32_t b = (i + 1u < point_count) ? (i + 1u) : 0u;
+        double d_sq = path_segment_distance_sq(px,
+                                               py,
+                                               (double)(object->path_points[a].x + delta_x) + 0.5,
+                                               (double)(object->path_points[a].y + delta_y) + 0.5,
+                                               (double)(object->path_points[b].x + delta_x) + 0.5,
+                                               (double)(object->path_points[b].y + delta_y) + 0.5);
+        if (d_sq <= threshold_sq) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void draw_object_path(SDL_Renderer *renderer,
+                             const DrawingProgramAppContext *ctx,
+                             const VisualCanvasSheetMetrics *metrics,
+                             const DrawingProgramObjectRecord *object,
+                             int32_t origin_x,
+                             int32_t origin_y,
+                             uint8_t alpha) {
+    int32_t min_x;
+    int32_t min_y;
+    int32_t max_x;
+    int32_t max_y;
+    int32_t x;
+    int32_t y;
+    int32_t delta_x;
+    int32_t delta_y;
+    int has_fill;
+    int has_outline;
+    SDL_Color stroke_color = { 0u, 0u, 0u, 255u };
+    SDL_Color fill_color = { 0u, 0u, 0u, 255u };
+    if (!renderer || !ctx || !metrics || !object || object->path_point_count < 2u) {
+        return;
+    }
+    has_fill = object_style_includes_fill(object->style_mode) ? 1 : 0;
+    has_outline = object_style_includes_outline(object->style_mode) ? 1 : 0;
+    delta_x = origin_x - object->origin_x;
+    delta_y = origin_y - object->origin_y;
+    min_x = origin_x;
+    min_y = origin_y;
+    max_x = origin_x + (int32_t)object->width - 1;
+    max_y = origin_y + (int32_t)object->height - 1;
+    (void)drawing_program_color_rgb_from_index(drawing_program_color_index_clamp(object->stroke_color_index),
+                                               &stroke_color.r,
+                                               &stroke_color.g,
+                                               &stroke_color.b);
+    (void)drawing_program_color_rgb_from_index(drawing_program_color_index_clamp(object->fill_color_index),
+                                               &fill_color.r,
+                                               &fill_color.g,
+                                               &fill_color.b);
+    for (y = min_y; y <= max_y; ++y) {
+        for (x = min_x; x <= max_x; ++x) {
+            double px;
+            double py;
+            int on_outline = 0;
+            int inside_fill = 0;
+            if (x < 0 || y < 0 || x >= (int32_t)ctx->document.raster_width || y >= (int32_t)ctx->document.raster_height) {
+                continue;
+            }
+            px = (double)x + 0.5;
+            py = (double)y + 0.5;
+            if (has_outline) {
+                on_outline = draw_object_path_contains_outline(object, delta_x, delta_y, px, py);
+            }
+            if (has_fill) {
+                inside_fill = draw_object_path_contains_fill(object, delta_x, delta_y, px, py);
+            }
+            if (on_outline) {
+                (void)draw_object_sample_cell(renderer, metrics, x, y, stroke_color, alpha);
+            } else if (inside_fill) {
+                (void)draw_object_sample_cell(renderer, metrics, x, y, fill_color, alpha);
+            }
+        }
+    }
+}
+
+static void draw_selected_path_point_handles(SDL_Renderer *renderer,
+                                             const DrawingProgramAppContext *ctx,
+                                             const VisualCanvasSheetMetrics *metrics,
+                                             const DrawingProgramObjectRecord *object,
+                                             const VisualCanvasInteractionState *interaction,
+                                             int show_handles) {
+    uint32_t i;
+    if (!renderer || !ctx || !metrics || !object || !show_handles ||
+        object->type != (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_PATH ||
+        object->path_point_count == 0u) {
+        return;
+    }
+    for (i = 0u; i < (uint32_t)object->path_point_count; ++i) {
+        int32_t sample_x = object->path_points[i].x;
+        int32_t sample_y = object->path_points[i].y;
+        SDL_Rect point_rect;
+        SDL_Rect point_inner;
+        SDL_Color border_color = { 40u, 112u, 255u, 255u };
+        SDL_Color fill_color = { 236u, 246u, 255u, 255u };
+        SDL_Color cross_color = { 24u, 86u, 214u, 255u };
+        SDL_Rect cross_h;
+        SDL_Rect cross_v;
+        int min_handle_size = 10;
+        if (interaction &&
+            interaction->object_move_active &&
+            !interaction->object_path_point_move_active) {
+            sample_x += interaction->object_move_offset_x;
+            sample_y += interaction->object_move_offset_y;
+        }
+        if (interaction &&
+            interaction->object_path_point_move_active &&
+            interaction->object_path_point_object_id == object->object_id &&
+            interaction->object_path_point_index == i) {
+            sample_x += interaction->object_path_point_offset_x;
+            sample_y += interaction->object_path_point_offset_y;
+            border_color = (SDL_Color){ 255u, 196u, 84u, 255u };
+            fill_color = (SDL_Color){ 255u, 228u, 166u, 255u };
+            cross_color = (SDL_Color){ 212u, 128u, 28u, 255u };
+            min_handle_size = 12;
+        }
+        if (!selection_sample_rect_to_screen_rect(metrics, sample_x, sample_y, 1u, 1u, &point_rect)) {
+            continue;
+        }
+        if (point_rect.w < min_handle_size) {
+            int grow_x = (min_handle_size - point_rect.w + 1) / 2;
+            point_rect.x -= grow_x;
+            point_rect.w += grow_x * 2;
+        }
+        if (point_rect.h < min_handle_size) {
+            int grow_y = (min_handle_size - point_rect.h + 1) / 2;
+            point_rect.y -= grow_y;
+            point_rect.h += grow_y * 2;
+        }
+        point_inner = point_rect;
+        if (point_inner.w > 2) {
+            point_inner.x += 1;
+            point_inner.w -= 2;
+        }
+        if (point_inner.h > 2) {
+            point_inner.y += 1;
+            point_inner.h -= 2;
+        }
+        if (point_rect.w > 2 && point_rect.h > 2) {
+            SDL_Rect outer = { point_rect.x - 1, point_rect.y - 1, point_rect.w + 2, point_rect.h + 2 };
+            SDL_SetRenderDrawColor(renderer, 16u, 26u, 52u, 220u);
+            (void)SDL_RenderDrawRect(renderer, &outer);
+        }
+        SDL_SetRenderDrawColor(renderer, fill_color.r, fill_color.g, fill_color.b, 230u);
+        (void)SDL_RenderFillRect(renderer, &point_inner);
+        SDL_SetRenderDrawColor(renderer, border_color.r, border_color.g, border_color.b, 255u);
+        (void)SDL_RenderDrawRect(renderer, &point_rect);
+        cross_h = (SDL_Rect){ point_rect.x + 2, point_rect.y + (point_rect.h / 2), point_rect.w - 4, 1 };
+        cross_v = (SDL_Rect){ point_rect.x + (point_rect.w / 2), point_rect.y + 2, 1, point_rect.h - 4 };
+        if (cross_h.w > 0 && cross_h.h > 0) {
+            SDL_SetRenderDrawColor(renderer, cross_color.r, cross_color.g, cross_color.b, 230u);
+            (void)SDL_RenderFillRect(renderer, &cross_h);
+        }
+        if (cross_v.w > 0 && cross_v.h > 0) {
+            SDL_SetRenderDrawColor(renderer, cross_color.r, cross_color.g, cross_color.b, 230u);
+            (void)SDL_RenderFillRect(renderer, &cross_v);
+        }
+    }
+}
+
+static int path_point_screen_center(const VisualCanvasSheetMetrics *metrics,
+                                    int32_t sample_x,
+                                    int32_t sample_y,
+                                    int *out_x,
+                                    int *out_y) {
+    SDL_Rect sample_rect;
+    if (!metrics || !out_x || !out_y) {
+        return 0;
+    }
+    if (!selection_sample_rect_to_screen_rect(metrics, sample_x, sample_y, 1u, 1u, &sample_rect)) {
+        return 0;
+    }
+    *out_x = sample_rect.x + (sample_rect.w / 2);
+    *out_y = sample_rect.y + (sample_rect.h / 2);
+    return 1;
+}
+
+static void draw_active_path_point_edge_preview(SDL_Renderer *renderer,
+                                                const VisualCanvasSheetMetrics *metrics,
+                                                const DrawingProgramObjectRecord *object,
+                                                const VisualCanvasInteractionState *interaction,
+                                                int32_t draw_origin_x,
+                                                int32_t draw_origin_y) {
+    uint32_t point_index;
+    int32_t delta_x;
+    int32_t delta_y;
+    int32_t moved_x;
+    int32_t moved_y;
+    int curr_x = 0;
+    int curr_y = 0;
+    SDL_Color hint = { 88u, 148u, 255u, 255u };
+    SDL_Color shadow = { 10u, 20u, 46u, 255u };
+    uint32_t prev_index = UINT32_MAX;
+    uint32_t next_index = UINT32_MAX;
+    if (!renderer || !metrics || !object || !interaction ||
+        object->type != (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_PATH ||
+        object->path_point_count < 2u ||
+        !interaction->object_path_point_move_active ||
+        interaction->object_path_point_object_id != object->object_id) {
+        return;
+    }
+    point_index = interaction->object_path_point_index;
+    if (point_index >= object->path_point_count) {
+        return;
+    }
+    delta_x = draw_origin_x - object->origin_x;
+    delta_y = draw_origin_y - object->origin_y;
+    moved_x = object->path_points[point_index].x + delta_x + interaction->object_path_point_offset_x;
+    moved_y = object->path_points[point_index].y + delta_y + interaction->object_path_point_offset_y;
+    if (!path_point_screen_center(metrics, moved_x, moved_y, &curr_x, &curr_y)) {
+        return;
+    }
+    if (point_index > 0u) {
+        prev_index = point_index - 1u;
+    } else if (object->path_closed && object->path_point_count > 2u) {
+        prev_index = (uint32_t)object->path_point_count - 1u;
+    }
+    if ((point_index + 1u) < object->path_point_count) {
+        next_index = point_index + 1u;
+    } else if (object->path_closed && object->path_point_count > 2u) {
+        next_index = 0u;
+    }
+    if (prev_index != UINT32_MAX) {
+        int px = 0;
+        int py = 0;
+        int32_t sx = object->path_points[prev_index].x + delta_x;
+        int32_t sy = object->path_points[prev_index].y + delta_y;
+        if (path_point_screen_center(metrics, sx, sy, &px, &py)) {
+            SDL_SetRenderDrawColor(renderer, shadow.r, shadow.g, shadow.b, 220u);
+            (void)SDL_RenderDrawLine(renderer, curr_x + 1, curr_y + 1, px + 1, py + 1);
+            SDL_SetRenderDrawColor(renderer, hint.r, hint.g, hint.b, 245u);
+            (void)SDL_RenderDrawLine(renderer, curr_x, curr_y, px, py);
+        }
+    }
+    if (next_index != UINT32_MAX) {
+        int nx = 0;
+        int ny = 0;
+        int32_t sx = object->path_points[next_index].x + delta_x;
+        int32_t sy = object->path_points[next_index].y + delta_y;
+        if (path_point_screen_center(metrics, sx, sy, &nx, &ny)) {
+            SDL_SetRenderDrawColor(renderer, shadow.r, shadow.g, shadow.b, 220u);
+            (void)SDL_RenderDrawLine(renderer, curr_x + 1, curr_y + 1, nx + 1, ny + 1);
+            SDL_SetRenderDrawColor(renderer, hint.r, hint.g, hint.b, 245u);
+            (void)SDL_RenderDrawLine(renderer, curr_x, curr_y, nx, ny);
+        }
+    }
+}
+
 void drawing_program_visual_draw_object_overlay(SDL_Renderer *renderer,
                                                 SDL_Rect pane_rect,
                                                 const DrawingProgramAppContext *ctx,
@@ -588,9 +932,19 @@ void drawing_program_visual_draw_object_overlay(SDL_Renderer *renderer,
         }
         if (object->type == (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_ELLIPSE) {
             draw_object_ellipse(renderer, ctx, metrics, object, draw_origin_x, draw_origin_y, alpha);
+        } else if (object->type == (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_PATH) {
+            draw_object_path(renderer, ctx, metrics, object, draw_origin_x, draw_origin_y, alpha);
+            draw_active_path_point_edge_preview(
+                renderer, metrics, object, interaction, draw_origin_x, draw_origin_y);
         } else {
             draw_object_rect(renderer, ctx, metrics, object, draw_origin_x, draw_origin_y, alpha);
         }
+        draw_selected_path_point_handles(renderer,
+                                         ctx,
+                                         metrics,
+                                         object,
+                                         interaction,
+                                         selected || (hovered && ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_MOVE));
         if (selection_sample_rect_to_screen_rect(
                 metrics, draw_origin_x, draw_origin_y, object->width, object->height, &bounds_rect)) {
             SDL_Color border_color = selected ? selected_outline : outline_color;
@@ -903,6 +1257,110 @@ static void draw_preview_circle_outline(SDL_Renderer *renderer,
     }
 }
 
+static void draw_preview_point_handle(SDL_Renderer *renderer,
+                                      int center_x,
+                                      int center_y,
+                                      int half_size,
+                                      SDL_Color fill_color,
+                                      SDL_Color border_color,
+                                      uint8_t alpha_fill,
+                                      uint8_t alpha_border) {
+    SDL_Rect r;
+    if (!renderer) {
+        return;
+    }
+    if (half_size < 2) {
+        half_size = 2;
+    }
+    if (half_size > 10) {
+        half_size = 10;
+    }
+    r.x = center_x - half_size;
+    r.y = center_y - half_size;
+    r.w = (half_size * 2) + 1;
+    r.h = (half_size * 2) + 1;
+    SDL_SetRenderDrawColor(renderer, fill_color.r, fill_color.g, fill_color.b, alpha_fill);
+    (void)SDL_RenderFillRect(renderer, &r);
+    SDL_SetRenderDrawColor(renderer, border_color.r, border_color.g, border_color.b, alpha_border);
+    (void)SDL_RenderDrawRect(renderer, &r);
+}
+
+static void draw_preview_path_draft(SDL_Renderer *renderer,
+                                    const DrawingProgramAppContext *ctx,
+                                    const VisualCanvasSheetMetrics *metrics,
+                                    const VisualCanvasInteractionState *interaction,
+                                    const VisualPanelUiState *ui,
+                                    const DrawingProgramVisualShapePreviewHooks *hooks,
+                                    SDL_Color accent) {
+    uint32_t i;
+    uint16_t point_count;
+    int stroke_px;
+    int handle_half = 4;
+    SDL_Color point_fill = { 20u, 24u, 34u, 255u };
+    SDL_Color preview_color = { 180u, 210u, 255u, 255u };
+    if (!renderer || !ctx || !metrics || !interaction || !hooks) {
+        return;
+    }
+    if (!interaction->path_draft_active || interaction->path_draft_point_count == 0u) {
+        return;
+    }
+    point_count = interaction->path_draft_point_count;
+    stroke_px = preview_stroke_width_pixels(metrics, hooks->tool_shape_stroke_width(ctx));
+    handle_half = (int)lroundf(metrics->pixel_size * 0.6f);
+    if (handle_half < 3) {
+        handle_half = 3;
+    }
+    if (handle_half > 8) {
+        handle_half = 8;
+    }
+    for (i = 0u; i < (uint32_t)point_count; ++i) {
+        int cx = 0;
+        int cy = 0;
+        if (!sample_center_to_screen(metrics,
+                                     ctx,
+                                     (uint32_t)interaction->path_draft_points[i].x,
+                                     (uint32_t)interaction->path_draft_points[i].y,
+                                     &cx,
+                                     &cy)) {
+            continue;
+        }
+        if (i > 0u) {
+            int px = 0;
+            int py = 0;
+            if (sample_center_to_screen(metrics,
+                                        ctx,
+                                        (uint32_t)interaction->path_draft_points[i - 1u].x,
+                                        (uint32_t)interaction->path_draft_points[i - 1u].y,
+                                        &px,
+                                        &py)) {
+                draw_preview_thick_line(renderer, px, py, cx, cy, stroke_px, accent, 235u);
+            }
+        }
+        draw_preview_point_handle(renderer, cx, cy, handle_half, point_fill, accent, 255u, 255u);
+    }
+    if (point_count > 0u && ui && ui->mouse_known && ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_PATH) {
+        int last_x = 0;
+        int last_y = 0;
+        int preview_x = 0;
+        int preview_y = 0;
+        if (sample_center_to_screen(metrics,
+                                    ctx,
+                                    (uint32_t)interaction->path_draft_points[point_count - 1u].x,
+                                    (uint32_t)interaction->path_draft_points[point_count - 1u].y,
+                                    &last_x,
+                                    &last_y) &&
+            sample_center_to_screen(metrics,
+                                    ctx,
+                                    interaction->path_preview_sample_x,
+                                    interaction->path_preview_sample_y,
+                                    &preview_x,
+                                    &preview_y) &&
+            (preview_x != last_x || preview_y != last_y)) {
+            draw_preview_thick_line(renderer, last_x, last_y, preview_x, preview_y, stroke_px, preview_color, 170u);
+        }
+    }
+}
+
 void drawing_program_visual_draw_shape_preview_overlay(
     SDL_Renderer *renderer,
     SDL_Rect pane_rect,
@@ -921,11 +1379,18 @@ void drawing_program_visual_draw_shape_preview_overlay(
         !hooks->shape_mode_includes_outline || !hooks->screen_to_canvas_sample) {
         return;
     }
+    (void)resolve_theme_color(theme, CORE_THEME_COLOR_ACCENT_PRIMARY, &accent);
+    (void)SDL_RenderSetClipRect(renderer, &pane_rect);
+    if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_PATH && interaction->path_draft_active) {
+        draw_preview_path_draft(renderer, ctx, metrics, interaction, ui, hooks, accent);
+    }
     if (!interaction->shape_active) {
+        (void)SDL_RenderSetClipRect(renderer, 0);
         return;
     }
     tool = (DrawingProgramToolKind)interaction->shape_tool;
     if (!hooks->tool_uses_shape_commit(tool)) {
+        (void)SDL_RenderSetClipRect(renderer, 0);
         return;
     }
     end_x = interaction->shape_start_sample_x;
@@ -933,8 +1398,6 @@ void drawing_program_visual_draw_shape_preview_overlay(
     if (ui && ui->mouse_known) {
         (void)hooks->screen_to_canvas_sample(ctx, pane_rect, ui->mouse_x, ui->mouse_y, &end_x, &end_y);
     }
-    (void)resolve_theme_color(theme, CORE_THEME_COLOR_ACCENT_PRIMARY, &accent);
-    (void)SDL_RenderSetClipRect(renderer, &pane_rect);
     switch (tool) {
         case DRAWING_PROGRAM_TOOL_LINE: {
             int x0 = 0;

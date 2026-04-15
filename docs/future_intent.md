@@ -96,7 +96,20 @@ Near-term (active):
         - high-contrast thick selected border rings
         - fractional-zoom object overlay seam artifact fix
         - empty-canvas click in `SELECT` mode clears object + raster selection lanes
-    - next: Phase 14 path tooling v1 (polygon/pen loop creation + per-object fill/stroke semantics)
+  - Phase 14 path tooling v1 is active:
+      - `S1` complete: PATH domain seed (bounded path payload model, object-store helpers, `DPOB` v2 persistence, malformed-path skip fallback, lifecycle coverage)
+      - `S2` complete: pen/polygon input authoring baseline (`PATH` tool routing, bounded draft-point authoring, Enter/Esc/Backspace draft control, lifecycle coverage)
+      - `S3` complete: path overlay render + hit-test baseline (path geometry overlay + style-aware fill/stroke hit checks + lifecycle regression coverage)
+      - `S4` complete: path edit baseline (selected-path-point hit, bounded point-drag commit via history/undo/redo, selected handle overlay)
+      - `S5` next: closeout + boundary lock
+  - pre-feature cleanup lane is now queued before additional behavior depth:
+      - kickoff doc: `../../docs/private_program_docs/drawing_program/2026-04-15_drawing_program_source_decomposition_kickoff_plan.md`
+      - execution order is locked:
+        - source-file decomposition first
+        - lifecycle test split second
+        - app-state split third
+      - first active source target:
+        - `src/input/input_core/drawing_program_visual_input_handlers.c`
   - source split continuity is now baseline:
     - runtime helpers are explicitly split into `drawing_program_layer_raster.*` and `drawing_program_selection.*`
   - keep `WSPS` bridge compatibility and overlay/runtime contract invariants locked while deepening behavior

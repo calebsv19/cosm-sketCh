@@ -13,6 +13,7 @@ extern "C" {
 #define DRAWING_PROGRAM_OBJECT_STORE_SCHEMA_VERSION 1u
 #define DRAWING_PROGRAM_MAX_OBJECTS 256u
 #define DRAWING_PROGRAM_OBJECT_NAME_CAPACITY 32u
+#define DRAWING_PROGRAM_OBJECT_PATH_MAX_POINTS 128u
 
 typedef enum DrawingProgramObjectType {
     DRAWING_PROGRAM_OBJECT_TYPE_INVALID = 0u,
@@ -20,6 +21,20 @@ typedef enum DrawingProgramObjectType {
     DRAWING_PROGRAM_OBJECT_TYPE_ELLIPSE = 2u,
     DRAWING_PROGRAM_OBJECT_TYPE_PATH = 3u
 } DrawingProgramObjectType;
+
+typedef struct DrawingProgramPathPoint {
+    int32_t x;
+    int32_t y;
+} DrawingProgramPathPoint;
+
+typedef struct DrawingProgramPathPayload {
+    uint32_t point_count;
+    uint8_t closed;
+    uint8_t reserved0;
+    uint8_t reserved1;
+    uint8_t reserved2;
+    DrawingProgramPathPoint points[DRAWING_PROGRAM_OBJECT_PATH_MAX_POINTS];
+} DrawingProgramPathPayload;
 
 typedef struct DrawingProgramObjectRecord {
     uint32_t object_id;
@@ -38,6 +53,10 @@ typedef struct DrawingProgramObjectRecord {
     uint32_t width;
     uint32_t height;
     char name[DRAWING_PROGRAM_OBJECT_NAME_CAPACITY];
+    uint16_t path_point_count;
+    uint8_t path_closed;
+    uint8_t path_reserved0;
+    DrawingProgramPathPoint path_points[DRAWING_PROGRAM_OBJECT_PATH_MAX_POINTS];
 } DrawingProgramObjectRecord;
 
 typedef struct DrawingProgramObjectStore {
@@ -62,6 +81,10 @@ const DrawingProgramObjectRecord *drawing_program_object_store_get_by_id(const D
 CoreResult drawing_program_object_store_add(DrawingProgramObjectStore *store,
                                             const DrawingProgramObjectRecord *seed,
                                             uint32_t *out_object_id);
+CoreResult drawing_program_object_store_add_path(DrawingProgramObjectStore *store,
+                                                 const DrawingProgramObjectRecord *seed_style,
+                                                 const DrawingProgramPathPayload *payload,
+                                                 uint32_t *out_object_id);
 CoreResult drawing_program_object_store_insert_with_id(DrawingProgramObjectStore *store,
                                                        const DrawingProgramObjectRecord *seed,
                                                        uint32_t object_id);
@@ -78,6 +101,28 @@ CoreResult drawing_program_object_store_set_origin(DrawingProgramObjectStore *st
                                                    int32_t origin_y,
                                                    int32_t *out_previous_x,
                                                    int32_t *out_previous_y);
+CoreResult drawing_program_object_store_set_path_payload(DrawingProgramObjectStore *store,
+                                                         uint32_t object_id,
+                                                         const DrawingProgramPathPayload *payload);
+CoreResult drawing_program_object_store_set_path_point(DrawingProgramObjectStore *store,
+                                                       uint32_t object_id,
+                                                       uint16_t point_index,
+                                                       int32_t point_x,
+                                                       int32_t point_y,
+                                                       int32_t *out_previous_x,
+                                                       int32_t *out_previous_y);
+CoreResult drawing_program_object_store_get_path_payload(const DrawingProgramObjectStore *store,
+                                                         uint32_t object_id,
+                                                         DrawingProgramPathPayload *out_payload);
+CoreResult drawing_program_object_store_hit_test_selected_path_point(
+    const DrawingProgramObjectStore *store,
+    const DrawingProgramDocument *document,
+    const DrawingProgramObjectSelectionState *selection,
+    uint32_t sample_x,
+    uint32_t sample_y,
+    uint32_t pick_radius_samples,
+    uint32_t *out_object_id,
+    uint16_t *out_point_index);
 CoreResult drawing_program_object_store_clamp_selection_delta(const DrawingProgramObjectStore *store,
                                                               const DrawingProgramDocument *document,
                                                               const DrawingProgramObjectSelectionState *selection,
@@ -89,6 +134,8 @@ CoreResult drawing_program_object_store_apply_selection_delta(DrawingProgramObje
                                                               const DrawingProgramObjectSelectionState *selection,
                                                               int32_t dx,
                                                               int32_t dy);
+CoreResult drawing_program_object_store_promote_selection(DrawingProgramObjectStore *store,
+                                                          const DrawingProgramObjectSelectionState *selection);
 CoreResult drawing_program_object_store_hit_test_topmost(const DrawingProgramObjectStore *store,
                                                          const DrawingProgramDocument *document,
                                                          uint32_t sample_x,

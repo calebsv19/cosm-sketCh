@@ -18,7 +18,8 @@ typedef enum DrawingProgramToolKind {
     DRAWING_PROGRAM_TOOL_CIRCLE = 5,
     DRAWING_PROGRAM_TOOL_SELECT = 6,
     DRAWING_PROGRAM_TOOL_MOVE = 7,
-    DRAWING_PROGRAM_TOOL_PICKER = 8
+    DRAWING_PROGRAM_TOOL_PICKER = 8,
+    DRAWING_PROGRAM_TOOL_PATH = 9
 } DrawingProgramToolKind;
 
 typedef struct DrawingProgramViewportState {

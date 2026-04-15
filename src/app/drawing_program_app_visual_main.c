@@ -166,6 +166,48 @@ static CoreResult visual_object_commit_move(DrawingProgramAppContext *ctx,
                                                         0);
 }
 
+static CoreResult visual_object_commit_path_point(DrawingProgramAppContext *ctx,
+                                                  uint32_t object_id,
+                                                  uint16_t point_index,
+                                                  int32_t point_x,
+                                                  int32_t point_y) {
+    return drawing_program_history_apply_set_object_path_point(
+        &ctx->history, &ctx->object_store, object_id, point_index, point_x, point_y);
+}
+
+static int object_path_point_hit_test_selected(const DrawingProgramAppContext *ctx,
+                                               uint32_t sample_x,
+                                               uint32_t sample_y,
+                                               uint32_t *out_object_id,
+                                               uint16_t *out_point_index) {
+    CoreResult result;
+    float zoom = 1.0f;
+    uint32_t pick_radius = 4u;
+    if (!ctx || !out_object_id || !out_point_index) {
+        return 0;
+    }
+    zoom = ctx->editor.viewport.zoom;
+    if (zoom < 0.2f) {
+        zoom = 0.2f;
+    }
+    pick_radius = (uint32_t)(8.0f / zoom);
+    if (pick_radius < 2u) {
+        pick_radius = 2u;
+    }
+    if (pick_radius > 12u) {
+        pick_radius = 12u;
+    }
+    result = drawing_program_object_store_hit_test_selected_path_point(&ctx->object_store,
+                                                                       &ctx->document,
+                                                                       &ctx->object_selection,
+                                                                       sample_x,
+                                                                       sample_y,
+                                                                       pick_radius,
+                                                                       out_object_id,
+                                                                       out_point_index);
+    return (result.code == CORE_OK) ? 1 : 0;
+}
+
 static const DrawingProgramVisualCanvasActionOpsHooks *visual_canvas_action_ops_hooks(void) {
     static const DrawingProgramVisualCanvasActionOpsHooks hooks = {
         .screen_to_canvas_sample = drawing_program_visual_screen_to_canvas_sample,
@@ -306,6 +348,7 @@ static const char *tool_name(DrawingProgramToolKind tool) {
         case DRAWING_PROGRAM_TOOL_SELECT: return "SELECT";
         case DRAWING_PROGRAM_TOOL_MOVE: return "MOVE";
         case DRAWING_PROGRAM_TOOL_PICKER: return "PICKER";
+        case DRAWING_PROGRAM_TOOL_PATH: return "PATH";
         default: return "UNKNOWN";
     }
 }
@@ -493,7 +536,8 @@ static int draw_visual_debug_frame(SDL_Window *window,
 static const DrawingProgramVisualTransformOpsHooks *visual_transform_ops_hooks(void) {
     static const DrawingProgramVisualTransformOpsHooks hooks = {
         .visual_selection_commit_move = visual_selection_commit_move,
-        .visual_object_commit_move = visual_object_commit_move
+        .visual_object_commit_move = visual_object_commit_move,
+        .visual_object_commit_path_point = visual_object_commit_path_point
     };
     return &hooks;
 }
@@ -512,6 +556,11 @@ static int visual_transform_session_is_move_active(const VisualCanvasInteraction
 
 static int visual_transform_session_is_object_move_active(const VisualCanvasInteractionState *interaction) {
     return drawing_program_visual_transform_session_is_object_move_active(interaction);
+}
+
+static int visual_transform_session_is_object_path_point_move_active(
+    const VisualCanvasInteractionState *interaction) {
+    return drawing_program_visual_transform_session_is_object_path_point_move_active(interaction);
 }
 
 static void visual_transform_session_begin_move(VisualCanvasInteractionState *interaction,
@@ -536,12 +585,30 @@ static void visual_transform_session_begin_object_move(VisualCanvasInteractionSt
     drawing_program_visual_transform_session_begin_object_move(interaction, sample_x, sample_y);
 }
 
+static void visual_transform_session_begin_object_path_point_move(VisualCanvasInteractionState *interaction,
+                                                                  uint32_t object_id,
+                                                                  uint16_t point_index,
+                                                                  uint32_t sample_x,
+                                                                  uint32_t sample_y) {
+    drawing_program_visual_transform_session_begin_object_path_point_move(
+        interaction, object_id, point_index, sample_x, sample_y);
+}
+
 static void visual_transform_session_update_object_move(const DrawingProgramAppContext *ctx,
                                                         VisualCanvasInteractionState *interaction,
                                                         uint32_t sample_x,
                                                         uint32_t sample_y,
                                                         SDL_Keymod mods) {
     drawing_program_visual_transform_session_update_object_move(ctx, interaction, sample_x, sample_y, mods);
+}
+
+static void visual_transform_session_update_object_path_point_move(const DrawingProgramAppContext *ctx,
+                                                                   VisualCanvasInteractionState *interaction,
+                                                                   uint32_t sample_x,
+                                                                   uint32_t sample_y,
+                                                                   SDL_Keymod mods) {
+    drawing_program_visual_transform_session_update_object_path_point_move(
+        ctx, interaction, sample_x, sample_y, mods);
 }
 
 static CoreResult visual_transform_session_commit_move(DrawingProgramAppContext *ctx,
@@ -553,6 +620,13 @@ static CoreResult visual_transform_session_commit_move(DrawingProgramAppContext 
 static CoreResult visual_transform_session_commit_object_move(DrawingProgramAppContext *ctx,
                                                               VisualCanvasInteractionState *interaction) {
     return drawing_program_visual_transform_session_commit_object_move(ctx, interaction, visual_transform_ops_hooks());
+}
+
+static CoreResult visual_transform_session_commit_object_path_point_move(
+    DrawingProgramAppContext *ctx,
+    VisualCanvasInteractionState *interaction) {
+    return drawing_program_visual_transform_session_commit_object_path_point_move(
+        ctx, interaction, visual_transform_ops_hooks());
 }
 
 static CoreResult visual_transform_session_nudge_move(DrawingProgramAppContext *ctx,
@@ -590,10 +664,17 @@ static const DrawingProgramVisualInputHandlersHooks *visual_input_handlers_hooks
         .screen_to_canvas_sample_clamped = drawing_program_visual_screen_to_canvas_sample_clamped,
         .visual_transform_session_is_move_active = visual_transform_session_is_move_active,
         .visual_transform_session_is_object_move_active = visual_transform_session_is_object_move_active,
+        .visual_transform_session_is_object_path_point_move_active =
+            visual_transform_session_is_object_path_point_move_active,
+        .object_path_point_hit_test_selected = object_path_point_hit_test_selected,
         .visual_transform_session_update_move = visual_transform_session_update_move,
         .visual_transform_session_update_object_move = visual_transform_session_update_object_move,
+        .visual_transform_session_update_object_path_point_move =
+            visual_transform_session_update_object_path_point_move,
         .visual_transform_session_commit_move = visual_transform_session_commit_move,
         .visual_transform_session_commit_object_move = visual_transform_session_commit_object_move,
+        .visual_transform_session_commit_object_path_point_move =
+            visual_transform_session_commit_object_path_point_move,
         .visual_marquee_commit_mode_clamp = visual_marquee_commit_mode_clamp,
         .visual_selection_capture_from_marquee = visual_selection_capture_from_marquee,
         .tool_uses_shape_commit = drawing_program_visual_tool_uses_shape_commit,
@@ -604,6 +685,8 @@ static const DrawingProgramVisualInputHandlersHooks *visual_input_handlers_hooks
         .selection_move_handle_hit = selection_move_handle_hit,
         .visual_transform_session_begin_move = visual_transform_session_begin_move,
         .visual_transform_session_begin_object_move = visual_transform_session_begin_object_move,
+        .visual_transform_session_begin_object_path_point_move =
+            visual_transform_session_begin_object_path_point_move,
         .apply_canvas_picker_at_screen = apply_canvas_picker_at_screen,
         .apply_canvas_fill_at_screen = apply_canvas_fill_at_screen,
         .begin_canvas_history_group = begin_canvas_history_group,

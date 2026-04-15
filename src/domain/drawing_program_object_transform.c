@@ -67,5 +67,9 @@ CoreResult drawing_program_object_transform_commit_move(DrawingProgramHistory *h
     if (result.code != CORE_OK) {
         return result;
     }
+    result = drawing_program_object_store_promote_selection(object_store, selection);
+    if (result.code != CORE_OK) {
+        return result;
+    }
     return core_result_ok();
 }

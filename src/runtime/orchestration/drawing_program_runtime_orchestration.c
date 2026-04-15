@@ -155,6 +155,7 @@ static CoreResult stamp_center_sample(DrawingProgramAppContext *ctx) {
         case DRAWING_PROGRAM_TOOL_SELECT:
         case DRAWING_PROGRAM_TOOL_MOVE:
         case DRAWING_PROGRAM_TOOL_PICKER:
+        case DRAWING_PROGRAM_TOOL_PATH:
         default:
             value = drawing_program_color_value_from_index(drawing_program_color_index_clamp(ctx->ui_active_color_index));
             break;
@@ -257,6 +258,8 @@ CoreResult drawing_program_runtime_orchestration_apply_workflow_control(
             return set_active_tool(ctx, DRAWING_PROGRAM_TOOL_MOVE);
         case DRAWING_PROGRAM_WORKFLOW_CONTROL_SET_TOOL_PICKER:
             return set_active_tool(ctx, DRAWING_PROGRAM_TOOL_PICKER);
+        case DRAWING_PROGRAM_WORKFLOW_CONTROL_SET_TOOL_PATH:
+            return set_active_tool(ctx, DRAWING_PROGRAM_TOOL_PATH);
         case DRAWING_PROGRAM_WORKFLOW_CONTROL_ADD_LAYER: {
             uint32_t layer_id = 0u;
             CoreResult result = drawing_program_document_add_layer(&ctx->document, 0, &layer_id);

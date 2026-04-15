@@ -21,7 +21,8 @@ typedef enum DrawingProgramCommandType {
     DRAWING_PROGRAM_COMMAND_GROUP_BEGIN = 3,
     DRAWING_PROGRAM_COMMAND_GROUP_END = 4,
     DRAWING_PROGRAM_COMMAND_SET_SAMPLE_SPAN_VALUE = 5,
-    DRAWING_PROGRAM_COMMAND_SET_OBJECT_ORIGIN = 6
+    DRAWING_PROGRAM_COMMAND_SET_OBJECT_ORIGIN = 6,
+    DRAWING_PROGRAM_COMMAND_SET_OBJECT_PATH_POINT = 7
 } DrawingProgramCommandType;
 
 typedef struct DrawingProgramCommand {
@@ -38,6 +39,12 @@ typedef struct DrawingProgramCommand {
     int32_t new_object_origin_y;
     int32_t previous_object_origin_x;
     int32_t previous_object_origin_y;
+    uint16_t path_point_index;
+    uint16_t path_point_reserved0;
+    int32_t new_path_point_x;
+    int32_t new_path_point_y;
+    int32_t previous_path_point_x;
+    int32_t previous_path_point_y;
 } DrawingProgramCommand;
 
 typedef struct DrawingProgramHistory {
@@ -76,6 +83,12 @@ CoreResult drawing_program_history_apply_set_object_origin(DrawingProgramHistory
                                                            uint32_t object_id,
                                                            int32_t origin_x,
                                                            int32_t origin_y);
+CoreResult drawing_program_history_apply_set_object_path_point(DrawingProgramHistory *history,
+                                                               DrawingProgramObjectStore *object_store,
+                                                               uint32_t object_id,
+                                                               uint16_t point_index,
+                                                               int32_t point_x,
+                                                               int32_t point_y);
 CoreResult drawing_program_history_undo(DrawingProgramHistory *history,
                                         DrawingProgramDocument *document,
                                         DrawingProgramLayerRasterStore *layer_rasters,

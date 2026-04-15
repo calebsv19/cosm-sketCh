@@ -1,8 +1,85 @@
 # Current Truth
 
-Last updated: 2026-04-14
+Last updated: 2026-04-15
 
 - Canonical input map is documented in `docs/keybind_reference.md`.
+- Phase 14 `S1` path-domain seed is now implemented:
+  - object model now supports bounded PATH payloads (`point_count`, `closed`, fixed-capacity points)
+  - object store now exposes path helpers:
+    - `drawing_program_object_store_add_path(...)`
+    - `drawing_program_object_store_set_path_payload(...)`
+    - `drawing_program_object_store_get_path_payload(...)`
+  - snapshot object chunk now writes `DPOB` v2 with path payload persistence
+  - snapshot load remains backward-compatible with `DPOB` v1
+  - malformed v2 PATH payload entries now use bounded fallback policy (skip invalid PATH entry, preserve valid entries)
+  - lifecycle regression coverage now includes:
+    - path object add/read roundtrip
+    - path snapshot roundtrip
+    - legacy `DPOB` v1 compatibility load
+    - malformed-path fallback preservation checks
+- Phase 14 `S2` pen/polygon input baseline is now implemented:
+  - new path tool contract is active:
+    - `DRAWING_PROGRAM_TOOL_PATH`
+    - `DRAWING_PROGRAM_WORKFLOW_CONTROL_SET_TOOL_PATH`
+  - tool wiring + keybind route is active:
+    - `P` sets active tool to `PATH`
+    - left tool list, workflow mapping, and active-tool labels include `PATH`
+  - path draft authoring baseline is active:
+    - `LMB` (`PATH`) appends bounded draft points on canvas
+    - `Enter` commits draft as a closed `PATH` object (`3+` points required)
+    - `Backspace/Delete` removes the last draft point
+    - `Esc` cancels path draft
+  - commit flow creates object-store path entities on active editable layer and promotes committed object to active object selection lane
+  - lifecycle regression coverage now includes:
+    - `P` key route -> set-tool-path workflow control
+    - `Enter` draft commit -> `PATH` object creation + draft reset
+- Phase 14 `S3` path overlay/hit-test baseline is now implemented:
+  - object-store hit-test now handles `PATH` geometry directly (style-mode aware fill + outline checks) instead of bounds-only fallback
+  - object overlay render now draws `PATH` entities as path geometry (fill/outline by style mode) instead of rect fallback
+  - path overlay draw supports draw-origin delta for active object-move preview routing
+  - live path drafting preview is active while tool=`PATH`:
+    - each draft point renders immediately as a point handle
+    - consecutive draft points render connected line segments
+    - hover preview segment renders from last point to current mouse sample
+  - path draft commit policy is currently forced to outline-only (`style_mode=OUTLINE`) until fill policy depth lands
+  - delete semantics now unify object+raster selection lanes:
+    - `Delete/Backspace` removes selected object entities first (if any), otherwise removes raster selection payload
+    - right-panel `DELETE SELECTION` button follows the same object-first delete policy
+  - path outline hit-test now uses geometric distance tolerance (nearest-segment range), so selecting/moving paths does not require exact stroke-pixel clicks
+  - PATH move commit now keeps geometry and bounds in sync:
+    - object-origin updates translate path point payload by the same delta
+    - prevents post-drop “invisible path with only bounds border” desync after object move
+  - object move polish now promotes moved selected objects to topmost draw/hit order:
+    - prevents moved outlines from appearing to vanish behind overlapping objects after drop
+    - keeps draw order and hit-test order aligned in overlap scenarios
+  - lifecycle regression coverage now includes:
+    - fill-only closed path interior hit assertions
+    - outline-only path stroke hit assertions
+    - moved-outline path hit/miss assertions at new/old locations
+    - selected-object move promotion assertions for overlap/topmost hit priority
+- Phase 14 `S4` path edit baseline is now implemented:
+  - object store now supports selected path-point hit routing + bounded point mutation helpers:
+    - `drawing_program_object_store_hit_test_selected_path_point(...)`
+    - `drawing_program_object_store_set_path_point(...)`
+  - history contract now supports path-point command replay:
+    - `DRAWING_PROGRAM_COMMAND_SET_OBJECT_PATH_POINT`
+    - `drawing_program_history_apply_set_object_path_point(...)`
+    - undo/redo now restores and reapplies path-point edits
+  - `MOVE` tool routing now prioritizes selected-path-point drag sessions:
+    - point-handle hit starts path-point move session
+    - drag updates bounded point delta (axis lock + canvas clamp)
+    - mouse-up commits through history
+    - fallback remains object-move session when no selected point handle is hit
+  - selected PATH objects now render explicit point handles in overlay; active dragged point handle is highlighted
+  - while dragging a selected PATH point in `MOVE`, live edge-preview hint lines now render from the moved point to adjacent path vertices before commit
+  - selected/hovered PATH handles in `MOVE` now use stronger high-contrast markers for clear visual targeting
+  - selected PATH point hit routing now uses zoom-adaptive pick radius (easier point capture at low zoom)
+  - `Alt/Option+LMB` in `MOVE` now enforces point-only drag intent (no fallback to whole-object move when no point is hit)
+  - `Cmd/Ctrl+R` rasterize lane now includes `PATH` objects (geometry rasterized to active layer, entity removed from object store)
+  - selected PATH point handles now follow whole-object drag preview offsets during `MOVE`, instead of staying at the pre-drag position until commit
+  - lifecycle regression coverage now includes:
+    - selected path-point hit assertions
+    - path-point history apply/undo/redo assertions
 - Phase 11 `S1` selection-fidelity kickoff is now implemented:
   - runtime selection contract now supports additive marquee capture (`drawing_program_selection_add_from_rect`, `drawing_program_selection_add_from_marquee`)
   - visual input path binds `Shift + SELECT marquee drag` to additive capture (existing selection payload is preserved and merged)

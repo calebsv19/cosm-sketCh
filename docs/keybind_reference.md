@@ -1,6 +1,6 @@
 # sketCh Keybind Reference
 
-Last updated: 2026-04-12
+Last updated: 2026-04-15
 Scope: current implemented runtime controls (`sdl-debug` lane)
 
 ## Tool Selection
@@ -13,6 +13,7 @@ Scope: current implemented runtime controls (`sdl-debug` lane)
 - `S`: select
 - `M`: move
 - `I`: picker
+- `P`: path (pen/polygon draft)
 
 ## Color + Theme + Font
 - `1..8`: set active palette swatch
@@ -47,10 +48,16 @@ Scope: current implemented runtime controls (`sdl-debug` lane)
 - `Left drag` (`BRUSH` / `ERASER`): draw stroke
 - `Left click` (`FILL`): flood fill
 - `Left drag` (`LINE` / `RECT` / `CIRCLE`): preview then commit on release
+- `Left click` (`PATH`): add draft point
+- `Enter` (`PATH`): commit closed path object (requires 3+ points)
+- `Backspace/Delete` (`PATH`): remove last draft point
+- `Esc` (`PATH`): cancel draft path
 - `Left drag` (`SELECT`): marquee select
 - `Shift + Left drag` (`SELECT`): add marquee payload to current selection
 - `Alt/Option + Left drag` (`SELECT`): subtract marquee payload from current selection
 - `Left drag` (`MOVE`, with active selection): move selection
+- `Left drag` (`MOVE`, on selected PATH point handle): adjust selected path point
+- `Alt/Option + Left drag` (`MOVE`, with object selection): point-only drag intent (no object-move fallback on miss)
 - `Arrow` (`MOVE`, with active selection): nudge by 1 sample
 - `Shift+Arrow` (`MOVE`, with active selection): nudge by 10 samples
 - `Right drag` over canvas: pan viewport
@@ -70,3 +77,5 @@ Scope: current implemented runtime controls (`sdl-debug` lane)
 - `CLEAR CANVAS` is available as a right-panel `CANVAS` action button (no keybind assigned yet).
 - `DELETE SELECTION` is available as a right-panel `CANVAS` action button (no keybind assigned yet).
 - `DELETE SELECTED` is available as a right-panel `LAYER` action button (no keybind assigned yet).
+- Selected `PATH` objects render point handles; dragging a selected handle in `MOVE` commits one history-backed point edit on release.
+- In `MOVE`, selected/hovered PATH point handles render with stronger high-contrast markers and zoom-adaptive hit pick radius.

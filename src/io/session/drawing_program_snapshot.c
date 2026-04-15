@@ -183,9 +183,37 @@ typedef struct DrawingProgramObjectChunkEntryV1 {
     char name[DRAWING_PROGRAM_OBJECT_NAME_CAPACITY];
 } DrawingProgramObjectChunkEntryV1;
 
+typedef struct DrawingProgramObjectChunkHeaderV2 {
+    uint32_t version;
+    uint32_t object_count;
+    uint32_t next_object_id;
+    uint32_t reserved0;
+} DrawingProgramObjectChunkHeaderV2;
+
+typedef struct DrawingProgramObjectChunkEntryV2 {
+    uint32_t object_id;
+    uint32_t layer_id;
+    uint8_t type;
+    uint8_t visible;
+    uint8_t locked;
+    uint8_t stroke_color_index;
+    uint8_t fill_color_index;
+    uint8_t stroke_width;
+    uint8_t style_mode;
+    uint8_t path_closed;
+    uint16_t path_point_count;
+    int32_t origin_x;
+    int32_t origin_y;
+    uint32_t width;
+    uint32_t height;
+    char name[DRAWING_PROGRAM_OBJECT_NAME_CAPACITY];
+    DrawingProgramPathPoint path_points[DRAWING_PROGRAM_OBJECT_PATH_MAX_POINTS];
+} DrawingProgramObjectChunkEntryV2;
+
 enum {
     DRAWING_PROGRAM_LAYER_RASTER_CHUNK_VERSION_V1 = 1u,
     DRAWING_PROGRAM_OBJECT_CHUNK_VERSION_V1 = 1u,
+    DRAWING_PROGRAM_OBJECT_CHUNK_VERSION_V2 = 2u,
     DRAWING_PROGRAM_UI_SETTINGS_VERSION_V1 = 1u,
     DRAWING_PROGRAM_UI_SETTINGS_VERSION_V2 = 2u,
     DRAWING_PROGRAM_UI_SETTINGS_VERSION_V3 = 3u,
@@ -361,7 +389,7 @@ static CoreResult drawing_program_snapshot_apply_layer_raster_chunk(
 static CoreResult drawing_program_snapshot_write_object_chunk(
     CorePackWriter *writer,
     const struct DrawingProgramAppContext *ctx) {
-    DrawingProgramObjectChunkHeaderV1 header;
+    DrawingProgramObjectChunkHeaderV2 header;
     uint64_t payload_size;
     uint8_t *payload = 0;
     uint8_t *cursor = 0;
@@ -373,14 +401,14 @@ static CoreResult drawing_program_snapshot_write_object_chunk(
         return (CoreResult){ CORE_ERR_FORMAT, "object store count exceeds max object capacity" };
     }
     memset(&header, 0, sizeof(header));
-    header.version = DRAWING_PROGRAM_OBJECT_CHUNK_VERSION_V1;
+    header.version = DRAWING_PROGRAM_OBJECT_CHUNK_VERSION_V2;
     header.object_count = ctx->object_store.object_count;
     header.next_object_id = ctx->object_store.next_object_id;
     if (header.next_object_id == 0u) {
         header.next_object_id = 1u;
     }
     payload_size = (uint64_t)sizeof(header) +
-                   ((uint64_t)header.object_count * (uint64_t)sizeof(DrawingProgramObjectChunkEntryV1));
+                   ((uint64_t)header.object_count * (uint64_t)sizeof(DrawingProgramObjectChunkEntryV2));
     payload = (uint8_t *)malloc((size_t)payload_size);
     if (!payload) {
         return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "failed to allocate object snapshot payload" };
@@ -389,7 +417,7 @@ static CoreResult drawing_program_snapshot_write_object_chunk(
     memcpy(cursor, &header, sizeof(header));
     cursor += sizeof(header);
     for (i = 0u; i < header.object_count; ++i) {
-        DrawingProgramObjectChunkEntryV1 entry;
+        DrawingProgramObjectChunkEntryV2 entry;
         const DrawingProgramObjectRecord *object = &ctx->object_store.objects[i];
         memset(&entry, 0, sizeof(entry));
         entry.object_id = object->object_id;
@@ -405,6 +433,17 @@ static CoreResult drawing_program_snapshot_write_object_chunk(
         entry.origin_y = object->origin_y;
         entry.width = object->width;
         entry.height = object->height;
+        if (object->type == (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_PATH) {
+            uint16_t point_count = object->path_point_count;
+            if (point_count > DRAWING_PROGRAM_OBJECT_PATH_MAX_POINTS) {
+                point_count = DRAWING_PROGRAM_OBJECT_PATH_MAX_POINTS;
+            }
+            entry.path_closed = object->path_closed ? 1u : 0u;
+            entry.path_point_count = point_count;
+            memcpy(entry.path_points,
+                   object->path_points,
+                   (size_t)point_count * sizeof(entry.path_points[0]));
+        }
         memcpy(entry.name, object->name, sizeof(entry.name));
         entry.name[sizeof(entry.name) - 1u] = '\0';
         memcpy(cursor, &entry, sizeof(entry));
@@ -421,63 +460,135 @@ static CoreResult drawing_program_snapshot_apply_object_chunk(
     struct DrawingProgramAppContext *ctx,
     const void *chunk_data,
     uint64_t chunk_size) {
-    DrawingProgramObjectChunkHeaderV1 header;
-    DrawingProgramObjectRecord records[DRAWING_PROGRAM_MAX_OBJECTS];
+    DrawingProgramObjectChunkHeaderV1 header_v1;
+    DrawingProgramObjectChunkHeaderV2 header_v2;
+    DrawingProgramObjectStore staged_store;
     const uint8_t *cursor = (const uint8_t *)chunk_data;
     const uint8_t *end = cursor + chunk_size;
-    uint32_t i;
-    uint64_t expected_size;
-    if (!ctx || !cursor || chunk_size < (uint64_t)sizeof(header)) {
+    uint32_t version = 0u;
+    if (!ctx || !cursor || chunk_size < (uint64_t)sizeof(DrawingProgramObjectChunkHeaderV1)) {
         return snapshot_invalid("invalid object chunk payload");
     }
-    memset(&header, 0, sizeof(header));
-    memcpy(&header, cursor, sizeof(header));
-    if (header.version != DRAWING_PROGRAM_OBJECT_CHUNK_VERSION_V1) {
-        return (CoreResult){ CORE_ERR_FORMAT, "unsupported drawing object chunk version" };
-    }
-    if (header.object_count > DRAWING_PROGRAM_MAX_OBJECTS) {
-        return (CoreResult){ CORE_ERR_FORMAT, "object chunk count exceeds max object capacity" };
-    }
-    expected_size = (uint64_t)sizeof(header) +
-                    ((uint64_t)header.object_count * (uint64_t)sizeof(DrawingProgramObjectChunkEntryV1));
-    if (expected_size != chunk_size) {
-        return (CoreResult){ CORE_ERR_FORMAT, "drawing object chunk size mismatch" };
-    }
-    cursor += sizeof(header);
-    memset(records, 0, sizeof(records));
-    for (i = 0u; i < header.object_count; ++i) {
-        DrawingProgramObjectChunkEntryV1 entry;
-        DrawingProgramObjectRecord record;
-        if ((uint64_t)(end - cursor) < (uint64_t)sizeof(entry)) {
-            return (CoreResult){ CORE_ERR_FORMAT, "drawing object chunk truncated entries" };
+    memcpy(&version, cursor, sizeof(uint32_t));
+    drawing_program_object_store_reset(&staged_store);
+    if (version == DRAWING_PROGRAM_OBJECT_CHUNK_VERSION_V1) {
+        DrawingProgramObjectRecord records[DRAWING_PROGRAM_MAX_OBJECTS];
+        uint32_t i;
+        uint64_t expected_size;
+        memset(&header_v1, 0, sizeof(header_v1));
+        memcpy(&header_v1, cursor, sizeof(header_v1));
+        if (header_v1.object_count > DRAWING_PROGRAM_MAX_OBJECTS) {
+            return (CoreResult){ CORE_ERR_FORMAT, "object chunk count exceeds max object capacity" };
         }
-        memcpy(&entry, cursor, sizeof(entry));
-        cursor += sizeof(entry);
-        memset(&record, 0, sizeof(record));
-        record.object_id = entry.object_id;
-        record.layer_id = entry.layer_id;
-        record.type = entry.type;
-        record.visible = entry.visible ? 1u : 0u;
-        record.locked = entry.locked ? 1u : 0u;
-        record.stroke_color_index = entry.stroke_color_index;
-        record.fill_color_index = entry.fill_color_index;
-        record.stroke_width = entry.stroke_width;
-        record.style_mode = entry.style_mode;
-        record.origin_x = entry.origin_x;
-        record.origin_y = entry.origin_y;
-        record.width = entry.width;
-        record.height = entry.height;
-        memcpy(record.name, entry.name, sizeof(record.name));
-        record.name[sizeof(record.name) - 1u] = '\0';
-        records[i] = record;
+        expected_size = (uint64_t)sizeof(header_v1) +
+                        ((uint64_t)header_v1.object_count * (uint64_t)sizeof(DrawingProgramObjectChunkEntryV1));
+        if (expected_size != chunk_size) {
+            return (CoreResult){ CORE_ERR_FORMAT, "drawing object chunk size mismatch" };
+        }
+        cursor += sizeof(header_v1);
+        memset(records, 0, sizeof(records));
+        for (i = 0u; i < header_v1.object_count; ++i) {
+            DrawingProgramObjectChunkEntryV1 entry;
+            DrawingProgramObjectRecord record;
+            if ((uint64_t)(end - cursor) < (uint64_t)sizeof(entry)) {
+                return (CoreResult){ CORE_ERR_FORMAT, "drawing object chunk truncated entries" };
+            }
+            memcpy(&entry, cursor, sizeof(entry));
+            cursor += sizeof(entry);
+            memset(&record, 0, sizeof(record));
+            record.object_id = entry.object_id;
+            record.layer_id = entry.layer_id;
+            record.type = entry.type;
+            record.visible = entry.visible ? 1u : 0u;
+            record.locked = entry.locked ? 1u : 0u;
+            record.stroke_color_index = entry.stroke_color_index;
+            record.fill_color_index = entry.fill_color_index;
+            record.stroke_width = entry.stroke_width;
+            record.style_mode = entry.style_mode;
+            record.origin_x = entry.origin_x;
+            record.origin_y = entry.origin_y;
+            record.width = entry.width;
+            record.height = entry.height;
+            memcpy(record.name, entry.name, sizeof(record.name));
+            record.name[sizeof(record.name) - 1u] = '\0';
+            records[i] = record;
+        }
+        if (cursor != end) {
+            return (CoreResult){ CORE_ERR_FORMAT, "drawing object chunk trailing bytes" };
+        }
+        return drawing_program_object_store_replace_all(&ctx->object_store,
+                                                        records,
+                                                        header_v1.object_count,
+                                                        header_v1.next_object_id);
     }
-    if (cursor != end) {
-        return (CoreResult){ CORE_ERR_FORMAT, "drawing object chunk trailing bytes" };
+    if (version == DRAWING_PROGRAM_OBJECT_CHUNK_VERSION_V2) {
+        uint32_t i;
+        uint64_t expected_size;
+        memset(&header_v2, 0, sizeof(header_v2));
+        memcpy(&header_v2, cursor, sizeof(header_v2));
+        if (header_v2.object_count > DRAWING_PROGRAM_MAX_OBJECTS) {
+            return (CoreResult){ CORE_ERR_FORMAT, "object chunk count exceeds max object capacity" };
+        }
+        expected_size = (uint64_t)sizeof(header_v2) +
+                        ((uint64_t)header_v2.object_count * (uint64_t)sizeof(DrawingProgramObjectChunkEntryV2));
+        if (expected_size != chunk_size) {
+            return (CoreResult){ CORE_ERR_FORMAT, "drawing object chunk size mismatch" };
+        }
+        cursor += sizeof(header_v2);
+        for (i = 0u; i < header_v2.object_count; ++i) {
+            DrawingProgramObjectChunkEntryV2 entry;
+            DrawingProgramObjectRecord record;
+            CoreResult insert_result;
+            if ((uint64_t)(end - cursor) < (uint64_t)sizeof(entry)) {
+                return (CoreResult){ CORE_ERR_FORMAT, "drawing object chunk truncated entries" };
+            }
+            memcpy(&entry, cursor, sizeof(entry));
+            cursor += sizeof(entry);
+            memset(&record, 0, sizeof(record));
+            record.object_id = entry.object_id;
+            record.layer_id = entry.layer_id;
+            record.type = entry.type;
+            record.visible = entry.visible ? 1u : 0u;
+            record.locked = entry.locked ? 1u : 0u;
+            record.stroke_color_index = entry.stroke_color_index;
+            record.fill_color_index = entry.fill_color_index;
+            record.stroke_width = entry.stroke_width;
+            record.style_mode = entry.style_mode;
+            record.origin_x = entry.origin_x;
+            record.origin_y = entry.origin_y;
+            record.width = entry.width;
+            record.height = entry.height;
+            memcpy(record.name, entry.name, sizeof(record.name));
+            record.name[sizeof(record.name) - 1u] = '\0';
+            if (record.type == (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_PATH) {
+                if (entry.path_point_count < 2u ||
+                    entry.path_point_count > DRAWING_PROGRAM_OBJECT_PATH_MAX_POINTS) {
+                    continue;
+                }
+                record.path_point_count = entry.path_point_count;
+                record.path_closed = entry.path_closed ? 1u : 0u;
+                memcpy(record.path_points,
+                       entry.path_points,
+                       (size_t)entry.path_point_count * sizeof(record.path_points[0]));
+            }
+            insert_result = drawing_program_object_store_insert_with_id(&staged_store, &record, record.object_id);
+            if (insert_result.code != CORE_OK) {
+                continue;
+            }
+        }
+        if (cursor != end) {
+            return (CoreResult){ CORE_ERR_FORMAT, "drawing object chunk trailing bytes" };
+        }
+        if (header_v2.next_object_id > staged_store.next_object_id) {
+            staged_store.next_object_id = header_v2.next_object_id;
+            if (staged_store.next_object_id == 0u) {
+                staged_store.next_object_id = 1u;
+            }
+        }
+        ctx->object_store = staged_store;
+        return core_result_ok();
     }
-    return drawing_program_object_store_replace_all(&ctx->object_store,
-                                                    records,
-                                                    header.object_count,
-                                                    header.next_object_id);
+    return (CoreResult){ CORE_ERR_FORMAT, "unsupported drawing object chunk version" };
 }
 
 CoreResult drawing_program_snapshot_save(const struct DrawingProgramAppContext *ctx, const char *path) {
@@ -990,7 +1101,7 @@ CoreResult drawing_program_snapshot_export_debug_json(const struct DrawingProgra
     for (i = 0u; i < ctx->object_store.object_count && i < DRAWING_PROGRAM_MAX_OBJECTS; ++i) {
         const DrawingProgramObjectRecord *object = &ctx->object_store.objects[i];
         fprintf(f,
-                "      {\"id\": %u, \"layer_id\": %u, \"type\": %u, \"visible\": %u, \"locked\": %u, \"x\": %d, \"y\": %d, \"w\": %u, \"h\": %u}%s\n",
+                "      {\"id\": %u, \"layer_id\": %u, \"type\": %u, \"visible\": %u, \"locked\": %u, \"x\": %d, \"y\": %d, \"w\": %u, \"h\": %u, \"path_point_count\": %u, \"path_closed\": %u}%s\n",
                 (unsigned)object->object_id,
                 (unsigned)object->layer_id,
                 (unsigned)object->type,
@@ -1000,6 +1111,8 @@ CoreResult drawing_program_snapshot_export_debug_json(const struct DrawingProgra
                 (int)object->origin_y,
                 (unsigned)object->width,
                 (unsigned)object->height,
+                (unsigned)object->path_point_count,
+                (unsigned)object->path_closed,
                 ((i + 1u) < ctx->object_store.object_count && (i + 1u) < DRAWING_PROGRAM_MAX_OBJECTS) ? "," : "");
     }
     fprintf(f, "    ]\n");

@@ -196,6 +196,18 @@ static CoreResult history_apply_undo_command(const DrawingProgramCommand *comman
                                                        0,
                                                        0);
     }
+    if (command->type == DRAWING_PROGRAM_COMMAND_SET_OBJECT_PATH_POINT) {
+        if (!object_store) {
+            return drawing_program_history_invalid("missing object store for object-path-point undo");
+        }
+        return drawing_program_object_store_set_path_point(object_store,
+                                                           command->object_id,
+                                                           command->path_point_index,
+                                                           command->previous_path_point_x,
+                                                           command->previous_path_point_y,
+                                                           0,
+                                                           0);
+    }
     return core_result_ok();
 }
 
@@ -246,6 +258,18 @@ static CoreResult history_apply_redo_command(const DrawingProgramCommand *comman
                                                        command->new_object_origin_y,
                                                        0,
                                                        0);
+    }
+    if (command->type == DRAWING_PROGRAM_COMMAND_SET_OBJECT_PATH_POINT) {
+        if (!object_store) {
+            return drawing_program_history_invalid("missing object store for object-path-point redo");
+        }
+        return drawing_program_object_store_set_path_point(object_store,
+                                                           command->object_id,
+                                                           command->path_point_index,
+                                                           command->new_path_point_x,
+                                                           command->new_path_point_y,
+                                                           0,
+                                                           0);
     }
     return core_result_ok();
 }
@@ -519,6 +543,44 @@ CoreResult drawing_program_history_apply_set_object_origin(DrawingProgramHistory
     command.new_object_origin_y = origin_y;
     command.previous_object_origin_x = previous_x;
     command.previous_object_origin_y = previous_y;
+    drawing_program_history_push(history, &command);
+    return core_result_ok();
+}
+
+CoreResult drawing_program_history_apply_set_object_path_point(DrawingProgramHistory *history,
+                                                               DrawingProgramObjectStore *object_store,
+                                                               uint32_t object_id,
+                                                               uint16_t point_index,
+                                                               int32_t point_x,
+                                                               int32_t point_y) {
+    DrawingProgramCommand command;
+    CoreResult result;
+    int32_t previous_x = 0;
+    int32_t previous_y = 0;
+    if (!history || !object_store || object_id == 0u) {
+        return drawing_program_history_invalid("invalid object-path-point command request");
+    }
+    result = drawing_program_object_store_set_path_point(object_store,
+                                                         object_id,
+                                                         point_index,
+                                                         point_x,
+                                                         point_y,
+                                                         &previous_x,
+                                                         &previous_y);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    if (previous_x == point_x && previous_y == point_y) {
+        return core_result_ok();
+    }
+    memset(&command, 0, sizeof(command));
+    command.type = DRAWING_PROGRAM_COMMAND_SET_OBJECT_PATH_POINT;
+    command.object_id = object_id;
+    command.path_point_index = point_index;
+    command.new_path_point_x = point_x;
+    command.new_path_point_y = point_y;
+    command.previous_path_point_x = previous_x;
+    command.previous_path_point_y = previous_y;
     drawing_program_history_push(history, &command);
     return core_result_ok();
 }

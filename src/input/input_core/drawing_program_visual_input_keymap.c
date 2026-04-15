@@ -22,6 +22,8 @@ DrawingProgramWorkflowControl drawing_program_visual_input_control_for_key(SDL_K
             return DRAWING_PROGRAM_WORKFLOW_CONTROL_SET_TOOL_MOVE;
         case SDLK_i:
             return DRAWING_PROGRAM_WORKFLOW_CONTROL_SET_TOOL_PICKER;
+        case SDLK_p:
+            return DRAWING_PROGRAM_WORKFLOW_CONTROL_SET_TOOL_PATH;
         case SDLK_v:
             return DRAWING_PROGRAM_WORKFLOW_CONTROL_TOGGLE_ACTIVE_LAYER_VISIBILITY;
         case SDLK_k:

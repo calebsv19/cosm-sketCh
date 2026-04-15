@@ -31,6 +31,7 @@ static const DrawingProgramToolKind k_visual_tools[] = {
     DRAWING_PROGRAM_TOOL_LINE,
     DRAWING_PROGRAM_TOOL_RECT,
     DRAWING_PROGRAM_TOOL_CIRCLE,
+    DRAWING_PROGRAM_TOOL_PATH,
     DRAWING_PROGRAM_TOOL_SELECT,
     DRAWING_PROGRAM_TOOL_MOVE,
     DRAWING_PROGRAM_TOOL_PICKER
@@ -53,6 +54,11 @@ static const VisualToolOptionKind k_tool_options_fill[] = {
 
 static const VisualToolOptionKind k_tool_options_line[] = {
     VISUAL_TOOL_OPTION_SHAPE_STROKE_WIDTH
+};
+
+static const VisualToolOptionKind k_tool_options_path[] = {
+    VISUAL_TOOL_OPTION_SHAPE_STROKE_WIDTH,
+    VISUAL_TOOL_OPTION_SHAPE_MODE
 };
 
 static const VisualToolOptionKind k_tool_options_rect_circle[] = {
@@ -79,6 +85,9 @@ static const VisualToolDetailModule k_tool_detail_modules[] = {
     { DRAWING_PROGRAM_TOOL_LINE,
       k_tool_options_line,
       (uint32_t)(sizeof(k_tool_options_line) / sizeof(k_tool_options_line[0])) },
+    { DRAWING_PROGRAM_TOOL_PATH,
+      k_tool_options_path,
+      (uint32_t)(sizeof(k_tool_options_path) / sizeof(k_tool_options_path[0])) },
     { DRAWING_PROGRAM_TOOL_RECT,
       k_tool_options_rect_circle,
       (uint32_t)(sizeof(k_tool_options_rect_circle) / sizeof(k_tool_options_rect_circle[0])) },
@@ -346,6 +355,7 @@ DrawingProgramWorkflowControl drawing_program_visual_workflow_control_for_tool(D
         case DRAWING_PROGRAM_TOOL_LINE: return DRAWING_PROGRAM_WORKFLOW_CONTROL_SET_TOOL_LINE;
         case DRAWING_PROGRAM_TOOL_RECT: return DRAWING_PROGRAM_WORKFLOW_CONTROL_SET_TOOL_RECT;
         case DRAWING_PROGRAM_TOOL_CIRCLE: return DRAWING_PROGRAM_WORKFLOW_CONTROL_SET_TOOL_CIRCLE;
+        case DRAWING_PROGRAM_TOOL_PATH: return DRAWING_PROGRAM_WORKFLOW_CONTROL_SET_TOOL_PATH;
         case DRAWING_PROGRAM_TOOL_SELECT: return DRAWING_PROGRAM_WORKFLOW_CONTROL_SET_TOOL_SELECT;
         case DRAWING_PROGRAM_TOOL_MOVE: return DRAWING_PROGRAM_WORKFLOW_CONTROL_SET_TOOL_MOVE;
         case DRAWING_PROGRAM_TOOL_PICKER: return DRAWING_PROGRAM_WORKFLOW_CONTROL_SET_TOOL_PICKER;

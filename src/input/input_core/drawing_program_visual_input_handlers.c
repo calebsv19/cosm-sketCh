@@ -1,6 +1,8 @@
 #include "drawing_program/drawing_program_visual_input_handlers.h"
 
+#include <limits.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "drawing_program/drawing_program_visual_input_core.h"
 #include "drawing_program/drawing_program_visual_input_keymap.h"
@@ -10,6 +12,113 @@
 enum {
     VISUAL_RIGHT_PANEL_SLOT_LAYER_VALUE = 1
 };
+
+static void path_draft_reset(VisualCanvasInteractionState *interaction) {
+    if (!interaction) {
+        return;
+    }
+    interaction->path_draft_active = 0u;
+    interaction->path_draft_closed = 0u;
+    interaction->path_preview_sample_x = 0u;
+    interaction->path_preview_sample_y = 0u;
+    interaction->path_draft_point_count = 0u;
+    memset(interaction->path_draft_points, 0, sizeof(interaction->path_draft_points));
+}
+
+static int path_draft_pop_point(VisualCanvasInteractionState *interaction) {
+    if (!interaction || interaction->path_draft_point_count == 0u) {
+        return 0;
+    }
+    interaction->path_draft_point_count -= 1u;
+    interaction->path_draft_points[interaction->path_draft_point_count].x = 0;
+    interaction->path_draft_points[interaction->path_draft_point_count].y = 0;
+    if (interaction->path_draft_point_count == 0u) {
+        path_draft_reset(interaction);
+        return 1;
+    }
+    interaction->path_preview_sample_x = (uint32_t)interaction->path_draft_points[interaction->path_draft_point_count - 1u].x;
+    interaction->path_preview_sample_y = (uint32_t)interaction->path_draft_points[interaction->path_draft_point_count - 1u].y;
+    return 1;
+}
+
+static int path_draft_add_point(VisualCanvasInteractionState *interaction, uint32_t sample_x, uint32_t sample_y) {
+    uint16_t count;
+    if (!interaction || sample_x > (uint32_t)INT32_MAX || sample_y > (uint32_t)INT32_MAX) {
+        return 0;
+    }
+    count = interaction->path_draft_point_count;
+    if (count > 0u) {
+        const DrawingProgramPathPoint *last = &interaction->path_draft_points[count - 1u];
+        if ((uint32_t)last->x == sample_x && (uint32_t)last->y == sample_y) {
+            interaction->path_preview_sample_x = sample_x;
+            interaction->path_preview_sample_y = sample_y;
+            return 1;
+        }
+    }
+    if (count >= (uint16_t)DRAWING_PROGRAM_OBJECT_PATH_MAX_POINTS) {
+        return 0;
+    }
+    interaction->path_draft_points[count].x = (int32_t)sample_x;
+    interaction->path_draft_points[count].y = (int32_t)sample_y;
+    interaction->path_draft_point_count = (uint16_t)(count + 1u);
+    interaction->path_draft_active = 1u;
+    interaction->path_draft_closed = 0u;
+    interaction->path_preview_sample_x = sample_x;
+    interaction->path_preview_sample_y = sample_y;
+    return 1;
+}
+
+static CoreResult path_draft_commit_closed(DrawingProgramAppContext *ctx, VisualCanvasInteractionState *interaction) {
+    DrawingProgramPathPayload payload;
+    DrawingProgramObjectRecord style_seed;
+    uint32_t active_layer_id = 0u;
+    uint32_t object_id = 0u;
+    uint8_t visible = 0u;
+    uint8_t locked = 0u;
+    uint8_t color_index;
+    CoreResult result;
+    if (!ctx || !interaction) {
+        return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid path draft commit request" };
+    }
+    if (!interaction->path_draft_active || interaction->path_draft_point_count < 3u) {
+        return core_result_ok();
+    }
+    result = drawing_program_runtime_orchestration_resolve_active_layer(
+        ctx, &active_layer_id, 0, &visible, &locked);
+    if (result.code != CORE_OK || active_layer_id == 0u || !visible || locked) {
+        return core_result_ok();
+    }
+    memset(&payload, 0, sizeof(payload));
+    payload.point_count = interaction->path_draft_point_count;
+    payload.closed = 1u;
+    memcpy(payload.points,
+           interaction->path_draft_points,
+           (size_t)payload.point_count * sizeof(payload.points[0]));
+    memset(&style_seed, 0, sizeof(style_seed));
+    color_index = drawing_program_color_index_clamp(ctx->ui_active_color_index);
+    style_seed.layer_id = active_layer_id;
+    style_seed.visible = 1u;
+    style_seed.locked = 0u;
+    style_seed.stroke_color_index = color_index;
+    style_seed.fill_color_index = color_index;
+    style_seed.stroke_width = ctx->ui_tool_shape_stroke_width;
+    if (style_seed.stroke_width < 1u) {
+        style_seed.stroke_width = 1u;
+    } else if (style_seed.stroke_width > 16u) {
+        style_seed.stroke_width = 16u;
+    }
+    /* Phase-14 path baseline is outline-only while interactive fill policies are deferred. */
+    style_seed.style_mode = 0u;
+    result = drawing_program_object_store_add_path(&ctx->object_store, &style_seed, &payload, &object_id);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    interaction->path_draft_closed = 1u;
+    drawing_program_selection_reset(&ctx->selection);
+    drawing_program_object_selection_replace_single(&ctx->object_selection, object_id);
+    path_draft_reset(interaction);
+    return core_result_ok();
+}
 
 static void object_selection_clear(DrawingProgramAppContext *ctx) {
     if (!ctx) {
@@ -66,6 +175,54 @@ static int object_selection_hit_test(const DrawingProgramAppContext *ctx,
     result = drawing_program_object_store_hit_test_topmost(
         &ctx->object_store, &ctx->document, sample_x, sample_y, out_object_id, 0);
     return (result.code == CORE_OK) ? 1 : 0;
+}
+
+static uint32_t delete_selected_objects(DrawingProgramAppContext *ctx) {
+    uint32_t removed = 0u;
+    uint32_t i;
+    uint32_t ids[DRAWING_PROGRAM_MAX_OBJECTS];
+    if (!ctx || ctx->object_selection.count == 0u) {
+        return 0u;
+    }
+    memset(ids, 0, sizeof(ids));
+    for (i = 0u; i < ctx->object_selection.count && i < DRAWING_PROGRAM_MAX_OBJECTS; ++i) {
+        ids[i] = ctx->object_selection.object_ids[i];
+    }
+    for (i = 0u; i < ctx->object_selection.count && i < DRAWING_PROGRAM_MAX_OBJECTS; ++i) {
+        if (ids[i] == 0u) {
+            continue;
+        }
+        if (drawing_program_object_store_remove_by_id(&ctx->object_store, ids[i], 0).code == CORE_OK) {
+            removed += 1u;
+        }
+    }
+    if (removed > 0u) {
+        drawing_program_object_selection_reset(&ctx->object_selection);
+    }
+    return removed;
+}
+
+static int delete_active_selection_payload_or_objects(DrawingProgramAppContext *ctx,
+                                                      DrawingProgramSelectionState *selection_state,
+                                                      const DrawingProgramVisualInputHandlersHooks *hooks) {
+    if (!ctx || !selection_state || !hooks) {
+        return 0;
+    }
+    if (ctx->object_selection.count > 0u) {
+        if (delete_selected_objects(ctx) > 0u) {
+            drawing_program_selection_reset(selection_state);
+            return 1;
+        }
+    }
+    if (selection_state->has_payload && hooks->active_layer_allows_edits_visual(ctx)) {
+        (void)drawing_program_selection_delete_payload(&ctx->document,
+                                                       &ctx->layer_rasters,
+                                                       ctx->editor.active_layer_id,
+                                                       &ctx->history,
+                                                       selection_state);
+        return 1;
+    }
+    return 0;
 }
 
 static VisualMarqueeCommitMode resolve_select_commit_mode(const DrawingProgramAppContext *ctx,
@@ -301,13 +458,7 @@ static void handle_right_panel_click_payload(DrawingProgramAppContext *ctx,
         delete_selection_button = right_canvas_delete_selection_button_rect(rect, m);
         if (hooks->point_in_rect(delete_selection_button, x, y) &&
             selection &&
-            selection->has_payload &&
-            hooks->active_layer_allows_edits_visual(ctx)) {
-            (void)drawing_program_selection_delete_payload(&ctx->document,
-                                                           &ctx->layer_rasters,
-                                                           ctx->editor.active_layer_id,
-                                                           &ctx->history,
-                                                           selection);
+            delete_active_selection_payload_or_objects(ctx, selection, hooks)) {
             return;
         }
         clear_history_button = right_canvas_clear_history_button_rect(rect, m);
@@ -355,13 +506,26 @@ int drawing_program_visual_input_handle_mouse_button_up_payload(const SDL_Event 
         hooks->cancel_all_transient_interactions(app, canvas_interaction, selection_state, 1);
         return 1;
     }
+    if (app->editor.active_tool == DRAWING_PROGRAM_TOOL_PATH) {
+        canvas_interaction->drawing_active = 0u;
+        canvas_interaction->shape_active = 0u;
+        canvas_interaction->has_last_sample = 0u;
+        return 1;
+    }
     if (has_canvas_pane &&
         hooks->screen_to_canvas_sample(app, canvas_pane, release_x, release_y, &sample_x, &sample_y)) {
         if (selection_state->selecting) {
             selection_state->marquee_end_x = sample_x;
             selection_state->marquee_end_y = sample_y;
         }
-        if (hooks->visual_transform_session_is_object_move_active(canvas_interaction)) {
+        if (hooks->visual_transform_session_is_object_path_point_move_active &&
+            hooks->visual_transform_session_update_object_path_point_move &&
+            hooks->visual_transform_session_is_object_path_point_move_active(canvas_interaction)) {
+            (void)hooks->screen_to_canvas_sample_clamped(
+                app, canvas_pane, release_x, release_y, &sample_x, &sample_y);
+            hooks->visual_transform_session_update_object_path_point_move(
+                app, canvas_interaction, sample_x, sample_y, SDL_GetModState());
+        } else if (hooks->visual_transform_session_is_object_move_active(canvas_interaction)) {
             (void)hooks->screen_to_canvas_sample_clamped(
                 app, canvas_pane, release_x, release_y, &sample_x, &sample_y);
             hooks->visual_transform_session_update_object_move(
@@ -391,7 +555,14 @@ int drawing_program_visual_input_handle_mouse_button_up_payload(const SDL_Event 
             hooks->visual_marquee_commit_mode_clamp(canvas_interaction->marquee_commit_mode);
         (void)hooks->visual_selection_capture_from_marquee(app, selection_state, mode);
     }
-    if (hooks->visual_transform_session_is_move_active(canvas_interaction) && selection_state->moving) {
+    if (hooks->visual_transform_session_is_object_path_point_move_active &&
+        hooks->visual_transform_session_commit_object_path_point_move &&
+        hooks->visual_transform_session_is_object_path_point_move_active(canvas_interaction)) {
+        move_commit = hooks->visual_transform_session_commit_object_path_point_move(app, canvas_interaction);
+        if (move_commit.code != CORE_OK) {
+            fprintf(stderr, "drawing_program: object path-point commit failed: %s\n", move_commit.message);
+        }
+    } else if (hooks->visual_transform_session_is_move_active(canvas_interaction) && selection_state->moving) {
         move_commit = hooks->visual_transform_session_commit_move(app, canvas_interaction, selection_state);
         if (move_commit.code != CORE_OK) {
             fprintf(stderr, "drawing_program: selection move commit failed: %s\n", move_commit.message);
@@ -454,7 +625,31 @@ int drawing_program_visual_input_handle_mouse_motion_payload(const SDL_Event *ev
             selection_state->marquee_end_y = sample_y;
         }
     }
-    if (hooks->visual_transform_session_is_object_move_active(canvas_interaction) &&
+    if (app->editor.active_tool == DRAWING_PROGRAM_TOOL_PATH &&
+        canvas_interaction->path_draft_active) {
+        uint32_t sample_x = 0u;
+        uint32_t sample_y = 0u;
+        if (hooks->screen_to_canvas_sample(
+                app, canvas_pane, panel_ui->mouse_x, panel_ui->mouse_y, &sample_x, &sample_y)) {
+            canvas_interaction->path_preview_sample_x = sample_x;
+            canvas_interaction->path_preview_sample_y = sample_y;
+        }
+    }
+    if (hooks->visual_transform_session_is_object_path_point_move_active &&
+        hooks->visual_transform_session_update_object_path_point_move &&
+        hooks->visual_transform_session_is_object_path_point_move_active(canvas_interaction) &&
+        app->editor.active_tool == DRAWING_PROGRAM_TOOL_MOVE) {
+        uint32_t sample_x = 0u;
+        uint32_t sample_y = 0u;
+        if (hooks->screen_to_canvas_sample_clamped(
+                app, canvas_pane, panel_ui->mouse_x, panel_ui->mouse_y, &sample_x, &sample_y)) {
+            hooks->visual_transform_session_update_object_path_point_move(app,
+                                                                          canvas_interaction,
+                                                                          sample_x,
+                                                                          sample_y,
+                                                                          SDL_GetModState());
+        }
+    } else if (hooks->visual_transform_session_is_object_move_active(canvas_interaction) &&
         app->editor.active_tool == DRAWING_PROGRAM_TOOL_MOVE) {
         uint32_t sample_x = 0u;
         uint32_t sample_y = 0u;
@@ -584,9 +779,21 @@ int drawing_program_visual_input_handle_mouse_button_down_payload(const SDL_Even
                    app->object_selection.count > 0u &&
                    hooks->screen_to_canvas_sample_clamped(
                        app, canvas_pane, click_x, click_y, &sample_x, &sample_y)) {
+            uint32_t hit_object_id = 0u;
+            uint16_t hit_point_index = 0u;
+            SDL_Keymod mods = SDL_GetModState();
+            int force_point_drag = ((mods & KMOD_ALT) != 0) ? 1 : 0;
             hooks->cancel_canvas_draw_and_shape(canvas_interaction);
             hooks->cancel_selection_transient(selection_state);
-            hooks->visual_transform_session_begin_object_move(canvas_interaction, sample_x, sample_y);
+            if (hooks->object_path_point_hit_test_selected &&
+                hooks->visual_transform_session_begin_object_path_point_move &&
+                hooks->object_path_point_hit_test_selected(
+                    app, sample_x, sample_y, &hit_object_id, &hit_point_index)) {
+                hooks->visual_transform_session_begin_object_path_point_move(
+                    canvas_interaction, hit_object_id, hit_point_index, sample_x, sample_y);
+            } else if (!force_point_drag) {
+                hooks->visual_transform_session_begin_object_move(canvas_interaction, sample_x, sample_y);
+            }
         } else if (app->editor.active_tool == DRAWING_PROGRAM_TOOL_MOVE &&
                    selection_state->has_payload &&
                    ((hooks->screen_to_canvas_sample(app, canvas_pane, click_x, click_y, &sample_x, &sample_y) &&
@@ -596,6 +803,21 @@ int drawing_program_visual_input_handle_mouse_button_down_payload(const SDL_Even
                        app, canvas_pane, click_x, click_y, &sample_x, &sample_y)) {
             hooks->cancel_canvas_draw_and_shape(canvas_interaction);
             hooks->visual_transform_session_begin_move(canvas_interaction, selection_state, sample_x, sample_y);
+        } else if (app->editor.active_tool == DRAWING_PROGRAM_TOOL_PATH &&
+                   hooks->screen_to_canvas_sample(app, canvas_pane, click_x, click_y, &sample_x, &sample_y)) {
+            if (canvas_interaction->path_draft_point_count == 0u) {
+                object_selection_clear(app);
+                drawing_program_selection_reset(selection_state);
+            }
+            hooks->cancel_selection_transient(selection_state);
+            canvas_interaction->drawing_active = 0u;
+            canvas_interaction->shape_active = 0u;
+            canvas_interaction->transform_active = 0u;
+            canvas_interaction->transform_kind = (uint8_t)VISUAL_TRANSFORM_SESSION_NONE;
+            canvas_interaction->object_move_active = 0u;
+            canvas_interaction->move_axis_lock = 0u;
+            canvas_interaction->has_last_sample = 0u;
+            (void)path_draft_add_point(canvas_interaction, sample_x, sample_y);
         } else if (app->editor.active_tool == DRAWING_PROGRAM_TOOL_PICKER) {
             hooks->cancel_all_transient_interactions(app, canvas_interaction, selection_state, 0);
             (void)hooks->apply_canvas_picker_at_screen(app, canvas_pane, click_x, click_y);
@@ -814,14 +1036,26 @@ int drawing_program_visual_input_handle_keydown_payload(const SDL_Event *event,
             return 1;
         }
     }
+    if (app->editor.active_tool == DRAWING_PROGRAM_TOOL_PATH) {
+        if (event->key.keysym.sym == SDLK_RETURN || event->key.keysym.sym == SDLK_KP_ENTER) {
+            CoreResult commit_result = path_draft_commit_closed(app, canvas_interaction);
+            if (commit_result.code != CORE_OK) {
+                fprintf(stderr, "drawing_program: path commit failed: %s\n", commit_result.message);
+            }
+            return 1;
+        }
+        if (event->key.keysym.sym == SDLK_ESCAPE) {
+            path_draft_reset(canvas_interaction);
+            return 1;
+        }
+        if ((event->key.keysym.sym == SDLK_BACKSPACE || event->key.keysym.sym == SDLK_DELETE) &&
+            canvas_interaction->path_draft_point_count > 0u) {
+            (void)path_draft_pop_point(canvas_interaction);
+            return 1;
+        }
+    }
     if ((event->key.keysym.sym == SDLK_BACKSPACE || event->key.keysym.sym == SDLK_DELETE) &&
-        selection_state->has_payload &&
-        hooks->active_layer_allows_edits_visual(app)) {
-        (void)drawing_program_selection_delete_payload(&app->document,
-                                                       &app->layer_rasters,
-                                                       app->editor.active_layer_id,
-                                                       &app->history,
-                                                       selection_state);
+        delete_active_selection_payload_or_objects(app, selection_state, hooks)) {
         return 1;
     }
     control = drawing_program_visual_input_control_for_key(event->key.keysym.sym, event->key.keysym.mod);
