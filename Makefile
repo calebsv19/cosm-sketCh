@@ -88,8 +88,13 @@ APP_LOCAL_SRCS := \
 	src/domain/drawing_program_editor_state.c \
 	src/domain/drawing_program_history.c \
 	src/domain/drawing_program_layer_raster.c \
+	src/domain/drawing_program_object_rasterize.c \
+	src/domain/drawing_program_object_store.c \
+	src/domain/drawing_program_object_transform.c \
 	src/domain/drawing_program_selection.c \
+	src/domain/drawing_program_selection_edit_ops.c \
 	src/io/session/drawing_program_snapshot.c \
+	src/io/session/drawing_program_snapshot_bridge.c \
 	src/domain/drawing_program_viewport.c \
 	src/runtime/render/drawing_program_render_domain.c \
 	src/runtime/render/drawing_program_render_backend.c \
@@ -127,8 +132,13 @@ HEADLESS_LOCAL_SRCS := \
 	src/domain/drawing_program_editor_state.c \
 	src/domain/drawing_program_history.c \
 	src/domain/drawing_program_layer_raster.c \
+	src/domain/drawing_program_object_rasterize.c \
+	src/domain/drawing_program_object_store.c \
+	src/domain/drawing_program_object_transform.c \
 	src/domain/drawing_program_selection.c \
+	src/domain/drawing_program_selection_edit_ops.c \
 	src/io/session/drawing_program_snapshot.c \
+	src/io/session/drawing_program_snapshot_bridge.c \
 	src/domain/drawing_program_viewport.c \
 	src/runtime/render/drawing_program_render_domain.c \
 	src/runtime/render/drawing_program_render_backend.c \
@@ -145,8 +155,13 @@ TEST_LOCAL_SRCS := \
 	src/domain/drawing_program_editor_state.c \
 	src/domain/drawing_program_history.c \
 	src/domain/drawing_program_layer_raster.c \
+	src/domain/drawing_program_object_rasterize.c \
+	src/domain/drawing_program_object_store.c \
+	src/domain/drawing_program_object_transform.c \
 	src/domain/drawing_program_selection.c \
+	src/domain/drawing_program_selection_edit_ops.c \
 	src/io/session/drawing_program_snapshot.c \
+	src/io/session/drawing_program_snapshot_bridge.c \
 	src/domain/drawing_program_viewport.c \
 	src/runtime/render/drawing_program_render_domain.c \
 	src/runtime/render/drawing_program_render_backend.c \

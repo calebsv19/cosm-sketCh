@@ -7,6 +7,7 @@
 
 typedef struct DrawingProgramVisualTransformOpsHooks {
     CoreResult (*visual_selection_commit_move)(DrawingProgramAppContext *ctx, VisualSelectionState *selection);
+    CoreResult (*visual_object_commit_move)(DrawingProgramAppContext *ctx, int32_t requested_dx, int32_t requested_dy);
 } DrawingProgramVisualTransformOpsHooks;
 
 void drawing_program_visual_cancel_canvas_draw_and_shape(VisualCanvasInteractionState *interaction);
@@ -23,6 +24,8 @@ void drawing_program_visual_apply_selection_move_canvas_bounds(const DrawingProg
 void drawing_program_visual_transform_session_reset(VisualCanvasInteractionState *interaction);
 
 int drawing_program_visual_transform_session_is_move_active(const VisualCanvasInteractionState *interaction);
+
+int drawing_program_visual_transform_session_is_object_move_active(const VisualCanvasInteractionState *interaction);
 
 void drawing_program_visual_transform_session_begin_move(VisualCanvasInteractionState *interaction,
                                                          VisualSelectionState *selection,
@@ -47,6 +50,26 @@ CoreResult drawing_program_visual_transform_session_nudge_move(DrawingProgramApp
                                                                int32_t dx,
                                                                int32_t dy,
                                                                const DrawingProgramVisualTransformOpsHooks *hooks);
+
+void drawing_program_visual_transform_session_begin_object_move(VisualCanvasInteractionState *interaction,
+                                                                uint32_t sample_x,
+                                                                uint32_t sample_y);
+
+void drawing_program_visual_transform_session_update_object_move(const DrawingProgramAppContext *ctx,
+                                                                 VisualCanvasInteractionState *interaction,
+                                                                 uint32_t sample_x,
+                                                                 uint32_t sample_y,
+                                                                 SDL_Keymod mods);
+
+CoreResult drawing_program_visual_transform_session_commit_object_move(DrawingProgramAppContext *ctx,
+                                                                       VisualCanvasInteractionState *interaction,
+                                                                       const DrawingProgramVisualTransformOpsHooks *hooks);
+
+CoreResult drawing_program_visual_transform_session_nudge_object_move(DrawingProgramAppContext *ctx,
+                                                                      VisualCanvasInteractionState *interaction,
+                                                                      int32_t dx,
+                                                                      int32_t dy,
+                                                                      const DrawingProgramVisualTransformOpsHooks *hooks);
 
 void drawing_program_visual_begin_canvas_history_group(DrawingProgramAppContext *ctx);
 

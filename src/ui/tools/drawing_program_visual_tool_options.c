@@ -12,9 +12,17 @@ typedef enum VisualToolOptionKind {
     VISUAL_TOOL_OPTION_ERASER_SIZE,
     VISUAL_TOOL_OPTION_SHAPE_STROKE_WIDTH,
     VISUAL_TOOL_OPTION_SHAPE_MODE,
+    VISUAL_TOOL_OPTION_SHAPE_TARGET_MODE,
     VISUAL_TOOL_OPTION_FILL_TOLERANCE,
+    VISUAL_TOOL_OPTION_SELECT_MODE,
     VISUAL_TOOL_OPTION_SELECT_DELETE
 } VisualToolOptionKind;
+
+typedef struct VisualToolDetailModule {
+    DrawingProgramToolKind tool;
+    const VisualToolOptionKind *options;
+    uint32_t option_count;
+} VisualToolDetailModule;
 
 static const DrawingProgramToolKind k_visual_tools[] = {
     DRAWING_PROGRAM_TOOL_BRUSH,
@@ -28,30 +36,82 @@ static const DrawingProgramToolKind k_visual_tools[] = {
     DRAWING_PROGRAM_TOOL_PICKER
 };
 
+static const VisualToolOptionKind k_tool_options_brush[] = {
+    VISUAL_TOOL_OPTION_BRUSH_SIZE,
+    VISUAL_TOOL_OPTION_BRUSH_OPACITY,
+    VISUAL_TOOL_OPTION_BRUSH_SPACING,
+    VISUAL_TOOL_OPTION_BRUSH_HARDNESS
+};
+
+static const VisualToolOptionKind k_tool_options_eraser[] = {
+    VISUAL_TOOL_OPTION_ERASER_SIZE
+};
+
+static const VisualToolOptionKind k_tool_options_fill[] = {
+    VISUAL_TOOL_OPTION_FILL_TOLERANCE
+};
+
+static const VisualToolOptionKind k_tool_options_line[] = {
+    VISUAL_TOOL_OPTION_SHAPE_STROKE_WIDTH
+};
+
+static const VisualToolOptionKind k_tool_options_rect_circle[] = {
+    VISUAL_TOOL_OPTION_SHAPE_STROKE_WIDTH,
+    VISUAL_TOOL_OPTION_SHAPE_MODE,
+    VISUAL_TOOL_OPTION_SHAPE_TARGET_MODE
+};
+
+static const VisualToolOptionKind k_tool_options_select[] = {
+    VISUAL_TOOL_OPTION_SELECT_MODE,
+    VISUAL_TOOL_OPTION_SELECT_DELETE
+};
+
+static const VisualToolDetailModule k_tool_detail_modules[] = {
+    { DRAWING_PROGRAM_TOOL_BRUSH,
+      k_tool_options_brush,
+      (uint32_t)(sizeof(k_tool_options_brush) / sizeof(k_tool_options_brush[0])) },
+    { DRAWING_PROGRAM_TOOL_ERASER,
+      k_tool_options_eraser,
+      (uint32_t)(sizeof(k_tool_options_eraser) / sizeof(k_tool_options_eraser[0])) },
+    { DRAWING_PROGRAM_TOOL_FILL,
+      k_tool_options_fill,
+      (uint32_t)(sizeof(k_tool_options_fill) / sizeof(k_tool_options_fill[0])) },
+    { DRAWING_PROGRAM_TOOL_LINE,
+      k_tool_options_line,
+      (uint32_t)(sizeof(k_tool_options_line) / sizeof(k_tool_options_line[0])) },
+    { DRAWING_PROGRAM_TOOL_RECT,
+      k_tool_options_rect_circle,
+      (uint32_t)(sizeof(k_tool_options_rect_circle) / sizeof(k_tool_options_rect_circle[0])) },
+    { DRAWING_PROGRAM_TOOL_CIRCLE,
+      k_tool_options_rect_circle,
+      (uint32_t)(sizeof(k_tool_options_rect_circle) / sizeof(k_tool_options_rect_circle[0])) },
+    { DRAWING_PROGRAM_TOOL_SELECT,
+      k_tool_options_select,
+      (uint32_t)(sizeof(k_tool_options_select) / sizeof(k_tool_options_select[0])) }
+};
+
+static const VisualToolDetailModule *visual_tool_detail_module_for_tool(DrawingProgramToolKind tool) {
+    uint32_t i;
+    for (i = 0u; i < (uint32_t)(sizeof(k_tool_detail_modules) / sizeof(k_tool_detail_modules[0])); ++i) {
+        if (k_tool_detail_modules[i].tool == tool) {
+            return &k_tool_detail_modules[i];
+        }
+    }
+    return 0;
+}
+
 static VisualToolOptionKind visual_tool_option_kind_for_index(const DrawingProgramAppContext *ctx,
                                                               DrawingProgramToolKind tool,
                                                               uint32_t index) {
+    const VisualToolDetailModule *module = visual_tool_detail_module_for_tool(tool);
     (void)ctx;
-    switch (tool) {
-        case DRAWING_PROGRAM_TOOL_BRUSH:
-            if (index == 0u) return VISUAL_TOOL_OPTION_BRUSH_SIZE;
-            if (index == 1u) return VISUAL_TOOL_OPTION_BRUSH_OPACITY;
-            if (index == 2u) return VISUAL_TOOL_OPTION_BRUSH_SPACING;
-            return VISUAL_TOOL_OPTION_BRUSH_HARDNESS;
-        case DRAWING_PROGRAM_TOOL_ERASER:
-            return VISUAL_TOOL_OPTION_ERASER_SIZE;
-        case DRAWING_PROGRAM_TOOL_LINE:
-            return VISUAL_TOOL_OPTION_SHAPE_STROKE_WIDTH;
-        case DRAWING_PROGRAM_TOOL_RECT:
-        case DRAWING_PROGRAM_TOOL_CIRCLE:
-            return (index == 0u) ? VISUAL_TOOL_OPTION_SHAPE_STROKE_WIDTH : VISUAL_TOOL_OPTION_SHAPE_MODE;
-        case DRAWING_PROGRAM_TOOL_FILL:
-            return VISUAL_TOOL_OPTION_FILL_TOLERANCE;
-        case DRAWING_PROGRAM_TOOL_SELECT:
-            return VISUAL_TOOL_OPTION_SELECT_DELETE;
-        default:
-            return VISUAL_TOOL_OPTION_BRUSH_SIZE;
+    if (!module || module->option_count == 0u || !module->options) {
+        return VISUAL_TOOL_OPTION_BRUSH_SIZE;
     }
+    if (index >= module->option_count) {
+        return module->options[module->option_count - 1u];
+    }
+    return module->options[index];
 }
 
 static const char *visual_tool_option_label(VisualToolOptionKind option) {
@@ -63,9 +123,30 @@ static const char *visual_tool_option_label(VisualToolOptionKind option) {
         case VISUAL_TOOL_OPTION_ERASER_SIZE: return "SIZE";
         case VISUAL_TOOL_OPTION_SHAPE_STROKE_WIDTH: return "STROKE";
         case VISUAL_TOOL_OPTION_SHAPE_MODE: return "MODE";
+        case VISUAL_TOOL_OPTION_SHAPE_TARGET_MODE: return "TARGET";
         case VISUAL_TOOL_OPTION_FILL_TOLERANCE: return "TOLERANCE";
+        case VISUAL_TOOL_OPTION_SELECT_MODE: return "MODE";
         case VISUAL_TOOL_OPTION_SELECT_DELETE: return "SELECTION";
         default: return "VALUE";
+    }
+}
+
+static const char *visual_shape_target_mode_name(uint8_t mode) {
+    switch (mode) {
+        case (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_OBJECT: return "OBJECT";
+        case (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_PIXEL:
+        default:
+            return "PIXEL";
+    }
+}
+
+static const char *visual_select_mode_name(uint8_t mode) {
+    switch (mode) {
+        case (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_ADD: return "ADD";
+        case (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_SUBTRACT: return "SUBTRACT";
+        case (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_REPLACE:
+        default:
+            return "REPLACE";
     }
 }
 
@@ -122,8 +203,22 @@ static void visual_tool_option_value_text(const DrawingProgramAppContext *ctx,
         case VISUAL_TOOL_OPTION_SHAPE_MODE:
             (void)snprintf(out_text, out_cap, "%s", drawing_program_visual_shape_mode_name(drawing_program_visual_tool_shape_mode(ctx)));
             break;
+        case VISUAL_TOOL_OPTION_SHAPE_TARGET_MODE:
+            (void)snprintf(out_text,
+                           out_cap,
+                           "%s",
+                           visual_shape_target_mode_name(
+                               drawing_program_visual_clamp_setting_u8(ctx ? ctx->ui_tool_shape_target_mode : 0u, 0u, 1u)));
+            break;
         case VISUAL_TOOL_OPTION_FILL_TOLERANCE:
             (void)snprintf(out_text, out_cap, "%u", (unsigned)drawing_program_visual_tool_fill_tolerance_setting(ctx));
+            break;
+        case VISUAL_TOOL_OPTION_SELECT_MODE:
+            (void)snprintf(out_text,
+                           out_cap,
+                           "%s",
+                           visual_select_mode_name(
+                               drawing_program_visual_clamp_setting_u8(ctx ? ctx->ui_tool_select_mode : 0u, 0u, 2u)));
             break;
         case VISUAL_TOOL_OPTION_SELECT_DELETE:
             (void)snprintf(out_text, out_cap, "DELETE");
@@ -192,11 +287,33 @@ static void visual_tool_option_adjust(DrawingProgramAppContext *ctx, VisualToolO
             ctx->ui_tool_shape_mode = (uint8_t)v;
             break;
         }
+        case VISUAL_TOOL_OPTION_SHAPE_TARGET_MODE: {
+            int v = (int)ctx->ui_tool_shape_target_mode + delta;
+            while (v < 0) {
+                v += 2;
+            }
+            while (v > 1) {
+                v -= 2;
+            }
+            ctx->ui_tool_shape_target_mode = (uint8_t)v;
+            break;
+        }
         case VISUAL_TOOL_OPTION_FILL_TOLERANCE: {
             int v = (int)ctx->ui_tool_fill_tolerance + delta;
             if (v < 0) v = 0;
             if (v > (int)DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX) v = (int)DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX;
             ctx->ui_tool_fill_tolerance = (uint8_t)v;
+            break;
+        }
+        case VISUAL_TOOL_OPTION_SELECT_MODE: {
+            int v = (int)ctx->ui_tool_select_mode + delta;
+            while (v < 0) {
+                v += 3;
+            }
+            while (v > 2) {
+                v -= 3;
+            }
+            ctx->ui_tool_select_mode = (uint8_t)v;
             break;
         }
         case VISUAL_TOOL_OPTION_SELECT_DELETE:
@@ -237,23 +354,17 @@ DrawingProgramWorkflowControl drawing_program_visual_workflow_control_for_tool(D
 }
 
 uint32_t drawing_program_visual_tool_option_count(const DrawingProgramAppContext *ctx, DrawingProgramToolKind tool) {
-    switch (tool) {
-        case DRAWING_PROGRAM_TOOL_BRUSH:
-            return 4u;
-        case DRAWING_PROGRAM_TOOL_ERASER:
-            return 1u;
-        case DRAWING_PROGRAM_TOOL_LINE:
-            return 1u;
-        case DRAWING_PROGRAM_TOOL_RECT:
-        case DRAWING_PROGRAM_TOOL_CIRCLE:
-            return 2u;
-        case DRAWING_PROGRAM_TOOL_FILL:
-            return 1u;
-        case DRAWING_PROGRAM_TOOL_SELECT:
-            return (ctx && ctx->selection.has_payload) ? 1u : 0u;
-        default:
-            return 0u;
+    const VisualToolDetailModule *module = visual_tool_detail_module_for_tool(tool);
+    if (!module) {
+        return 0u;
     }
+    if (tool == DRAWING_PROGRAM_TOOL_SELECT) {
+        if (!ctx || !ctx->selection.has_payload) {
+            return (module->option_count > 0u) ? (module->option_count - 1u) : 0u;
+        }
+        return module->option_count;
+    }
+    return module->option_count;
 }
 
 uint32_t drawing_program_visual_tool_option_kind_for_index_raw(const DrawingProgramAppContext *ctx,

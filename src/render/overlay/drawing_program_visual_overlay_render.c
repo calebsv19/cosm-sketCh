@@ -5,6 +5,7 @@
 
 #include "drawing_program/drawing_program_color_model.h"
 #include "drawing_program/drawing_program_selection.h"
+#include "drawing_program/drawing_program_visual_layer_opacity.h"
 #include "drawing_program/drawing_program_visual_theme.h"
 
 #define VISUAL_SELECTION_HANDLE_COUNT 8
@@ -23,6 +24,10 @@ static int selection_sample_rect_to_screen_rect(const VisualCanvasSheetMetrics *
                                                 uint32_t width,
                                                 uint32_t height,
                                                 SDL_Rect *out_rect) {
+    double start_x;
+    double start_y;
+    double end_x;
+    double end_y;
     int x;
     int y;
     int w;
@@ -30,10 +35,14 @@ static int selection_sample_rect_to_screen_rect(const VisualCanvasSheetMetrics *
     if (!metrics || !out_rect || width == 0u || height == 0u) {
         return 0;
     }
-    x = metrics->sheet_rect.x + (int)((float)sample_x * metrics->pixel_size);
-    y = metrics->sheet_rect.y + (int)((float)sample_y * metrics->pixel_size);
-    w = (int)((float)width * metrics->pixel_size);
-    h = (int)((float)height * metrics->pixel_size);
+    start_x = (double)metrics->sheet_rect.x + ((double)sample_x * (double)metrics->pixel_size);
+    start_y = (double)metrics->sheet_rect.y + ((double)sample_y * (double)metrics->pixel_size);
+    end_x = (double)metrics->sheet_rect.x + ((double)(sample_x + (int32_t)width) * (double)metrics->pixel_size);
+    end_y = (double)metrics->sheet_rect.y + ((double)(sample_y + (int32_t)height) * (double)metrics->pixel_size);
+    x = (int)floor(start_x);
+    y = (int)floor(start_y);
+    w = (int)floor(end_x) - x;
+    h = (int)floor(end_y) - y;
     if (w < 1) {
         w = 1;
     }
@@ -311,6 +320,318 @@ static uint32_t draw_selection_component_outlines(SDL_Renderer *renderer,
     return component_count;
 }
 
+static int object_style_includes_fill(uint8_t style_mode) {
+    return (style_mode == 1u || style_mode == 2u) ? 1 : 0;
+}
+
+static int object_style_includes_outline(uint8_t style_mode) {
+    return (style_mode == 1u) ? 0 : 1;
+}
+
+static int object_selection_contains(const DrawingProgramAppContext *ctx, uint32_t object_id) {
+    if (!ctx || object_id == 0u) {
+        return 0;
+    }
+    return drawing_program_object_selection_contains(&ctx->object_selection, object_id);
+}
+
+static int object_overlay_screen_to_canvas_sample(const DrawingProgramAppContext *ctx,
+                                                  const VisualCanvasSheetMetrics *metrics,
+                                                  int screen_x,
+                                                  int screen_y,
+                                                  uint32_t *out_sample_x,
+                                                  uint32_t *out_sample_y) {
+    int rel_x;
+    int rel_y;
+    int sample_x;
+    int sample_y;
+    if (!ctx || !metrics || !out_sample_x || !out_sample_y || metrics->pixel_size <= 0.0f) {
+        return 0;
+    }
+    if (screen_x < metrics->sheet_rect.x || screen_y < metrics->sheet_rect.y ||
+        screen_x >= (metrics->sheet_rect.x + metrics->sheet_rect.w) ||
+        screen_y >= (metrics->sheet_rect.y + metrics->sheet_rect.h)) {
+        return 0;
+    }
+    rel_x = screen_x - metrics->sheet_rect.x;
+    rel_y = screen_y - metrics->sheet_rect.y;
+    sample_x = (int)((float)rel_x / metrics->pixel_size);
+    sample_y = (int)((float)rel_y / metrics->pixel_size);
+    if (sample_x < 0 || sample_y < 0 || sample_x >= (int)ctx->document.raster_width ||
+        sample_y >= (int)ctx->document.raster_height) {
+        return 0;
+    }
+    *out_sample_x = (uint32_t)sample_x;
+    *out_sample_y = (uint32_t)sample_y;
+    return 1;
+}
+
+static int draw_object_sample_cell(SDL_Renderer *renderer,
+                                   const VisualCanvasSheetMetrics *metrics,
+                                   int32_t sample_x,
+                                   int32_t sample_y,
+                                   SDL_Color color,
+                                   uint8_t alpha) {
+    SDL_Rect sample_rect;
+    if (!renderer || !metrics) {
+        return 0;
+    }
+    if (!selection_sample_rect_to_screen_rect(metrics, sample_x, sample_y, 1u, 1u, &sample_rect)) {
+        return 0;
+    }
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, alpha);
+    (void)SDL_RenderFillRect(renderer, &sample_rect);
+    return 1;
+}
+
+static void draw_object_rect(SDL_Renderer *renderer,
+                             const DrawingProgramAppContext *ctx,
+                             const VisualCanvasSheetMetrics *metrics,
+                             const DrawingProgramObjectRecord *object,
+                             int32_t origin_x,
+                             int32_t origin_y,
+                             uint8_t alpha) {
+    uint32_t x;
+    uint32_t y;
+    uint32_t stroke_width = object->stroke_width == 0u ? 1u : (uint32_t)object->stroke_width;
+    int has_fill = object_style_includes_fill(object->style_mode);
+    int has_outline = object_style_includes_outline(object->style_mode);
+    SDL_Color stroke_color = { 0u, 0u, 0u, 255u };
+    SDL_Color fill_color = { 0u, 0u, 0u, 255u };
+    if (!renderer || !ctx || !metrics || !object || object->width == 0u || object->height == 0u) {
+        return;
+    }
+    (void)drawing_program_color_rgb_from_index(drawing_program_color_index_clamp(object->stroke_color_index),
+                                               &stroke_color.r,
+                                               &stroke_color.g,
+                                               &stroke_color.b);
+    (void)drawing_program_color_rgb_from_index(drawing_program_color_index_clamp(object->fill_color_index),
+                                               &fill_color.r,
+                                               &fill_color.g,
+                                               &fill_color.b);
+    for (y = 0u; y < object->height; ++y) {
+        for (x = 0u; x < object->width; ++x) {
+            int32_t sample_x = origin_x + (int32_t)x;
+            int32_t sample_y = origin_y + (int32_t)y;
+            int on_outline = 0;
+            if (sample_x < 0 || sample_y < 0 ||
+                sample_x >= (int32_t)ctx->document.raster_width ||
+                sample_y >= (int32_t)ctx->document.raster_height) {
+                continue;
+            }
+            if (has_outline) {
+                on_outline = (x < stroke_width || y < stroke_width || x >= (object->width - stroke_width) ||
+                              y >= (object->height - stroke_width))
+                                 ? 1
+                                 : 0;
+            }
+            if (on_outline) {
+                (void)draw_object_sample_cell(renderer, metrics, sample_x, sample_y, stroke_color, alpha);
+            } else if (has_fill) {
+                (void)draw_object_sample_cell(renderer, metrics, sample_x, sample_y, fill_color, alpha);
+            }
+        }
+    }
+}
+
+static void draw_object_ellipse(SDL_Renderer *renderer,
+                                const DrawingProgramAppContext *ctx,
+                                const VisualCanvasSheetMetrics *metrics,
+                                const DrawingProgramObjectRecord *object,
+                                int32_t origin_x,
+                                int32_t origin_y,
+                                uint8_t alpha) {
+    int32_t min_x;
+    int32_t min_y;
+    int32_t max_x;
+    int32_t max_y;
+    int32_t x;
+    int32_t y;
+    uint32_t stroke_width = object->stroke_width == 0u ? 1u : (uint32_t)object->stroke_width;
+    int has_fill = object_style_includes_fill(object->style_mode);
+    int has_outline = object_style_includes_outline(object->style_mode);
+    SDL_Color stroke_color = { 0u, 0u, 0u, 255u };
+    SDL_Color fill_color = { 0u, 0u, 0u, 255u };
+    double rx;
+    double ry;
+    double inner_rx;
+    double inner_ry;
+    double cx;
+    double cy;
+    if (!renderer || !ctx || !metrics || !object || object->width == 0u || object->height == 0u) {
+        return;
+    }
+    (void)drawing_program_color_rgb_from_index(drawing_program_color_index_clamp(object->stroke_color_index),
+                                               &stroke_color.r,
+                                               &stroke_color.g,
+                                               &stroke_color.b);
+    (void)drawing_program_color_rgb_from_index(drawing_program_color_index_clamp(object->fill_color_index),
+                                               &fill_color.r,
+                                               &fill_color.g,
+                                               &fill_color.b);
+    rx = ((double)object->width) * 0.5;
+    ry = ((double)object->height) * 0.5;
+    if (rx <= 0.0 || ry <= 0.0) {
+        return;
+    }
+    inner_rx = rx - (double)stroke_width;
+    inner_ry = ry - (double)stroke_width;
+    if (inner_rx < 0.0) {
+        inner_rx = 0.0;
+    }
+    if (inner_ry < 0.0) {
+        inner_ry = 0.0;
+    }
+    cx = (double)origin_x + rx;
+    cy = (double)origin_y + ry;
+    min_x = origin_x;
+    min_y = origin_y;
+    max_x = origin_x + (int32_t)object->width - 1;
+    max_y = origin_y + (int32_t)object->height - 1;
+    for (y = min_y; y <= max_y; ++y) {
+        for (x = min_x; x <= max_x; ++x) {
+            double dx;
+            double dy;
+            double outer_norm;
+            int inside_outer;
+            int inside_inner = 0;
+            int on_outline = 0;
+            if (x < 0 || y < 0 || x >= (int32_t)ctx->document.raster_width || y >= (int32_t)ctx->document.raster_height) {
+                continue;
+            }
+            dx = ((double)x + 0.5) - cx;
+            dy = ((double)y + 0.5) - cy;
+            outer_norm = ((dx * dx) / (rx * rx)) + ((dy * dy) / (ry * ry));
+            inside_outer = (outer_norm <= 1.0) ? 1 : 0;
+            if (!inside_outer) {
+                continue;
+            }
+            if (has_outline && inner_rx > 0.0 && inner_ry > 0.0) {
+                double inner_norm = ((dx * dx) / (inner_rx * inner_rx)) + ((dy * dy) / (inner_ry * inner_ry));
+                inside_inner = (inner_norm <= 1.0) ? 1 : 0;
+            }
+            on_outline = has_outline && !inside_inner;
+            if (on_outline) {
+                (void)draw_object_sample_cell(renderer, metrics, x, y, stroke_color, alpha);
+            } else if (has_fill) {
+                (void)draw_object_sample_cell(renderer, metrics, x, y, fill_color, alpha);
+            }
+        }
+    }
+}
+
+void drawing_program_visual_draw_object_overlay(SDL_Renderer *renderer,
+                                                SDL_Rect pane_rect,
+                                                const DrawingProgramAppContext *ctx,
+                                                const CoreThemePreset *theme,
+                                                const VisualCanvasSheetMetrics *metrics,
+                                                const VisualCanvasInteractionState *interaction,
+                                                const VisualPanelUiState *ui) {
+    SDL_Color outline_color = { 116u, 126u, 148u, 255u };
+    SDL_Color selected_outline = { 72u, 134u, 255u, 255u };
+    SDL_Color hover_outline = { 128u, 176u, 255u, 255u };
+    uint32_t visible_indices[DRAWING_PROGRAM_MAX_OBJECTS];
+    uint32_t hover_object_id = 0u;
+    uint32_t count;
+    uint32_t i;
+    if (!renderer || !ctx || !metrics) {
+        return;
+    }
+    (void)theme;
+    outline_color = sdl_color_shift_by_luma(selected_outline, -96);
+    if (outline_color.a == 0u) {
+        outline_color.a = 255u;
+    }
+    if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_SELECT && ui && ui->mouse_known) {
+        uint32_t sample_x = 0u;
+        uint32_t sample_y = 0u;
+        if (object_overlay_screen_to_canvas_sample(ctx, metrics, ui->mouse_x, ui->mouse_y, &sample_x, &sample_y)) {
+            (void)drawing_program_object_store_hit_test_topmost(
+                &ctx->object_store, &ctx->document, sample_x, sample_y, &hover_object_id, 0);
+        }
+    }
+    count = drawing_program_object_store_collect_visible_indices(
+        &ctx->object_store, &ctx->document, visible_indices, DRAWING_PROGRAM_MAX_OBJECTS);
+    if (count == 0u) {
+        return;
+    }
+    (void)SDL_RenderSetClipRect(renderer, &pane_rect);
+    for (i = 0u; i < count && i < DRAWING_PROGRAM_MAX_OBJECTS; ++i) {
+        uint32_t index = visible_indices[i];
+        const DrawingProgramObjectRecord *object = &ctx->object_store.objects[index];
+        uint32_t layer_index = 0u;
+        uint8_t layer_alpha_percent;
+        uint8_t alpha;
+        int selected;
+        int hovered;
+        int32_t draw_origin_x;
+        int32_t draw_origin_y;
+        SDL_Rect bounds_rect;
+        if (drawing_program_document_layer_index_for_id(&ctx->document, object->layer_id, &layer_index).code != CORE_OK) {
+            continue;
+        }
+        if (!ctx->document.layers[layer_index].visible) {
+            continue;
+        }
+        layer_alpha_percent = drawing_program_visual_layer_opacity_get(ctx, object->layer_id);
+        if (layer_alpha_percent == 0u) {
+            continue;
+        }
+        alpha = (uint8_t)(((uint32_t)layer_alpha_percent * 255u) / 100u);
+        selected = object_selection_contains(ctx, object->object_id);
+        hovered = (hover_object_id == object->object_id) ? 1 : 0;
+        draw_origin_x = object->origin_x;
+        draw_origin_y = object->origin_y;
+        if (selected && interaction && interaction->object_move_active) {
+            draw_origin_x += interaction->object_move_offset_x;
+            draw_origin_y += interaction->object_move_offset_y;
+        }
+        if (object->type == (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_ELLIPSE) {
+            draw_object_ellipse(renderer, ctx, metrics, object, draw_origin_x, draw_origin_y, alpha);
+        } else {
+            draw_object_rect(renderer, ctx, metrics, object, draw_origin_x, draw_origin_y, alpha);
+        }
+        if (selection_sample_rect_to_screen_rect(
+                metrics, draw_origin_x, draw_origin_y, object->width, object->height, &bounds_rect)) {
+            SDL_Color border_color = selected ? selected_outline : outline_color;
+            uint8_t border_alpha = selected ? 255u : 190u;
+            if (hovered && !selected) {
+                border_color = selected_outline;
+                border_alpha = 210u;
+            }
+            if (selected) {
+                SDL_Rect outer2 = { bounds_rect.x - 2, bounds_rect.y - 2, bounds_rect.w + 4, bounds_rect.h + 4 };
+                SDL_Rect outer1 = { bounds_rect.x - 1, bounds_rect.y - 1, bounds_rect.w + 2, bounds_rect.h + 2 };
+                SDL_Color shadow = { 18u, 32u, 66u, 255u };
+                SDL_SetRenderDrawColor(renderer, shadow.r, shadow.g, shadow.b, 220u);
+                (void)SDL_RenderDrawRect(renderer, &outer2);
+                (void)SDL_RenderDrawRect(renderer, &outer1);
+                SDL_SetRenderDrawColor(renderer, border_color.r, border_color.g, border_color.b, 255u);
+                (void)SDL_RenderDrawRect(renderer, &bounds_rect);
+                if (bounds_rect.w > 2 && bounds_rect.h > 2) {
+                    SDL_Rect inner1 = { bounds_rect.x + 1, bounds_rect.y + 1, bounds_rect.w - 2, bounds_rect.h - 2 };
+                    SDL_SetRenderDrawColor(renderer, border_color.r, border_color.g, border_color.b, 220u);
+                    (void)SDL_RenderDrawRect(renderer, &inner1);
+                }
+                if (bounds_rect.w > 4 && bounds_rect.h > 4) {
+                    SDL_Rect inner2 = { bounds_rect.x + 2, bounds_rect.y + 2, bounds_rect.w - 4, bounds_rect.h - 4 };
+                    SDL_SetRenderDrawColor(renderer, shadow.r, shadow.g, shadow.b, 170u);
+                    (void)SDL_RenderDrawRect(renderer, &inner2);
+                }
+            } else {
+                SDL_SetRenderDrawColor(renderer, border_color.r, border_color.g, border_color.b, border_alpha);
+                (void)SDL_RenderDrawRect(renderer, &bounds_rect);
+            }
+            if (hovered && !selected && bounds_rect.w > 2 && bounds_rect.h > 2) {
+                SDL_Rect hover_outer = { bounds_rect.x - 1, bounds_rect.y - 1, bounds_rect.w + 2, bounds_rect.h + 2 };
+                SDL_SetRenderDrawColor(renderer, hover_outline.r, hover_outline.g, hover_outline.b, 170u);
+                (void)SDL_RenderDrawRect(renderer, &hover_outer);
+            }
+        }
+    }
+    (void)SDL_RenderSetClipRect(renderer, 0);
+}
+
 void drawing_program_visual_draw_selection_overlay(SDL_Renderer *renderer,
                                                    SDL_Rect pane_rect,
                                                    const DrawingProgramAppContext *ctx,
@@ -351,7 +672,8 @@ void drawing_program_visual_draw_selection_overlay(SDL_Renderer *renderer,
             }
         }
     }
-    if (selection->has_payload && selection->width > 0u && selection->height > 0u) {
+    if (selection->has_payload && selection->width > 0u && selection->height > 0u &&
+        ctx->object_selection.count == 0u) {
         int32_t base_x = (int32_t)selection->origin_x;
         int32_t base_y = (int32_t)selection->origin_y;
         int32_t moved_x = base_x + selection->offset_x;

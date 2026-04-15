@@ -9,6 +9,7 @@
 #include "core_theme.h"
 #include "drawing_program/drawing_program_app_main.h"
 #include "drawing_program/drawing_program_color_model.h"
+#include "drawing_program/drawing_program_object_transform.h"
 #include "drawing_program/drawing_program_render_backend.h"
 #include "drawing_program/drawing_program_runtime_orchestration.h"
 #include "drawing_program/drawing_program_visual_canvas_action_ops.h"
@@ -152,6 +153,19 @@ static CoreResult visual_selection_commit_move(DrawingProgramAppContext *ctx, Vi
                                                  selection);
 }
 
+static CoreResult visual_object_commit_move(DrawingProgramAppContext *ctx,
+                                            int32_t requested_dx,
+                                            int32_t requested_dy) {
+    return drawing_program_object_transform_commit_move(&ctx->history,
+                                                        &ctx->object_store,
+                                                        &ctx->document,
+                                                        &ctx->object_selection,
+                                                        requested_dx,
+                                                        requested_dy,
+                                                        0,
+                                                        0);
+}
+
 static const DrawingProgramVisualCanvasActionOpsHooks *visual_canvas_action_ops_hooks(void) {
     static const DrawingProgramVisualCanvasActionOpsHooks hooks = {
         .screen_to_canvas_sample = drawing_program_visual_screen_to_canvas_sample,
@@ -234,6 +248,16 @@ static void draw_selection_overlay(SDL_Renderer *renderer,
                                    const VisualCanvasSheetMetrics *metrics,
                                    const VisualSelectionState *selection) {
     drawing_program_visual_draw_selection_overlay(renderer, pane_rect, ctx, theme, metrics, selection);
+}
+
+static void draw_object_overlay(SDL_Renderer *renderer,
+                                SDL_Rect pane_rect,
+                                const DrawingProgramAppContext *ctx,
+                                const CoreThemePreset *theme,
+                                const VisualCanvasSheetMetrics *metrics,
+                                const VisualCanvasInteractionState *interaction,
+                                const VisualPanelUiState *ui) {
+    drawing_program_visual_draw_object_overlay(renderer, pane_rect, ctx, theme, metrics, interaction, ui);
 }
 
 static void draw_shape_preview_overlay(SDL_Renderer *renderer,
@@ -419,6 +443,7 @@ static const DrawingProgramVisualCanvasWorldRenderHooks *visual_canvas_world_ren
     static const DrawingProgramVisualCanvasWorldRenderHooks hooks = {
         .compute_canvas_sheet_metrics = drawing_program_visual_compute_canvas_sheet_metrics,
         .draw_selection_overlay = draw_selection_overlay,
+        .draw_object_overlay = draw_object_overlay,
         .draw_shape_preview_overlay = draw_shape_preview_overlay
     };
     return &hooks;
@@ -467,7 +492,8 @@ static int draw_visual_debug_frame(SDL_Window *window,
 
 static const DrawingProgramVisualTransformOpsHooks *visual_transform_ops_hooks(void) {
     static const DrawingProgramVisualTransformOpsHooks hooks = {
-        .visual_selection_commit_move = visual_selection_commit_move
+        .visual_selection_commit_move = visual_selection_commit_move,
+        .visual_object_commit_move = visual_object_commit_move
     };
     return &hooks;
 }
@@ -484,6 +510,10 @@ static int visual_transform_session_is_move_active(const VisualCanvasInteraction
     return drawing_program_visual_transform_session_is_move_active(interaction);
 }
 
+static int visual_transform_session_is_object_move_active(const VisualCanvasInteractionState *interaction) {
+    return drawing_program_visual_transform_session_is_object_move_active(interaction);
+}
+
 static void visual_transform_session_begin_move(VisualCanvasInteractionState *interaction,
                                                 VisualSelectionState *selection,
                                                 uint32_t sample_x,
@@ -496,14 +526,33 @@ static void visual_transform_session_update_move(const DrawingProgramAppContext 
                                                  VisualSelectionState *selection,
                                                  uint32_t sample_x,
                                                  uint32_t sample_y,
-                                                 SDL_Keymod mods) {
+                                                         SDL_Keymod mods) {
     drawing_program_visual_transform_session_update_move(ctx, interaction, selection, sample_x, sample_y, mods);
+}
+
+static void visual_transform_session_begin_object_move(VisualCanvasInteractionState *interaction,
+                                                       uint32_t sample_x,
+                                                       uint32_t sample_y) {
+    drawing_program_visual_transform_session_begin_object_move(interaction, sample_x, sample_y);
+}
+
+static void visual_transform_session_update_object_move(const DrawingProgramAppContext *ctx,
+                                                        VisualCanvasInteractionState *interaction,
+                                                        uint32_t sample_x,
+                                                        uint32_t sample_y,
+                                                        SDL_Keymod mods) {
+    drawing_program_visual_transform_session_update_object_move(ctx, interaction, sample_x, sample_y, mods);
 }
 
 static CoreResult visual_transform_session_commit_move(DrawingProgramAppContext *ctx,
                                                        VisualCanvasInteractionState *interaction,
                                                        VisualSelectionState *selection) {
     return drawing_program_visual_transform_session_commit_move(ctx, interaction, selection, visual_transform_ops_hooks());
+}
+
+static CoreResult visual_transform_session_commit_object_move(DrawingProgramAppContext *ctx,
+                                                              VisualCanvasInteractionState *interaction) {
+    return drawing_program_visual_transform_session_commit_object_move(ctx, interaction, visual_transform_ops_hooks());
 }
 
 static CoreResult visual_transform_session_nudge_move(DrawingProgramAppContext *ctx,
@@ -513,6 +562,14 @@ static CoreResult visual_transform_session_nudge_move(DrawingProgramAppContext *
                                                       int32_t dy) {
     return drawing_program_visual_transform_session_nudge_move(
         ctx, interaction, selection, dx, dy, visual_transform_ops_hooks());
+}
+
+static CoreResult visual_transform_session_nudge_object_move(DrawingProgramAppContext *ctx,
+                                                             VisualCanvasInteractionState *interaction,
+                                                             int32_t dx,
+                                                             int32_t dy) {
+    return drawing_program_visual_transform_session_nudge_object_move(
+        ctx, interaction, dx, dy, visual_transform_ops_hooks());
 }
 
 static void begin_canvas_history_group(DrawingProgramAppContext *ctx) {
@@ -532,8 +589,11 @@ static const DrawingProgramVisualInputHandlersHooks *visual_input_handlers_hooks
         .screen_to_canvas_sample = drawing_program_visual_screen_to_canvas_sample,
         .screen_to_canvas_sample_clamped = drawing_program_visual_screen_to_canvas_sample_clamped,
         .visual_transform_session_is_move_active = visual_transform_session_is_move_active,
+        .visual_transform_session_is_object_move_active = visual_transform_session_is_object_move_active,
         .visual_transform_session_update_move = visual_transform_session_update_move,
+        .visual_transform_session_update_object_move = visual_transform_session_update_object_move,
         .visual_transform_session_commit_move = visual_transform_session_commit_move,
+        .visual_transform_session_commit_object_move = visual_transform_session_commit_object_move,
         .visual_marquee_commit_mode_clamp = visual_marquee_commit_mode_clamp,
         .visual_selection_capture_from_marquee = visual_selection_capture_from_marquee,
         .tool_uses_shape_commit = drawing_program_visual_tool_uses_shape_commit,
@@ -543,6 +603,7 @@ static const DrawingProgramVisualInputHandlersHooks *visual_input_handlers_hooks
         .visual_selection_begin_move = visual_selection_begin_move,
         .selection_move_handle_hit = selection_move_handle_hit,
         .visual_transform_session_begin_move = visual_transform_session_begin_move,
+        .visual_transform_session_begin_object_move = visual_transform_session_begin_object_move,
         .apply_canvas_picker_at_screen = apply_canvas_picker_at_screen,
         .apply_canvas_fill_at_screen = apply_canvas_fill_at_screen,
         .begin_canvas_history_group = begin_canvas_history_group,
@@ -570,7 +631,8 @@ static const DrawingProgramVisualInputHandlersHooks *visual_input_handlers_hooks
         .point_in_rect = drawing_program_visual_point_in_rect,
         .clamp_theme_preset_id = clamp_theme_preset_id,
         .cycle_theme_preset = cycle_theme_preset,
-        .visual_transform_session_nudge_move = visual_transform_session_nudge_move
+        .visual_transform_session_nudge_move = visual_transform_session_nudge_move,
+        .visual_transform_session_nudge_object_move = visual_transform_session_nudge_object_move
     };
     return &hooks;
 }

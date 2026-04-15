@@ -1,6 +1,6 @@
 # Current Truth
 
-Last updated: 2026-04-12
+Last updated: 2026-04-14
 
 - Canonical input map is documented in `docs/keybind_reference.md`.
 - Phase 11 `S1` selection-fidelity kickoff is now implemented:
@@ -25,7 +25,7 @@ Last updated: 2026-04-12
   - `DELETE SELECTION` uses the same runtime payload-delete contract as keyboard delete/backspace paths and is edit-gated by active-layer visibility/lock policy
   - lifecycle regression coverage now includes explicit `drawing_program_selection_delete_payload(...)` clear/reset assertions
 - Phase 11 `S5` closeout is complete:
-  - phase lane documented in private plan: `docs/private_program_docs/drawing_program/2026-04-12_drawing_program_phase_11_tool_depth_selection_fidelity_plan.md`
+  - phase lane documented in private plan: `../../docs/private_program_docs/drawing_program/2026-04-12_drawing_program_phase_11_tool_depth_selection_fidelity_plan.md`
   - S4 implementation gates were completed on current head (`make clean && make`, `make test`, `make run-headless`, `make visual-harness`, `make package-desktop-self-test`, `make package-desktop-refresh`)
   - boundary lock advanced to Phase 12 behavior-depth work (selection/move multi-region quality + shape/fill depth)
 - Phase 12 `S1` selection-set baseline is now implemented:
@@ -59,9 +59,117 @@ Last updated: 2026-04-12
   - runtime context hint row now switches by active tool state (`SELECT`/`MOVE`/`FILL`/`PICKER`) and reflects active-selection requirements for move operations
   - pointer/selection/transform telemetry is now derived from live frame state instead of static always-on status text
 - Phase 12 `S5` closeout is complete:
-  - phase lane documented in private plan: `docs/private_program_docs/drawing_program/2026-04-12_drawing_program_phase_12_behavior_depth_plan.md`
+  - phase lane documented in private plan: `../../docs/private_program_docs/drawing_program/2026-04-12_drawing_program_phase_12_behavior_depth_plan.md`
   - `S1..S4` implementation gates were completed on current head (`make clean && make`, `make test`, `make run-headless`, `make visual-harness`, `make package-desktop-self-test`, `make package-desktop-refresh`)
   - boundary lock advanced to Phase 13 object-model foundation work (entity graph + object hit-testing + object transform seed)
+- Phase 13 `S1` object-domain seed is now implemented:
+  - new object-domain contract is available via `drawing_program_object_store.*` (stable ids, typed records, remove/lookup helpers, visible-index enumeration helper)
+  - app context now owns `object_store` state and seeds it during `state_seed`
+  - snapshot lane now supports object chunk `DPOB` (v1) with deterministic save/load behavior
+  - legacy snapshots without `DPOB` load with empty object store by policy
+  - lifecycle regression lane now includes object snapshot roundtrip + legacy-without-object-chunk fallback assertions
+- Phase 13 `S2` object hit-test + selection contract is now implemented:
+  - object domain now exposes deterministic topmost hit-test helper:
+    - `drawing_program_object_store_hit_test_topmost(...)`
+    - visibility/lock and owner-layer visibility/lock are respected during hit resolution
+  - app context now owns explicit object-selection state:
+    - `DrawingProgramObjectSelectionState object_selection`
+    - selection helpers: reset / replace-single / additive add / contains
+  - select-tool canvas click routing now applies object-selection semantics before marquee capture:
+    - plain click on object -> replace object selection
+    - `Shift`+click on object -> additive object selection
+    - empty click (no additive/subtractive modifiers) -> clear object selection
+  - right `CANVAS` panel telemetry now reports object selection status:
+    - `OBJECTS <count> ACTIVE <id>` or `OBJECTS NONE`
+  - lifecycle regression coverage now includes:
+    - topmost hit-order checks
+    - object-selection transition checks
+    - coexistence check ensuring object selection mutations do not corrupt raster selection payload state
+- Phase 13 `S3` object move transform seed is now implemented:
+  - object transform mutation now routes through dedicated helper:
+    - `drawing_program_object_transform_commit_move(...)`
+  - object move commit path clamps deltas against canvas bounds across selected objects
+  - object move commit path writes one grouped history unit per transform action
+  - history contract now supports object-origin replay:
+    - `DRAWING_PROGRAM_COMMAND_SET_OBJECT_ORIGIN`
+    - `drawing_program_history_apply_set_object_origin(...)`
+  - undo/redo paths now replay object-origin commands with object-store context
+  - visual move tool now supports object move sessions:
+    - drag begin/update/commit when object selection is active
+    - keyboard nudges use same commit path for parity
+    - axis-lock (`Shift`) and clamp behavior align with existing move-session semantics
+  - right canvas panel telemetry now includes active object origin/size and object transform delta while moving
+  - lifecycle regression coverage now includes object move grouped-history unit checks and drag-vs-nudge parity assertions
+- Phase 13 `S4` hybrid interaction policy tightening is now implemented:
+  - mixed-route policy is explicit in input handling:
+    - object routes are active only in object-capable tools (`SELECT`/`MOVE`)
+    - raster tools continue targeting active raster-layer mutation paths
+  - object selection click semantics now support additive/subtractive variants:
+    - `Shift+click` on object adds to object selection
+    - `Alt+click` on object removes from object selection
+  - workflow control lane now supports deterministic object-to-raster conversion:
+    - `Cmd/Ctrl+R` triggers `RASTERIZE_SELECTED_OBJECTS`
+    - selected object visuals are rasterized into active layer and then removed from object store
+    - object selection clears after rasterize commit
+  - `Cmd/Ctrl+D` clear-selection now clears both raster selection and object selection state
+  - right panel context hints/telemetry now expose hybrid policy affordances, including `CMD+R:RASTERIZE` during object-capable interaction states
+  - lifecycle regression coverage now includes:
+    - workflow rasterize path assertions (raster write + object removal + selection clear + grouped history unit)
+    - key precedence assertion (`Ctrl+R` consumed as workflow action, not tool switch)
+    - move-tool nudge routing parity assertion (object selection nudge path vs raster selection nudge fallback)
+  - verification gates executed on current lane head:
+    - `make -C drawing_program clean && make -C drawing_program`
+    - `make -C drawing_program test`
+    - `make -C drawing_program run-headless`
+    - `make -C drawing_program visual-harness`
+    - `make -C drawing_program package-desktop-self-test`
+    - `make -C drawing_program package-desktop-refresh`
+- pre-`S5` left-panel refactor lane is complete (`R1`..`R5`):
+  - left panel now uses fixed top tool list geometry plus a dedicated bottom settings region
+  - prior inline active-tool dropdown growth inside the tool list is removed
+  - tool settings resolution now uses a module-style registry (`VisualToolDetailModule`) for deterministic per-tool option sets
+  - input hit routing now mirrors split geometry (tool rows in top region, option rows in bottom region)
+  - module settings parity is now locked in split-detail layout:
+    - brush/eraser/fill/line/rect/circle/select controls all route through the same detail contract
+    - select detail now includes explicit mode control (`REPLACE`/`ADD`/`SUBTRACT`) with payload-gated delete action
+  - object-aware detail reserves are now persisted:
+    - shape target mode (`PIXEL`/`OBJECT`) is now part of tool settings and snapshot `DPUI` v7 state
+    - select mode is now part of tool settings and snapshot `DPUI` v7 state
+  - select interaction now uses explicit select-mode baseline (modifier keys remain transient overrides)
+  - verification for this pass:
+    - `make -C drawing_program`
+    - `make -C drawing_program test`
+    - `make -C drawing_program run-headless`
+    - `make -C drawing_program visual-harness`
+    - `make -C drawing_program package-desktop-self-test`
+    - `make -C drawing_program package-desktop-refresh`
+  - this lane is closed under Phase 13 `S5` closeout
+- object-target shape behavior refinement is now implemented (post pre-`S5` stabilization pass):
+  - `RECT/CIRCLE` with `TARGET=OBJECT` now commit to object-store records (overlay objects), not immediate raster writes
+  - object overlays now render in canvas world view with visible object boundaries, selected-object emphasis, and move-preview offsets during object drag sessions
+  - object overlays now provide `SELECT`-mode hover affordance (hover border highlight) to indicate click-targetability
+  - selected objects now render with thick high-contrast blue border rings so selected-vs-nonselected overlays are clearly distinct at normal zoom
+  - object overlay sample-to-screen mapping now uses edge-based rect math, removing fractional-zoom seam/crosshatch artifacts
+  - object hit-test now respects ellipse interior checks for circle/ellipse objects (not bounds-only for those types)
+  - object flow contract is now coherent:
+    - `SELECT` click can pick overlay objects
+    - `MOVE` drags selected objects as overlays
+    - `Cmd/Ctrl+R` rasterizes selected objects into active layer then removes object records
+    - empty canvas click in `SELECT` mode clears object + raster selection state deterministically
+  - verification run for this refinement:
+    - `make -C drawing_program`
+    - `make -C drawing_program test`
+    - `make -C drawing_program run-headless`
+    - `make -C drawing_program package-desktop-refresh`
+- Phase 13 `S5` closeout is complete:
+  - full closeout verification gates passed on the current lane:
+    - `make -C drawing_program clean && make -C drawing_program`
+    - `make -C drawing_program test`
+    - `make -C drawing_program run-headless`
+    - `make -C drawing_program visual-harness`
+    - `make -C drawing_program package-desktop-self-test`
+    - `make -C drawing_program package-desktop-refresh`
+  - boundary lock advanced to Phase 14 path tooling v1 (polygon/pen loop creation + per-object fill/stroke semantics)
 - Canvas seed shape is no longer fixed square-only:
   - default seed remains `512x512`
   - runtime boot now supports explicit non-square overrides:
@@ -171,9 +279,9 @@ Last updated: 2026-04-12
     - clear-canvas -> immediate active-layer write regression check
     - delete-active-layer workflow behavior and active-layer reassignment check
 - Phase 9 source-lane additions are present in runtime/include lanes:
-  - `src/runtime/drawing_program_layer_raster.c`
+  - `src/domain/drawing_program_layer_raster.c`
   - `include/drawing_program/drawing_program_layer_raster.h`
-  - `src/runtime/drawing_program_selection.c`
+  - `src/domain/drawing_program_selection.c`
   - `include/drawing_program/drawing_program_selection.h`
 - Phase 9 `S5` closeout + boundary lock is complete:
   - added shared active-layer resolve helper: `drawing_program_runtime_orchestration_resolve_active_layer(...)`

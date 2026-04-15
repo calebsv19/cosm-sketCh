@@ -27,6 +27,11 @@ typedef struct VisualCanvasInteractionState {
     uint32_t last_sample_y;
     uint32_t shape_start_sample_x;
     uint32_t shape_start_sample_y;
+    uint8_t object_move_active;
+    uint32_t object_move_anchor_sample_x;
+    uint32_t object_move_anchor_sample_y;
+    int32_t object_move_offset_x;
+    int32_t object_move_offset_y;
     int last_mouse_x;
     int last_mouse_y;
 } VisualCanvasInteractionState;

@@ -195,8 +195,14 @@ static void drawing_program_normalize_ui_state(DrawingProgramAppContext *ctx) {
     if (ctx->ui_tool_shape_mode > 2u) {
         ctx->ui_tool_shape_mode = 0u;
     }
+    if (ctx->ui_tool_shape_target_mode > (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_OBJECT) {
+        ctx->ui_tool_shape_target_mode = (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_PIXEL;
+    }
     if (ctx->ui_tool_fill_tolerance > DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX) {
         ctx->ui_tool_fill_tolerance = DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX;
+    }
+    if (ctx->ui_tool_select_mode > (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_SUBTRACT) {
+        ctx->ui_tool_select_mode = (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_REPLACE;
     }
     drawing_program_ui_layer_opacity_sync_with_document(ctx);
 }
@@ -467,7 +473,9 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
     ctx->ui_tool_eraser_size = 4u;
     ctx->ui_tool_shape_stroke_width = 1u;
     ctx->ui_tool_shape_mode = 0u;
+    ctx->ui_tool_shape_target_mode = (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_PIXEL;
     ctx->ui_tool_fill_tolerance = 0u;
+    ctx->ui_tool_select_mode = (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_REPLACE;
     ctx->ui_font_zoom_step = 0;
     (void)snprintf(ctx->runtime_root_path, sizeof(ctx->runtime_root_path), "data/runtime");
     (void)snprintf(ctx->input_root_path, sizeof(ctx->input_root_path), "data/input");
@@ -615,6 +623,8 @@ CoreResult drawing_program_app_state_seed(DrawingProgramAppContext *ctx) {
     if (result.code != CORE_OK) {
         return result;
     }
+    drawing_program_object_store_reset(&ctx->object_store);
+    drawing_program_object_selection_reset(&ctx->object_selection);
     drawing_program_editor_state_init(&ctx->editor, &ctx->document);
     drawing_program_history_init(&ctx->history);
     drawing_program_ui_layer_opacity_sync_with_document(ctx);

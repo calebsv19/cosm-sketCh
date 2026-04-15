@@ -1,6 +1,6 @@
 # Future Intent
 
-Last updated: 2026-04-12
+Last updated: 2026-04-14
 
 Near-term (active):
 - Phase 2 foundations are complete
@@ -57,26 +57,46 @@ Near-term (active):
     - `S4` complete: layered selection/clipboard policy/alignment lock (`ACTIVE_LAYER_ONLY` capture, source-layer cut/move, active-layer paste targeting)
     - `S5` complete: closeout + next-boundary lock, with active-layer id/index routing regression guard
   - next: Phase 10 tool-quality depth lane (fill performance, shape fill/outline policy, deeper per-tool behavior quality)
-    - kickoff doc: `docs/private_program_docs/drawing_program/2026-04-11_drawing_program_phase_10_tool_quality_depth_plan.md`
+    - kickoff doc: `../../docs/private_program_docs/drawing_program/2026-04-11_drawing_program_phase_10_tool_quality_depth_plan.md`
     - `S1` complete: fill path refactored to contiguous-region + span-history commits with lifecycle regression coverage
     - `S2` complete: active-tool dropdown lane + persisted tool settings (`DPUI` v5)
     - `S3` complete: shape mode policy wired to commit + preview (`OUTLINE`, `FILL`, `FILL+OUTLINE`) with stroke width consumption
     - `S4` complete: select/move correctness pass (payload-mask move hit gating + overlap/hole-preserve regression coverage)
     - `S5` complete: phase closeout, regression guard for large marquee bounds, and boundary lock
-  - Phase 11 tool-depth lane is complete (`docs/private_program_docs/drawing_program/2026-04-12_drawing_program_phase_11_tool_depth_selection_fidelity_plan.md`):
+- Phase 11 tool-depth lane is complete (`../../docs/private_program_docs/drawing_program/2026-04-12_drawing_program_phase_11_tool_depth_selection_fidelity_plan.md`):
     - `S1` complete: additive marquee selection baseline (`Shift+SELECT` drag merge + lifecycle regression coverage)
     - `S2` complete: subtractive marquee selection baseline (`Alt/Option+SELECT` drag carve-out + selection-bound compaction)
     - `S3` complete: selection move transform polish (runtime + visual clamp-to-canvas bounds with min/max regression coverage)
     - `S4` complete: marquee-intent lock + canvas-panel delete-selection workflow action
     - `S5` complete: phase closeout + boundary lock
   - Phase 12 behavior-depth lane is complete:
-    - kickoff doc: `docs/private_program_docs/drawing_program/2026-04-12_drawing_program_phase_12_behavior_depth_plan.md`
+    - kickoff doc: `../../docs/private_program_docs/drawing_program/2026-04-12_drawing_program_phase_12_behavior_depth_plan.md`
     - `S1` complete: selection-set baseline (plain marquee replace semantics + border-only marquee visualization + replace-after-add regression coverage)
     - `S2` complete: transform-session v2 baseline (move-session contract unification for drag + nudge commit paths)
     - `S3` complete: shape/fill depth (tolerance semantics, bounded row-span fill pass, line-mode control cleanup)
     - `S4` complete: interaction/telemetry polish (runtime-driven selection/transform rows + context hints)
     - `S5` complete: phase closeout + next-boundary lock
-  - next: Phase 13 object-model foundation lane (entity graph + object hit-testing + object transform seed)
+  - Phase 13 object-model foundation lane is complete:
+    - kickoff doc: `../../docs/private_program_docs/drawing_program/2026-04-13_drawing_program_phase_13_object_model_foundation_plan.md`
+    - `S1` complete: object-domain seed (store contract + app ownership + `DPOB` snapshot seam + lifecycle roundtrip/legacy fallback coverage)
+    - `S2` complete: object hit-test + object selection contract (topmost hit resolve + select-tool object click semantics + telemetry + regression coverage)
+    - `S3` complete: object move transform seed (history-backed object-origin commit path + drag/nudge parity + axis-lock/clamp parity + object transform telemetry + lifecycle regression coverage)
+    - `S4` complete: hybrid interaction policy tightening
+      - explicit mixed-route policy between object-capable tools and raster tools
+      - `Cmd/Ctrl+R` rasterize-selected-objects workflow action (raster-write then remove object entities)
+      - regression checks for mixed object/raster routing ambiguity
+    - pre-`S5` refinement lane complete:
+      - `../../docs/private_program_docs/drawing_program/2026-04-14_drawing_program_phase_13_pre_s5_left_panel_tool_detail_module_refactor_plan.md`
+      - left panel refactor to fixed tool list + dedicated tool-detail module area
+      - migrate tool settings into module-driven detail rendering/hit contracts
+      - progress checkpoint: `R1`..`R5` complete (structural split, module parity controls, persisted shape-target/select-mode state, verification + doc lock)
+    - `S5` complete: phase closeout + boundary lock
+      - closeout validation includes full gate run (`clean+build`, `test`, `run-headless`, `visual-harness`, desktop package self-test, desktop refresh)
+      - object selection/render polish is locked:
+        - high-contrast thick selected border rings
+        - fractional-zoom object overlay seam artifact fix
+        - empty-canvas click in `SELECT` mode clears object + raster selection lanes
+    - next: Phase 14 path tooling v1 (polygon/pen loop creation + per-object fill/stroke semantics)
   - source split continuity is now baseline:
     - runtime helpers are explicitly split into `drawing_program_layer_raster.*` and `drawing_program_selection.*`
   - keep `WSPS` bridge compatibility and overlay/runtime contract invariants locked while deepening behavior

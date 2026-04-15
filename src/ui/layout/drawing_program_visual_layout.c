@@ -204,6 +204,53 @@ SDL_Rect right_layer_action_button_rect(SDL_Rect rect,
     return (SDL_Rect){ rect.x + m.pad_x, y, rect.w - (2 * m.pad_x), m.row_h };
 }
 
+int left_panel_content_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m) {
+    int y = rect.y + m.pad_y + m.title_glyph_h + m.section_gap;
+    return y;
+}
+
+SDL_Rect left_panel_tool_list_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, uint32_t tool_count) {
+    int y = left_panel_content_start_y(rect, m);
+    int h = (int)tool_count * m.row_h;
+    if (tool_count > 1u) {
+        h += (int)(tool_count - 1u) * m.section_gap;
+    }
+    if (h < m.row_h) {
+        h = m.row_h;
+    }
+    return (SDL_Rect){ rect.x + m.pad_x, y, rect.w - (2 * m.pad_x), h };
+}
+
+SDL_Rect left_panel_tool_row_rect(SDL_Rect rect,
+                                  VisualPaneLayoutMetrics m,
+                                  uint32_t tool_index,
+                                  uint32_t tool_count) {
+    SDL_Rect list = left_panel_tool_list_rect(rect, m, tool_count);
+    int y = list.y + (int)tool_index * (m.row_h + m.section_gap);
+    return (SDL_Rect){ list.x, y, list.w, m.row_h };
+}
+
+SDL_Rect left_panel_tool_detail_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, uint32_t tool_count) {
+    SDL_Rect list = left_panel_tool_list_rect(rect, m, tool_count);
+    int y = list.y + list.h + m.section_gap;
+    int h = (rect.y + rect.h - m.pad_y) - y;
+    if (h < (m.line_h + m.section_gap + m.row_h)) {
+        h = m.line_h + m.section_gap + m.row_h;
+    }
+    return (SDL_Rect){ rect.x + m.pad_x, y, rect.w - (2 * m.pad_x), h };
+}
+
+int left_panel_tool_detail_rows_start_y(SDL_Rect detail_rect, VisualPaneLayoutMetrics m) {
+    return detail_rect.y + m.line_h + m.section_gap;
+}
+
+SDL_Rect left_panel_tool_detail_option_row_rect(SDL_Rect detail_rect,
+                                                VisualPaneLayoutMetrics m,
+                                                uint32_t option_index) {
+    int y = left_panel_tool_detail_rows_start_y(detail_rect, m) + (int)option_index * (m.row_h + m.section_gap);
+    return (SDL_Rect){ detail_rect.x + m.tab_gap, y, detail_rect.w - m.tab_gap, m.row_h };
+}
+
 SDL_Rect left_tool_option_row_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, int y) {
     return (SDL_Rect){
         rect.x + m.pad_x + m.tab_gap,

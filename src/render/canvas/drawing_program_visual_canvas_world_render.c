@@ -24,7 +24,7 @@ void drawing_program_visual_draw_canvas_world_view(
     int px;
     int py;
     if (!renderer || !ctx || !hooks || !hooks->compute_canvas_sheet_metrics || !hooks->draw_selection_overlay ||
-        !hooks->draw_shape_preview_overlay) {
+        !hooks->draw_object_overlay || !hooks->draw_shape_preview_overlay) {
         return;
     }
     if (ctx->document.raster_width == 0u ||
@@ -91,6 +91,7 @@ void drawing_program_visual_draw_canvas_world_view(
     (void)SDL_RenderSetClipRect(renderer, &pane_rect);
     SDL_SetRenderDrawColor(renderer, sheet_border.r, sheet_border.g, sheet_border.b, sheet_border.a);
     (void)SDL_RenderDrawRect(renderer, &draw_sheet);
+    hooks->draw_object_overlay(renderer, pane_rect, ctx, theme, &metrics, interaction, ui);
     hooks->draw_selection_overlay(renderer, pane_rect, ctx, theme, &metrics, selection);
     hooks->draw_shape_preview_overlay(renderer, pane_rect, ctx, theme, &metrics, interaction, ui);
     (void)SDL_RenderSetClipRect(renderer, 0);

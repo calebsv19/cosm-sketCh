@@ -9,6 +9,7 @@
 #include "drawing_program/drawing_program_editor_state.h"
 #include "drawing_program/drawing_program_history.h"
 #include "drawing_program/drawing_program_layer_raster.h"
+#include "drawing_program/drawing_program_object_store.h"
 #include "drawing_program/drawing_program_overlay_adapter.h"
 #include "drawing_program/drawing_program_pane_host.h"
 #include "drawing_program/drawing_program_render_domain.h"
@@ -22,6 +23,17 @@ extern "C" {
 
 #define DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX 32u
 #define DRAWING_PROGRAM_UI_FILL_TOLERANCE_SAMPLE_SCALE 8u
+
+typedef enum DrawingProgramUiShapeTargetMode {
+    DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_PIXEL = 0u,
+    DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_OBJECT = 1u
+} DrawingProgramUiShapeTargetMode;
+
+typedef enum DrawingProgramUiSelectMode {
+    DRAWING_PROGRAM_UI_SELECT_MODE_REPLACE = 0u,
+    DRAWING_PROGRAM_UI_SELECT_MODE_ADD = 1u,
+    DRAWING_PROGRAM_UI_SELECT_MODE_SUBTRACT = 2u
+} DrawingProgramUiSelectMode;
 
 typedef struct DrawingProgramAppContext {
     uint8_t headless;
@@ -69,6 +81,8 @@ typedef struct DrawingProgramAppContext {
     DrawingProgramEditorState editor;
     DrawingProgramHistory history;
     DrawingProgramLayerRasterStore layer_rasters;
+    DrawingProgramObjectStore object_store;
+    DrawingProgramObjectSelectionState object_selection;
     DrawingProgramPaneHost pane_host;
     DrawingProgramOverlayAdapterState overlay_adapter;
     float pane_host_bounds_width;
@@ -85,7 +99,9 @@ typedef struct DrawingProgramAppContext {
     uint8_t ui_tool_eraser_size;
     uint8_t ui_tool_shape_stroke_width;
     uint8_t ui_tool_shape_mode;
+    uint8_t ui_tool_shape_target_mode;
     uint8_t ui_tool_fill_tolerance;
+    uint8_t ui_tool_select_mode;
     uint8_t ui_layer_opacity_entry_count;
     int8_t ui_font_zoom_step;
     uint8_t ui_layer_opacity_values[DRAWING_PROGRAM_MAX_LAYERS];

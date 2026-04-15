@@ -1,6 +1,5 @@
 #include "drawing_program/drawing_program_snapshot.h"
 
-#include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -127,17 +126,73 @@ typedef struct DrawingProgramUiSettingsV6 {
     uint8_t layer_opacity_values[DRAWING_PROGRAM_MAX_LAYERS];
 } DrawingProgramUiSettingsV6;
 
+typedef struct DrawingProgramUiSettingsV7 {
+    uint32_t version;
+    uint32_t theme_preset_id;
+    uint32_t font_preset_id;
+    int32_t font_zoom_step;
+    uint8_t left_panel_slot;
+    uint8_t right_panel_slot;
+    uint8_t active_color_index;
+    uint8_t selection_has_payload;
+    uint32_t selection_origin_x;
+    uint32_t selection_origin_y;
+    uint32_t selection_width;
+    uint32_t selection_height;
+    uint8_t tool_brush_size;
+    uint8_t tool_brush_opacity;
+    uint8_t tool_brush_spacing;
+    uint8_t tool_brush_hardness;
+    uint8_t tool_eraser_size;
+    uint8_t tool_shape_stroke_width;
+    uint8_t tool_shape_mode;
+    uint8_t tool_shape_target_mode;
+    uint8_t tool_fill_tolerance;
+    uint8_t tool_select_mode;
+    uint8_t layer_opacity_entry_count;
+    uint8_t reserved0;
+    uint8_t reserved1;
+    uint8_t reserved2;
+    uint32_t layer_opacity_layer_ids[DRAWING_PROGRAM_MAX_LAYERS];
+    uint8_t layer_opacity_values[DRAWING_PROGRAM_MAX_LAYERS];
+} DrawingProgramUiSettingsV7;
+
+typedef struct DrawingProgramObjectChunkHeaderV1 {
+    uint32_t version;
+    uint32_t object_count;
+    uint32_t next_object_id;
+    uint32_t reserved0;
+} DrawingProgramObjectChunkHeaderV1;
+
+typedef struct DrawingProgramObjectChunkEntryV1 {
+    uint32_t object_id;
+    uint32_t layer_id;
+    uint8_t type;
+    uint8_t visible;
+    uint8_t locked;
+    uint8_t stroke_color_index;
+    uint8_t fill_color_index;
+    uint8_t stroke_width;
+    uint8_t style_mode;
+    uint8_t reserved0;
+    uint8_t reserved1;
+    int32_t origin_x;
+    int32_t origin_y;
+    uint32_t width;
+    uint32_t height;
+    char name[DRAWING_PROGRAM_OBJECT_NAME_CAPACITY];
+} DrawingProgramObjectChunkEntryV1;
+
 enum {
-    DRAWING_PROGRAM_WORKSPACE_MAX_NODES = 32u,
-    DRAWING_PROGRAM_WORKSPACE_PRESET_VERSION_V1 = 1u,
-    DRAWING_PROGRAM_WORKSPACE_PRESET_VERSION_V2 = 2u,
     DRAWING_PROGRAM_LAYER_RASTER_CHUNK_VERSION_V1 = 1u,
+    DRAWING_PROGRAM_OBJECT_CHUNK_VERSION_V1 = 1u,
     DRAWING_PROGRAM_UI_SETTINGS_VERSION_V1 = 1u,
     DRAWING_PROGRAM_UI_SETTINGS_VERSION_V2 = 2u,
     DRAWING_PROGRAM_UI_SETTINGS_VERSION_V3 = 3u,
     DRAWING_PROGRAM_UI_SETTINGS_VERSION_V4 = 4u,
     DRAWING_PROGRAM_UI_SETTINGS_VERSION_V5 = 5u,
-    DRAWING_PROGRAM_UI_SETTINGS_VERSION_V6 = 6u
+    DRAWING_PROGRAM_UI_SETTINGS_VERSION_V6 = 6u,
+    DRAWING_PROGRAM_UI_SETTINGS_VERSION_V7 = 7u
 };
 
 static CoreResult snapshot_invalid(const char *message) {
@@ -303,133 +358,132 @@ static CoreResult drawing_program_snapshot_apply_layer_raster_chunk(
     return core_result_ok();
 }
 
-static CoreResult drawing_program_rebind_imported_modules(struct DrawingProgramAppContext *ctx) {
-    uint32_t menu_idx = 0u;
+static CoreResult drawing_program_snapshot_write_object_chunk(
+    CorePackWriter *writer,
+    const struct DrawingProgramAppContext *ctx) {
+    DrawingProgramObjectChunkHeaderV1 header;
+    uint64_t payload_size;
+    uint8_t *payload = 0;
+    uint8_t *cursor = 0;
     uint32_t i;
-    uint32_t candidate_indices[DRAWING_PROGRAM_PANE_LEAF_CAPACITY];
-    uint32_t candidate_count = 0u;
-    uint32_t left_idx;
-    uint32_t right_idx;
-    uint32_t center_idx = 0u;
-    float min_x = 0.0f;
-    float max_x = 0.0f;
-    float target_mid = 0.0f;
-    float best_distance = 0.0f;
-    int center_set = 0;
-    if (!ctx) {
-        return snapshot_invalid("invalid module rebind request");
+    if (!writer || !ctx) {
+        return snapshot_invalid("invalid object chunk write request");
     }
-    if (ctx->pane_host.leaf_count < 4u) {
-        return (CoreResult){ CORE_ERR_FORMAT, "workspace import requires at least 4 pane leaves" };
+    if (ctx->object_store.object_count > DRAWING_PROGRAM_MAX_OBJECTS) {
+        return (CoreResult){ CORE_ERR_FORMAT, "object store count exceeds max object capacity" };
     }
+    memset(&header, 0, sizeof(header));
+    header.version = DRAWING_PROGRAM_OBJECT_CHUNK_VERSION_V1;
+    header.object_count = ctx->object_store.object_count;
+    header.next_object_id = ctx->object_store.next_object_id;
+    if (header.next_object_id == 0u) {
+        header.next_object_id = 1u;
+    }
+    payload_size = (uint64_t)sizeof(header) +
+                   ((uint64_t)header.object_count * (uint64_t)sizeof(DrawingProgramObjectChunkEntryV1));
+    payload = (uint8_t *)malloc((size_t)payload_size);
+    if (!payload) {
+        return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "failed to allocate object snapshot payload" };
+    }
+    cursor = payload;
+    memcpy(cursor, &header, sizeof(header));
+    cursor += sizeof(header);
+    for (i = 0u; i < header.object_count; ++i) {
+        DrawingProgramObjectChunkEntryV1 entry;
+        const DrawingProgramObjectRecord *object = &ctx->object_store.objects[i];
+        memset(&entry, 0, sizeof(entry));
+        entry.object_id = object->object_id;
+        entry.layer_id = object->layer_id;
+        entry.type = object->type;
+        entry.visible = object->visible ? 1u : 0u;
+        entry.locked = object->locked ? 1u : 0u;
+        entry.stroke_color_index = object->stroke_color_index;
+        entry.fill_color_index = object->fill_color_index;
+        entry.stroke_width = object->stroke_width;
+        entry.style_mode = object->style_mode;
+        entry.origin_x = object->origin_x;
+        entry.origin_y = object->origin_y;
+        entry.width = object->width;
+        entry.height = object->height;
+        memcpy(entry.name, object->name, sizeof(entry.name));
+        entry.name[sizeof(entry.name) - 1u] = '\0';
+        memcpy(cursor, &entry, sizeof(entry));
+        cursor += sizeof(entry);
+    }
+    {
+        CoreResult result = core_pack_writer_add_chunk(writer, "DPOB", payload, payload_size);
+        free(payload);
+        return result;
+    }
+}
 
-    menu_idx = 0u;
-    for (i = 1u; i < ctx->pane_host.leaf_count; ++i) {
-        const CorePaneLeafRect *candidate = &ctx->pane_host.leaves[i];
-        const CorePaneLeafRect *best = &ctx->pane_host.leaves[menu_idx];
-        if (candidate->rect.y < best->rect.y ||
-            (candidate->rect.y == best->rect.y && candidate->rect.width > best->rect.width)) {
-            menu_idx = i;
+static CoreResult drawing_program_snapshot_apply_object_chunk(
+    struct DrawingProgramAppContext *ctx,
+    const void *chunk_data,
+    uint64_t chunk_size) {
+    DrawingProgramObjectChunkHeaderV1 header;
+    DrawingProgramObjectRecord records[DRAWING_PROGRAM_MAX_OBJECTS];
+    const uint8_t *cursor = (const uint8_t *)chunk_data;
+    const uint8_t *end = cursor + chunk_size;
+    uint32_t i;
+    uint64_t expected_size;
+    if (!ctx || !cursor || chunk_size < (uint64_t)sizeof(header)) {
+        return snapshot_invalid("invalid object chunk payload");
+    }
+    memset(&header, 0, sizeof(header));
+    memcpy(&header, cursor, sizeof(header));
+    if (header.version != DRAWING_PROGRAM_OBJECT_CHUNK_VERSION_V1) {
+        return (CoreResult){ CORE_ERR_FORMAT, "unsupported drawing object chunk version" };
+    }
+    if (header.object_count > DRAWING_PROGRAM_MAX_OBJECTS) {
+        return (CoreResult){ CORE_ERR_FORMAT, "object chunk count exceeds max object capacity" };
+    }
+    expected_size = (uint64_t)sizeof(header) +
+                    ((uint64_t)header.object_count * (uint64_t)sizeof(DrawingProgramObjectChunkEntryV1));
+    if (expected_size != chunk_size) {
+        return (CoreResult){ CORE_ERR_FORMAT, "drawing object chunk size mismatch" };
+    }
+    cursor += sizeof(header);
+    memset(records, 0, sizeof(records));
+    for (i = 0u; i < header.object_count; ++i) {
+        DrawingProgramObjectChunkEntryV1 entry;
+        DrawingProgramObjectRecord record;
+        if ((uint64_t)(end - cursor) < (uint64_t)sizeof(entry)) {
+            return (CoreResult){ CORE_ERR_FORMAT, "drawing object chunk truncated entries" };
         }
+        memcpy(&entry, cursor, sizeof(entry));
+        cursor += sizeof(entry);
+        memset(&record, 0, sizeof(record));
+        record.object_id = entry.object_id;
+        record.layer_id = entry.layer_id;
+        record.type = entry.type;
+        record.visible = entry.visible ? 1u : 0u;
+        record.locked = entry.locked ? 1u : 0u;
+        record.stroke_color_index = entry.stroke_color_index;
+        record.fill_color_index = entry.fill_color_index;
+        record.stroke_width = entry.stroke_width;
+        record.style_mode = entry.style_mode;
+        record.origin_x = entry.origin_x;
+        record.origin_y = entry.origin_y;
+        record.width = entry.width;
+        record.height = entry.height;
+        memcpy(record.name, entry.name, sizeof(record.name));
+        record.name[sizeof(record.name) - 1u] = '\0';
+        records[i] = record;
     }
-
-    for (i = 0u; i < ctx->pane_host.leaf_count; ++i) {
-        if (i == menu_idx) {
-            continue;
-        }
-        candidate_indices[candidate_count++] = i;
+    if (cursor != end) {
+        return (CoreResult){ CORE_ERR_FORMAT, "drawing object chunk trailing bytes" };
     }
-    if (candidate_count < 3u) {
-        return (CoreResult){ CORE_ERR_FORMAT, "workspace import missing side/canvas panes" };
-    }
-
-    left_idx = candidate_indices[0];
-    right_idx = candidate_indices[0];
-    min_x = ctx->pane_host.leaves[left_idx].rect.x;
-    max_x = min_x;
-    for (i = 1u; i < candidate_count; ++i) {
-        uint32_t idx = candidate_indices[i];
-        float x = ctx->pane_host.leaves[idx].rect.x;
-        if (x < min_x) {
-            min_x = x;
-            left_idx = idx;
-        }
-        if (x > max_x) {
-            max_x = x;
-            right_idx = idx;
-        }
-    }
-
-    target_mid = (min_x + max_x) * 0.5f;
-    for (i = 0u; i < candidate_count; ++i) {
-        uint32_t idx = candidate_indices[i];
-        float center_x;
-        float distance;
-        if (idx == left_idx || idx == right_idx) {
-            continue;
-        }
-        center_x = ctx->pane_host.leaves[idx].rect.x + (ctx->pane_host.leaves[idx].rect.width * 0.5f);
-        distance = fabsf(center_x - target_mid);
-        if (!center_set || distance < best_distance) {
-            center_set = 1;
-            best_distance = distance;
-            center_idx = idx;
-        }
-    }
-    if (!center_set) {
-        for (i = 0u; i < candidate_count; ++i) {
-            uint32_t idx = candidate_indices[i];
-            if (idx != left_idx && idx != right_idx) {
-                center_idx = idx;
-                center_set = 1;
-                break;
-            }
-        }
-    }
-    if (!center_set) {
-        return (CoreResult){ CORE_ERR_FORMAT, "workspace import failed to resolve center pane" };
-    }
-    if (left_idx == right_idx || center_idx == left_idx || center_idx == right_idx) {
-        return (CoreResult){ CORE_ERR_FORMAT, "workspace import pane role resolution collision" };
-    }
-
-    ctx->pane_host.module_binding_count = 4u;
-    ctx->pane_host.module_bindings[0] = (CorePaneModuleBinding){
-        .instance_id = 1u,
-        .pane_node_id = (uint32_t)ctx->pane_host.leaves[menu_idx].id,
-        .module_type_id = 3u,
-        .config_variant = 0u,
-        .runtime_flags = 0u
-    };
-    ctx->pane_host.module_bindings[1] = (CorePaneModuleBinding){
-        .instance_id = 2u,
-        .pane_node_id = (uint32_t)ctx->pane_host.leaves[left_idx].id,
-        .module_type_id = 2u,
-        .config_variant = 0u,
-        .runtime_flags = 0u
-    };
-    ctx->pane_host.module_bindings[2] = (CorePaneModuleBinding){
-        .instance_id = 3u,
-        .pane_node_id = (uint32_t)ctx->pane_host.leaves[center_idx].id,
-        .module_type_id = 1u,
-        .config_variant = 0u,
-        .runtime_flags = 0u
-    };
-    ctx->pane_host.module_bindings[3] = (CorePaneModuleBinding){
-        .instance_id = 4u,
-        .pane_node_id = (uint32_t)ctx->pane_host.leaves[right_idx].id,
-        .module_type_id = 4u,
-        .config_variant = 0u,
-        .runtime_flags = 0u
-    };
-
-    return core_result_ok();
+    return drawing_program_object_store_replace_all(&ctx->object_store,
+                                                    records,
+                                                    header.object_count,
+                                                    header.next_object_id);
 }
 
 CoreResult drawing_program_snapshot_save(const struct DrawingProgramAppContext *ctx, const char *path) {
     CorePackWriter writer;
     DrawingProgramSnapshotV1 payload;
-    DrawingProgramUiSettingsV6 ui_settings;
+    DrawingProgramUiSettingsV7 ui_settings;
     CoreResult result;
     if (!ctx || !path) {
         return snapshot_invalid("invalid snapshot save request");
@@ -448,7 +502,7 @@ CoreResult drawing_program_snapshot_save(const struct DrawingProgramAppContext *
     memcpy(payload.bindings, ctx->pane_host.module_bindings, sizeof(payload.bindings));
     memcpy(payload.history_entries, ctx->history.entries, sizeof(payload.history_entries));
     memset(&ui_settings, 0, sizeof(ui_settings));
-    ui_settings.version = DRAWING_PROGRAM_UI_SETTINGS_VERSION_V6;
+    ui_settings.version = DRAWING_PROGRAM_UI_SETTINGS_VERSION_V7;
     ui_settings.theme_preset_id = ctx->ui_theme_preset_id;
     ui_settings.font_preset_id = ctx->ui_font_preset_id;
     ui_settings.font_zoom_step = (int32_t)ctx->ui_font_zoom_step;
@@ -467,7 +521,9 @@ CoreResult drawing_program_snapshot_save(const struct DrawingProgramAppContext *
     ui_settings.tool_eraser_size = ctx->ui_tool_eraser_size;
     ui_settings.tool_shape_stroke_width = ctx->ui_tool_shape_stroke_width;
     ui_settings.tool_shape_mode = ctx->ui_tool_shape_mode;
+    ui_settings.tool_shape_target_mode = ctx->ui_tool_shape_target_mode;
     ui_settings.tool_fill_tolerance = ctx->ui_tool_fill_tolerance;
+    ui_settings.tool_select_mode = ctx->ui_tool_select_mode;
     ui_settings.layer_opacity_entry_count = ctx->ui_layer_opacity_entry_count;
     if (ui_settings.layer_opacity_entry_count > DRAWING_PROGRAM_MAX_LAYERS) {
         ui_settings.layer_opacity_entry_count = DRAWING_PROGRAM_MAX_LAYERS;
@@ -513,6 +569,11 @@ CoreResult drawing_program_snapshot_save(const struct DrawingProgramAppContext *
         (void)core_pack_writer_close(&writer);
         return result;
     }
+    result = drawing_program_snapshot_write_object_chunk(&writer, ctx);
+    if (result.code != CORE_OK) {
+        (void)core_pack_writer_close(&writer);
+        return result;
+    }
     result = core_pack_writer_add_chunk(&writer, "DPUI", &ui_settings, (uint64_t)sizeof(ui_settings));
     if (result.code != CORE_OK) {
         (void)core_pack_writer_close(&writer);
@@ -534,6 +595,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
     CorePackChunkInfo chunk;
     CorePackChunkInfo ui_chunk;
     CorePackChunkInfo layer_chunk;
+    CorePackChunkInfo object_chunk;
     DrawingProgramSnapshotV1 payload;
     DrawingProgramUiSettingsV1 ui_settings_v1;
     DrawingProgramUiSettingsV2 ui_settings_v2;
@@ -541,8 +603,10 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
     DrawingProgramUiSettingsV4 ui_settings_v4;
     DrawingProgramUiSettingsV5 ui_settings_v5;
     DrawingProgramUiSettingsV6 ui_settings_v6;
+    DrawingProgramUiSettingsV7 ui_settings_v7;
     CoreResult result;
     uint8_t *layer_chunk_data = 0;
+    uint8_t *object_chunk_data = 0;
     if (!ctx || !path) {
         return snapshot_invalid("invalid snapshot load request");
     }
@@ -588,6 +652,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
 
     ctx->document = payload.document;
     ctx->editor = payload.editor;
+    drawing_program_object_store_reset(&ctx->object_store);
     result = drawing_program_layer_raster_store_init_from_document(&ctx->layer_rasters, &ctx->document);
     if (result.code != CORE_OK) {
         (void)core_pack_reader_close(&reader);
@@ -608,7 +673,9 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
     memset(&ui_settings_v4, 0, sizeof(ui_settings_v4));
     memset(&ui_settings_v5, 0, sizeof(ui_settings_v5));
     memset(&ui_settings_v6, 0, sizeof(ui_settings_v6));
+    memset(&ui_settings_v7, 0, sizeof(ui_settings_v7));
     memset(&layer_chunk, 0, sizeof(layer_chunk));
+    memset(&object_chunk, 0, sizeof(object_chunk));
     result = core_pack_reader_find_chunk(&reader, "DPLR", 0u, &layer_chunk);
     if (result.code == CORE_OK) {
         layer_chunk_data = (uint8_t *)malloc((size_t)layer_chunk.size);
@@ -631,9 +698,79 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
             return result;
         }
     }
+    result = core_pack_reader_find_chunk(&reader, "DPOB", 0u, &object_chunk);
+    if (result.code == CORE_OK) {
+        object_chunk_data = (uint8_t *)malloc((size_t)object_chunk.size);
+        if (!object_chunk_data) {
+            (void)core_pack_reader_close(&reader);
+            return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "failed to allocate object chunk buffer" };
+        }
+        result = core_pack_reader_read_chunk_data(&reader, &object_chunk, object_chunk_data, object_chunk.size);
+        if (result.code != CORE_OK) {
+            free(object_chunk_data);
+            object_chunk_data = 0;
+            (void)core_pack_reader_close(&reader);
+            return result;
+        }
+        result = drawing_program_snapshot_apply_object_chunk(ctx, object_chunk_data, object_chunk.size);
+        free(object_chunk_data);
+        object_chunk_data = 0;
+        if (result.code != CORE_OK) {
+            (void)core_pack_reader_close(&reader);
+            return result;
+        }
+    }
     result = core_pack_reader_find_chunk(&reader, "DPUI", 0u, &ui_chunk);
     if (result.code == CORE_OK) {
-        if (ui_chunk.size == (uint64_t)sizeof(ui_settings_v6)) {
+        if (ui_chunk.size == (uint64_t)sizeof(ui_settings_v7)) {
+            result = core_pack_reader_read_chunk_data(&reader, &ui_chunk, &ui_settings_v7, (uint64_t)sizeof(ui_settings_v7));
+            if (result.code == CORE_OK &&
+                ui_settings_v7.version == DRAWING_PROGRAM_UI_SETTINGS_VERSION_V7) {
+                uint8_t entry_count = ui_settings_v7.layer_opacity_entry_count;
+                if (ui_settings_v7.theme_preset_id < (uint32_t)CORE_THEME_PRESET_COUNT) {
+                    ctx->ui_theme_preset_id = ui_settings_v7.theme_preset_id;
+                }
+                if (ui_settings_v7.font_preset_id < (uint32_t)CORE_FONT_PRESET_COUNT) {
+                    ctx->ui_font_preset_id = ui_settings_v7.font_preset_id;
+                }
+                ctx->ui_font_zoom_step = (int8_t)ui_settings_v7.font_zoom_step;
+                ctx->ui_left_panel_slot = ui_settings_v7.left_panel_slot;
+                ctx->ui_right_panel_slot = ui_settings_v7.right_panel_slot;
+                ctx->ui_active_color_index = ui_settings_v7.active_color_index;
+                ctx->ui_tool_brush_size = ui_settings_v7.tool_brush_size;
+                ctx->ui_tool_brush_opacity = ui_settings_v7.tool_brush_opacity;
+                ctx->ui_tool_brush_spacing = ui_settings_v7.tool_brush_spacing;
+                ctx->ui_tool_brush_hardness = ui_settings_v7.tool_brush_hardness;
+                ctx->ui_tool_eraser_size = ui_settings_v7.tool_eraser_size;
+                ctx->ui_tool_shape_stroke_width = ui_settings_v7.tool_shape_stroke_width;
+                ctx->ui_tool_shape_mode = ui_settings_v7.tool_shape_mode;
+                ctx->ui_tool_shape_target_mode = ui_settings_v7.tool_shape_target_mode;
+                ctx->ui_tool_fill_tolerance = ui_settings_v7.tool_fill_tolerance;
+                ctx->ui_tool_select_mode = ui_settings_v7.tool_select_mode;
+                if (entry_count > DRAWING_PROGRAM_MAX_LAYERS) {
+                    entry_count = DRAWING_PROGRAM_MAX_LAYERS;
+                }
+                ctx->ui_layer_opacity_entry_count = entry_count;
+                memcpy(ctx->ui_layer_opacity_layer_ids,
+                       ui_settings_v7.layer_opacity_layer_ids,
+                       sizeof(ctx->ui_layer_opacity_layer_ids));
+                memcpy(ctx->ui_layer_opacity_values,
+                       ui_settings_v7.layer_opacity_values,
+                       sizeof(ctx->ui_layer_opacity_values));
+                if (ui_settings_v7.selection_has_payload) {
+                    (void)drawing_program_selection_capture_from_rect(&ctx->document,
+                                                                      &ctx->layer_rasters,
+                                                                      ctx->editor.active_layer_id,
+                                                                      &ctx->selection,
+                                                                      (int32_t)ui_settings_v7.selection_origin_x,
+                                                                      (int32_t)ui_settings_v7.selection_origin_y,
+                                                                      ui_settings_v7.selection_width,
+                                                                      ui_settings_v7.selection_height);
+                } else {
+                    drawing_program_selection_reset(&ctx->selection);
+                }
+            }
+        } else if (ui_chunk.size == (uint64_t)sizeof(ui_settings_v6)) {
             result = core_pack_reader_read_chunk_data(&reader, &ui_chunk, &ui_settings_v6, (uint64_t)sizeof(ui_settings_v6));
             if (result.code == CORE_OK &&
                 ui_settings_v6.version == DRAWING_PROGRAM_UI_SETTINGS_VERSION_V6) {
@@ -655,7 +792,9 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
                 ctx->ui_tool_eraser_size = ui_settings_v6.tool_eraser_size;
                 ctx->ui_tool_shape_stroke_width = ui_settings_v6.tool_shape_stroke_width;
                 ctx->ui_tool_shape_mode = ui_settings_v6.tool_shape_mode;
+                ctx->ui_tool_shape_target_mode = (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_PIXEL;
                 ctx->ui_tool_fill_tolerance = ui_settings_v6.tool_fill_tolerance;
+                ctx->ui_tool_select_mode = (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_REPLACE;
                 if (entry_count > DRAWING_PROGRAM_MAX_LAYERS) {
                     entry_count = DRAWING_PROGRAM_MAX_LAYERS;
                 }
@@ -700,7 +839,9 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
                 ctx->ui_tool_eraser_size = ui_settings_v5.tool_eraser_size;
                 ctx->ui_tool_shape_stroke_width = ui_settings_v5.tool_shape_stroke_width;
                 ctx->ui_tool_shape_mode = ui_settings_v5.tool_shape_mode;
+                ctx->ui_tool_shape_target_mode = (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_PIXEL;
                 ctx->ui_tool_fill_tolerance = ui_settings_v5.tool_fill_tolerance;
+                ctx->ui_tool_select_mode = (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_REPLACE;
                 if (ui_settings_v5.selection_has_payload) {
                     (void)drawing_program_selection_capture_from_rect(&ctx->document,
                                                                       &ctx->layer_rasters,
@@ -728,6 +869,8 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
                 ctx->ui_left_panel_slot = ui_settings_v4.left_panel_slot;
                 ctx->ui_right_panel_slot = ui_settings_v4.right_panel_slot;
                 ctx->ui_active_color_index = ui_settings_v4.active_color_index;
+                ctx->ui_tool_shape_target_mode = (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_PIXEL;
+                ctx->ui_tool_select_mode = (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_REPLACE;
                 if (ui_settings_v4.selection_has_payload) {
                     (void)drawing_program_selection_capture_from_rect(&ctx->document,
                                                                       &ctx->layer_rasters,
@@ -755,6 +898,8 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
                 ctx->ui_left_panel_slot = ui_settings_v3.left_panel_slot;
                 ctx->ui_right_panel_slot = ui_settings_v3.right_panel_slot;
                 ctx->ui_active_color_index = ui_settings_v3.active_color_index;
+                ctx->ui_tool_shape_target_mode = (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_PIXEL;
+                ctx->ui_tool_select_mode = (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_REPLACE;
                 drawing_program_selection_reset(&ctx->selection);
             }
         } else if (ui_chunk.size == (uint64_t)sizeof(ui_settings_v2)) {
@@ -771,6 +916,8 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
                 ctx->ui_left_panel_slot = ui_settings_v2.left_panel_slot;
                 ctx->ui_right_panel_slot = ui_settings_v2.right_panel_slot;
                 ctx->ui_active_color_index = drawing_program_color_default_index();
+                ctx->ui_tool_shape_target_mode = (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_PIXEL;
+                ctx->ui_tool_select_mode = (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_REPLACE;
                 drawing_program_selection_reset(&ctx->selection);
             }
         } else if (ui_chunk.size == (uint64_t)sizeof(ui_settings_v1)) {
@@ -783,6 +930,8 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
                 ctx->ui_left_panel_slot = ui_settings_v1.left_panel_slot;
                 ctx->ui_right_panel_slot = ui_settings_v1.right_panel_slot;
                 ctx->ui_active_color_index = drawing_program_color_default_index();
+                ctx->ui_tool_shape_target_mode = (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_PIXEL;
+                ctx->ui_tool_select_mode = (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_REPLACE;
                 drawing_program_selection_reset(&ctx->selection);
             }
         }
@@ -833,6 +982,28 @@ CoreResult drawing_program_snapshot_export_debug_json(const struct DrawingProgra
     fprintf(f, "    \"slot_count\": %u,\n", ctx->layer_rasters.slot_count);
     fprintf(f, "    \"sample_count\": %u\n", ctx->layer_rasters.sample_count);
     fprintf(f, "  },\n");
+    fprintf(f, "  \"objects\": {\n");
+    fprintf(f, "    \"schema_version\": %u,\n", (unsigned)ctx->object_store.schema_version);
+    fprintf(f, "    \"count\": %u,\n", (unsigned)ctx->object_store.object_count);
+    fprintf(f, "    \"next_object_id\": %u,\n", (unsigned)ctx->object_store.next_object_id);
+    fprintf(f, "    \"items\": [\n");
+    for (i = 0u; i < ctx->object_store.object_count && i < DRAWING_PROGRAM_MAX_OBJECTS; ++i) {
+        const DrawingProgramObjectRecord *object = &ctx->object_store.objects[i];
+        fprintf(f,
+                "      {\"id\": %u, \"layer_id\": %u, \"type\": %u, \"visible\": %u, \"locked\": %u, \"x\": %d, \"y\": %d, \"w\": %u, \"h\": %u}%s\n",
+                (unsigned)object->object_id,
+                (unsigned)object->layer_id,
+                (unsigned)object->type,
+                (unsigned)object->visible,
+                (unsigned)object->locked,
+                (int)object->origin_x,
+                (int)object->origin_y,
+                (unsigned)object->width,
+                (unsigned)object->height,
+                ((i + 1u) < ctx->object_store.object_count && (i + 1u) < DRAWING_PROGRAM_MAX_OBJECTS) ? "," : "");
+    }
+    fprintf(f, "    ]\n");
+    fprintf(f, "  },\n");
     fprintf(f, "  \"editor\": {\n");
     fprintf(f, "    \"active_tool\": %u,\n", (unsigned)ctx->editor.active_tool);
     fprintf(f, "    \"active_layer_id\": %u,\n", ctx->editor.active_layer_id);
@@ -856,7 +1027,9 @@ CoreResult drawing_program_snapshot_export_debug_json(const struct DrawingProgra
     fprintf(f, "    \"eraser_size\": %u,\n", (unsigned)ctx->ui_tool_eraser_size);
     fprintf(f, "    \"shape_stroke_width\": %u,\n", (unsigned)ctx->ui_tool_shape_stroke_width);
     fprintf(f, "    \"shape_mode\": %u,\n", (unsigned)ctx->ui_tool_shape_mode);
-    fprintf(f, "    \"fill_tolerance\": %u\n", (unsigned)ctx->ui_tool_fill_tolerance);
+    fprintf(f, "    \"shape_target_mode\": %u,\n", (unsigned)ctx->ui_tool_shape_target_mode);
+    fprintf(f, "    \"fill_tolerance\": %u,\n", (unsigned)ctx->ui_tool_fill_tolerance);
+    fprintf(f, "    \"select_mode\": %u\n", (unsigned)ctx->ui_tool_select_mode);
     fprintf(f, "  },\n");
     fprintf(f, "  \"layer_ui\": {\n");
     fprintf(f, "    \"opacity_entry_count\": %u,\n", (unsigned)ctx->ui_layer_opacity_entry_count);
@@ -906,103 +1079,4 @@ CoreResult drawing_program_snapshot_export_debug_json(const struct DrawingProgra
         return (CoreResult){ CORE_ERR_IO, "failed to close snapshot json output" };
     }
     return core_result_ok();
-}
-
-CoreResult drawing_program_snapshot_bridge_check_workspace_preset(const char *workspace_preset_path) {
-    CorePackReader reader;
-    CorePackChunkInfo chunk;
-    CoreResult result;
-    if (!workspace_preset_path) {
-        return snapshot_invalid("invalid workspace preset bridge request");
-    }
-    result = core_pack_reader_open(workspace_preset_path, &reader);
-    if (result.code != CORE_OK) {
-        return result;
-    }
-    result = core_pack_reader_find_chunk(&reader, "WSPS", 0u, &chunk);
-    (void)core_pack_reader_close(&reader);
-    if (result.code != CORE_OK) {
-        return (CoreResult){ CORE_ERR_FORMAT, "workspace preset missing WSPS chunk" };
-    }
-    return core_result_ok();
-}
-
-CoreResult drawing_program_snapshot_bridge_import_workspace_preset(struct DrawingProgramAppContext *ctx,
-                                                                   const char *workspace_preset_path) {
-    CorePackReader reader;
-    CorePackChunkInfo chunk;
-    CoreResult result;
-    uint8_t *payload = 0;
-    uint32_t version = 0u;
-    uint32_t node_count = 0u;
-    uint32_t root_index = 0u;
-    uint64_t offset = 0u;
-    uint64_t nodes_bytes = sizeof(CorePaneNode) * DRAWING_PROGRAM_WORKSPACE_MAX_NODES;
-    uint64_t required = 0u;
-    if (!ctx || !workspace_preset_path) {
-        return snapshot_invalid("invalid workspace preset import request");
-    }
-    result = core_pack_reader_open(workspace_preset_path, &reader);
-    if (result.code != CORE_OK) {
-        return result;
-    }
-    result = core_pack_reader_find_chunk(&reader, "WSPS", 0u, &chunk);
-    if (result.code != CORE_OK) {
-        (void)core_pack_reader_close(&reader);
-        return (CoreResult){ CORE_ERR_FORMAT, "workspace preset missing WSPS chunk" };
-    }
-
-    payload = (uint8_t *)malloc((size_t)chunk.size);
-    if (!payload) {
-        (void)core_pack_reader_close(&reader);
-        return (CoreResult){ CORE_ERR_IO, "workspace import allocation failed" };
-    }
-    result = core_pack_reader_read_chunk_data(&reader, &chunk, payload, chunk.size);
-    (void)core_pack_reader_close(&reader);
-    if (result.code != CORE_OK) {
-        free(payload);
-        return result;
-    }
-
-    if (chunk.size < sizeof(uint32_t)) {
-        free(payload);
-        return (CoreResult){ CORE_ERR_FORMAT, "workspace preset payload too small" };
-    }
-    memcpy(&version, payload, sizeof(uint32_t));
-    if (version == DRAWING_PROGRAM_WORKSPACE_PRESET_VERSION_V1 ||
-        version == DRAWING_PROGRAM_WORKSPACE_PRESET_VERSION_V2) {
-        offset = sizeof(uint32_t);
-    } else {
-        free(payload);
-        return (CoreResult){ CORE_ERR_FORMAT, "unsupported workspace preset version" };
-    }
-    required = offset + nodes_bytes + sizeof(uint32_t) + sizeof(uint32_t);
-    if (chunk.size < required) {
-        free(payload);
-        return (CoreResult){ CORE_ERR_FORMAT, "workspace preset payload too small for layout" };
-    }
-
-    memcpy(ctx->pane_host.nodes, payload + offset, sizeof(ctx->pane_host.nodes));
-    memcpy(&node_count, payload + offset + nodes_bytes, sizeof(uint32_t));
-    memcpy(&root_index, payload + offset + nodes_bytes + sizeof(uint32_t), sizeof(uint32_t));
-    free(payload);
-    payload = 0;
-
-    if (node_count == 0u ||
-        node_count > DRAWING_PROGRAM_PANE_NODE_CAPACITY ||
-        root_index >= node_count) {
-        return (CoreResult){ CORE_ERR_FORMAT, "workspace import layout exceeds drawing capacity" };
-    }
-    ctx->pane_host.node_count = node_count;
-    ctx->pane_host.root_index = root_index;
-    ctx->pane_host.module_binding_count = 0u;
-    result = drawing_program_pane_host_rebuild(ctx);
-    if (result.code != CORE_OK) {
-        return result;
-    }
-    result = drawing_program_rebind_imported_modules(ctx);
-    if (result.code != CORE_OK) {
-        return result;
-    }
-    return drawing_program_pane_host_rebuild(ctx);
 }

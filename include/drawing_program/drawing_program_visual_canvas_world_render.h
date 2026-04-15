@@ -16,6 +16,13 @@ typedef struct DrawingProgramVisualCanvasWorldRenderHooks {
                                    const CoreThemePreset *theme,
                                    const VisualCanvasSheetMetrics *metrics,
                                    const VisualSelectionState *selection);
+    void (*draw_object_overlay)(SDL_Renderer *renderer,
+                                SDL_Rect pane_rect,
+                                const DrawingProgramAppContext *ctx,
+                                const CoreThemePreset *theme,
+                                const VisualCanvasSheetMetrics *metrics,
+                                const VisualCanvasInteractionState *interaction,
+                                const VisualPanelUiState *ui);
     void (*draw_shape_preview_overlay)(SDL_Renderer *renderer,
                                        SDL_Rect pane_rect,
                                        const DrawingProgramAppContext *ctx,

@@ -34,6 +34,14 @@ void drawing_program_visual_draw_selection_overlay(SDL_Renderer *renderer,
                                                    const VisualCanvasSheetMetrics *metrics,
                                                    const VisualSelectionState *selection);
 
+void drawing_program_visual_draw_object_overlay(SDL_Renderer *renderer,
+                                                SDL_Rect pane_rect,
+                                                const DrawingProgramAppContext *ctx,
+                                                const CoreThemePreset *theme,
+                                                const VisualCanvasSheetMetrics *metrics,
+                                                const VisualCanvasInteractionState *interaction,
+                                                const VisualPanelUiState *ui);
+
 void drawing_program_visual_draw_shape_preview_overlay(
     SDL_Renderer *renderer,
     SDL_Rect pane_rect,

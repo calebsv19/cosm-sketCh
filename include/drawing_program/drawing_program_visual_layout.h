@@ -65,6 +65,18 @@ SDL_Rect right_layer_action_button_rect(SDL_Rect rect,
                                         uint32_t layer_count,
                                         VisualLayerActionButton button);
 
+int left_panel_content_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m);
+SDL_Rect left_panel_tool_list_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, uint32_t tool_count);
+SDL_Rect left_panel_tool_row_rect(SDL_Rect rect,
+                                  VisualPaneLayoutMetrics m,
+                                  uint32_t tool_index,
+                                  uint32_t tool_count);
+SDL_Rect left_panel_tool_detail_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, uint32_t tool_count);
+int left_panel_tool_detail_rows_start_y(SDL_Rect detail_rect, VisualPaneLayoutMetrics m);
+SDL_Rect left_panel_tool_detail_option_row_rect(SDL_Rect detail_rect,
+                                                VisualPaneLayoutMetrics m,
+                                                uint32_t option_index);
+
 SDL_Rect left_tool_option_row_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, int y);
 SDL_Rect left_tool_option_minus_rect(SDL_Rect row, VisualPaneLayoutMetrics m);
 SDL_Rect left_tool_option_plus_rect(SDL_Rect row, VisualPaneLayoutMetrics m);

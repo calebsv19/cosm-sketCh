@@ -8,9 +8,83 @@
 #include "drawing_program/drawing_program_visual_layer_opacity.h"
 
 enum {
-    VISUAL_LEFT_PANEL_SLOT_TOOLS_VALUE = 0,
     VISUAL_RIGHT_PANEL_SLOT_LAYER_VALUE = 1
 };
+
+static void object_selection_clear(DrawingProgramAppContext *ctx) {
+    if (!ctx) {
+        return;
+    }
+    drawing_program_object_selection_reset(&ctx->object_selection);
+}
+
+static void object_selection_replace(DrawingProgramAppContext *ctx, uint32_t object_id) {
+    if (!ctx) {
+        return;
+    }
+    drawing_program_object_selection_replace_single(&ctx->object_selection, object_id);
+}
+
+static void object_selection_add(DrawingProgramAppContext *ctx, uint32_t object_id) {
+    if (!ctx) {
+        return;
+    }
+    (void)drawing_program_object_selection_add(&ctx->object_selection, object_id);
+}
+
+static void object_selection_remove(DrawingProgramAppContext *ctx, uint32_t object_id) {
+    uint32_t i;
+    uint32_t write_index = 0u;
+    uint32_t new_active = 0u;
+    if (!ctx || object_id == 0u || ctx->object_selection.count == 0u) {
+        return;
+    }
+    for (i = 0u; i < ctx->object_selection.count && i < DRAWING_PROGRAM_MAX_OBJECTS; ++i) {
+        uint32_t id = ctx->object_selection.object_ids[i];
+        if (id == 0u || id == object_id) {
+            continue;
+        }
+        ctx->object_selection.object_ids[write_index] = id;
+        new_active = id;
+        write_index += 1u;
+    }
+    for (i = write_index; i < DRAWING_PROGRAM_MAX_OBJECTS; ++i) {
+        ctx->object_selection.object_ids[i] = 0u;
+    }
+    ctx->object_selection.count = write_index;
+    ctx->object_selection.active_object_id = new_active;
+}
+
+static int object_selection_hit_test(const DrawingProgramAppContext *ctx,
+                                     uint32_t sample_x,
+                                     uint32_t sample_y,
+                                     uint32_t *out_object_id) {
+    CoreResult result;
+    if (!ctx || !out_object_id) {
+        return 0;
+    }
+    result = drawing_program_object_store_hit_test_topmost(
+        &ctx->object_store, &ctx->document, sample_x, sample_y, out_object_id, 0);
+    return (result.code == CORE_OK) ? 1 : 0;
+}
+
+static VisualMarqueeCommitMode resolve_select_commit_mode(const DrawingProgramAppContext *ctx,
+                                                          SDL_Keymod mods) {
+    uint8_t ui_mode = (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_REPLACE;
+    if ((mods & KMOD_ALT) != 0) {
+        return VISUAL_MARQUEE_COMMIT_SUBTRACT;
+    }
+    if ((mods & KMOD_SHIFT) != 0) {
+        return VISUAL_MARQUEE_COMMIT_ADD;
+    }
+    if (ctx) {
+        ui_mode = ctx->ui_tool_select_mode;
+    }
+    if (ui_mode > (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_SUBTRACT) {
+        ui_mode = (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_REPLACE;
+    }
+    return (VisualMarqueeCommitMode)ui_mode;
+}
 
 static void handle_left_panel_click_payload(DrawingProgramAppContext *ctx,
                                             SDL_Rect rect,
@@ -20,83 +94,57 @@ static void handle_left_panel_click_payload(DrawingProgramAppContext *ctx,
                                             VisualPanelUiState *ui,
                                             const DrawingProgramVisualInputHandlersHooks *hooks) {
     VisualPaneLayoutMetrics m;
-    int content_y;
-    SDL_Rect tab_tools;
-    SDL_Rect tab_view;
+    uint32_t tool_count;
+    uint32_t option_count;
     uint32_t i;
     if (!ctx || !ui || !hooks) {
         return;
     }
     m = make_pane_layout_metrics(ctx);
-    content_y = rect.y + m.pad_y + m.title_glyph_h + m.section_gap;
-    tab_tools = (SDL_Rect){ rect.x + m.pad_x, content_y, (rect.w - (2 * m.pad_x) - m.tab_gap) / 2, m.tab_h };
-    tab_view = (SDL_Rect){ tab_tools.x + tab_tools.w + m.tab_gap, content_y, (rect.w - (2 * m.pad_x) - m.tab_gap) / 2, m.tab_h };
-    content_y += m.tab_h + m.section_gap;
-    if (hooks->point_in_rect(tab_tools, x, y)) {
-        ctx->ui_left_panel_slot = (uint8_t)VISUAL_LEFT_PANEL_SLOT_TOOLS_VALUE;
-        hooks->sync_panel_ui_from_app(ctx, ui);
-        return;
+    tool_count = hooks->visual_tool_count();
+    option_count = hooks->visual_tool_option_count(ctx, ctx->editor.active_tool);
+
+    for (i = 0u; i < tool_count; ++i) {
+        SDL_Rect row = left_panel_tool_row_rect(rect, m, i, tool_count);
+        DrawingProgramToolKind tool = hooks->visual_tool_at(i);
+        if (hooks->point_in_rect(row, x, y)) {
+            hooks->apply_workflow_control_if_valid(ctx, hooks->workflow_control_for_tool(tool));
+            return;
+        }
     }
-    if (hooks->point_in_rect(tab_view, x, y)) {
-        ctx->ui_left_panel_slot = (uint8_t)(VISUAL_LEFT_PANEL_SLOT_TOOLS_VALUE + 1);
-        hooks->sync_panel_ui_from_app(ctx, ui);
-        return;
-    }
-    if (hooks->clamp_left_slot(ctx->ui_left_panel_slot) == (uint8_t)VISUAL_LEFT_PANEL_SLOT_TOOLS_VALUE) {
-        int y_cursor = content_y;
-        uint32_t active_option_count = hooks->visual_tool_option_count(ctx, ctx->editor.active_tool);
-        for (i = 0u; i < hooks->visual_tool_count(); ++i) {
-            SDL_Rect row = { rect.x + m.pad_x, y_cursor, rect.w - (2 * m.pad_x), m.row_h };
-            DrawingProgramToolKind tool = hooks->visual_tool_at(i);
-            if (hooks->point_in_rect(row, x, y)) {
-                hooks->apply_workflow_control_if_valid(ctx, hooks->workflow_control_for_tool(tool));
-                return;
-            }
-            y_cursor += m.row_h;
-            if (ctx->editor.active_tool == tool && active_option_count > 0u) {
-                uint32_t option_i;
-                for (option_i = 0u; option_i < active_option_count; ++option_i) {
-                    uint32_t option_kind_raw =
-                        hooks->visual_tool_option_kind_for_index_raw(ctx, ctx->editor.active_tool, option_i);
-                    SDL_Rect option_row = left_tool_option_row_rect(rect, m, y_cursor);
-                    if (hooks->visual_tool_option_is_action_button_raw(option_kind_raw)) {
-                        if (hooks->point_in_rect(option_row, x, y) &&
-                            hooks->visual_tool_option_is_select_delete_raw(option_kind_raw) &&
-                            selection &&
-                            selection->has_payload &&
-                            hooks->active_layer_allows_edits_visual(ctx)) {
-                            (void)drawing_program_selection_delete_payload(&ctx->document,
-                                                                           &ctx->layer_rasters,
-                                                                           ctx->editor.active_layer_id,
-                                                                           &ctx->history,
-                                                                           selection);
-                            return;
-                        }
-                    } else {
-                        SDL_Rect minus_rect = left_tool_option_minus_rect(option_row, m);
-                        SDL_Rect plus_rect = left_tool_option_plus_rect(option_row, m);
-                        if (hooks->point_in_rect(minus_rect, x, y)) {
-                            hooks->visual_tool_option_adjust_raw(ctx, option_kind_raw, -1);
-                            return;
-                        }
-                        if (hooks->point_in_rect(plus_rect, x, y)) {
-                            hooks->visual_tool_option_adjust_raw(ctx, option_kind_raw, 1);
-                            return;
-                        }
-                    }
-                    y_cursor += m.row_h;
+
+    {
+        SDL_Rect detail_rect = left_panel_tool_detail_rect(rect, m, tool_count);
+        uint32_t option_i;
+        for (option_i = 0u; option_i < option_count; ++option_i) {
+            uint32_t option_kind_raw =
+                hooks->visual_tool_option_kind_for_index_raw(ctx, ctx->editor.active_tool, option_i);
+            SDL_Rect option_row = left_panel_tool_detail_option_row_rect(detail_rect, m, option_i);
+            if (hooks->visual_tool_option_is_action_button_raw(option_kind_raw)) {
+                if (hooks->point_in_rect(option_row, x, y) &&
+                    hooks->visual_tool_option_is_select_delete_raw(option_kind_raw) &&
+                    selection &&
+                    selection->has_payload &&
+                    hooks->active_layer_allows_edits_visual(ctx)) {
+                    (void)drawing_program_selection_delete_payload(&ctx->document,
+                                                                   &ctx->layer_rasters,
+                                                                   ctx->editor.active_layer_id,
+                                                                   &ctx->history,
+                                                                   selection);
+                    return;
+                }
+            } else {
+                SDL_Rect minus_rect = left_tool_option_minus_rect(option_row, m);
+                SDL_Rect plus_rect = left_tool_option_plus_rect(option_row, m);
+                if (hooks->point_in_rect(minus_rect, x, y)) {
+                    hooks->visual_tool_option_adjust_raw(ctx, option_kind_raw, -1);
+                    return;
+                }
+                if (hooks->point_in_rect(plus_rect, x, y)) {
+                    hooks->visual_tool_option_adjust_raw(ctx, option_kind_raw, 1);
+                    return;
                 }
             }
-        }
-    } else {
-        int y_line = content_y + (m.line_h * 6) + (m.section_gap * 2);
-        SDL_Rect zoom_in = { rect.x + m.pad_x, y_line, rect.w - (2 * m.pad_x), m.row_h };
-        if (hooks->point_in_rect(zoom_in, x, y)) {
-            float next_zoom = ctx->editor.viewport.zoom + 0.1f;
-            if (next_zoom > 8.0f) {
-                next_zoom = 8.0f;
-            }
-            ctx->editor.viewport.zoom = next_zoom;
         }
     }
 }
@@ -313,7 +361,12 @@ int drawing_program_visual_input_handle_mouse_button_up_payload(const SDL_Event 
             selection_state->marquee_end_x = sample_x;
             selection_state->marquee_end_y = sample_y;
         }
-        if (hooks->visual_transform_session_is_move_active(canvas_interaction) && selection_state->moving) {
+        if (hooks->visual_transform_session_is_object_move_active(canvas_interaction)) {
+            (void)hooks->screen_to_canvas_sample_clamped(
+                app, canvas_pane, release_x, release_y, &sample_x, &sample_y);
+            hooks->visual_transform_session_update_object_move(
+                app, canvas_interaction, sample_x, sample_y, SDL_GetModState());
+        } else if (hooks->visual_transform_session_is_move_active(canvas_interaction) && selection_state->moving) {
             (void)hooks->screen_to_canvas_sample_clamped(
                 app, canvas_pane, release_x, release_y, &sample_x, &sample_y);
             hooks->visual_transform_session_update_move(app,
@@ -325,6 +378,15 @@ int drawing_program_visual_input_handle_mouse_button_up_payload(const SDL_Event 
         }
     }
     if (selection_state->selecting) {
+        if (app->editor.active_tool == DRAWING_PROGRAM_TOOL_SELECT &&
+            selection_state->marquee_start_x == selection_state->marquee_end_x &&
+            selection_state->marquee_start_y == selection_state->marquee_end_y) {
+            /* Empty-canvas click in select mode should clear all selection lanes. */
+            object_selection_clear(app);
+            drawing_program_selection_reset(selection_state);
+            hooks->cancel_all_transient_interactions(app, canvas_interaction, selection_state, 0);
+            return 1;
+        }
         VisualMarqueeCommitMode mode =
             hooks->visual_marquee_commit_mode_clamp(canvas_interaction->marquee_commit_mode);
         (void)hooks->visual_selection_capture_from_marquee(app, selection_state, mode);
@@ -333,6 +395,11 @@ int drawing_program_visual_input_handle_mouse_button_up_payload(const SDL_Event 
         move_commit = hooks->visual_transform_session_commit_move(app, canvas_interaction, selection_state);
         if (move_commit.code != CORE_OK) {
             fprintf(stderr, "drawing_program: selection move commit failed: %s\n", move_commit.message);
+        }
+    } else if (hooks->visual_transform_session_is_object_move_active(canvas_interaction)) {
+        move_commit = hooks->visual_transform_session_commit_object_move(app, canvas_interaction);
+        if (move_commit.code != CORE_OK) {
+            fprintf(stderr, "drawing_program: object move commit failed: %s\n", move_commit.message);
         }
     }
     if (canvas_interaction->shape_active &&
@@ -387,7 +454,19 @@ int drawing_program_visual_input_handle_mouse_motion_payload(const SDL_Event *ev
             selection_state->marquee_end_y = sample_y;
         }
     }
-    if (hooks->visual_transform_session_is_move_active(canvas_interaction) &&
+    if (hooks->visual_transform_session_is_object_move_active(canvas_interaction) &&
+        app->editor.active_tool == DRAWING_PROGRAM_TOOL_MOVE) {
+        uint32_t sample_x = 0u;
+        uint32_t sample_y = 0u;
+        if (hooks->screen_to_canvas_sample_clamped(
+                app, canvas_pane, panel_ui->mouse_x, panel_ui->mouse_y, &sample_x, &sample_y)) {
+            hooks->visual_transform_session_update_object_move(app,
+                                                               canvas_interaction,
+                                                               sample_x,
+                                                               sample_y,
+                                                               SDL_GetModState());
+        }
+    } else if (hooks->visual_transform_session_is_move_active(canvas_interaction) &&
         selection_state->moving &&
         app->editor.active_tool == DRAWING_PROGRAM_TOOL_MOVE) {
         uint32_t sample_x = 0u;
@@ -478,10 +557,36 @@ int drawing_program_visual_input_handle_mouse_button_down_payload(const SDL_Even
         !canvas_interaction->panning_active) {
         if (app->editor.active_tool == DRAWING_PROGRAM_TOOL_SELECT &&
             hooks->screen_to_canvas_sample(app, canvas_pane, click_x, click_y, &sample_x, &sample_y)) {
+            uint32_t hit_object_id = 0u;
+            SDL_Keymod mods = SDL_GetModState();
+            VisualMarqueeCommitMode select_mode = resolve_select_commit_mode(app, mods);
+            if (object_selection_hit_test(app, sample_x, sample_y, &hit_object_id)) {
+                if (select_mode == VISUAL_MARQUEE_COMMIT_SUBTRACT) {
+                    object_selection_remove(app, hit_object_id);
+                } else if (select_mode == VISUAL_MARQUEE_COMMIT_ADD) {
+                    object_selection_add(app, hit_object_id);
+                } else {
+                    object_selection_replace(app, hit_object_id);
+                }
+                /* Object-select mode is exclusive with pixel payload selection preview. */
+                drawing_program_selection_reset(selection_state);
+                hooks->cancel_canvas_draw_and_shape(canvas_interaction);
+                hooks->cancel_selection_transient(selection_state);
+                return 1;
+            }
+            if (select_mode == VISUAL_MARQUEE_COMMIT_REPLACE) {
+                object_selection_clear(app);
+            }
             drawing_program_selection_begin_marquee(selection_state, sample_x, sample_y);
             hooks->cancel_canvas_draw_and_shape(canvas_interaction);
-            canvas_interaction->marquee_commit_mode =
-                (uint8_t)hooks->visual_marquee_commit_mode_from_mods(SDL_GetModState());
+            canvas_interaction->marquee_commit_mode = (uint8_t)select_mode;
+        } else if (app->editor.active_tool == DRAWING_PROGRAM_TOOL_MOVE &&
+                   app->object_selection.count > 0u &&
+                   hooks->screen_to_canvas_sample_clamped(
+                       app, canvas_pane, click_x, click_y, &sample_x, &sample_y)) {
+            hooks->cancel_canvas_draw_and_shape(canvas_interaction);
+            hooks->cancel_selection_transient(selection_state);
+            hooks->visual_transform_session_begin_object_move(canvas_interaction, sample_x, sample_y);
         } else if (app->editor.active_tool == DRAWING_PROGRAM_TOOL_MOVE &&
                    selection_state->has_payload &&
                    ((hooks->screen_to_canvas_sample(app, canvas_pane, click_x, click_y, &sample_x, &sample_y) &&
@@ -562,6 +667,12 @@ int drawing_program_visual_input_handle_keydown_payload(const SDL_Event *event,
         hooks->apply_workflow_control_if_valid(app, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_HISTORY);
         return 1;
     }
+    if (ctrl_or_cmd && event->key.keysym.sym == SDLK_r) {
+        hooks->cancel_canvas_draw_and_shape(canvas_interaction);
+        hooks->cancel_selection_transient(selection_state);
+        hooks->apply_workflow_control_if_valid(app, DRAWING_PROGRAM_WORKFLOW_CONTROL_RASTERIZE_SELECTED_OBJECTS);
+        return 1;
+    }
     if (ctrl_or_cmd && event->key.keysym.sym == SDLK_c) {
         (void)drawing_program_selection_copy_payload(selection_state, &app->clipboard);
         return 1;
@@ -623,6 +734,7 @@ int drawing_program_visual_input_handle_keydown_payload(const SDL_Event *event,
     }
     if (ctrl_or_cmd && event->key.keysym.sym == SDLK_d) {
         drawing_program_selection_reset(selection_state);
+        object_selection_clear(app);
         hooks->cancel_canvas_draw_and_shape(canvas_interaction);
         return 1;
     }
@@ -671,7 +783,21 @@ int drawing_program_visual_input_handle_keydown_payload(const SDL_Event *event,
             return 1;
         }
     }
-    if (app->editor.active_tool == DRAWING_PROGRAM_TOOL_MOVE && selection_state->has_payload) {
+    if (app->editor.active_tool == DRAWING_PROGRAM_TOOL_MOVE &&
+        app->object_selection.count > 0u) {
+        int32_t dx = 0;
+        int32_t dy = 0;
+        CoreResult move_commit;
+        if (drawing_program_visual_input_try_move_nudge_key(event->key.keysym.sym, shift, &dx, &dy)) {
+            hooks->cancel_canvas_draw_and_shape(canvas_interaction);
+            hooks->cancel_selection_transient(selection_state);
+            move_commit = hooks->visual_transform_session_nudge_object_move(app, canvas_interaction, dx, dy);
+            if (move_commit.code != CORE_OK) {
+                fprintf(stderr, "drawing_program: object nudge commit failed: %s\n", move_commit.message);
+            }
+            return 1;
+        }
+    } else if (app->editor.active_tool == DRAWING_PROGRAM_TOOL_MOVE && selection_state->has_payload) {
         int32_t dx = 0;
         int32_t dy = 0;
         CoreResult move_commit;

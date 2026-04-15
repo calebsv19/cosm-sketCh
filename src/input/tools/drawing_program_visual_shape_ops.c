@@ -1,5 +1,7 @@
 #include "drawing_program/drawing_program_visual_shape_ops.h"
 
+#include <string.h>
+
 #include "drawing_program/drawing_program_color_model.h"
 #include "drawing_program/drawing_program_runtime_orchestration.h"
 #include "drawing_program/drawing_program_visual_canvas_stroke_ops.h"
@@ -24,6 +26,123 @@ static int active_layer_allows_edits_visual(const DrawingProgramAppContext *ctx)
         return 0;
     }
     return (visible && !locked) ? 1 : 0;
+}
+
+static uint8_t shape_target_mode(const DrawingProgramAppContext *ctx) {
+    return drawing_program_visual_clamp_setting_u8(
+        ctx ? ctx->ui_tool_shape_target_mode : (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_PIXEL,
+        (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_PIXEL,
+        (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_OBJECT);
+}
+
+static void rect_bounds_from_samples(uint32_t start_x,
+                                     uint32_t start_y,
+                                     uint32_t end_x,
+                                     uint32_t end_y,
+                                     int32_t *out_origin_x,
+                                     int32_t *out_origin_y,
+                                     uint32_t *out_width,
+                                     uint32_t *out_height) {
+    uint32_t min_x = (start_x < end_x) ? start_x : end_x;
+    uint32_t min_y = (start_y < end_y) ? start_y : end_y;
+    uint32_t max_x = (start_x > end_x) ? start_x : end_x;
+    uint32_t max_y = (start_y > end_y) ? start_y : end_y;
+    if (out_origin_x) {
+        *out_origin_x = (int32_t)min_x;
+    }
+    if (out_origin_y) {
+        *out_origin_y = (int32_t)min_y;
+    }
+    if (out_width) {
+        *out_width = (max_x - min_x) + 1u;
+    }
+    if (out_height) {
+        *out_height = (max_y - min_y) + 1u;
+    }
+}
+
+static void circle_bounds_from_samples(uint32_t center_x,
+                                       uint32_t center_y,
+                                       uint32_t edge_x,
+                                       uint32_t edge_y,
+                                       int32_t *out_origin_x,
+                                       int32_t *out_origin_y,
+                                       uint32_t *out_width,
+                                       uint32_t *out_height) {
+    int32_t cx = (int32_t)center_x;
+    int32_t cy = (int32_t)center_y;
+    int32_t rx = (int32_t)edge_x - cx;
+    int32_t ry = (int32_t)edge_y - cy;
+    int32_t r = (rx < 0) ? -rx : rx;
+    int32_t ay = (ry < 0) ? -ry : ry;
+    if (ay > r) {
+        r = ay;
+    }
+    if (r < 0) {
+        r = 0;
+    }
+    if (out_origin_x) {
+        *out_origin_x = cx - r;
+    }
+    if (out_origin_y) {
+        *out_origin_y = cy - r;
+    }
+    if (out_width) {
+        *out_width = (uint32_t)(r * 2 + 1);
+    }
+    if (out_height) {
+        *out_height = (uint32_t)(r * 2 + 1);
+    }
+}
+
+static CoreResult create_shape_object(DrawingProgramAppContext *ctx,
+                                      DrawingProgramToolKind tool,
+                                      uint32_t active_layer_id,
+                                      uint32_t start_x,
+                                      uint32_t start_y,
+                                      uint32_t end_x,
+                                      uint32_t end_y,
+                                      uint8_t mode,
+                                      uint32_t stroke_width) {
+    DrawingProgramObjectRecord seed;
+    uint32_t object_id = 0u;
+    uint8_t color_index;
+    CoreResult add_result;
+    memset(&seed, 0, sizeof(seed));
+    if (!ctx || active_layer_id == 0u) {
+        return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid object-shape commit request" };
+    }
+    color_index = drawing_program_color_index_clamp(ctx->ui_active_color_index);
+    seed.layer_id = active_layer_id;
+    seed.visible = 1u;
+    seed.locked = 0u;
+    seed.stroke_color_index = color_index;
+    seed.fill_color_index = color_index;
+    seed.stroke_width = drawing_program_visual_clamp_setting_u8((uint8_t)stroke_width, 1u, 16u);
+    seed.style_mode = drawing_program_visual_clamp_setting_u8(mode, 0u, 2u);
+    if (tool == DRAWING_PROGRAM_TOOL_RECT) {
+        seed.type = (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_RECT;
+        rect_bounds_from_samples(
+            start_x, start_y, end_x, end_y, &seed.origin_x, &seed.origin_y, &seed.width, &seed.height);
+    } else if (tool == DRAWING_PROGRAM_TOOL_CIRCLE) {
+        seed.type = (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_ELLIPSE;
+        circle_bounds_from_samples(
+            start_x, start_y, end_x, end_y, &seed.origin_x, &seed.origin_y, &seed.width, &seed.height);
+    } else {
+        return core_result_ok();
+    }
+    if (seed.width == 0u || seed.height == 0u) {
+        return core_result_ok();
+    }
+    add_result = drawing_program_object_store_add(&ctx->object_store, &seed, &object_id);
+    if (add_result.code != CORE_OK || object_id == 0u) {
+        return (add_result.code == CORE_OK)
+                   ? (CoreResult){ CORE_ERR_FORMAT, "failed to allocate shape object id" }
+                   : add_result;
+    }
+    drawing_program_selection_reset(&ctx->selection);
+    drawing_program_object_selection_replace_single(&ctx->object_selection, object_id);
+    return core_result_ok();
 }
 
 uint8_t drawing_program_visual_clamp_setting_u8(uint8_t value, uint8_t min_v, uint8_t max_v) {
@@ -215,6 +334,18 @@ CoreResult drawing_program_visual_apply_canvas_shape_commit(DrawingProgramAppCon
     value = drawing_program_visual_sample_value_for_tool(ctx, tool);
     mode = drawing_program_visual_tool_shape_mode(ctx);
     stroke_width = drawing_program_visual_tool_shape_stroke_width(ctx);
+    if (shape_target_mode(ctx) == (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_OBJECT &&
+        (tool == DRAWING_PROGRAM_TOOL_RECT || tool == DRAWING_PROGRAM_TOOL_CIRCLE)) {
+        return create_shape_object(ctx,
+                                   tool,
+                                   active_layer_id,
+                                   start_x,
+                                   start_y,
+                                   end_x,
+                                   end_y,
+                                   mode,
+                                   stroke_width);
+    }
     switch (tool) {
         case DRAWING_PROGRAM_TOOL_LINE:
             return drawing_program_visual_apply_canvas_line_between_samples_on_layer(ctx,

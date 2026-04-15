@@ -6,7 +6,10 @@
 #include "core_pack.h"
 #include "core_theme.h"
 #include "drawing_program/drawing_program_app_main.h"
+#include "drawing_program/drawing_program_object_transform.h"
 #include "drawing_program/drawing_program_runtime_orchestration.h"
+#include "drawing_program/drawing_program_visual_input_handlers.h"
+#include "drawing_program/drawing_program_visual_transform_ops.h"
 
 static int expect_ok(CoreResult result, const char *label) {
     if (result.code != CORE_OK) {
@@ -38,6 +41,72 @@ static int expect_overlay_error_code(DrawingProgramOverlayAdapterResult result,
         return 0;
     }
     return 1;
+}
+
+static CoreResult lifecycle_test_object_commit_move(DrawingProgramAppContext *ctx,
+                                                    int32_t requested_dx,
+                                                    int32_t requested_dy) {
+    return drawing_program_object_transform_commit_move(&ctx->history,
+                                                        &ctx->object_store,
+                                                        &ctx->document,
+                                                        &ctx->object_selection,
+                                                        requested_dx,
+                                                        requested_dy,
+                                                        0,
+                                                        0);
+}
+
+static uint32_t g_test_apply_workflow_calls = 0u;
+static DrawingProgramWorkflowControl g_test_last_workflow_control = DRAWING_PROGRAM_WORKFLOW_CONTROL_NONE;
+static uint32_t g_test_object_nudge_calls = 0u;
+static uint32_t g_test_selection_nudge_calls = 0u;
+
+static void lifecycle_test_reset_input_handler_counters(void) {
+    g_test_apply_workflow_calls = 0u;
+    g_test_last_workflow_control = DRAWING_PROGRAM_WORKFLOW_CONTROL_NONE;
+    g_test_object_nudge_calls = 0u;
+    g_test_selection_nudge_calls = 0u;
+}
+
+static void lifecycle_test_apply_workflow_control(DrawingProgramAppContext *ctx,
+                                                  DrawingProgramWorkflowControl control) {
+    (void)ctx;
+    g_test_apply_workflow_calls += 1u;
+    g_test_last_workflow_control = control;
+}
+
+static CoreResult lifecycle_test_nudge_object_move(DrawingProgramAppContext *ctx,
+                                                   VisualCanvasInteractionState *interaction,
+                                                   int32_t dx,
+                                                   int32_t dy) {
+    (void)ctx;
+    (void)interaction;
+    (void)dx;
+    (void)dy;
+    g_test_object_nudge_calls += 1u;
+    return core_result_ok();
+}
+
+static CoreResult lifecycle_test_nudge_selection_move(DrawingProgramAppContext *ctx,
+                                                      VisualCanvasInteractionState *interaction,
+                                                      DrawingProgramSelectionState *selection,
+                                                      int32_t dx,
+                                                      int32_t dy) {
+    (void)ctx;
+    (void)interaction;
+    (void)selection;
+    (void)dx;
+    (void)dy;
+    g_test_selection_nudge_calls += 1u;
+    return core_result_ok();
+}
+
+static void lifecycle_test_cancel_canvas_draw_and_shape(VisualCanvasInteractionState *interaction) {
+    (void)interaction;
+}
+
+static void lifecycle_test_cancel_selection_transient(DrawingProgramSelectionState *selection) {
+    (void)selection;
 }
 
 static int write_legacy_snapshot_without_layer_chunk(const char *source_pack_path,
@@ -119,6 +188,120 @@ static int write_legacy_snapshot_without_layer_chunk(const char *source_pack_pat
     free(dps2_data);
     if (result.code != CORE_OK) {
         fprintf(stderr, "lifecycle_test: failed to write legacy snapshot output chunk set\n");
+        return 0;
+    }
+    return 1;
+}
+
+static int write_legacy_snapshot_without_object_chunk(const char *source_pack_path,
+                                                      const char *output_pack_path) {
+    CorePackReader reader;
+    CorePackWriter writer;
+    CorePackChunkInfo dps2_chunk;
+    CorePackChunkInfo dplr_chunk;
+    CorePackChunkInfo dpui_chunk;
+    CoreResult result;
+    uint8_t *dps2_data = 0;
+    uint8_t *dplr_data = 0;
+    uint8_t *dpui_data = 0;
+    int has_dplr = 0;
+    int has_dpui = 0;
+    memset(&dps2_chunk, 0, sizeof(dps2_chunk));
+    memset(&dplr_chunk, 0, sizeof(dplr_chunk));
+    memset(&dpui_chunk, 0, sizeof(dpui_chunk));
+    result = core_pack_reader_open(source_pack_path, &reader);
+    if (result.code != CORE_OK) {
+        fprintf(stderr, "lifecycle_test: failed to open source snapshot %s (%s)\n",
+                source_pack_path,
+                result.message ? result.message : "unknown");
+        return 0;
+    }
+    result = core_pack_reader_find_chunk(&reader, "DPS2", 0u, &dps2_chunk);
+    if (result.code != CORE_OK) {
+        (void)core_pack_reader_close(&reader);
+        fprintf(stderr, "lifecycle_test: source snapshot missing DPS2 chunk\n");
+        return 0;
+    }
+    dps2_data = (uint8_t *)malloc((size_t)dps2_chunk.size);
+    if (!dps2_data) {
+        (void)core_pack_reader_close(&reader);
+        fprintf(stderr, "lifecycle_test: failed to allocate DPS2 copy buffer\n");
+        return 0;
+    }
+    result = core_pack_reader_read_chunk_data(&reader, &dps2_chunk, dps2_data, dps2_chunk.size);
+    if (result.code != CORE_OK) {
+        free(dps2_data);
+        (void)core_pack_reader_close(&reader);
+        fprintf(stderr, "lifecycle_test: failed to read DPS2 chunk\n");
+        return 0;
+    }
+    result = core_pack_reader_find_chunk(&reader, "DPLR", 0u, &dplr_chunk);
+    if (result.code == CORE_OK) {
+        dplr_data = (uint8_t *)malloc((size_t)dplr_chunk.size);
+        if (!dplr_data) {
+            free(dps2_data);
+            (void)core_pack_reader_close(&reader);
+            fprintf(stderr, "lifecycle_test: failed to allocate DPLR copy buffer\n");
+            return 0;
+        }
+        result = core_pack_reader_read_chunk_data(&reader, &dplr_chunk, dplr_data, dplr_chunk.size);
+        if (result.code != CORE_OK) {
+            free(dplr_data);
+            free(dps2_data);
+            (void)core_pack_reader_close(&reader);
+            fprintf(stderr, "lifecycle_test: failed to read DPLR chunk\n");
+            return 0;
+        }
+        has_dplr = 1;
+    }
+    result = core_pack_reader_find_chunk(&reader, "DPUI", 0u, &dpui_chunk);
+    if (result.code == CORE_OK) {
+        dpui_data = (uint8_t *)malloc((size_t)dpui_chunk.size);
+        if (!dpui_data) {
+            free(dplr_data);
+            free(dps2_data);
+            (void)core_pack_reader_close(&reader);
+            fprintf(stderr, "lifecycle_test: failed to allocate DPUI copy buffer\n");
+            return 0;
+        }
+        result = core_pack_reader_read_chunk_data(&reader, &dpui_chunk, dpui_data, dpui_chunk.size);
+        if (result.code != CORE_OK) {
+            free(dpui_data);
+            free(dplr_data);
+            free(dps2_data);
+            (void)core_pack_reader_close(&reader);
+            fprintf(stderr, "lifecycle_test: failed to read DPUI chunk\n");
+            return 0;
+        }
+        has_dpui = 1;
+    }
+    (void)core_pack_reader_close(&reader);
+
+    result = core_pack_writer_open(output_pack_path, &writer);
+    if (result.code != CORE_OK) {
+        free(dpui_data);
+        free(dplr_data);
+        free(dps2_data);
+        fprintf(stderr, "lifecycle_test: failed to open legacy snapshot output %s\n", output_pack_path);
+        return 0;
+    }
+    result = core_pack_writer_add_chunk(&writer, "DPS2", dps2_data, dps2_chunk.size);
+    if (result.code == CORE_OK && has_dplr) {
+        result = core_pack_writer_add_chunk(&writer, "DPLR", dplr_data, dplr_chunk.size);
+    }
+    if (result.code == CORE_OK && has_dpui) {
+        result = core_pack_writer_add_chunk(&writer, "DPUI", dpui_data, dpui_chunk.size);
+    }
+    if (result.code == CORE_OK) {
+        result = core_pack_writer_close(&writer);
+    } else {
+        (void)core_pack_writer_close(&writer);
+    }
+    free(dpui_data);
+    free(dplr_data);
+    free(dps2_data);
+    if (result.code != CORE_OK) {
+        fprintf(stderr, "lifecycle_test: failed to write legacy snapshot output without object chunk\n");
         return 0;
     }
     return 1;
@@ -1889,14 +2072,14 @@ int main(void) {
         fprintf(stderr, "lifecycle_test: expected no-op visibility command to avoid history push\n");
         return 1;
     }
-    if (!expect_ok(drawing_program_history_undo(&ctx.history, &ctx.document, &ctx.layer_rasters), "history_undo")) {
+    if (!expect_ok(drawing_program_history_undo(&ctx.history, &ctx.document, &ctx.layer_rasters, &ctx.object_store), "history_undo")) {
         return 1;
     }
     if (ctx.document.layers[0].visible != 1u || ctx.history.cursor != 0u) {
         fprintf(stderr, "lifecycle_test: expected visibility restored after undo\n");
         return 1;
     }
-    if (!expect_ok(drawing_program_history_redo(&ctx.history, &ctx.document, &ctx.layer_rasters), "history_redo")) {
+    if (!expect_ok(drawing_program_history_redo(&ctx.history, &ctx.document, &ctx.layer_rasters, &ctx.object_store), "history_redo")) {
         return 1;
     }
     if (ctx.document.layers[0].visible != 0u || ctx.history.cursor != 1u) {
@@ -1967,7 +2150,7 @@ int main(void) {
             fprintf(stderr, "lifecycle_test: expected grouped history units 1/1 got %u/%u\n", unit_cursor, unit_count);
             return 1;
         }
-        if (!expect_ok(drawing_program_history_undo(&ctx.history, &ctx.document, &ctx.layer_rasters), "history_group_undo")) {
+        if (!expect_ok(drawing_program_history_undo(&ctx.history, &ctx.document, &ctx.layer_rasters, &ctx.object_store), "history_group_undo")) {
             return 1;
         }
         if (!expect_ok(drawing_program_document_sample_read(&ctx.document, ax, ay, &after_undo_a), "group_undo_read_a")) {
@@ -1980,7 +2163,7 @@ int main(void) {
             fprintf(stderr, "lifecycle_test: grouped undo did not restore both samples\n");
             return 1;
         }
-        if (!expect_ok(drawing_program_history_redo(&ctx.history, &ctx.document, &ctx.layer_rasters), "history_group_redo")) {
+        if (!expect_ok(drawing_program_history_redo(&ctx.history, &ctx.document, &ctx.layer_rasters, &ctx.object_store), "history_group_redo")) {
             return 1;
         }
         if (!expect_ok(drawing_program_document_sample_read(&ctx.document, ax, ay, &after_redo_a), "group_redo_read_a")) {
@@ -2065,7 +2248,7 @@ int main(void) {
             }
         }
         drawing_program_history_query_units(&ctx.history, &unit_cursor_before, &unit_count_before);
-        if (!expect_ok(drawing_program_history_undo(&ctx.history, &ctx.document, &ctx.layer_rasters), "history_span_undo")) {
+        if (!expect_ok(drawing_program_history_undo(&ctx.history, &ctx.document, &ctx.layer_rasters, &ctx.object_store), "history_span_undo")) {
             return 1;
         }
         for (i = 0u; i < span_len; ++i) {
@@ -2082,7 +2265,7 @@ int main(void) {
                 return 1;
             }
         }
-        if (!expect_ok(drawing_program_history_redo(&ctx.history, &ctx.document, &ctx.layer_rasters), "history_span_redo")) {
+        if (!expect_ok(drawing_program_history_redo(&ctx.history, &ctx.document, &ctx.layer_rasters, &ctx.object_store), "history_span_redo")) {
             return 1;
         }
         for (i = 0u; i < span_len; ++i) {
@@ -2107,12 +2290,12 @@ int main(void) {
         }
     }
     {
-        CoreResult undo_after_clear = drawing_program_history_undo(&ctx.history, &ctx.document, &ctx.layer_rasters);
+        CoreResult undo_after_clear = drawing_program_history_undo(&ctx.history, &ctx.document, &ctx.layer_rasters, &ctx.object_store);
         if (undo_after_clear.code != CORE_OK) {
             fprintf(stderr, "lifecycle_test: expected undo after grouped write to succeed\n");
             return 1;
         }
-        undo_after_clear = drawing_program_history_undo(&ctx.history, &ctx.document, &ctx.layer_rasters);
+        undo_after_clear = drawing_program_history_undo(&ctx.history, &ctx.document, &ctx.layer_rasters, &ctx.object_store);
         if (undo_after_clear.code != CORE_ERR_NOT_FOUND) {
             fprintf(stderr, "lifecycle_test: expected undo stack exhaustion to return not_found\n");
             return 1;
@@ -2269,6 +2452,563 @@ int main(void) {
         (void)unlink(layer_arg5);
         (void)unlink(legacy_pack_path);
     }
+    {
+        DrawingProgramAppContext object_save_ctx;
+        DrawingProgramAppContext object_load_ctx;
+        DrawingProgramAppContext legacy_object_ctx;
+        DrawingProgramObjectRecord seed_object;
+        const DrawingProgramObjectRecord *loaded_object = 0;
+        char object_arg0[] = "drawing_program_object_snapshot_roundtrip";
+        char object_arg1[] = "--headless";
+        char object_arg2[] = "--smoke-frames";
+        char object_arg3[] = "1";
+        char object_arg4[] = "--preset";
+        char object_arg5[] = "/tmp/drawing_program_object_roundtrip.pack";
+        char *object_argv[] = { object_arg0, object_arg1, object_arg2, object_arg3, object_arg4, object_arg5, 0 };
+        const char *legacy_pack_path = "/tmp/drawing_program_object_roundtrip_legacy.pack";
+        uint32_t object_id = 0u;
+        (void)unlink(object_arg5);
+        (void)unlink(legacy_pack_path);
+        if (!expect_ok(drawing_program_app_bootstrap(&object_save_ctx, 6, object_argv), "object_snapshot_bootstrap_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_config_load(&object_save_ctx), "object_snapshot_config_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_state_seed(&object_save_ctx), "object_snapshot_state_seed_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_subsystems_init(&object_save_ctx), "object_snapshot_subsystems_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_runtime_start(&object_save_ctx), "object_snapshot_runtime_start_save")) {
+            return 1;
+        }
+        memset(&seed_object, 0, sizeof(seed_object));
+        seed_object.layer_id = object_save_ctx.document.layers[0].layer_id;
+        seed_object.type = (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_RECT;
+        seed_object.visible = 1u;
+        seed_object.locked = 0u;
+        seed_object.stroke_color_index = 7u;
+        seed_object.fill_color_index = 2u;
+        seed_object.stroke_width = 3u;
+        seed_object.style_mode = 2u;
+        seed_object.origin_x = 48;
+        seed_object.origin_y = 64;
+        seed_object.width = 120u;
+        seed_object.height = 90u;
+        (void)snprintf(seed_object.name, sizeof(seed_object.name), "%s", "Rect Seed");
+        if (!expect_ok(drawing_program_object_store_add(&object_save_ctx.object_store, &seed_object, &object_id),
+                       "object_snapshot_seed_add")) {
+            return 1;
+        }
+        if (object_id == 0u || object_save_ctx.object_store.object_count != 1u) {
+            fprintf(stderr,
+                    "lifecycle_test: expected object seed count=1 id!=0 got count=%u id=%u\n",
+                    (unsigned)object_save_ctx.object_store.object_count,
+                    (unsigned)object_id);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_snapshot_save(&object_save_ctx, object_arg5), "object_snapshot_save")) {
+            return 1;
+        }
+        if (!write_legacy_snapshot_without_object_chunk(object_arg5, legacy_pack_path)) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_bootstrap(&object_load_ctx, 6, object_argv), "object_snapshot_bootstrap_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_config_load(&object_load_ctx), "object_snapshot_config_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_state_seed(&object_load_ctx), "object_snapshot_state_seed_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_snapshot_load(&object_load_ctx, object_arg5), "object_snapshot_load")) {
+            return 1;
+        }
+        loaded_object = drawing_program_object_store_get_by_id(&object_load_ctx.object_store, object_id);
+        if (!loaded_object ||
+            object_load_ctx.object_store.object_count != 1u ||
+            loaded_object->width != seed_object.width ||
+            loaded_object->height != seed_object.height ||
+            loaded_object->origin_x != seed_object.origin_x ||
+            loaded_object->origin_y != seed_object.origin_y ||
+            loaded_object->layer_id != seed_object.layer_id ||
+            loaded_object->type != seed_object.type) {
+            fprintf(stderr,
+                    "lifecycle_test: object snapshot roundtrip mismatch count=%u loaded=%p id=%u\n",
+                    (unsigned)object_load_ctx.object_store.object_count,
+                    (void *)loaded_object,
+                    (unsigned)object_id);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_bootstrap(&legacy_object_ctx, 6, object_argv), "legacy_object_bootstrap_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_config_load(&legacy_object_ctx), "legacy_object_config_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_state_seed(&legacy_object_ctx), "legacy_object_state_seed_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_snapshot_load(&legacy_object_ctx, legacy_pack_path), "legacy_object_snapshot_load")) {
+            return 1;
+        }
+        if (legacy_object_ctx.object_store.object_count != 0u) {
+            fprintf(stderr,
+                    "lifecycle_test: expected legacy object snapshot load to produce empty object store got=%u\n",
+                    (unsigned)legacy_object_ctx.object_store.object_count);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_shutdown(&object_save_ctx), "object_snapshot_shutdown_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_shutdown(&object_load_ctx), "object_snapshot_shutdown_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_shutdown(&legacy_object_ctx), "legacy_object_shutdown_load")) {
+            return 1;
+        }
+        (void)unlink(object_arg5);
+        (void)unlink(legacy_pack_path);
+    }
+    {
+        DrawingProgramObjectStore hit_store;
+        DrawingProgramObjectRecord seed_object;
+        DrawingProgramObjectSelectionState object_selection;
+        DrawingProgramSelectionState raster_selection_before;
+        DrawingProgramDocument hit_document;
+        CoreResult hit_result;
+        uint32_t hit_object_id = 0u;
+        uint32_t back_id = 0u;
+        uint32_t mid_id = 0u;
+        uint32_t top_id = 0u;
+        uint32_t object_index = 0u;
+        drawing_program_object_store_reset(&hit_store);
+        memset(&seed_object, 0, sizeof(seed_object));
+        seed_object.layer_id = workflow_ctx.document.layers[0].layer_id;
+        seed_object.type = (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_RECT;
+        seed_object.visible = 1u;
+        seed_object.locked = 0u;
+        seed_object.origin_x = 40;
+        seed_object.origin_y = 40;
+        seed_object.width = 48u;
+        seed_object.height = 48u;
+        if (!expect_ok(drawing_program_object_store_add(&hit_store, &seed_object, &back_id), "object_hit_add_back")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_object_store_add(&hit_store, &seed_object, &mid_id), "object_hit_add_mid")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_object_store_add(&hit_store, &seed_object, &top_id), "object_hit_add_top")) {
+            return 1;
+        }
+
+        hit_document = workflow_ctx.document;
+        hit_result = drawing_program_object_store_hit_test_topmost(
+            &hit_store, &hit_document, 44u, 44u, &hit_object_id, 0);
+        if (hit_result.code != CORE_OK || hit_object_id != top_id) {
+            fprintf(stderr,
+                    "lifecycle_test: expected topmost object hit id=%u got code=%d id=%u\n",
+                    (unsigned)top_id,
+                    (int)hit_result.code,
+                    (unsigned)hit_object_id);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_object_store_find_index_for_id(&hit_store, top_id, &object_index),
+                       "object_hit_find_top")) {
+            return 1;
+        }
+        hit_store.objects[object_index].visible = 0u;
+        if (!expect_ok(drawing_program_object_store_find_index_for_id(&hit_store, mid_id, &object_index),
+                       "object_hit_find_mid")) {
+            return 1;
+        }
+        hit_store.objects[object_index].locked = 1u;
+        hit_result = drawing_program_object_store_hit_test_topmost(
+            &hit_store, &hit_document, 44u, 44u, &hit_object_id, 0);
+        if (hit_result.code != CORE_OK || hit_object_id != back_id) {
+            fprintf(stderr,
+                    "lifecycle_test: expected fallback visible unlocked hit id=%u got code=%d id=%u\n",
+                    (unsigned)back_id,
+                    (int)hit_result.code,
+                    (unsigned)hit_object_id);
+            return 1;
+        }
+        hit_document.layers[0].visible = 0u;
+        hit_result = drawing_program_object_store_hit_test_topmost(
+            &hit_store, &hit_document, 44u, 44u, &hit_object_id, 0);
+        if (hit_result.code != CORE_ERR_NOT_FOUND) {
+            fprintf(stderr,
+                    "lifecycle_test: expected no hit when owner layer hidden got code=%d id=%u\n",
+                    (int)hit_result.code,
+                    (unsigned)hit_object_id);
+            return 1;
+        }
+
+        drawing_program_object_selection_reset(&object_selection);
+        drawing_program_object_selection_replace_single(&object_selection, back_id);
+        if (object_selection.count != 1u ||
+            object_selection.active_object_id != back_id ||
+            object_selection.object_ids[0] != back_id) {
+            fprintf(stderr, "lifecycle_test: object selection replace contract failed\n");
+            return 1;
+        }
+        if (!drawing_program_object_selection_add(&object_selection, top_id) ||
+            object_selection.count != 2u ||
+            object_selection.active_object_id != top_id ||
+            !drawing_program_object_selection_contains(&object_selection, back_id) ||
+            !drawing_program_object_selection_contains(&object_selection, top_id)) {
+            fprintf(stderr, "lifecycle_test: object selection additive contract failed\n");
+            return 1;
+        }
+        if (drawing_program_object_selection_add(&object_selection, back_id) ||
+            object_selection.count != 2u ||
+            object_selection.active_object_id != back_id) {
+            fprintf(stderr, "lifecycle_test: object selection duplicate-add contract failed\n");
+            return 1;
+        }
+        drawing_program_object_selection_reset(&object_selection);
+        if (object_selection.count != 0u || object_selection.active_object_id != 0u) {
+            fprintf(stderr, "lifecycle_test: object selection clear contract failed\n");
+            return 1;
+        }
+
+        raster_selection_before = workflow_ctx.selection;
+        drawing_program_object_selection_replace_single(&workflow_ctx.object_selection, back_id);
+        (void)drawing_program_object_selection_add(&workflow_ctx.object_selection, mid_id);
+        if (memcmp(&raster_selection_before, &workflow_ctx.selection, sizeof(raster_selection_before)) != 0) {
+            fprintf(stderr, "lifecycle_test: object selection mutation should not mutate raster selection state\n");
+            return 1;
+        }
+    }
+    {
+        DrawingProgramObjectRecord obj_a;
+        DrawingProgramObjectRecord obj_b;
+        DrawingProgramObjectRecord obj_a_after_nudge;
+        DrawingProgramObjectRecord obj_b_after_nudge;
+        const DrawingProgramObjectRecord *obj = 0;
+        DrawingProgramVisualTransformOpsHooks hooks;
+        VisualCanvasInteractionState interaction;
+        uint32_t id_a = 0u;
+        uint32_t id_b = 0u;
+        uint32_t unit_cursor_before = 0u;
+        uint32_t unit_count_before = 0u;
+        uint32_t unit_cursor_after = 0u;
+        uint32_t unit_count_after = 0u;
+        int32_t clamped_dx = 0;
+        int32_t clamped_dy = 0;
+        CoreResult result;
+
+        drawing_program_object_store_reset(&workflow_ctx.object_store);
+        drawing_program_object_selection_reset(&workflow_ctx.object_selection);
+        drawing_program_history_clear(&workflow_ctx.history);
+        memset(&obj_a, 0, sizeof(obj_a));
+        memset(&obj_b, 0, sizeof(obj_b));
+        obj_a.layer_id = workflow_ctx.document.layers[0].layer_id;
+        obj_a.type = (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_RECT;
+        obj_a.visible = 1u;
+        obj_a.origin_x = 20;
+        obj_a.origin_y = 20;
+        obj_a.width = 24u;
+        obj_a.height = 24u;
+        obj_b = obj_a;
+        obj_b.origin_x = 80;
+        obj_b.origin_y = 36;
+        if (!expect_ok(drawing_program_object_store_add(&workflow_ctx.object_store, &obj_a, &id_a),
+                       "object_move_seed_add_a")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_object_store_add(&workflow_ctx.object_store, &obj_b, &id_b),
+                       "object_move_seed_add_b")) {
+            return 1;
+        }
+        drawing_program_object_selection_replace_single(&workflow_ctx.object_selection, id_a);
+        (void)drawing_program_object_selection_add(&workflow_ctx.object_selection, id_b);
+        drawing_program_history_query_units(&workflow_ctx.history, &unit_cursor_before, &unit_count_before);
+        memset(&hooks, 0, sizeof(hooks));
+        hooks.visual_object_commit_move = lifecycle_test_object_commit_move;
+        memset(&interaction, 0, sizeof(interaction));
+        if (!expect_ok(drawing_program_visual_transform_session_nudge_object_move(
+                           &workflow_ctx, &interaction, 4, -2, &hooks),
+                       "object_move_nudge_commit")) {
+            return 1;
+        }
+        drawing_program_history_query_units(&workflow_ctx.history, &unit_cursor_after, &unit_count_after);
+        if (unit_count_after != unit_count_before + 1u || unit_cursor_after != unit_cursor_before + 1u) {
+            fprintf(stderr,
+                    "lifecycle_test: expected object nudge to create one grouped history unit before=%u/%u after=%u/%u\n",
+                    (unsigned)unit_cursor_before,
+                    (unsigned)unit_count_before,
+                    (unsigned)unit_cursor_after,
+                    (unsigned)unit_count_after);
+            return 1;
+        }
+        obj = drawing_program_object_store_get_by_id(&workflow_ctx.object_store, id_a);
+        if (!obj) {
+            fprintf(stderr, "lifecycle_test: expected object A after nudge\n");
+            return 1;
+        }
+        obj_a_after_nudge = *obj;
+        obj = drawing_program_object_store_get_by_id(&workflow_ctx.object_store, id_b);
+        if (!obj) {
+            fprintf(stderr, "lifecycle_test: expected object B after nudge\n");
+            return 1;
+        }
+        obj_b_after_nudge = *obj;
+        if (obj_a_after_nudge.origin_x != 24 || obj_a_after_nudge.origin_y != 18 ||
+            obj_b_after_nudge.origin_x != 84 || obj_b_after_nudge.origin_y != 34) {
+            fprintf(stderr,
+                    "lifecycle_test: unexpected object nudge result A=%d,%d B=%d,%d\n",
+                    (int)obj_a_after_nudge.origin_x,
+                    (int)obj_a_after_nudge.origin_y,
+                    (int)obj_b_after_nudge.origin_x,
+                    (int)obj_b_after_nudge.origin_y);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_history_undo(
+                           &workflow_ctx.history, &workflow_ctx.document, &workflow_ctx.layer_rasters, &workflow_ctx.object_store),
+                       "object_move_undo")) {
+            return 1;
+        }
+        obj = drawing_program_object_store_get_by_id(&workflow_ctx.object_store, id_a);
+        if (!obj || obj->origin_x != 20 || obj->origin_y != 20) {
+            fprintf(stderr, "lifecycle_test: object undo failed for A\n");
+            return 1;
+        }
+        obj = drawing_program_object_store_get_by_id(&workflow_ctx.object_store, id_b);
+        if (!obj || obj->origin_x != 80 || obj->origin_y != 36) {
+            fprintf(stderr, "lifecycle_test: object undo failed for B\n");
+            return 1;
+        }
+        if (!expect_ok(drawing_program_history_redo(
+                           &workflow_ctx.history, &workflow_ctx.document, &workflow_ctx.layer_rasters, &workflow_ctx.object_store),
+                       "object_move_redo")) {
+            return 1;
+        }
+        obj = drawing_program_object_store_get_by_id(&workflow_ctx.object_store, id_a);
+        if (!obj || obj->origin_x != obj_a_after_nudge.origin_x || obj->origin_y != obj_a_after_nudge.origin_y) {
+            fprintf(stderr, "lifecycle_test: object redo failed for A\n");
+            return 1;
+        }
+        obj = drawing_program_object_store_get_by_id(&workflow_ctx.object_store, id_b);
+        if (!obj || obj->origin_x != obj_b_after_nudge.origin_x || obj->origin_y != obj_b_after_nudge.origin_y) {
+            fprintf(stderr, "lifecycle_test: object redo failed for B\n");
+            return 1;
+        }
+        if (!expect_ok(drawing_program_history_undo(
+                           &workflow_ctx.history, &workflow_ctx.document, &workflow_ctx.layer_rasters, &workflow_ctx.object_store),
+                       "object_move_undo_before_drag_parity")) {
+            return 1;
+        }
+        drawing_program_visual_transform_session_begin_object_move(&interaction, 10u, 10u);
+        drawing_program_visual_transform_session_update_object_move(
+            &workflow_ctx, &interaction, 14u, 8u, (SDL_Keymod)0);
+        if (!expect_ok(drawing_program_visual_transform_session_commit_object_move(&workflow_ctx, &interaction, &hooks),
+                       "object_move_drag_commit")) {
+            return 1;
+        }
+        obj = drawing_program_object_store_get_by_id(&workflow_ctx.object_store, id_a);
+        if (!obj || obj->origin_x != obj_a_after_nudge.origin_x || obj->origin_y != obj_a_after_nudge.origin_y) {
+            fprintf(stderr, "lifecycle_test: object drag parity mismatch for A\n");
+            return 1;
+        }
+        obj = drawing_program_object_store_get_by_id(&workflow_ctx.object_store, id_b);
+        if (!obj || obj->origin_x != obj_b_after_nudge.origin_x || obj->origin_y != obj_b_after_nudge.origin_y) {
+            fprintf(stderr, "lifecycle_test: object drag parity mismatch for B\n");
+            return 1;
+        }
+        result = drawing_program_object_store_clamp_selection_delta(&workflow_ctx.object_store,
+                                                                    &workflow_ctx.document,
+                                                                    &workflow_ctx.object_selection,
+                                                                    -1000,
+                                                                    -1000,
+                                                                    &clamped_dx,
+                                                                    &clamped_dy);
+        if (result.code != CORE_OK || clamped_dx >= 0 || clamped_dy >= 0) {
+            fprintf(stderr,
+                    "lifecycle_test: expected object delta clamp bounds to resolve negative cap got code=%d dx=%d dy=%d\n",
+                    (int)result.code,
+                    (int)clamped_dx,
+                    (int)clamped_dy);
+            return 1;
+        }
+    }
+    {
+        DrawingProgramObjectRecord raster_object;
+        uint32_t object_id = 0u;
+        uint8_t sample_value = drawing_program_color_eraser_value();
+        uint8_t expected_fill = drawing_program_color_value_from_index(3u);
+        uint32_t units_before = 0u;
+        uint32_t units_after = 0u;
+        drawing_program_object_store_reset(&workflow_ctx.object_store);
+        drawing_program_object_selection_reset(&workflow_ctx.object_selection);
+        drawing_program_history_clear(&workflow_ctx.history);
+        memset(&raster_object, 0, sizeof(raster_object));
+        raster_object.layer_id = workflow_ctx.document.layers[0].layer_id;
+        raster_object.type = (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_RECT;
+        raster_object.visible = 1u;
+        raster_object.locked = 0u;
+        raster_object.fill_color_index = 3u;
+        raster_object.stroke_color_index = 7u;
+        raster_object.stroke_width = 2u;
+        raster_object.style_mode = 1u;
+        raster_object.origin_x = 24;
+        raster_object.origin_y = 24;
+        raster_object.width = 10u;
+        raster_object.height = 8u;
+        if (!expect_ok(drawing_program_object_store_add(&workflow_ctx.object_store, &raster_object, &object_id),
+                       "object_rasterize_seed_add")) {
+            return 1;
+        }
+        drawing_program_object_selection_replace_single(&workflow_ctx.object_selection, object_id);
+        drawing_program_history_query_units(&workflow_ctx.history, &units_before, 0);
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &workflow_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_RASTERIZE_SELECTED_OBJECTS),
+                       "object_rasterize_workflow_control")) {
+            return 1;
+        }
+        if (workflow_ctx.object_store.object_count != 0u ||
+            workflow_ctx.object_selection.count != 0u ||
+            workflow_ctx.object_selection.active_object_id != 0u) {
+            fprintf(stderr,
+                    "lifecycle_test: expected rasterize workflow to remove selected object entities\n");
+            return 1;
+        }
+        if (!expect_ok(drawing_program_layer_raster_store_sample_read(&workflow_ctx.layer_rasters,
+                                                                      workflow_ctx.editor.active_layer_id,
+                                                                      27u,
+                                                                      27u,
+                                                                      &sample_value),
+                       "object_rasterize_sample_read")) {
+            return 1;
+        }
+        if (sample_value != expected_fill) {
+            fprintf(stderr,
+                    "lifecycle_test: expected rasterized object sample=%u got=%u\n",
+                    (unsigned)expected_fill,
+                    (unsigned)sample_value);
+            return 1;
+        }
+        drawing_program_history_query_units(&workflow_ctx.history, &units_after, 0);
+        if (units_after != units_before + 1u) {
+            fprintf(stderr,
+                    "lifecycle_test: expected rasterize workflow to append one history unit before=%u after=%u\n",
+                    (unsigned)units_before,
+                    (unsigned)units_after);
+            return 1;
+        }
+    }
+    {
+        DrawingProgramVisualInputHandlersHooks hooks;
+        VisualCanvasInteractionState interaction;
+        VisualPanelUiState panel_ui;
+        CoreThemePresetId selected_theme = CORE_THEME_PRESET_DARK_DEFAULT;
+        CoreThemePreset theme_preset;
+        SDL_Event event;
+        memset(&hooks, 0, sizeof(hooks));
+        hooks.apply_workflow_control_if_valid = lifecycle_test_apply_workflow_control;
+        hooks.visual_transform_session_nudge_object_move = lifecycle_test_nudge_object_move;
+        hooks.visual_transform_session_nudge_move = lifecycle_test_nudge_selection_move;
+        hooks.cancel_canvas_draw_and_shape = lifecycle_test_cancel_canvas_draw_and_shape;
+        hooks.cancel_selection_transient = lifecycle_test_cancel_selection_transient;
+        memset(&interaction, 0, sizeof(interaction));
+        memset(&panel_ui, 0, sizeof(panel_ui));
+
+        lifecycle_test_reset_input_handler_counters();
+        workflow_ctx.editor.active_tool = DRAWING_PROGRAM_TOOL_BRUSH;
+        workflow_ctx.object_selection.count = 1u;
+        workflow_ctx.object_selection.active_object_id = 99u;
+        workflow_ctx.object_selection.object_ids[0] = 99u;
+        memset(&event, 0, sizeof(event));
+        event.type = SDL_KEYDOWN;
+        event.key.keysym.sym = SDLK_r;
+        event.key.keysym.mod = KMOD_CTRL;
+        if (!drawing_program_visual_input_handle_keydown_payload(&event,
+                                                                 0,
+                                                                 (SDL_Rect){ 0, 0, 0, 0 },
+                                                                 &selected_theme,
+                                                                 &theme_preset,
+                                                                 &workflow_ctx,
+                                                                 &interaction,
+                                                                 &workflow_ctx.selection,
+                                                                 &panel_ui,
+                                                                 &hooks)) {
+            fprintf(stderr, "lifecycle_test: expected ctrl+r keydown to be consumed by rasterize action\n");
+            return 1;
+        }
+        if (g_test_apply_workflow_calls != 1u ||
+            g_test_last_workflow_control != DRAWING_PROGRAM_WORKFLOW_CONTROL_RASTERIZE_SELECTED_OBJECTS) {
+            fprintf(stderr, "lifecycle_test: ctrl+r did not route to rasterize workflow control\n");
+            return 1;
+        }
+        if (workflow_ctx.editor.active_tool != DRAWING_PROGRAM_TOOL_BRUSH) {
+            fprintf(stderr, "lifecycle_test: ctrl+r should not switch active tool to rect\n");
+            return 1;
+        }
+
+        lifecycle_test_reset_input_handler_counters();
+        workflow_ctx.editor.active_tool = DRAWING_PROGRAM_TOOL_MOVE;
+        workflow_ctx.object_selection.count = 1u;
+        workflow_ctx.object_selection.active_object_id = 77u;
+        workflow_ctx.object_selection.object_ids[0] = 77u;
+        workflow_ctx.selection.has_payload = 1u;
+        memset(&event, 0, sizeof(event));
+        event.type = SDL_KEYDOWN;
+        event.key.keysym.sym = SDLK_RIGHT;
+        event.key.keysym.mod = KMOD_NONE;
+        if (!drawing_program_visual_input_handle_keydown_payload(&event,
+                                                                 0,
+                                                                 (SDL_Rect){ 0, 0, 0, 0 },
+                                                                 &selected_theme,
+                                                                 &theme_preset,
+                                                                 &workflow_ctx,
+                                                                 &interaction,
+                                                                 &workflow_ctx.selection,
+                                                                 &panel_ui,
+                                                                 &hooks)) {
+            fprintf(stderr, "lifecycle_test: expected move nudge keydown to be consumed\n");
+            return 1;
+        }
+        if (g_test_object_nudge_calls != 1u || g_test_selection_nudge_calls != 0u) {
+            fprintf(stderr,
+                    "lifecycle_test: move nudge precedence should favor object selection when present object_calls=%u selection_calls=%u\n",
+                    (unsigned)g_test_object_nudge_calls,
+                    (unsigned)g_test_selection_nudge_calls);
+            return 1;
+        }
+
+        lifecycle_test_reset_input_handler_counters();
+        workflow_ctx.object_selection.count = 0u;
+        workflow_ctx.object_selection.active_object_id = 0u;
+        workflow_ctx.object_selection.object_ids[0] = 0u;
+        workflow_ctx.selection.has_payload = 1u;
+        memset(&event, 0, sizeof(event));
+        event.type = SDL_KEYDOWN;
+        event.key.keysym.sym = SDLK_RIGHT;
+        event.key.keysym.mod = KMOD_NONE;
+        if (!drawing_program_visual_input_handle_keydown_payload(&event,
+                                                                 0,
+                                                                 (SDL_Rect){ 0, 0, 0, 0 },
+                                                                 &selected_theme,
+                                                                 &theme_preset,
+                                                                 &workflow_ctx,
+                                                                 &interaction,
+                                                                 &workflow_ctx.selection,
+                                                                 &panel_ui,
+                                                                 &hooks)) {
+            fprintf(stderr, "lifecycle_test: expected selection nudge keydown to be consumed\n");
+            return 1;
+        }
+        if (g_test_object_nudge_calls != 0u || g_test_selection_nudge_calls != 1u) {
+            fprintf(stderr,
+                    "lifecycle_test: move nudge precedence should fallback to raster selection when object selection is empty object_calls=%u selection_calls=%u\n",
+                    (unsigned)g_test_object_nudge_calls,
+                    (unsigned)g_test_selection_nudge_calls);
+            return 1;
+        }
+    }
     if (!expect_ok(drawing_program_app_run_loop(&ctx), "run_loop")) {
         return 1;
     }
@@ -2366,7 +3106,7 @@ int main(void) {
                 (unsigned long long)ctx.render_module_palette_calls_total);
         return 1;
     }
-    if (!expect_ok(drawing_program_history_undo(&ctx.history, &ctx.document, &ctx.layer_rasters), "history_undo_brush_seed")) {
+    if (!expect_ok(drawing_program_history_undo(&ctx.history, &ctx.document, &ctx.layer_rasters, &ctx.object_store), "history_undo_brush_seed")) {
         return 1;
     }
     if (!expect_ok(drawing_program_document_sample_read(&ctx.document, center_x, center_y, &center_undo),
@@ -2379,7 +3119,7 @@ int main(void) {
                 (unsigned)center_undo);
         return 1;
     }
-    if (!expect_ok(drawing_program_history_redo(&ctx.history, &ctx.document, &ctx.layer_rasters), "history_redo_brush_seed")) {
+    if (!expect_ok(drawing_program_history_redo(&ctx.history, &ctx.document, &ctx.layer_rasters, &ctx.object_store), "history_redo_brush_seed")) {
         return 1;
     }
     if (!expect_ok(drawing_program_document_sample_read(&ctx.document, center_x, center_y, &center_redo),
@@ -2560,7 +3300,9 @@ int main(void) {
         save_ctx.ui_tool_eraser_size = 5u;
         save_ctx.ui_tool_shape_stroke_width = 4u;
         save_ctx.ui_tool_shape_mode = 2u;
+        save_ctx.ui_tool_shape_target_mode = (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_OBJECT;
         save_ctx.ui_tool_fill_tolerance = 255u;
+        save_ctx.ui_tool_select_mode = (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_SUBTRACT;
         if (!expect_ok(drawing_program_app_shutdown(&save_ctx), "persist_roundtrip_shutdown_save")) {
             return 1;
         }
@@ -2590,9 +3332,11 @@ int main(void) {
             load_ctx.ui_tool_eraser_size != 5u ||
             load_ctx.ui_tool_shape_stroke_width != 4u ||
             load_ctx.ui_tool_shape_mode != 2u ||
-            load_ctx.ui_tool_fill_tolerance != DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX) {
+            load_ctx.ui_tool_shape_target_mode != (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_OBJECT ||
+            load_ctx.ui_tool_fill_tolerance != DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX ||
+            load_ctx.ui_tool_select_mode != (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_SUBTRACT) {
             fprintf(stderr,
-                    "lifecycle_test: persistence roundtrip mismatch tool=%u theme=%u zoom=%d left=%u right=%u color=%u brush=%u/%u eraser=%u shape=%u mode=%u fill_tol=%u expected_fill_tol_max=%u\n",
+                    "lifecycle_test: persistence roundtrip mismatch tool=%u theme=%u zoom=%d left=%u right=%u color=%u brush=%u/%u eraser=%u shape=%u mode=%u target=%u fill_tol=%u select_mode=%u expected_fill_tol_max=%u\n",
                     (unsigned)load_ctx.editor.active_tool,
                     (unsigned)load_ctx.ui_theme_preset_id,
                     (int)load_ctx.ui_font_zoom_step,
@@ -2604,7 +3348,9 @@ int main(void) {
                     (unsigned)load_ctx.ui_tool_eraser_size,
                     (unsigned)load_ctx.ui_tool_shape_stroke_width,
                     (unsigned)load_ctx.ui_tool_shape_mode,
+                    (unsigned)load_ctx.ui_tool_shape_target_mode,
                     (unsigned)load_ctx.ui_tool_fill_tolerance,
+                    (unsigned)load_ctx.ui_tool_select_mode,
                     (unsigned)DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX);
             return 1;
         }

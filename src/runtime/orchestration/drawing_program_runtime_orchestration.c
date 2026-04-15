@@ -4,6 +4,7 @@
 
 #include "drawing_program/drawing_program_color_model.h"
 #include "drawing_program/drawing_program_history.h"
+#include "drawing_program/drawing_program_object_rasterize.h"
 
 static CoreResult orchestration_invalid(const char *message) {
     CoreResult r = { CORE_ERR_INVALID_ARG, message };
@@ -205,6 +206,31 @@ static CoreResult clear_canvas_samples(DrawingProgramAppContext *ctx) {
     return core_result_ok();
 }
 
+static CoreResult rasterize_selected_objects(DrawingProgramAppContext *ctx) {
+    uint32_t active_index = 0u;
+    CoreResult result;
+    if (!ctx) {
+        return orchestration_invalid("null app context for rasterize objects");
+    }
+    if (!active_layer_allows_edits(ctx, &active_index) || active_index >= ctx->document.layer_count) {
+        return core_result_ok();
+    }
+    if (ctx->editor.active_layer_id == 0u || ctx->object_selection.count == 0u) {
+        return core_result_ok();
+    }
+    result = drawing_program_object_rasterize_selection_to_layer(&ctx->document,
+                                                                 &ctx->layer_rasters,
+                                                                 &ctx->history,
+                                                                 &ctx->object_store,
+                                                                 &ctx->object_selection,
+                                                                 ctx->editor.active_layer_id,
+                                                                 0);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    return core_result_ok();
+}
+
 CoreResult drawing_program_runtime_orchestration_apply_workflow_control(
     DrawingProgramAppContext *ctx,
     DrawingProgramWorkflowControl control) {
@@ -321,14 +347,16 @@ CoreResult drawing_program_runtime_orchestration_apply_workflow_control(
             }
             return (CoreResult){ CORE_ERR_NOT_FOUND, "active layer not found" };
         case DRAWING_PROGRAM_WORKFLOW_CONTROL_UNDO:
-            return drawing_program_history_undo(&ctx->history, &ctx->document, &ctx->layer_rasters);
+            return drawing_program_history_undo(&ctx->history, &ctx->document, &ctx->layer_rasters, &ctx->object_store);
         case DRAWING_PROGRAM_WORKFLOW_CONTROL_REDO:
-            return drawing_program_history_redo(&ctx->history, &ctx->document, &ctx->layer_rasters);
+            return drawing_program_history_redo(&ctx->history, &ctx->document, &ctx->layer_rasters, &ctx->object_store);
         case DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS:
             return clear_canvas_samples(ctx);
         case DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_HISTORY:
             drawing_program_history_clear(&ctx->history);
             return core_result_ok();
+        case DRAWING_PROGRAM_WORKFLOW_CONTROL_RASTERIZE_SELECTED_OBJECTS:
+            return rasterize_selected_objects(ctx);
         case DRAWING_PROGRAM_WORKFLOW_CONTROL_STAMP_CENTER_SAMPLE:
             return stamp_center_sample(ctx);
         case DRAWING_PROGRAM_WORKFLOW_CONTROL_NONE:

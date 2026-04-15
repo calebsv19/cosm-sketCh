@@ -7,8 +7,6 @@
 #include "drawing_program/drawing_program_visual_theme.h"
 
 enum {
-    VISUAL_LEFT_PANEL_SLOT_TOOLS_VALUE = 0,
-    VISUAL_LEFT_PANEL_SLOT_VIEW_VALUE = 1,
     VISUAL_RIGHT_PANEL_SLOT_CANVAS_VALUE = 0,
     VISUAL_RIGHT_PANEL_SLOT_LAYER_VALUE = 1
 };
@@ -47,6 +45,20 @@ static void draw_tab_button(SDL_Renderer *renderer,
     SDL_SetRenderDrawColor(renderer, border.r, border.g, border.b, border.a);
     (void)SDL_RenderDrawRect(renderer, &rect);
     hooks->draw_bitmap_text(renderer, clip_rect, rect.x + 6, text_y, label, text_final, text_scale);
+}
+
+static const char *shape_target_mode_name(uint8_t mode) {
+    return (mode == (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_OBJECT) ? "OBJECT" : "PIXEL";
+}
+
+static const char *select_mode_name(uint8_t mode) {
+    switch (mode) {
+        case (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_ADD: return "ADD";
+        case (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_SUBTRACT: return "SUBTRACT";
+        case (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_REPLACE:
+        default:
+            return "REPLACE";
+    }
 }
 
 void drawing_program_visual_render_menu_bar_chrome(SDL_Renderer *renderer,
@@ -128,178 +140,145 @@ void drawing_program_visual_render_left_panel_chrome(SDL_Renderer *renderer,
                                                      const VisualPanelUiState *ui,
                                                      const DrawingProgramVisualPanelRenderHooks *hooks) {
     uint32_t i;
-    uint8_t left_slot;
+    uint32_t tool_count;
+    uint32_t option_count;
     VisualPaneLayoutMetrics m;
     VisualThemePalette p;
-    SDL_Rect tab_tools;
-    SDL_Rect tab_view;
+    SDL_Rect detail_rect;
     int y;
+    char detail_header[64];
     if (!renderer || !ctx || !hooks || !hooks->draw_bitmap_text || !hooks->clamp_left_slot ||
         !hooks->visual_tool_count || !hooks->visual_tool_at || !hooks->visual_tool_option_count ||
         !hooks->visual_tool_option_kind_for_index_raw || !hooks->visual_tool_option_is_action_button_raw ||
         !hooks->visual_tool_option_label_raw || !hooks->visual_tool_option_value_text_raw || !hooks->tool_name) {
         return;
     }
-    left_slot = hooks->clamp_left_slot(ctx->ui_left_panel_slot);
     m = make_pane_layout_metrics(ctx);
     resolve_visual_theme_palette(theme, &p);
+    tool_count = hooks->visual_tool_count();
+    option_count = hooks->visual_tool_option_count(ctx, ctx->editor.active_tool);
 
     y = rect.y + m.pad_y;
     hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, "LEFT PANEL", p.text_primary, m.title_scale);
-    y += m.title_glyph_h + m.section_gap;
-    tab_tools = (SDL_Rect){ rect.x + m.pad_x, y, (rect.w - (2 * m.pad_x) - m.tab_gap) / 2, m.tab_h };
-    tab_view = (SDL_Rect){ tab_tools.x + tab_tools.w + m.tab_gap, y, (rect.w - (2 * m.pad_x) - m.tab_gap) / 2, m.tab_h };
-    draw_tab_button(renderer,
-                    rect,
-                    tab_tools,
-                    "TOOLS",
-                    p.button_fill,
-                    p.button_fill_hover,
-                    p.button_fill_active,
-                    p.button_border,
-                    (left_slot == VISUAL_LEFT_PANEL_SLOT_TOOLS_VALUE) ? p.text_primary : p.text_muted,
-                    m.body_scale,
-                    left_slot == VISUAL_LEFT_PANEL_SLOT_TOOLS_VALUE,
-                    ui_hovered(ui, tab_tools, hooks),
-                    hooks);
-    draw_tab_button(renderer,
-                    rect,
-                    tab_view,
-                    "VIEW",
-                    p.button_fill,
-                    p.button_fill_hover,
-                    p.button_fill_active,
-                    p.button_border,
-                    (left_slot == VISUAL_LEFT_PANEL_SLOT_VIEW_VALUE) ? p.text_primary : p.text_muted,
-                    m.body_scale,
-                    left_slot == VISUAL_LEFT_PANEL_SLOT_VIEW_VALUE,
-                    ui_hovered(ui, tab_view, hooks),
-                    hooks);
-    y += m.tab_h + m.section_gap;
-
-    if (left_slot == VISUAL_LEFT_PANEL_SLOT_TOOLS_VALUE) {
-        int y_cursor = y;
-        uint32_t active_option_count = hooks->visual_tool_option_count(ctx, ctx->editor.active_tool);
-        for (i = 0u; i < hooks->visual_tool_count(); ++i) {
-            DrawingProgramToolKind tool = hooks->visual_tool_at(i);
-            SDL_Rect row = { rect.x + m.pad_x, y_cursor, rect.w - (2 * m.pad_x), m.row_h };
-            int active = (ctx->editor.active_tool == tool) ? 1 : 0;
-            int hovered = ui_hovered(ui, row, hooks);
-            SDL_Color row_color = active ? p.button_fill_active : (hovered ? p.button_fill_hover : p.button_fill);
-            SDL_Color label_color = active ? p.text_primary : sdl_color_ensure_contrast(p.text_muted, row_color);
-            SDL_SetRenderDrawColor(renderer, row_color.r, row_color.g, row_color.b, row_color.a);
-            (void)SDL_RenderFillRect(renderer, &row);
-            SDL_SetRenderDrawColor(renderer, p.button_border.r, p.button_border.g, p.button_border.b, p.button_border.a);
-            (void)SDL_RenderDrawRect(renderer, &row);
-            hooks->draw_bitmap_text(renderer, rect, row.x + 6, row.y + m.row_text_y, hooks->tool_name(tool), label_color, m.body_scale);
-            y_cursor += m.row_h;
-            if (active && active_option_count > 0u) {
-                uint32_t option_i;
-                for (option_i = 0u; option_i < active_option_count; ++option_i) {
-                    uint32_t option_kind_raw =
-                        hooks->visual_tool_option_kind_for_index_raw(ctx, ctx->editor.active_tool, option_i);
-                    SDL_Rect option_row = left_tool_option_row_rect(rect, m, y_cursor);
-                    char value_text[48];
-                    hooks->visual_tool_option_value_text_raw(ctx, option_kind_raw, value_text, sizeof(value_text));
-                    if (hooks->visual_tool_option_is_action_button_raw(option_kind_raw)) {
-                        draw_tab_button(renderer,
-                                        rect,
-                                        option_row,
-                                        "DELETE SELECTION",
-                                        p.button_fill,
-                                        p.button_fill_hover,
-                                        p.button_fill_active,
-                                        p.button_border,
-                                        p.text_primary,
-                                        m.body_scale,
-                                        0,
-                                        ui_hovered(ui, option_row, hooks),
-                                        hooks);
-                    } else {
-                        SDL_Rect minus_rect = left_tool_option_minus_rect(option_row, m);
-                        SDL_Rect value_rect = left_tool_option_value_rect(option_row, m);
-                        SDL_Rect plus_rect = left_tool_option_plus_rect(option_row, m);
-                        SDL_SetRenderDrawColor(renderer, p.button_fill.r, p.button_fill.g, p.button_fill.b, p.button_fill.a);
-                        (void)SDL_RenderFillRect(renderer, &option_row);
-                        SDL_SetRenderDrawColor(renderer, p.button_border.r, p.button_border.g, p.button_border.b, p.button_border.a);
-                        (void)SDL_RenderDrawRect(renderer, &option_row);
-                        hooks->draw_bitmap_text(renderer,
-                                                rect,
-                                                option_row.x + 6,
-                                                option_row.y + m.row_text_y,
-                                                hooks->visual_tool_option_label_raw(option_kind_raw),
-                                                p.text_muted,
-                                                m.body_scale);
-                        draw_tab_button(renderer,
-                                        rect,
-                                        minus_rect,
-                                        "-",
-                                        p.button_fill,
-                                        p.button_fill_hover,
-                                        p.button_fill_active,
-                                        p.button_border,
-                                        p.text_primary,
-                                        m.body_scale,
-                                        0,
-                                        ui_hovered(ui, minus_rect, hooks),
-                                        hooks);
-                        draw_tab_button(renderer,
-                                        rect,
-                                        value_rect,
-                                        value_text,
-                                        p.button_fill,
-                                        p.button_fill,
-                                        p.button_fill,
-                                        p.button_border,
-                                        p.text_primary,
-                                        m.body_scale,
-                                        0,
-                                        0,
-                                        hooks);
-                        draw_tab_button(renderer,
-                                        rect,
-                                        plus_rect,
-                                        "+",
-                                        p.button_fill,
-                                        p.button_fill_hover,
-                                        p.button_fill_active,
-                                        p.button_border,
-                                        p.text_primary,
-                                        m.body_scale,
-                                        0,
-                                        ui_hovered(ui, plus_rect, hooks),
-                                        hooks);
-                    }
-                    y_cursor += m.row_h;
-                }
-            }
-        }
-    } else {
-        char line[96];
-        SDL_Rect row;
-        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, "WORLD NAV", p.text_primary, m.body_scale);
-        y += m.line_h;
-        (void)snprintf(line, sizeof(line), "PAN %d,%d", (int)ctx->editor.viewport.pan_x, (int)ctx->editor.viewport.pan_y);
-        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
-        y += m.line_h;
-        (void)snprintf(line, sizeof(line), "ZOOM %.2fx", (double)ctx->editor.viewport.zoom);
-        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
-        y += m.line_h + m.section_gap;
-        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, "RIGHT-DRAG: PAN", p.text_muted, m.body_scale);
-        y += m.line_h;
-        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, "WHEEL: ZOOM", p.text_muted, m.body_scale);
-        y += m.line_h;
-        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, "LEFT-DRAG: DRAW", p.text_muted, m.body_scale);
-        y += m.line_h + m.section_gap;
-        row = (SDL_Rect){ rect.x + m.pad_x, y, rect.w - (2 * m.pad_x), m.row_h };
-        {
-            SDL_Color action_fill = ui_hovered(ui, row, hooks) ? p.button_fill_hover : p.button_fill;
-            SDL_SetRenderDrawColor(renderer, action_fill.r, action_fill.g, action_fill.b, action_fill.a);
-            (void)SDL_RenderFillRect(renderer, &row);
-        }
+    for (i = 0u; i < tool_count; ++i) {
+        DrawingProgramToolKind tool = hooks->visual_tool_at(i);
+        SDL_Rect row = left_panel_tool_row_rect(rect, m, i, tool_count);
+        int active = (ctx->editor.active_tool == tool) ? 1 : 0;
+        int hovered = ui_hovered(ui, row, hooks);
+        SDL_Color row_color = active ? p.button_fill_active : (hovered ? p.button_fill_hover : p.button_fill);
+        SDL_Color label_color = active ? p.text_primary : sdl_color_ensure_contrast(p.text_muted, row_color);
+        SDL_SetRenderDrawColor(renderer, row_color.r, row_color.g, row_color.b, row_color.a);
+        (void)SDL_RenderFillRect(renderer, &row);
         SDL_SetRenderDrawColor(renderer, p.button_border.r, p.button_border.g, p.button_border.b, p.button_border.a);
         (void)SDL_RenderDrawRect(renderer, &row);
-        hooks->draw_bitmap_text(renderer, rect, row.x + 6, row.y + m.row_text_y, "ZOOM +", p.text_primary, m.body_scale);
+        hooks->draw_bitmap_text(
+            renderer, rect, row.x + 6, row.y + m.row_text_y, hooks->tool_name(tool), label_color, m.body_scale);
+    }
+
+    detail_rect = left_panel_tool_detail_rect(rect, m, tool_count);
+    SDL_SetRenderDrawColor(renderer,
+                           p.pane_background_alt.r,
+                           p.pane_background_alt.g,
+                           p.pane_background_alt.b,
+                           p.pane_background_alt.a);
+    (void)SDL_RenderFillRect(renderer, &detail_rect);
+    SDL_SetRenderDrawColor(renderer, p.button_border.r, p.button_border.g, p.button_border.b, p.button_border.a);
+    (void)SDL_RenderDrawRect(renderer, &detail_rect);
+
+    (void)snprintf(detail_header,
+                   sizeof(detail_header),
+                   "SETTINGS: %s",
+                   hooks->tool_name(ctx->editor.active_tool));
+    hooks->draw_bitmap_text(
+        renderer, rect, detail_rect.x + 6, detail_rect.y + m.row_text_y, detail_header, p.text_primary, m.body_scale);
+    if (option_count == 0u) {
+        hooks->draw_bitmap_text(renderer,
+                                rect,
+                                detail_rect.x + 6,
+                                detail_rect.y + m.line_h + m.row_text_y,
+                                "NO TOOL SETTINGS",
+                                p.text_muted,
+                                m.body_scale);
+        return;
+    }
+    for (i = 0u; i < option_count; ++i) {
+        uint32_t option_kind_raw =
+            hooks->visual_tool_option_kind_for_index_raw(ctx, ctx->editor.active_tool, i);
+        SDL_Rect option_row = left_panel_tool_detail_option_row_rect(detail_rect, m, i);
+        char value_text[48];
+        if (option_row.y + option_row.h > detail_rect.y + detail_rect.h) {
+            break;
+        }
+        hooks->visual_tool_option_value_text_raw(ctx, option_kind_raw, value_text, sizeof(value_text));
+        if (hooks->visual_tool_option_is_action_button_raw(option_kind_raw)) {
+            draw_tab_button(renderer,
+                            rect,
+                            option_row,
+                            value_text,
+                            p.button_fill,
+                            p.button_fill_hover,
+                            p.button_fill_active,
+                            p.button_border,
+                            p.text_primary,
+                            m.body_scale,
+                            0,
+                            ui_hovered(ui, option_row, hooks),
+                            hooks);
+        } else {
+            SDL_Rect minus_rect = left_tool_option_minus_rect(option_row, m);
+            SDL_Rect value_rect = left_tool_option_value_rect(option_row, m);
+            SDL_Rect plus_rect = left_tool_option_plus_rect(option_row, m);
+            SDL_SetRenderDrawColor(renderer, p.button_fill.r, p.button_fill.g, p.button_fill.b, p.button_fill.a);
+            (void)SDL_RenderFillRect(renderer, &option_row);
+            SDL_SetRenderDrawColor(renderer, p.button_border.r, p.button_border.g, p.button_border.b, p.button_border.a);
+            (void)SDL_RenderDrawRect(renderer, &option_row);
+            hooks->draw_bitmap_text(renderer,
+                                    rect,
+                                    option_row.x + 6,
+                                    option_row.y + m.row_text_y,
+                                    hooks->visual_tool_option_label_raw(option_kind_raw),
+                                    p.text_muted,
+                                    m.body_scale);
+            draw_tab_button(renderer,
+                            rect,
+                            minus_rect,
+                            "-",
+                            p.button_fill,
+                            p.button_fill_hover,
+                            p.button_fill_active,
+                            p.button_border,
+                            p.text_primary,
+                            m.body_scale,
+                            0,
+                            ui_hovered(ui, minus_rect, hooks),
+                            hooks);
+            draw_tab_button(renderer,
+                            rect,
+                            value_rect,
+                            value_text,
+                            p.button_fill,
+                            p.button_fill,
+                            p.button_fill,
+                            p.button_border,
+                            p.text_primary,
+                            m.body_scale,
+                            0,
+                            0,
+                            hooks);
+            draw_tab_button(renderer,
+                            rect,
+                            plus_rect,
+                            "+",
+                            p.button_fill,
+                            p.button_fill_hover,
+                            p.button_fill_active,
+                            p.button_border,
+                            p.text_primary,
+                            m.body_scale,
+                            0,
+                            ui_hovered(ui, plus_rect, hooks),
+                            hooks);
+        }
     }
 }
 
@@ -423,20 +402,34 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
             }
         }
         if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_SELECT) {
-            interaction_hint = "LMB: MARQUEE  SHIFT:ADD  ALT:SUBTRACT";
+            interaction_hint = (ctx->object_selection.count > 0u)
+                                   ? "LMB OBJECT: PICK  EMPTY:MARQUEE  SHIFT+LMB:ADD  ALT+LMB:REMOVE"
+                                   : "LMB: MARQUEE  SHIFT:ADD  ALT:SUBTRACT";
         } else if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_MOVE) {
-            interaction_hint = selection && selection->has_payload
-                                   ? "LMB: MOVE SEL  ARROWS:NUDGE  SHIFT+ARROW:x10"
-                                   : "MOVE TOOL: NO ACTIVE SELECTION";
+            if (ctx->object_selection.count > 0u) {
+                interaction_hint = "LMB: MOVE OBJECTS  ARROWS:NUDGE  SHIFT+ARROW:x10  CMD+R:RASTERIZE";
+            } else {
+                interaction_hint = selection && selection->has_payload
+                                       ? "LMB: MOVE SEL  ARROWS:NUDGE  SHIFT+ARROW:x10"
+                                       : "MOVE TOOL: NO ACTIVE SELECTION";
+            }
         } else if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_FILL) {
             interaction_hint = "LMB: FILL REGION  TOLERANCE CONTROLS MATCH RANGE";
         } else if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_PICKER) {
             interaction_hint = "LMB: PICK COLOR";
+        } else if (ctx->object_selection.count > 0u) {
+            interaction_hint = "OBJECTS SELECTED  USE SELECT/MOVE OR CMD+R RASTERIZE";
         }
         if (selection && selection->moving) {
             if (interaction && interaction->move_axis_lock == 1u) {
                 transform_axis = "X";
             } else if (interaction && interaction->move_axis_lock == 2u) {
+                transform_axis = "Y";
+            }
+        } else if (interaction && interaction->object_move_active) {
+            if (interaction->move_axis_lock == 1u) {
+                transform_axis = "X";
+            } else if (interaction->move_axis_lock == 2u) {
                 transform_axis = "Y";
             }
         }
@@ -489,10 +482,12 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
             } else {
                 (void)snprintf(line,
                                sizeof(line),
-                               "TOOL %s  W%u MODE %s",
+                               "TOOL %s  W%u MODE %s TARGET %s",
                                hooks->tool_name(ctx->editor.active_tool),
                                (unsigned)hooks->clamp_setting_u8(ctx->ui_tool_shape_stroke_width, 1u, 16u),
-                               hooks->shape_mode_name(hooks->tool_shape_mode(ctx)));
+                               hooks->shape_mode_name(hooks->tool_shape_mode(ctx)),
+                               shape_target_mode_name(
+                                   hooks->clamp_setting_u8(ctx->ui_tool_shape_target_mode, 0u, 1u)));
             }
         } else if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_FILL) {
             (void)snprintf(line,
@@ -501,6 +496,12 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                            hooks->tool_name(ctx->editor.active_tool),
                            (unsigned)hooks->tool_fill_tolerance_setting(ctx),
                            (unsigned)hooks->fill_tolerance_sample_delta(hooks->tool_fill_tolerance_setting(ctx)));
+        } else if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_SELECT) {
+            (void)snprintf(line,
+                           sizeof(line),
+                           "TOOL %s  MODE %s",
+                           hooks->tool_name(ctx->editor.active_tool),
+                           select_mode_name(hooks->clamp_setting_u8(ctx->ui_tool_select_mode, 0u, 2u)));
         } else {
             (void)snprintf(line, sizeof(line), "TOOL %s", hooks->tool_name(ctx->editor.active_tool));
         }
@@ -532,12 +533,48 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
         }
         hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
         y += m.line_h;
+        if (ctx->object_selection.count > 0u) {
+            const DrawingProgramObjectRecord *active_object =
+                drawing_program_object_store_get_by_id(&ctx->object_store, ctx->object_selection.active_object_id);
+            (void)snprintf(line,
+                           sizeof(line),
+                           "OBJECTS %u ACTIVE %u",
+                           (unsigned)ctx->object_selection.count,
+                           (unsigned)ctx->object_selection.active_object_id);
+            hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
+            y += m.line_h;
+            if (active_object) {
+                (void)snprintf(line,
+                               sizeof(line),
+                               "OBJ ORIGIN %d,%d SIZE %ux%u",
+                               (int)active_object->origin_x,
+                               (int)active_object->origin_y,
+                               (unsigned)active_object->width,
+                               (unsigned)active_object->height);
+            } else {
+                (void)snprintf(line, sizeof(line), "OBJ ORIGIN n/a");
+            }
+        } else {
+            (void)snprintf(line, sizeof(line), "OBJECTS NONE");
+            hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
+            y += m.line_h;
+            (void)snprintf(line, sizeof(line), "OBJ ORIGIN n/a");
+        }
+        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
+        y += m.line_h;
         if (selection && selection->moving) {
             (void)snprintf(line,
                            sizeof(line),
                            "TRANSFORM MOVE d(%d,%d) AXIS %s",
                            (int)selection->offset_x,
                            (int)selection->offset_y,
+                           transform_axis);
+        } else if (interaction && interaction->object_move_active) {
+            (void)snprintf(line,
+                           sizeof(line),
+                           "TRANSFORM OBJ d(%d,%d) AXIS %s",
+                           (int)interaction->object_move_offset_x,
+                           (int)interaction->object_move_offset_y,
                            transform_axis);
         } else if (selection && selection->selecting) {
             (void)snprintf(line, sizeof(line), "TRANSFORM MARQUEE ACTIVE");

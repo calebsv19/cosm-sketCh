@@ -6,6 +6,7 @@
 #include "core_base.h"
 #include "drawing_program/drawing_program_document.h"
 #include "drawing_program/drawing_program_layer_raster.h"
+#include "drawing_program/drawing_program_object_store.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,7 +20,8 @@ typedef enum DrawingProgramCommandType {
     DRAWING_PROGRAM_COMMAND_SET_SAMPLE_VALUE = 2,
     DRAWING_PROGRAM_COMMAND_GROUP_BEGIN = 3,
     DRAWING_PROGRAM_COMMAND_GROUP_END = 4,
-    DRAWING_PROGRAM_COMMAND_SET_SAMPLE_SPAN_VALUE = 5
+    DRAWING_PROGRAM_COMMAND_SET_SAMPLE_SPAN_VALUE = 5,
+    DRAWING_PROGRAM_COMMAND_SET_OBJECT_ORIGIN = 6
 } DrawingProgramCommandType;
 
 typedef struct DrawingProgramCommand {
@@ -31,6 +33,11 @@ typedef struct DrawingProgramCommand {
     uint8_t previous_visibility;
     uint8_t new_sample_value;
     uint8_t previous_sample_value;
+    uint32_t object_id;
+    int32_t new_object_origin_x;
+    int32_t new_object_origin_y;
+    int32_t previous_object_origin_x;
+    int32_t previous_object_origin_y;
 } DrawingProgramCommand;
 
 typedef struct DrawingProgramHistory {
@@ -64,12 +71,19 @@ CoreResult drawing_program_history_apply_set_sample_span_value(DrawingProgramHis
                                                                uint32_t span_start_index,
                                                                uint32_t span_length,
                                                                uint8_t value);
+CoreResult drawing_program_history_apply_set_object_origin(DrawingProgramHistory *history,
+                                                           DrawingProgramObjectStore *object_store,
+                                                           uint32_t object_id,
+                                                           int32_t origin_x,
+                                                           int32_t origin_y);
 CoreResult drawing_program_history_undo(DrawingProgramHistory *history,
                                         DrawingProgramDocument *document,
-                                        DrawingProgramLayerRasterStore *layer_rasters);
+                                        DrawingProgramLayerRasterStore *layer_rasters,
+                                        DrawingProgramObjectStore *object_store);
 CoreResult drawing_program_history_redo(DrawingProgramHistory *history,
                                         DrawingProgramDocument *document,
-                                        DrawingProgramLayerRasterStore *layer_rasters);
+                                        DrawingProgramLayerRasterStore *layer_rasters,
+                                        DrawingProgramObjectStore *object_store);
 
 #ifdef __cplusplus
 }
