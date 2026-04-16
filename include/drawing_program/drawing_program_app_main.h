@@ -35,21 +35,7 @@ typedef enum DrawingProgramUiSelectMode {
     DRAWING_PROGRAM_UI_SELECT_MODE_SUBTRACT = 2u
 } DrawingProgramUiSelectMode;
 
-typedef struct DrawingProgramAppContext {
-    uint8_t headless;
-    uint8_t print_lifecycle;
-    uint8_t export_json_requested;
-    uint8_t bridge_workspace_check_requested;
-    uint8_t bridge_workspace_import_requested;
-    uint8_t preset_path_cli_override;
-    uint8_t persist_enabled;
-    uint8_t runtime_root_cli_override;
-    uint8_t input_root_cli_override;
-    uint8_t output_root_cli_override;
-    uint8_t canvas_size_cli_override;
-    uint32_t smoke_frames;
-    uint32_t seed_canvas_logical_width;
-    uint32_t seed_canvas_logical_height;
+typedef struct DrawingProgramAppRuntimeState {
     uint64_t frame_counter;
     uint8_t state_seeded;
     uint8_t subsystems_ready;
@@ -77,6 +63,57 @@ typedef struct DrawingProgramAppContext {
     uint32_t render_last_active_layer_id;
     uint8_t render_last_has_active_layer;
     DrawingProgramRenderFrameProjection render_projection;
+} DrawingProgramAppRuntimeState;
+
+typedef struct DrawingProgramAppUiState {
+    uint32_t theme_preset_id;
+    uint32_t font_preset_id;
+    uint8_t left_panel_slot;
+    uint8_t right_panel_slot;
+    uint8_t active_color_index;
+    uint8_t tool_brush_size;
+    uint8_t tool_brush_opacity;
+    uint8_t tool_brush_spacing;
+    uint8_t tool_brush_hardness;
+    uint8_t tool_eraser_size;
+    uint8_t tool_shape_stroke_width;
+    uint8_t tool_shape_mode;
+    uint8_t tool_shape_target_mode;
+    uint8_t tool_fill_tolerance;
+    uint8_t tool_select_mode;
+    uint8_t layer_opacity_entry_count;
+    int8_t font_zoom_step;
+    uint8_t layer_opacity_values[DRAWING_PROGRAM_MAX_LAYERS];
+    uint32_t layer_opacity_layer_ids[DRAWING_PROGRAM_MAX_LAYERS];
+} DrawingProgramAppUiState;
+
+typedef struct DrawingProgramAppSessionState {
+    uint8_t headless;
+    uint8_t print_lifecycle;
+    uint8_t export_json_requested;
+    uint8_t bridge_workspace_check_requested;
+    uint8_t bridge_workspace_import_requested;
+    uint8_t preset_path_cli_override;
+    uint8_t persist_enabled;
+    uint8_t runtime_root_cli_override;
+    uint8_t input_root_cli_override;
+    uint8_t output_root_cli_override;
+    uint8_t canvas_size_cli_override;
+    uint32_t smoke_frames;
+    uint32_t seed_canvas_logical_width;
+    uint32_t seed_canvas_logical_height;
+    char runtime_root_path[512];
+    char input_root_path[512];
+    char output_root_path[512];
+    char preset_path_buffer[512];
+    const char *preset_path;
+    const char *export_json_path;
+    const char *bridge_workspace_preset_path;
+} DrawingProgramAppSessionState;
+
+typedef struct DrawingProgramAppContext {
+    DrawingProgramAppSessionState session;
+    DrawingProgramAppRuntimeState runtime;
     DrawingProgramDocument document;
     DrawingProgramEditorState editor;
     DrawingProgramHistory history;
@@ -87,34 +124,9 @@ typedef struct DrawingProgramAppContext {
     DrawingProgramOverlayAdapterState overlay_adapter;
     float pane_host_bounds_width;
     float pane_host_bounds_height;
-    uint32_t ui_theme_preset_id;
-    uint32_t ui_font_preset_id;
-    uint8_t ui_left_panel_slot;
-    uint8_t ui_right_panel_slot;
-    uint8_t ui_active_color_index;
-    uint8_t ui_tool_brush_size;
-    uint8_t ui_tool_brush_opacity;
-    uint8_t ui_tool_brush_spacing;
-    uint8_t ui_tool_brush_hardness;
-    uint8_t ui_tool_eraser_size;
-    uint8_t ui_tool_shape_stroke_width;
-    uint8_t ui_tool_shape_mode;
-    uint8_t ui_tool_shape_target_mode;
-    uint8_t ui_tool_fill_tolerance;
-    uint8_t ui_tool_select_mode;
-    uint8_t ui_layer_opacity_entry_count;
-    int8_t ui_font_zoom_step;
-    uint8_t ui_layer_opacity_values[DRAWING_PROGRAM_MAX_LAYERS];
-    uint32_t ui_layer_opacity_layer_ids[DRAWING_PROGRAM_MAX_LAYERS];
+    DrawingProgramAppUiState ui;
     DrawingProgramSelectionState selection;
     DrawingProgramClipboardState clipboard;
-    char runtime_root_path[512];
-    char input_root_path[512];
-    char output_root_path[512];
-    char preset_path_buffer[512];
-    const char *preset_path;
-    const char *export_json_path;
-    const char *bridge_workspace_preset_path;
 } DrawingProgramAppContext;
 
 typedef enum DrawingProgramInputRouteTargetPolicy {

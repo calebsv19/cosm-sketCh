@@ -102,18 +102,18 @@ static void drawing_program_ui_layer_opacity_set(DrawingProgramAppContext *ctx,
     if (!ctx || layer_id == 0u) {
         return;
     }
-    for (i = 0u; i < ctx->ui_layer_opacity_entry_count; ++i) {
-        if (ctx->ui_layer_opacity_layer_ids[i] == layer_id) {
-            ctx->ui_layer_opacity_values[i] = opacity;
+    for (i = 0u; i < ctx->ui.layer_opacity_entry_count; ++i) {
+        if (ctx->ui.layer_opacity_layer_ids[i] == layer_id) {
+            ctx->ui.layer_opacity_values[i] = opacity;
             return;
         }
     }
-    if (ctx->ui_layer_opacity_entry_count >= DRAWING_PROGRAM_MAX_LAYERS) {
+    if (ctx->ui.layer_opacity_entry_count >= DRAWING_PROGRAM_MAX_LAYERS) {
         return;
     }
-    ctx->ui_layer_opacity_layer_ids[ctx->ui_layer_opacity_entry_count] = layer_id;
-    ctx->ui_layer_opacity_values[ctx->ui_layer_opacity_entry_count] = opacity;
-    ctx->ui_layer_opacity_entry_count += 1u;
+    ctx->ui.layer_opacity_layer_ids[ctx->ui.layer_opacity_entry_count] = layer_id;
+    ctx->ui.layer_opacity_values[ctx->ui.layer_opacity_entry_count] = opacity;
+    ctx->ui.layer_opacity_entry_count += 1u;
 }
 
 static void drawing_program_ui_layer_opacity_sync_with_document(DrawingProgramAppContext *ctx) {
@@ -122,18 +122,18 @@ static void drawing_program_ui_layer_opacity_sync_with_document(DrawingProgramAp
     if (!ctx) {
         return;
     }
-    for (i = 0u; i < ctx->ui_layer_opacity_entry_count; ++i) {
-        uint32_t layer_id = ctx->ui_layer_opacity_layer_ids[i];
+    for (i = 0u; i < ctx->ui.layer_opacity_entry_count; ++i) {
+        uint32_t layer_id = ctx->ui.layer_opacity_layer_ids[i];
         uint32_t ignored = 0u;
         if (layer_id != 0u &&
             drawing_program_document_layer_index_for_id(&ctx->document, layer_id, &ignored).code == CORE_OK) {
-            ctx->ui_layer_opacity_layer_ids[compact_count] = layer_id;
-            ctx->ui_layer_opacity_values[compact_count] =
-                drawing_program_clamp_percent(ctx->ui_layer_opacity_values[i]);
+            ctx->ui.layer_opacity_layer_ids[compact_count] = layer_id;
+            ctx->ui.layer_opacity_values[compact_count] =
+                drawing_program_clamp_percent(ctx->ui.layer_opacity_values[i]);
             compact_count += 1u;
         }
     }
-    ctx->ui_layer_opacity_entry_count = compact_count;
+    ctx->ui.layer_opacity_entry_count = compact_count;
     for (i = 0u; i < ctx->document.layer_count; ++i) {
         drawing_program_ui_layer_opacity_set(ctx, ctx->document.layers[i].layer_id, 100u);
     }
@@ -143,66 +143,66 @@ static void drawing_program_normalize_ui_state(DrawingProgramAppContext *ctx) {
     if (!ctx) {
         return;
     }
-    if (ctx->ui_theme_preset_id >= (uint32_t)CORE_THEME_PRESET_COUNT) {
-        ctx->ui_theme_preset_id = (uint32_t)CORE_THEME_PRESET_DARK_DEFAULT;
+    if (ctx->ui.theme_preset_id >= (uint32_t)CORE_THEME_PRESET_COUNT) {
+        ctx->ui.theme_preset_id = (uint32_t)CORE_THEME_PRESET_DARK_DEFAULT;
     }
-    if (ctx->ui_font_preset_id >= (uint32_t)CORE_FONT_PRESET_COUNT ||
-        !core_font_preset_name((CoreFontPresetId)ctx->ui_font_preset_id)) {
-        ctx->ui_font_preset_id = (uint32_t)CORE_FONT_PRESET_IDE;
+    if (ctx->ui.font_preset_id >= (uint32_t)CORE_FONT_PRESET_COUNT ||
+        !core_font_preset_name((CoreFontPresetId)ctx->ui.font_preset_id)) {
+        ctx->ui.font_preset_id = (uint32_t)CORE_FONT_PRESET_IDE;
     }
-    if (ctx->ui_font_zoom_step < -2) {
-        ctx->ui_font_zoom_step = -2;
-    } else if (ctx->ui_font_zoom_step > 4) {
-        ctx->ui_font_zoom_step = 4;
+    if (ctx->ui.font_zoom_step < -2) {
+        ctx->ui.font_zoom_step = -2;
+    } else if (ctx->ui.font_zoom_step > 4) {
+        ctx->ui.font_zoom_step = 4;
     }
-    if (ctx->ui_left_panel_slot > 1u) {
-        ctx->ui_left_panel_slot = 0u;
+    if (ctx->ui.left_panel_slot > 1u) {
+        ctx->ui.left_panel_slot = 0u;
     }
-    if (ctx->ui_right_panel_slot > 1u) {
-        ctx->ui_right_panel_slot = 0u;
+    if (ctx->ui.right_panel_slot > 1u) {
+        ctx->ui.right_panel_slot = 0u;
     }
-    ctx->ui_active_color_index = drawing_program_color_index_clamp(ctx->ui_active_color_index);
-    if (ctx->ui_tool_brush_size < 1u) {
-        ctx->ui_tool_brush_size = 1u;
-    } else if (ctx->ui_tool_brush_size > 16u) {
-        ctx->ui_tool_brush_size = 16u;
+    ctx->ui.active_color_index = drawing_program_color_index_clamp(ctx->ui.active_color_index);
+    if (ctx->ui.tool_brush_size < 1u) {
+        ctx->ui.tool_brush_size = 1u;
+    } else if (ctx->ui.tool_brush_size > 16u) {
+        ctx->ui.tool_brush_size = 16u;
     }
-    if (ctx->ui_tool_brush_opacity < 1u) {
-        ctx->ui_tool_brush_opacity = 1u;
-    } else if (ctx->ui_tool_brush_opacity > 100u) {
-        ctx->ui_tool_brush_opacity = 100u;
+    if (ctx->ui.tool_brush_opacity < 1u) {
+        ctx->ui.tool_brush_opacity = 1u;
+    } else if (ctx->ui.tool_brush_opacity > 100u) {
+        ctx->ui.tool_brush_opacity = 100u;
     }
-    if (ctx->ui_tool_brush_spacing < 1u) {
-        ctx->ui_tool_brush_spacing = 1u;
-    } else if (ctx->ui_tool_brush_spacing > 16u) {
-        ctx->ui_tool_brush_spacing = 16u;
+    if (ctx->ui.tool_brush_spacing < 1u) {
+        ctx->ui.tool_brush_spacing = 1u;
+    } else if (ctx->ui.tool_brush_spacing > 16u) {
+        ctx->ui.tool_brush_spacing = 16u;
     }
-    if (ctx->ui_tool_brush_hardness < 1u) {
-        ctx->ui_tool_brush_hardness = 1u;
-    } else if (ctx->ui_tool_brush_hardness > 100u) {
-        ctx->ui_tool_brush_hardness = 100u;
+    if (ctx->ui.tool_brush_hardness < 1u) {
+        ctx->ui.tool_brush_hardness = 1u;
+    } else if (ctx->ui.tool_brush_hardness > 100u) {
+        ctx->ui.tool_brush_hardness = 100u;
     }
-    if (ctx->ui_tool_eraser_size < 1u) {
-        ctx->ui_tool_eraser_size = 1u;
-    } else if (ctx->ui_tool_eraser_size > 16u) {
-        ctx->ui_tool_eraser_size = 16u;
+    if (ctx->ui.tool_eraser_size < 1u) {
+        ctx->ui.tool_eraser_size = 1u;
+    } else if (ctx->ui.tool_eraser_size > 16u) {
+        ctx->ui.tool_eraser_size = 16u;
     }
-    if (ctx->ui_tool_shape_stroke_width < 1u) {
-        ctx->ui_tool_shape_stroke_width = 1u;
-    } else if (ctx->ui_tool_shape_stroke_width > 16u) {
-        ctx->ui_tool_shape_stroke_width = 16u;
+    if (ctx->ui.tool_shape_stroke_width < 1u) {
+        ctx->ui.tool_shape_stroke_width = 1u;
+    } else if (ctx->ui.tool_shape_stroke_width > 16u) {
+        ctx->ui.tool_shape_stroke_width = 16u;
     }
-    if (ctx->ui_tool_shape_mode > 2u) {
-        ctx->ui_tool_shape_mode = 0u;
+    if (ctx->ui.tool_shape_mode > 2u) {
+        ctx->ui.tool_shape_mode = 0u;
     }
-    if (ctx->ui_tool_shape_target_mode > (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_OBJECT) {
-        ctx->ui_tool_shape_target_mode = (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_PIXEL;
+    if (ctx->ui.tool_shape_target_mode > (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_OBJECT) {
+        ctx->ui.tool_shape_target_mode = (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_PIXEL;
     }
-    if (ctx->ui_tool_fill_tolerance > DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX) {
-        ctx->ui_tool_fill_tolerance = DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX;
+    if (ctx->ui.tool_fill_tolerance > DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX) {
+        ctx->ui.tool_fill_tolerance = DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX;
     }
-    if (ctx->ui_tool_select_mode > (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_SUBTRACT) {
-        ctx->ui_tool_select_mode = (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_REPLACE;
+    if (ctx->ui.tool_select_mode > (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_SUBTRACT) {
+        ctx->ui.tool_select_mode = (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_REPLACE;
     }
     drawing_program_ui_layer_opacity_sync_with_document(ctx);
 }
@@ -228,7 +228,7 @@ static int drawing_program_transition_stage(DrawingProgramAppStage *stage,
 }
 
 static void drawing_program_lifecycle_note(const DrawingProgramAppContext *ctx, const char *stage_name) {
-    if (!ctx || !ctx->print_lifecycle) {
+    if (!ctx || !ctx->session.print_lifecycle) {
         return;
     }
     printf("drawing_program lifecycle: %s\n", stage_name ? stage_name : "unknown");
@@ -241,14 +241,14 @@ static void drawing_program_seed_data_roots(DrawingProgramAppContext *ctx) {
     }
     runtime_env = getenv("DRAWING_PROGRAM_RUNTIME_DIR");
     if (runtime_env && runtime_env[0] != '\0') {
-        if (!ctx->runtime_root_cli_override) {
-            (void)snprintf(ctx->runtime_root_path, sizeof(ctx->runtime_root_path), "%s", runtime_env);
+        if (!ctx->session.runtime_root_cli_override) {
+            (void)snprintf(ctx->session.runtime_root_path, sizeof(ctx->session.runtime_root_path), "%s", runtime_env);
         }
-        if (!ctx->input_root_cli_override) {
-            (void)snprintf(ctx->input_root_path, sizeof(ctx->input_root_path), "%s/input", ctx->runtime_root_path);
+        if (!ctx->session.input_root_cli_override) {
+            (void)snprintf(ctx->session.input_root_path, sizeof(ctx->session.input_root_path), "%s/input", ctx->session.runtime_root_path);
         }
-        if (!ctx->output_root_cli_override) {
-            (void)snprintf(ctx->output_root_path, sizeof(ctx->output_root_path), "%s/output", ctx->runtime_root_path);
+        if (!ctx->session.output_root_cli_override) {
+            (void)snprintf(ctx->session.output_root_path, sizeof(ctx->session.output_root_path), "%s/output", ctx->session.runtime_root_path);
         }
     }
 }
@@ -349,20 +349,20 @@ static CoreResult drawing_program_render_project_and_update_counters(
                                                   &ctx->layer_rasters,
                                                   &ctx->editor,
                                                   &render_invalidation,
-                                                  &ctx->render_projection);
+                                                  &ctx->runtime.render_projection);
     if (result.code != CORE_OK) {
         return result;
     }
 
-    ctx->render_frames_projected_total += 1u;
-    ctx->render_layers_visible_total += (uint64_t)ctx->render_projection.visible_layer_count;
-    if (ctx->render_projection.full_redraw) {
-        ctx->render_full_redraw_total += 1u;
-    } else if (ctx->render_projection.targeted_redraw) {
-        ctx->render_target_redraw_total += 1u;
+    ctx->runtime.render_frames_projected_total += 1u;
+    ctx->runtime.render_layers_visible_total += (uint64_t)ctx->runtime.render_projection.visible_layer_count;
+    if (ctx->runtime.render_projection.full_redraw) {
+        ctx->runtime.render_full_redraw_total += 1u;
+    } else if (ctx->runtime.render_projection.targeted_redraw) {
+        ctx->runtime.render_target_redraw_total += 1u;
     }
-    ctx->render_last_has_active_layer = ctx->render_projection.has_active_layer;
-    ctx->render_last_active_layer_id = ctx->render_projection.active_layer_id;
+    ctx->runtime.render_last_has_active_layer = ctx->runtime.render_projection.has_active_layer;
+    ctx->runtime.render_last_active_layer_id = ctx->runtime.render_projection.active_layer_id;
 
     return core_result_ok();
 }
@@ -390,7 +390,7 @@ static CoreResult drawing_program_frame_update(DrawingProgramAppContext *ctx,
         CoreResult err = { CORE_ERR_FORMAT, adapter_result.reason };
         return err;
     }
-    drawing_program_input_intake((uint64_t)frame_index, total_frames, ctx->headless, raw_out);
+    drawing_program_input_intake((uint64_t)frame_index, total_frames, ctx->session.headless, raw_out);
     result = drawing_program_runtime_orchestration_plan_frame(raw_out, normalized_out, route_out, invalidation_out);
     if (result.code != CORE_OK) {
         return result;
@@ -403,14 +403,14 @@ static CoreResult drawing_program_frame_update(DrawingProgramAppContext *ctx,
     if (result.code != CORE_OK) {
         return result;
     }
-    ctx->input_events_processed += (uint64_t)raw_out->event_count;
-    ctx->input_actions_emitted += (uint64_t)normalized_out->action_count;
-    ctx->routed_global_total += (uint64_t)route_out->routed_global_count;
-    ctx->routed_pane_total += (uint64_t)route_out->routed_pane_count;
-    ctx->routed_fallback_total += (uint64_t)route_out->routed_fallback_count;
-    ctx->invalidation_target_total += (uint64_t)invalidation_out->target_invalidation_count;
-    ctx->invalidation_full_total += (uint64_t)invalidation_out->full_invalidation_count;
-    ctx->invalidation_reason_bits_total += (uint64_t)invalidation_out->invalidation_reason_bits;
+    ctx->runtime.input_events_processed += (uint64_t)raw_out->event_count;
+    ctx->runtime.input_actions_emitted += (uint64_t)normalized_out->action_count;
+    ctx->runtime.routed_global_total += (uint64_t)route_out->routed_global_count;
+    ctx->runtime.routed_pane_total += (uint64_t)route_out->routed_pane_count;
+    ctx->runtime.routed_fallback_total += (uint64_t)route_out->routed_fallback_count;
+    ctx->runtime.invalidation_target_total += (uint64_t)invalidation_out->target_invalidation_count;
+    ctx->runtime.invalidation_full_total += (uint64_t)invalidation_out->full_invalidation_count;
+    ctx->runtime.invalidation_reason_bits_total += (uint64_t)invalidation_out->invalidation_reason_bits;
     return core_result_ok();
 }
 
@@ -452,47 +452,47 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
     }
 
     memset(ctx, 0, sizeof(*ctx));
-    ctx->smoke_frames = 1u;
-    ctx->persist_enabled = 1u;
-    ctx->seed_canvas_logical_width = 512u;
-    ctx->seed_canvas_logical_height = 512u;
-    ctx->preset_path = 0;
-    ctx->export_json_path = 0;
-    ctx->bridge_workspace_preset_path = "workspace_sandbox/data/presets/sketch_layout_v1.pack";
+    ctx->session.smoke_frames = 1u;
+    ctx->session.persist_enabled = 1u;
+    ctx->session.seed_canvas_logical_width = 512u;
+    ctx->session.seed_canvas_logical_height = 512u;
+    ctx->session.preset_path = 0;
+    ctx->session.export_json_path = 0;
+    ctx->session.bridge_workspace_preset_path = "workspace_sandbox/data/presets/sketch_layout_v1.pack";
     ctx->pane_host_bounds_width = 1200.0f;
     ctx->pane_host_bounds_height = 800.0f;
-    ctx->ui_theme_preset_id = (uint32_t)CORE_THEME_PRESET_DARK_DEFAULT;
-    ctx->ui_font_preset_id = (uint32_t)CORE_FONT_PRESET_IDE;
-    ctx->ui_left_panel_slot = 0u;
-    ctx->ui_right_panel_slot = 0u;
-    ctx->ui_active_color_index = drawing_program_color_default_index();
-    ctx->ui_tool_brush_size = 2u;
-    ctx->ui_tool_brush_opacity = 100u;
-    ctx->ui_tool_brush_spacing = 2u;
-    ctx->ui_tool_brush_hardness = 100u;
-    ctx->ui_tool_eraser_size = 4u;
-    ctx->ui_tool_shape_stroke_width = 1u;
-    ctx->ui_tool_shape_mode = 0u;
-    ctx->ui_tool_shape_target_mode = (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_PIXEL;
-    ctx->ui_tool_fill_tolerance = 0u;
-    ctx->ui_tool_select_mode = (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_REPLACE;
-    ctx->ui_font_zoom_step = 0;
-    (void)snprintf(ctx->runtime_root_path, sizeof(ctx->runtime_root_path), "data/runtime");
-    (void)snprintf(ctx->input_root_path, sizeof(ctx->input_root_path), "data/input");
-    (void)snprintf(ctx->output_root_path, sizeof(ctx->output_root_path), "data/output");
+    ctx->ui.theme_preset_id = (uint32_t)CORE_THEME_PRESET_DARK_DEFAULT;
+    ctx->ui.font_preset_id = (uint32_t)CORE_FONT_PRESET_IDE;
+    ctx->ui.left_panel_slot = 0u;
+    ctx->ui.right_panel_slot = 0u;
+    ctx->ui.active_color_index = drawing_program_color_default_index();
+    ctx->ui.tool_brush_size = 2u;
+    ctx->ui.tool_brush_opacity = 100u;
+    ctx->ui.tool_brush_spacing = 2u;
+    ctx->ui.tool_brush_hardness = 100u;
+    ctx->ui.tool_eraser_size = 4u;
+    ctx->ui.tool_shape_stroke_width = 1u;
+    ctx->ui.tool_shape_mode = 0u;
+    ctx->ui.tool_shape_target_mode = (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_PIXEL;
+    ctx->ui.tool_fill_tolerance = 0u;
+    ctx->ui.tool_select_mode = (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_REPLACE;
+    ctx->ui.font_zoom_step = 0;
+    (void)snprintf(ctx->session.runtime_root_path, sizeof(ctx->session.runtime_root_path), "data/runtime");
+    (void)snprintf(ctx->session.input_root_path, sizeof(ctx->session.input_root_path), "data/input");
+    (void)snprintf(ctx->session.output_root_path, sizeof(ctx->session.output_root_path), "data/output");
 
     for (i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--headless") == 0) {
-            ctx->headless = 1u;
+            ctx->session.headless = 1u;
             continue;
         }
         if (strcmp(argv[i], "--print-lifecycle") == 0) {
-            ctx->print_lifecycle = 1u;
+            ctx->session.print_lifecycle = 1u;
             continue;
         }
         if (strcmp(argv[i], "--smoke-frames") == 0 && i + 1 < argc) {
             unsigned long parsed = strtoul(argv[++i], 0, 10);
-            ctx->smoke_frames = (parsed > 0ul) ? (uint32_t)parsed : 1u;
+            ctx->session.smoke_frames = (parsed > 0ul) ? (uint32_t)parsed : 1u;
             continue;
         }
         if (strcmp(argv[i], "--canvas-size") == 0 && i + 1 < argc) {
@@ -501,9 +501,9 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
             if (!drawing_program_parse_canvas_size(argv[++i], &parsed_w, &parsed_h)) {
                 return drawing_program_invalid("invalid --canvas-size (expected WxH)");
             }
-            ctx->seed_canvas_logical_width = parsed_w;
-            ctx->seed_canvas_logical_height = parsed_h;
-            ctx->canvas_size_cli_override = 1u;
+            ctx->session.seed_canvas_logical_width = parsed_w;
+            ctx->session.seed_canvas_logical_height = parsed_h;
+            ctx->session.canvas_size_cli_override = 1u;
             continue;
         }
         if (strcmp(argv[i], "--canvas-width") == 0 && i + 1 < argc) {
@@ -511,8 +511,8 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
             if (!drawing_program_parse_u32_strict(argv[++i], &parsed_w)) {
                 return drawing_program_invalid("invalid --canvas-width");
             }
-            ctx->seed_canvas_logical_width = parsed_w;
-            ctx->canvas_size_cli_override = 1u;
+            ctx->session.seed_canvas_logical_width = parsed_w;
+            ctx->session.canvas_size_cli_override = 1u;
             continue;
         }
         if (strcmp(argv[i], "--canvas-height") == 0 && i + 1 < argc) {
@@ -520,46 +520,46 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
             if (!drawing_program_parse_u32_strict(argv[++i], &parsed_h)) {
                 return drawing_program_invalid("invalid --canvas-height");
             }
-            ctx->seed_canvas_logical_height = parsed_h;
-            ctx->canvas_size_cli_override = 1u;
+            ctx->session.seed_canvas_logical_height = parsed_h;
+            ctx->session.canvas_size_cli_override = 1u;
             continue;
         }
         if (strcmp(argv[i], "--preset") == 0 && i + 1 < argc) {
-            ctx->preset_path = argv[++i];
-            ctx->preset_path_cli_override = 1u;
+            ctx->session.preset_path = argv[++i];
+            ctx->session.preset_path_cli_override = 1u;
             continue;
         }
         if (strcmp(argv[i], "--no-persist") == 0) {
-            ctx->persist_enabled = 0u;
+            ctx->session.persist_enabled = 0u;
             continue;
         }
         if (strcmp(argv[i], "--export-json") == 0 && i + 1 < argc) {
-            ctx->export_json_path = argv[++i];
-            ctx->export_json_requested = 1u;
+            ctx->session.export_json_path = argv[++i];
+            ctx->session.export_json_requested = 1u;
             continue;
         }
         if (strcmp(argv[i], "--bridge-workspace-preset") == 0 && i + 1 < argc) {
-            ctx->bridge_workspace_preset_path = argv[++i];
-            ctx->bridge_workspace_check_requested = 1u;
+            ctx->session.bridge_workspace_preset_path = argv[++i];
+            ctx->session.bridge_workspace_check_requested = 1u;
             continue;
         }
         if (strcmp(argv[i], "--bridge-workspace-import") == 0) {
-            ctx->bridge_workspace_import_requested = 1u;
+            ctx->session.bridge_workspace_import_requested = 1u;
             continue;
         }
         if (strcmp(argv[i], "--runtime-root") == 0 && i + 1 < argc) {
-            (void)snprintf(ctx->runtime_root_path, sizeof(ctx->runtime_root_path), "%s", argv[++i]);
-            ctx->runtime_root_cli_override = 1u;
+            (void)snprintf(ctx->session.runtime_root_path, sizeof(ctx->session.runtime_root_path), "%s", argv[++i]);
+            ctx->session.runtime_root_cli_override = 1u;
             continue;
         }
         if (strcmp(argv[i], "--input-root") == 0 && i + 1 < argc) {
-            (void)snprintf(ctx->input_root_path, sizeof(ctx->input_root_path), "%s", argv[++i]);
-            ctx->input_root_cli_override = 1u;
+            (void)snprintf(ctx->session.input_root_path, sizeof(ctx->session.input_root_path), "%s", argv[++i]);
+            ctx->session.input_root_cli_override = 1u;
             continue;
         }
         if (strcmp(argv[i], "--output-root") == 0 && i + 1 < argc) {
-            (void)snprintf(ctx->output_root_path, sizeof(ctx->output_root_path), "%s", argv[++i]);
-            ctx->output_root_cli_override = 1u;
+            (void)snprintf(ctx->session.output_root_path, sizeof(ctx->session.output_root_path), "%s", argv[++i]);
+            ctx->session.output_root_cli_override = 1u;
             continue;
         }
     }
@@ -573,28 +573,28 @@ CoreResult drawing_program_app_config_load(DrawingProgramAppContext *ctx) {
         return drawing_program_invalid("null app context");
     }
     drawing_program_seed_data_roots(ctx);
-    result = drawing_program_mkdirs_if_needed(ctx->runtime_root_path);
+    result = drawing_program_mkdirs_if_needed(ctx->session.runtime_root_path);
     if (result.code != CORE_OK) {
         return result;
     }
-    result = drawing_program_mkdirs_if_needed(ctx->input_root_path);
+    result = drawing_program_mkdirs_if_needed(ctx->session.input_root_path);
     if (result.code != CORE_OK) {
         return result;
     }
-    result = drawing_program_mkdirs_if_needed(ctx->output_root_path);
+    result = drawing_program_mkdirs_if_needed(ctx->session.output_root_path);
     if (result.code != CORE_OK) {
         return result;
     }
-    if (!ctx->preset_path_cli_override) {
-        (void)snprintf(ctx->preset_path_buffer, sizeof(ctx->preset_path_buffer), "%s/last_session.pack", ctx->runtime_root_path);
-        ctx->preset_path = ctx->preset_path_buffer;
+    if (!ctx->session.preset_path_cli_override) {
+        (void)snprintf(ctx->session.preset_path_buffer, sizeof(ctx->session.preset_path_buffer), "%s/last_session.pack", ctx->session.runtime_root_path);
+        ctx->session.preset_path = ctx->session.preset_path_buffer;
     }
-    result = drawing_program_ensure_parent_dir(ctx->preset_path);
+    result = drawing_program_ensure_parent_dir(ctx->session.preset_path);
     if (result.code != CORE_OK) {
         return result;
     }
-    if (ctx->export_json_path) {
-        result = drawing_program_ensure_parent_dir(ctx->export_json_path);
+    if (ctx->session.export_json_path) {
+        result = drawing_program_ensure_parent_dir(ctx->session.export_json_path);
         if (result.code != CORE_OK) {
             return result;
         }
@@ -613,8 +613,8 @@ CoreResult drawing_program_app_state_seed(DrawingProgramAppContext *ctx) {
         return result;
     }
     result = drawing_program_document_init_with_shape(&ctx->document,
-                                                      ctx->seed_canvas_logical_width,
-                                                      ctx->seed_canvas_logical_height,
+                                                      ctx->session.seed_canvas_logical_width,
+                                                      ctx->session.seed_canvas_logical_height,
                                                       1u);
     if (result.code != CORE_OK) {
         return result;
@@ -635,7 +635,7 @@ CoreResult drawing_program_app_state_seed(DrawingProgramAppContext *ctx) {
         drawing_program_layer_raster_store_dispose(&ctx->layer_rasters);
         return err;
     }
-    ctx->state_seeded = 1u;
+    ctx->runtime.state_seeded = 1u;
     return core_result_ok();
 }
 
@@ -643,10 +643,10 @@ CoreResult drawing_program_app_subsystems_init(DrawingProgramAppContext *ctx) {
     if (!ctx) {
         return drawing_program_invalid("null app context");
     }
-    if (!ctx->state_seeded) {
+    if (!ctx->runtime.state_seeded) {
         return drawing_program_invalid("state must be seeded before subsystem init");
     }
-    ctx->subsystems_ready = 1u;
+    ctx->runtime.subsystems_ready = 1u;
     return core_result_ok();
 }
 
@@ -657,14 +657,14 @@ CoreResult drawing_program_runtime_start(DrawingProgramAppContext *ctx) {
     if (!ctx) {
         return drawing_program_invalid("null app context");
     }
-    if (!ctx->subsystems_ready) {
+    if (!ctx->runtime.subsystems_ready) {
         return drawing_program_invalid("subsystems must be initialized before runtime start");
     }
 
-    if (ctx->canvas_size_cli_override) {
+    if (ctx->session.canvas_size_cli_override) {
         load_result = (CoreResult){ CORE_ERR_NOT_FOUND, "snapshot load bypassed by explicit canvas-size override" };
     } else {
-        load_result = drawing_program_snapshot_load(ctx, ctx->preset_path);
+        load_result = drawing_program_snapshot_load(ctx, ctx->session.preset_path);
     }
     result = load_result;
     if (drawing_program_trace_ui_state_enabled()) {
@@ -672,25 +672,26 @@ CoreResult drawing_program_runtime_start(DrawingProgramAppContext *ctx) {
                 "drawing_program trace runtime_start after_load code=%d tool=%u theme=%u font=%u zoom=%d slot_l=%u slot_r=%u color=%u leafs=%u\n",
                 (int)result.code,
                 (unsigned)ctx->editor.active_tool,
-                (unsigned)ctx->ui_theme_preset_id,
-                (unsigned)ctx->ui_font_preset_id,
-                (int)ctx->ui_font_zoom_step,
-                (unsigned)ctx->ui_left_panel_slot,
-                (unsigned)ctx->ui_right_panel_slot,
-                (unsigned)ctx->ui_active_color_index,
+                (unsigned)ctx->ui.theme_preset_id,
+                (unsigned)ctx->ui.font_preset_id,
+                (int)ctx->ui.font_zoom_step,
+                (unsigned)ctx->ui.left_panel_slot,
+                (unsigned)ctx->ui.right_panel_slot,
+                (unsigned)ctx->ui.active_color_index,
                 (unsigned)ctx->pane_host.leaf_count);
     }
-    ctx->snapshot_loaded_from_preset = (load_result.code == CORE_OK && ctx->pane_host.leaf_count >= 4u) ? 1u : 0u;
-    if (!ctx->snapshot_loaded_from_preset) {
+    ctx->runtime.snapshot_loaded_from_preset =
+        (load_result.code == CORE_OK && ctx->pane_host.leaf_count >= 4u) ? 1u : 0u;
+    if (!ctx->runtime.snapshot_loaded_from_preset) {
         /* Keep scaffold visuals deterministic: fall back to the seeded 4-pane host. */
         (void)drawing_program_pane_host_init(ctx);
-        if (ctx->persist_enabled) {
-            result = drawing_program_snapshot_save(ctx, ctx->preset_path);
+        if (ctx->session.persist_enabled) {
+            result = drawing_program_snapshot_save(ctx, ctx->session.preset_path);
             if (drawing_program_trace_ui_state_enabled()) {
                 fprintf(stderr,
                         "drawing_program trace runtime_start fallback_save code=%d path=%s\n",
                         (int)result.code,
-                        ctx->preset_path ? ctx->preset_path : "(null)");
+                        ctx->session.preset_path ? ctx->session.preset_path : "(null)");
             }
         }
     }
@@ -698,8 +699,8 @@ CoreResult drawing_program_runtime_start(DrawingProgramAppContext *ctx) {
     if (result.code != CORE_OK) {
         return result;
     }
-    if (upgraded_legacy_checker_seed && ctx->persist_enabled) {
-        (void)drawing_program_snapshot_save(ctx, ctx->preset_path);
+    if (upgraded_legacy_checker_seed && ctx->session.persist_enabled) {
+        (void)drawing_program_snapshot_save(ctx, ctx->session.preset_path);
     }
     drawing_program_selection_cancel_transient(&ctx->selection);
     drawing_program_normalize_ui_state(ctx);
@@ -707,32 +708,32 @@ CoreResult drawing_program_runtime_start(DrawingProgramAppContext *ctx) {
         fprintf(stderr,
                 "drawing_program trace runtime_start normalized tool=%u theme=%u font=%u zoom=%d slot_l=%u slot_r=%u color=%u\n",
                 (unsigned)ctx->editor.active_tool,
-                (unsigned)ctx->ui_theme_preset_id,
-                (unsigned)ctx->ui_font_preset_id,
-                (int)ctx->ui_font_zoom_step,
-                (unsigned)ctx->ui_left_panel_slot,
-                (unsigned)ctx->ui_right_panel_slot,
-                (unsigned)ctx->ui_active_color_index);
+                (unsigned)ctx->ui.theme_preset_id,
+                (unsigned)ctx->ui.font_preset_id,
+                (int)ctx->ui.font_zoom_step,
+                (unsigned)ctx->ui.left_panel_slot,
+                (unsigned)ctx->ui.right_panel_slot,
+                (unsigned)ctx->ui.active_color_index);
     }
 
-    if (ctx->bridge_workspace_check_requested) {
-        result = drawing_program_snapshot_bridge_check_workspace_preset(ctx->bridge_workspace_preset_path);
+    if (ctx->session.bridge_workspace_check_requested) {
+        result = drawing_program_snapshot_bridge_check_workspace_preset(ctx->session.bridge_workspace_preset_path);
         if (result.code != CORE_OK) {
             return result;
         }
         printf("drawing_program workspace preset bridge check OK: %s\n",
-               ctx->bridge_workspace_preset_path ? ctx->bridge_workspace_preset_path : "(null)");
+               ctx->session.bridge_workspace_preset_path ? ctx->session.bridge_workspace_preset_path : "(null)");
     }
-    if (ctx->bridge_workspace_import_requested) {
-        result = drawing_program_snapshot_bridge_import_workspace_preset(ctx, ctx->bridge_workspace_preset_path);
+    if (ctx->session.bridge_workspace_import_requested) {
+        result = drawing_program_snapshot_bridge_import_workspace_preset(ctx, ctx->session.bridge_workspace_preset_path);
         if (result.code != CORE_OK) {
             return result;
         }
         printf("drawing_program workspace preset import OK: %s\n",
-               ctx->bridge_workspace_preset_path ? ctx->bridge_workspace_preset_path : "(null)");
+               ctx->session.bridge_workspace_preset_path ? ctx->session.bridge_workspace_preset_path : "(null)");
     }
 
-    ctx->runtime_started = 1u;
+    ctx->runtime.runtime_started = 1u;
     return core_result_ok();
 }
 
@@ -748,11 +749,11 @@ CoreResult drawing_program_app_run_loop(DrawingProgramAppContext *ctx) {
     if (!ctx) {
         return drawing_program_invalid("null app context");
     }
-    if (!ctx->runtime_started) {
+    if (!ctx->runtime.runtime_started) {
         return drawing_program_invalid("runtime must start before run loop");
     }
 
-    frames = ctx->headless ? ctx->smoke_frames : 1u;
+    frames = ctx->session.headless ? ctx->session.smoke_frames : 1u;
     if (frames == 0u) {
         frames = 1u;
     }
@@ -771,13 +772,13 @@ CoreResult drawing_program_app_run_loop(DrawingProgramAppContext *ctx) {
         screen_probe.x = 100.0f + (float)i;
         screen_probe.y = 100.0f + (float)i;
         if (drawing_program_screen_to_sample(viewport_transform, screen_probe, &sample_probe)) {
-            ctx->viewport_sample_probe_success_total += 1u;
+            ctx->runtime.viewport_sample_probe_success_total += 1u;
         }
         result = drawing_program_frame_render_submit(ctx);
         if (result.code != CORE_OK) {
             return result;
         }
-        ctx->frame_counter += 1u;
+        ctx->runtime.frame_counter += 1u;
     }
 
     return core_result_ok();
@@ -788,9 +789,9 @@ CoreResult drawing_program_app_shutdown(DrawingProgramAppContext *ctx) {
     if (!ctx) {
         return drawing_program_invalid("null app context");
     }
-    if (!ctx->persist_enabled) {
-        if (ctx->export_json_requested) {
-            result = drawing_program_snapshot_export_debug_json(ctx, ctx->export_json_path);
+    if (!ctx->session.persist_enabled) {
+        if (ctx->session.export_json_requested) {
+            result = drawing_program_snapshot_export_debug_json(ctx, ctx->session.export_json_path);
             if (result.code != CORE_OK) {
                 drawing_program_layer_raster_store_dispose(&ctx->layer_rasters);
                 return result;
@@ -799,48 +800,48 @@ CoreResult drawing_program_app_shutdown(DrawingProgramAppContext *ctx) {
         drawing_program_layer_raster_store_dispose(&ctx->layer_rasters);
         return core_result_ok();
     }
-    result = drawing_program_ensure_parent_dir(ctx->preset_path);
+    result = drawing_program_ensure_parent_dir(ctx->session.preset_path);
     if (result.code != CORE_OK) {
         drawing_program_layer_raster_store_dispose(&ctx->layer_rasters);
         return result;
     }
-    result = drawing_program_snapshot_save(ctx, ctx->preset_path);
+    result = drawing_program_snapshot_save(ctx, ctx->session.preset_path);
     if (drawing_program_trace_ui_state_enabled()) {
         fprintf(stderr,
                 "drawing_program trace shutdown save_result code=%d path=%s tool=%u theme=%u font=%u zoom=%d slot_l=%u slot_r=%u color=%u\n",
                 (int)result.code,
-                ctx->preset_path ? ctx->preset_path : "(null)",
+                ctx->session.preset_path ? ctx->session.preset_path : "(null)",
                 (unsigned)ctx->editor.active_tool,
-                (unsigned)ctx->ui_theme_preset_id,
-                (unsigned)ctx->ui_font_preset_id,
-                (int)ctx->ui_font_zoom_step,
-                (unsigned)ctx->ui_left_panel_slot,
-                (unsigned)ctx->ui_right_panel_slot,
-                (unsigned)ctx->ui_active_color_index);
+                (unsigned)ctx->ui.theme_preset_id,
+                (unsigned)ctx->ui.font_preset_id,
+                (int)ctx->ui.font_zoom_step,
+                (unsigned)ctx->ui.left_panel_slot,
+                (unsigned)ctx->ui.right_panel_slot,
+                (unsigned)ctx->ui.active_color_index);
     }
     if (result.code != CORE_OK) {
         fprintf(stderr,
                 "drawing_program: snapshot save failed code=%d message=%s path=%s\n",
                 (int)result.code,
                 result.message ? result.message : "(null)",
-                ctx->preset_path ? ctx->preset_path : "(null)");
+                ctx->session.preset_path ? ctx->session.preset_path : "(null)");
         drawing_program_layer_raster_store_dispose(&ctx->layer_rasters);
         return result;
     }
-    if (ctx->export_json_requested) {
-        result = drawing_program_snapshot_export_debug_json(ctx, ctx->export_json_path);
+    if (ctx->session.export_json_requested) {
+        result = drawing_program_snapshot_export_debug_json(ctx, ctx->session.export_json_path);
         if (result.code != CORE_OK) {
             fprintf(stderr,
                     "drawing_program: snapshot debug export failed code=%d message=%s json=%s\n",
                     (int)result.code,
                     result.message ? result.message : "(null)",
-                    ctx->export_json_path ? ctx->export_json_path : "(null)");
+                    ctx->session.export_json_path ? ctx->session.export_json_path : "(null)");
             drawing_program_layer_raster_store_dispose(&ctx->layer_rasters);
             return result;
         }
         printf("drawing_program snapshot debug export OK: preset=%s json=%s\n",
-               ctx->preset_path ? ctx->preset_path : "(null)",
-               ctx->export_json_path ? ctx->export_json_path : "(null)");
+               ctx->session.preset_path ? ctx->session.preset_path : "(null)",
+               ctx->session.export_json_path ? ctx->session.export_json_path : "(null)");
     }
     drawing_program_layer_raster_store_dispose(&ctx->layer_rasters);
     return core_result_ok();
@@ -959,25 +960,25 @@ int drawing_program_app_main(int argc, char **argv) {
         return 1;
     }
 
-    if (app.print_lifecycle) {
+    if (app.session.print_lifecycle) {
         printf("drawing_program lifecycle complete: frames=%llu headless=%u events=%llu actions=%llu "
                "route[g=%llu p=%llu f=%llu] invalidate[target=%llu full=%llu] viewport_probe_ok=%llu "
                "render[frames=%llu visible_layers=%llu full=%llu target=%llu module_calls=%llu]\n",
-               (unsigned long long)app.frame_counter,
-               (unsigned)app.headless,
-               (unsigned long long)app.input_events_processed,
-               (unsigned long long)app.input_actions_emitted,
-               (unsigned long long)app.routed_global_total,
-               (unsigned long long)app.routed_pane_total,
-               (unsigned long long)app.routed_fallback_total,
-               (unsigned long long)app.invalidation_target_total,
-               (unsigned long long)app.invalidation_full_total,
-               (unsigned long long)app.viewport_sample_probe_success_total,
-               (unsigned long long)app.render_frames_projected_total,
-               (unsigned long long)app.render_layers_visible_total,
-               (unsigned long long)app.render_full_redraw_total,
-               (unsigned long long)app.render_target_redraw_total,
-               (unsigned long long)app.render_module_calls_total);
+               (unsigned long long)app.runtime.frame_counter,
+               (unsigned)app.session.headless,
+               (unsigned long long)app.runtime.input_events_processed,
+               (unsigned long long)app.runtime.input_actions_emitted,
+               (unsigned long long)app.runtime.routed_global_total,
+               (unsigned long long)app.runtime.routed_pane_total,
+               (unsigned long long)app.runtime.routed_fallback_total,
+               (unsigned long long)app.runtime.invalidation_target_total,
+               (unsigned long long)app.runtime.invalidation_full_total,
+               (unsigned long long)app.runtime.viewport_sample_probe_success_total,
+               (unsigned long long)app.runtime.render_frames_projected_total,
+               (unsigned long long)app.runtime.render_layers_visible_total,
+               (unsigned long long)app.runtime.render_full_redraw_total,
+               (unsigned long long)app.runtime.render_target_redraw_total,
+               (unsigned long long)app.runtime.render_module_calls_total);
     }
 
     return 0;

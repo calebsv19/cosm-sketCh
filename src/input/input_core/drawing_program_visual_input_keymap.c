@@ -48,7 +48,7 @@ int drawing_program_visual_input_try_apply_palette_key(DrawingProgramAppContext 
         return 0;
     }
     if (key == SDLK_LEFTBRACKET || key == SDLK_RIGHTBRACKET) {
-        color = (int)drawing_program_color_index_clamp(ctx->ui_active_color_index);
+        color = (int)drawing_program_color_index_clamp(ctx->ui.active_color_index);
         if (key == SDLK_LEFTBRACKET) {
             color -= 1;
         } else {
@@ -60,13 +60,13 @@ int drawing_program_visual_input_try_apply_palette_key(DrawingProgramAppContext 
         if (color >= (int)DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT) {
             color = 0;
         }
-        ctx->ui_active_color_index = (uint8_t)color;
+        ctx->ui.active_color_index = (uint8_t)color;
         return 1;
     }
     if (key >= SDLK_1 && key <= SDLK_8) {
         selected = (uint8_t)(key - SDLK_1);
         if (selected < (uint8_t)DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT) {
-            ctx->ui_active_color_index = selected;
+            ctx->ui.active_color_index = selected;
             return 1;
         }
     }

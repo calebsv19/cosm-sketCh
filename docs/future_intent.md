@@ -1,6 +1,6 @@
 # Future Intent
 
-Last updated: 2026-04-14
+Last updated: 2026-04-15
 
 Near-term (active):
 - Phase 2 foundations are complete
@@ -108,8 +108,19 @@ Near-term (active):
         - source-file decomposition first
         - lifecycle test split second
         - app-state split third
-      - first active source target:
-        - `src/input/input_core/drawing_program_visual_input_handlers.c`
+      - source decomposition and lifecycle test split are now far enough along to start app-state grouping
+      - app-state grouping doc:
+        - `../../docs/private_program_docs/drawing_program/2026-04-15_drawing_program_app_state_grouping_plan.md`
+      - completed app-state clusters:
+        - `runtime`
+        - `ui`
+        - `session`
+      - app-state grouping lane is now complete:
+        - `interaction` did not need a new `DrawingProgramAppContext` cluster because transient interaction state was already externalized in `drawing_program_visual_state.h`
+        - `DrawingProgramAppContext` now groups its major app-owned lanes under `runtime`, `ui`, and `session`
+      - next structural boundary:
+        - optional final lifecycle runner reduction, or
+        - resume behavior/feature-depth work on top of the cleaned source/test/state scaffold
   - source split continuity is now baseline:
     - runtime helpers are explicitly split into `drawing_program_layer_raster.*` and `drawing_program_selection.*`
   - keep `WSPS` bridge compatibility and overlay/runtime contract invariants locked while deepening behavior

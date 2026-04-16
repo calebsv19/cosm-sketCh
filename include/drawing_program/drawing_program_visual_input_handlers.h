@@ -101,6 +101,13 @@ typedef struct DrawingProgramVisualInputHandlersHooks {
                                               int sx,
                                               int sy);
     void (*begin_canvas_history_group)(DrawingProgramAppContext *ctx);
+    int (*delete_active_selection_payload_or_objects)(DrawingProgramAppContext *ctx,
+                                                      DrawingProgramSelectionState *selection_state,
+                                                      const struct DrawingProgramVisualInputHandlersHooks *hooks);
+    CoreResult (*path_draft_commit_closed)(DrawingProgramAppContext *ctx,
+                                           VisualCanvasInteractionState *interaction);
+    void (*path_draft_reset)(VisualCanvasInteractionState *interaction);
+    int (*path_draft_pop_point)(VisualCanvasInteractionState *interaction);
     void (*cancel_selection_transient)(DrawingProgramSelectionState *selection);
     void (*cancel_canvas_draw_and_shape)(VisualCanvasInteractionState *interaction);
     int (*tool_uses_direct_sample_stroke)(DrawingProgramToolKind tool);

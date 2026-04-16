@@ -335,7 +335,7 @@ DrawingProgramOverlayAdapterResult drawing_program_adapter_persist_save_session(
                                     "session save requires runtime_active and unpaused state",
                                     state);
     }
-    result = drawing_program_snapshot_save(ctx, ctx->preset_path);
+    result = drawing_program_snapshot_save(ctx, ctx->session.preset_path);
     if (result.code != CORE_OK) {
         return adapter_result_error(DRAWING_PROGRAM_OVERLAY_ADAPTER_IO_FAILURE,
                                     result.message,
@@ -359,12 +359,12 @@ DrawingProgramOverlayAdapterResult drawing_program_adapter_persist_export_debug_
                                     "debug export requires runtime_active and unpaused state",
                                     state);
     }
-    if (!ctx->export_json_path) {
+    if (!ctx->session.export_json_path) {
         return adapter_result_error(DRAWING_PROGRAM_OVERLAY_ADAPTER_INVALID_ARGUMENT,
                                     "missing export json path",
                                     state);
     }
-    result = drawing_program_snapshot_export_debug_json(ctx, ctx->export_json_path);
+    result = drawing_program_snapshot_export_debug_json(ctx, ctx->session.export_json_path);
     if (result.code != CORE_OK) {
         return adapter_result_error(DRAWING_PROGRAM_OVERLAY_ADAPTER_IO_FAILURE,
                                     result.message,

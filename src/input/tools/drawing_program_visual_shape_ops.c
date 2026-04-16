@@ -30,7 +30,7 @@ static int active_layer_allows_edits_visual(const DrawingProgramAppContext *ctx)
 
 static uint8_t shape_target_mode(const DrawingProgramAppContext *ctx) {
     return drawing_program_visual_clamp_setting_u8(
-        ctx ? ctx->ui_tool_shape_target_mode : (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_PIXEL,
+        ctx ? ctx->ui.tool_shape_target_mode : (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_PIXEL,
         (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_PIXEL,
         (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_OBJECT);
 }
@@ -112,7 +112,7 @@ static CoreResult create_shape_object(DrawingProgramAppContext *ctx,
     if (!ctx || active_layer_id == 0u) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid object-shape commit request" };
     }
-    color_index = drawing_program_color_index_clamp(ctx->ui_active_color_index);
+    color_index = drawing_program_color_index_clamp(ctx->ui.active_color_index);
     seed.layer_id = active_layer_id;
     seed.visible = 1u;
     seed.locked = 0u;
@@ -158,7 +158,7 @@ uint8_t drawing_program_visual_clamp_setting_u8(uint8_t value, uint8_t min_v, ui
 uint8_t drawing_program_visual_sample_value_for_tool(const DrawingProgramAppContext *ctx, DrawingProgramToolKind tool) {
     uint8_t color_index = drawing_program_color_default_index();
     if (ctx) {
-        color_index = drawing_program_color_index_clamp(ctx->ui_active_color_index);
+        color_index = drawing_program_color_index_clamp(ctx->ui.active_color_index);
     }
     switch (tool) {
         case DRAWING_PROGRAM_TOOL_ERASER:
@@ -180,9 +180,9 @@ uint8_t drawing_program_visual_sample_value_for_tool(const DrawingProgramAppCont
 uint32_t drawing_program_visual_tool_brush_radius_samples(const DrawingProgramAppContext *ctx, DrawingProgramToolKind tool) {
     switch (tool) {
         case DRAWING_PROGRAM_TOOL_BRUSH:
-            return (uint32_t)drawing_program_visual_clamp_setting_u8(ctx ? ctx->ui_tool_brush_size : 2u, 1u, 16u);
+            return (uint32_t)drawing_program_visual_clamp_setting_u8(ctx ? ctx->ui.tool_brush_size : 2u, 1u, 16u);
         case DRAWING_PROGRAM_TOOL_ERASER:
-            return (uint32_t)drawing_program_visual_clamp_setting_u8(ctx ? ctx->ui_tool_eraser_size : 4u, 1u, 16u);
+            return (uint32_t)drawing_program_visual_clamp_setting_u8(ctx ? ctx->ui.tool_eraser_size : 4u, 1u, 16u);
         default:
             return 0u;
     }
@@ -193,7 +193,7 @@ uint32_t drawing_program_visual_tool_brush_spacing_samples(const DrawingProgramA
                                                            uint32_t radius) {
     uint32_t spacing = 1u;
     if (tool == DRAWING_PROGRAM_TOOL_BRUSH && ctx) {
-        spacing = (uint32_t)drawing_program_visual_clamp_setting_u8(ctx->ui_tool_brush_spacing, 1u, 16u);
+        spacing = (uint32_t)drawing_program_visual_clamp_setting_u8(ctx->ui.tool_brush_spacing, 1u, 16u);
     } else if (radius > 0u) {
         spacing = (radius / 2u) + 1u;
     }
@@ -206,7 +206,7 @@ uint32_t drawing_program_visual_tool_brush_spacing_samples(const DrawingProgramA
 uint8_t drawing_program_visual_tool_brush_hardness_percent(const DrawingProgramAppContext *ctx,
                                                            DrawingProgramToolKind tool) {
     if (tool == DRAWING_PROGRAM_TOOL_BRUSH && ctx) {
-        return drawing_program_visual_clamp_setting_u8(ctx->ui_tool_brush_hardness, 1u, 100u);
+        return drawing_program_visual_clamp_setting_u8(ctx->ui.tool_brush_hardness, 1u, 100u);
     }
     return 100u;
 }
@@ -230,15 +230,15 @@ int drawing_program_visual_tool_uses_shape_commit(DrawingProgramToolKind tool) {
 }
 
 uint8_t drawing_program_visual_tool_shape_mode(const DrawingProgramAppContext *ctx) {
-    return drawing_program_visual_clamp_setting_u8(ctx ? ctx->ui_tool_shape_mode : 0u, 0u, 2u);
+    return drawing_program_visual_clamp_setting_u8(ctx ? ctx->ui.tool_shape_mode : 0u, 0u, 2u);
 }
 
 uint32_t drawing_program_visual_tool_shape_stroke_width(const DrawingProgramAppContext *ctx) {
-    return (uint32_t)drawing_program_visual_clamp_setting_u8(ctx ? ctx->ui_tool_shape_stroke_width : 1u, 1u, 16u);
+    return (uint32_t)drawing_program_visual_clamp_setting_u8(ctx ? ctx->ui.tool_shape_stroke_width : 1u, 1u, 16u);
 }
 
 uint8_t drawing_program_visual_tool_fill_tolerance_setting(const DrawingProgramAppContext *ctx) {
-    return drawing_program_visual_clamp_setting_u8(ctx ? ctx->ui_tool_fill_tolerance : 0u,
+    return drawing_program_visual_clamp_setting_u8(ctx ? ctx->ui.tool_fill_tolerance : 0u,
                                                    0u,
                                                    (uint8_t)DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX);
 }

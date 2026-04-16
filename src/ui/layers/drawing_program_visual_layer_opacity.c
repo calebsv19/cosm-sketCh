@@ -13,8 +13,8 @@ static void visual_layer_opacity_compact(DrawingProgramAppContext *ctx) {
     if (!ctx) {
         return;
     }
-    for (i = 0u; i < ctx->ui_layer_opacity_entry_count; ++i) {
-        uint32_t layer_id = ctx->ui_layer_opacity_layer_ids[i];
+    for (i = 0u; i < ctx->ui.layer_opacity_entry_count; ++i) {
+        uint32_t layer_id = ctx->ui.layer_opacity_layer_ids[i];
         uint32_t j;
         int layer_exists = 0;
         for (j = 0u; j < ctx->document.layer_count; ++j) {
@@ -24,13 +24,13 @@ static void visual_layer_opacity_compact(DrawingProgramAppContext *ctx) {
             }
         }
         if (layer_exists) {
-            ctx->ui_layer_opacity_layer_ids[compact_count] = layer_id;
-            ctx->ui_layer_opacity_values[compact_count] =
-                clamp_percent_u8(ctx->ui_layer_opacity_values[i]);
+            ctx->ui.layer_opacity_layer_ids[compact_count] = layer_id;
+            ctx->ui.layer_opacity_values[compact_count] =
+                clamp_percent_u8(ctx->ui.layer_opacity_values[i]);
             compact_count += 1u;
         }
     }
-    ctx->ui_layer_opacity_entry_count = compact_count;
+    ctx->ui.layer_opacity_entry_count = compact_count;
 }
 
 uint8_t drawing_program_visual_layer_opacity_get(const DrawingProgramAppContext *ctx, uint32_t layer_id) {
@@ -38,9 +38,9 @@ uint8_t drawing_program_visual_layer_opacity_get(const DrawingProgramAppContext 
     if (!ctx) {
         return 100u;
     }
-    for (i = 0u; i < ctx->ui_layer_opacity_entry_count; ++i) {
-        if (ctx->ui_layer_opacity_layer_ids[i] == layer_id) {
-            return clamp_percent_u8(ctx->ui_layer_opacity_values[i]);
+    for (i = 0u; i < ctx->ui.layer_opacity_entry_count; ++i) {
+        if (ctx->ui.layer_opacity_layer_ids[i] == layer_id) {
+            return clamp_percent_u8(ctx->ui.layer_opacity_values[i]);
         }
     }
     return 100u;
@@ -54,18 +54,18 @@ void drawing_program_visual_layer_opacity_set(DrawingProgramAppContext *ctx,
     if (!ctx || layer_id == 0u) {
         return;
     }
-    for (i = 0u; i < ctx->ui_layer_opacity_entry_count; ++i) {
-        if (ctx->ui_layer_opacity_layer_ids[i] == layer_id) {
-            ctx->ui_layer_opacity_values[i] = opacity;
+    for (i = 0u; i < ctx->ui.layer_opacity_entry_count; ++i) {
+        if (ctx->ui.layer_opacity_layer_ids[i] == layer_id) {
+            ctx->ui.layer_opacity_values[i] = opacity;
             return;
         }
     }
-    if (ctx->ui_layer_opacity_entry_count >= DRAWING_PROGRAM_MAX_LAYERS) {
+    if (ctx->ui.layer_opacity_entry_count >= DRAWING_PROGRAM_MAX_LAYERS) {
         return;
     }
-    ctx->ui_layer_opacity_layer_ids[ctx->ui_layer_opacity_entry_count] = layer_id;
-    ctx->ui_layer_opacity_values[ctx->ui_layer_opacity_entry_count] = opacity;
-    ctx->ui_layer_opacity_entry_count += 1u;
+    ctx->ui.layer_opacity_layer_ids[ctx->ui.layer_opacity_entry_count] = layer_id;
+    ctx->ui.layer_opacity_values[ctx->ui.layer_opacity_entry_count] = opacity;
+    ctx->ui.layer_opacity_entry_count += 1u;
 }
 
 void drawing_program_visual_layer_opacity_sync_document(DrawingProgramAppContext *ctx) {

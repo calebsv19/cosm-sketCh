@@ -21,7 +21,7 @@ CoreResult drawing_program_visual_apply_canvas_picker_at_screen(DrawingProgramAp
     if (result.code != CORE_OK) {
         return result;
     }
-    ctx->ui_active_color_index = hooks->color_index_for_sample(sample);
+    ctx->ui.active_color_index = hooks->color_index_for_sample(sample);
     return core_result_ok();
 }
 

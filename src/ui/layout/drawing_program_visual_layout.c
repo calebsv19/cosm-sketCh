@@ -30,7 +30,7 @@ int ui_scale_for_text(const DrawingProgramAppContext *ctx, int base_scale) {
     int scale = base_scale;
     int step = 0;
     if (ctx) {
-        step = clamp_font_zoom_step((int)ctx->ui_font_zoom_step);
+        step = clamp_font_zoom_step((int)ctx->ui.font_zoom_step);
     }
     scale += step;
     if (scale < 1) {

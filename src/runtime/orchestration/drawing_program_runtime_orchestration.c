@@ -17,7 +17,7 @@ static CoreResult set_active_tool(DrawingProgramAppContext *ctx, DrawingProgramT
     }
     if (ctx->editor.active_tool != tool) {
         ctx->editor.active_tool = tool;
-        ctx->tool_switch_total += 1u;
+        ctx->runtime.tool_switch_total += 1u;
     }
     return core_result_ok();
 }
@@ -133,7 +133,7 @@ static CoreResult stamp_center_sample(DrawingProgramAppContext *ctx) {
     uint32_t sy;
     uint32_t active_index = 0u;
     uint8_t value = drawing_program_color_value_from_index(
-        ctx ? drawing_program_color_index_clamp(ctx->ui_active_color_index) : drawing_program_color_default_index());
+        ctx ? drawing_program_color_index_clamp(ctx->ui.active_color_index) : drawing_program_color_default_index());
     if (!ctx) {
         return orchestration_invalid("null app context for stamp center sample");
     }
@@ -157,7 +157,7 @@ static CoreResult stamp_center_sample(DrawingProgramAppContext *ctx) {
         case DRAWING_PROGRAM_TOOL_PICKER:
         case DRAWING_PROGRAM_TOOL_PATH:
         default:
-            value = drawing_program_color_value_from_index(drawing_program_color_index_clamp(ctx->ui_active_color_index));
+            value = drawing_program_color_value_from_index(drawing_program_color_index_clamp(ctx->ui.active_color_index));
             break;
     }
     return drawing_program_history_apply_set_sample_value(&ctx->history,

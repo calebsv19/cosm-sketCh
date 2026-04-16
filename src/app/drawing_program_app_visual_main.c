@@ -22,6 +22,8 @@
 #include "drawing_program/drawing_program_visual_transform_ops.h"
 #include "drawing_program/drawing_program_visual_input_handlers.h"
 #include "drawing_program/drawing_program_visual_input_keymap.h"
+#include "drawing_program/drawing_program_visual_input_selection_ops.h"
+#include "drawing_program/drawing_program_visual_input_support.h"
 #include "drawing_program/drawing_program_visual_layout.h"
 #include "drawing_program/drawing_program_visual_layer_opacity.h"
 #include "drawing_program/drawing_program_visual_layer_actions.h"
@@ -29,6 +31,7 @@
 #include "drawing_program/drawing_program_visual_pane_bindings.h"
 #include "drawing_program/drawing_program_visual_panel_render.h"
 #include "drawing_program/drawing_program_visual_resources.h"
+#include "drawing_program/drawing_program_visual_runtime_debug.h"
 #include "drawing_program/drawing_program_visual_shape_ops.h"
 #include "drawing_program/drawing_program_visual_state.h"
 #include "drawing_program/drawing_program_visual_text_render.h"
@@ -46,14 +49,6 @@ static int has_flag(int argc, char **argv, const char *flag) {
         }
     }
     return 0;
-}
-
-static int visual_trace_ui_state_enabled(void) {
-    const char *value = getenv("DRAWING_PROGRAM_TRACE_UI_STATE");
-    if (!value || value[0] == '\0' || value[0] == '0') {
-        return 0;
-    }
-    return 1;
 }
 
 static int active_layer_query(const DrawingProgramAppContext *ctx,
@@ -432,56 +427,6 @@ static void draw_canvas_viewport_chrome(SDL_Renderer *renderer,
     drawing_program_visual_draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
 }
 
-static void update_window_title(SDL_Window *window,
-                                const DrawingProgramAppContext *ctx,
-                                const VisualSelectionState *selection,
-                                uint64_t present_count) {
-    char title[256];
-    uint32_t center_module_type_id;
-    const char *font_name = "unknown";
-    const char *text_backend = "bitmap";
-    uint32_t selection_w = 0u;
-    uint32_t selection_h = 0u;
-    int32_t selection_dx = 0;
-    int32_t selection_dy = 0;
-    if (!window || !ctx) {
-        return;
-    }
-    if (selection && selection->has_payload) {
-        selection_w = selection->width;
-        selection_h = selection->height;
-        selection_dx = selection->offset_x;
-        selection_dy = selection->offset_y;
-    }
-    center_module_type_id = drawing_program_visual_module_type_for_pane(ctx, 6u);
-    if (ctx->ui_font_preset_id < (uint32_t)CORE_FONT_PRESET_COUNT) {
-        font_name = core_font_preset_name((CoreFontPresetId)ctx->ui_font_preset_id);
-    }
-    if (drawing_program_visual_font_backend_is_ready()) {
-        text_backend = "ttf";
-    }
-    (void)snprintf(title,
-                   sizeof(title),
-                   "sketCh | backend=sdl-debug text_backend=%s frame=%llu present=%llu panes=%u center_module=%u active_tool=%u color=%u visible_layers=%u active_layer=%u sel=%ux%u d=%d,%d theme=%u font=%s zoomstep=%d",
-                   text_backend,
-                   (unsigned long long)ctx->frame_counter,
-                   (unsigned long long)present_count,
-                   ctx->pane_host.leaf_count,
-                   center_module_type_id,
-                   (unsigned)ctx->editor.active_tool,
-                   (unsigned)drawing_program_color_index_clamp(ctx->ui_active_color_index),
-                   ctx->render_projection.visible_layer_count,
-                   ctx->render_projection.active_layer_id,
-                   selection_w,
-                   selection_h,
-                   (int)selection_dx,
-                   (int)selection_dy,
-                   ctx->ui_theme_preset_id,
-                   font_name ? font_name : "unknown",
-                   (int)ctx->ui_font_zoom_step);
-    SDL_SetWindowTitle(window, title);
-}
-
 static const DrawingProgramVisualCanvasWorldRenderHooks *visual_canvas_world_render_hooks(void) {
     static const DrawingProgramVisualCanvasWorldRenderHooks hooks = {
         .compute_canvas_sheet_metrics = drawing_program_visual_compute_canvas_sheet_metrics,
@@ -690,6 +635,10 @@ static const DrawingProgramVisualInputHandlersHooks *visual_input_handlers_hooks
         .apply_canvas_picker_at_screen = apply_canvas_picker_at_screen,
         .apply_canvas_fill_at_screen = apply_canvas_fill_at_screen,
         .begin_canvas_history_group = begin_canvas_history_group,
+        .delete_active_selection_payload_or_objects = delete_active_selection_payload_or_objects,
+        .path_draft_commit_closed = path_draft_commit_closed,
+        .path_draft_reset = path_draft_reset,
+        .path_draft_pop_point = path_draft_pop_point,
         .cancel_selection_transient = cancel_selection_transient,
         .cancel_canvas_draw_and_shape = cancel_canvas_draw_and_shape,
         .tool_uses_direct_sample_stroke = drawing_program_visual_tool_uses_direct_sample_stroke,
@@ -812,24 +761,15 @@ static int run_visual_mode(int argc, char **argv) {
         SDL_Quit();
         return 1;
     }
-    if (visual_trace_ui_state_enabled()) {
-        fprintf(stderr,
-                "drawing_program trace visual after_runtime_start tool=%u theme=%u font=%u zoom=%d slot_l=%u slot_r=%u\n",
-                (unsigned)app.editor.active_tool,
-                (unsigned)app.ui_theme_preset_id,
-                (unsigned)app.ui_font_preset_id,
-                (int)app.ui_font_zoom_step,
-                (unsigned)app.ui_left_panel_slot,
-                (unsigned)app.ui_right_panel_slot);
+    drawing_program_visual_trace_after_runtime_start(&app);
+    if (theme_env_result.code == CORE_OK && !app.runtime.snapshot_loaded_from_preset) {
+        app.ui.theme_preset_id = (uint32_t)selected_theme;
     }
-    if (theme_env_result.code == CORE_OK && !app.snapshot_loaded_from_preset) {
-        app.ui_theme_preset_id = (uint32_t)selected_theme;
-    }
-    selected_theme = clamp_theme_preset_id(app.ui_theme_preset_id);
-    app.ui_theme_preset_id = (uint32_t)selected_theme;
+    selected_theme = clamp_theme_preset_id(app.ui.theme_preset_id);
+    app.ui.theme_preset_id = (uint32_t)selected_theme;
     if (core_theme_get_preset(selected_theme, &theme_preset).code != CORE_OK) {
         selected_theme = CORE_THEME_PRESET_DARK_DEFAULT;
-        app.ui_theme_preset_id = (uint32_t)selected_theme;
+        app.ui.theme_preset_id = (uint32_t)selected_theme;
         if (core_theme_get_preset(selected_theme, &theme_preset).code != CORE_OK) {
             fprintf(stderr, "drawing_program: failed to resolve core theme preset\n");
             SDL_DestroyRenderer(renderer);
@@ -838,32 +778,22 @@ static int run_visual_mode(int argc, char **argv) {
             return 1;
         }
     }
-    if (app.ui_font_preset_id < (uint32_t)CORE_FONT_PRESET_COUNT) {
-        selected_font = (CoreFontPresetId)app.ui_font_preset_id;
+    if (app.ui.font_preset_id < (uint32_t)CORE_FONT_PRESET_COUNT) {
+        selected_font = (CoreFontPresetId)app.ui.font_preset_id;
     } else {
-        app.ui_font_preset_id = (uint32_t)selected_font;
+        app.ui.font_preset_id = (uint32_t)selected_font;
     }
     if (!core_font_preset_name(selected_font)) {
         selected_font = CORE_FONT_PRESET_IDE;
-        app.ui_font_preset_id = (uint32_t)selected_font;
+        app.ui.font_preset_id = (uint32_t)selected_font;
     }
-    app.ui_font_zoom_step = (int8_t)clamp_font_zoom_step((int)app.ui_font_zoom_step);
+    app.ui.font_zoom_step = (int8_t)clamp_font_zoom_step((int)app.ui.font_zoom_step);
     memset(&canvas_interaction, 0, sizeof(canvas_interaction));
     canvas_interaction.marquee_commit_mode = (uint8_t)VISUAL_MARQUEE_COMMIT_REPLACE;
     memset(&panel_ui, 0, sizeof(panel_ui));
     drawing_program_selection_cancel_transient(&selection_state);
     drawing_program_visual_sync_panel_ui_from_app(&app, &panel_ui);
-    if (visual_trace_ui_state_enabled()) {
-        fprintf(stderr,
-                "drawing_program trace visual after_ui_resolve tool=%u theme=%u font=%u zoom=%d slot_l=%u slot_r=%u env_override=%d\n",
-                (unsigned)app.editor.active_tool,
-                (unsigned)app.ui_theme_preset_id,
-                (unsigned)app.ui_font_preset_id,
-                (int)app.ui_font_zoom_step,
-                (unsigned)app.ui_left_panel_slot,
-                (unsigned)app.ui_right_panel_slot,
-                theme_env_result.code == CORE_OK ? 1 : 0);
-    }
+    drawing_program_visual_trace_after_ui_resolve(&app, theme_env_result.code == CORE_OK ? 1 : 0);
     {
         int initial_w = 0;
         int initial_h = 0;
@@ -1003,7 +933,7 @@ static int run_visual_mode(int argc, char **argv) {
             break;
         }
         drawing_program_visual_layer_opacity_sync_document(&app);
-        drawing_program_visual_text_set_font_preset_id(app.ui_font_preset_id);
+        drawing_program_visual_text_set_font_preset_id(app.ui.font_preset_id);
         if (!draw_visual_debug_frame(window,
                                      renderer,
                                      &app,
@@ -1017,7 +947,7 @@ static int run_visual_mode(int argc, char **argv) {
         }
         SDL_RenderPresent(renderer);
         present_count += 1u;
-        update_window_title(window, &app, &selection_state, present_count);
+        drawing_program_visual_update_window_title(window, &app, &selection_state, present_count);
         SDL_Delay(16);
     }
 

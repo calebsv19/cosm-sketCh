@@ -18,10 +18,10 @@ static void drawing_program_module_render_canvas(void *host_context,
     if (!ctx) {
         return;
     }
-    ctx->render_module_calls_total += 1u;
-    ctx->render_module_canvas_calls_total += 1u;
-    ctx->render_canvas_last_raster_hash = ctx->render_projection.raster_hash32;
-    ctx->render_canvas_last_nonzero_samples = ctx->render_projection.raster_nonzero_count;
+    ctx->runtime.render_module_calls_total += 1u;
+    ctx->runtime.render_module_canvas_calls_total += 1u;
+    ctx->runtime.render_canvas_last_raster_hash = ctx->runtime.render_projection.raster_hash32;
+    ctx->runtime.render_canvas_last_nonzero_samples = ctx->runtime.render_projection.raster_nonzero_count;
 }
 
 static void drawing_program_module_render_palette(void *host_context,
@@ -33,8 +33,8 @@ static void drawing_program_module_render_palette(void *host_context,
     if (!ctx) {
         return;
     }
-    ctx->render_module_calls_total += 1u;
-    ctx->render_module_palette_calls_total += 1u;
+    ctx->runtime.render_module_calls_total += 1u;
+    ctx->runtime.render_module_palette_calls_total += 1u;
 }
 
 static void drawing_program_module_render_stub(void *host_context,
@@ -46,7 +46,7 @@ static void drawing_program_module_render_stub(void *host_context,
     if (!ctx) {
         return;
     }
-    ctx->render_module_calls_total += 1u;
+    ctx->runtime.render_module_calls_total += 1u;
 }
 
 CoreResult drawing_program_pane_host_rebuild(struct DrawingProgramAppContext *ctx) {

@@ -171,13 +171,13 @@ static void visual_tool_option_value_text(const DrawingProgramAppContext *ctx,
             (void)snprintf(out_text,
                            out_cap,
                            "%u",
-                           (unsigned)drawing_program_visual_clamp_setting_u8(ctx ? ctx->ui_tool_brush_size : 2u, 1u, 16u));
+                           (unsigned)drawing_program_visual_clamp_setting_u8(ctx ? ctx->ui.tool_brush_size : 2u, 1u, 16u));
             break;
         case VISUAL_TOOL_OPTION_BRUSH_OPACITY:
             (void)snprintf(out_text,
                            out_cap,
                            "%u%%",
-                           (unsigned)drawing_program_visual_clamp_setting_u8(ctx ? ctx->ui_tool_brush_opacity : 100u,
+                           (unsigned)drawing_program_visual_clamp_setting_u8(ctx ? ctx->ui.tool_brush_opacity : 100u,
                                                                              1u,
                                                                              100u));
             break;
@@ -185,13 +185,13 @@ static void visual_tool_option_value_text(const DrawingProgramAppContext *ctx,
             (void)snprintf(out_text,
                            out_cap,
                            "%u",
-                           (unsigned)drawing_program_visual_clamp_setting_u8(ctx ? ctx->ui_tool_brush_spacing : 2u, 1u, 16u));
+                           (unsigned)drawing_program_visual_clamp_setting_u8(ctx ? ctx->ui.tool_brush_spacing : 2u, 1u, 16u));
             break;
         case VISUAL_TOOL_OPTION_BRUSH_HARDNESS:
             (void)snprintf(out_text,
                            out_cap,
                            "%u%%",
-                           (unsigned)drawing_program_visual_clamp_setting_u8(ctx ? ctx->ui_tool_brush_hardness : 100u,
+                           (unsigned)drawing_program_visual_clamp_setting_u8(ctx ? ctx->ui.tool_brush_hardness : 100u,
                                                                              1u,
                                                                              100u));
             break;
@@ -199,13 +199,13 @@ static void visual_tool_option_value_text(const DrawingProgramAppContext *ctx,
             (void)snprintf(out_text,
                            out_cap,
                            "%u",
-                           (unsigned)drawing_program_visual_clamp_setting_u8(ctx ? ctx->ui_tool_eraser_size : 4u, 1u, 16u));
+                           (unsigned)drawing_program_visual_clamp_setting_u8(ctx ? ctx->ui.tool_eraser_size : 4u, 1u, 16u));
             break;
         case VISUAL_TOOL_OPTION_SHAPE_STROKE_WIDTH:
             (void)snprintf(out_text,
                            out_cap,
                            "%u",
-                           (unsigned)drawing_program_visual_clamp_setting_u8(ctx ? ctx->ui_tool_shape_stroke_width : 1u,
+                           (unsigned)drawing_program_visual_clamp_setting_u8(ctx ? ctx->ui.tool_shape_stroke_width : 1u,
                                                                              1u,
                                                                              16u));
             break;
@@ -217,7 +217,7 @@ static void visual_tool_option_value_text(const DrawingProgramAppContext *ctx,
                            out_cap,
                            "%s",
                            visual_shape_target_mode_name(
-                               drawing_program_visual_clamp_setting_u8(ctx ? ctx->ui_tool_shape_target_mode : 0u, 0u, 1u)));
+                               drawing_program_visual_clamp_setting_u8(ctx ? ctx->ui.tool_shape_target_mode : 0u, 0u, 1u)));
             break;
         case VISUAL_TOOL_OPTION_FILL_TOLERANCE:
             (void)snprintf(out_text, out_cap, "%u", (unsigned)drawing_program_visual_tool_fill_tolerance_setting(ctx));
@@ -227,7 +227,7 @@ static void visual_tool_option_value_text(const DrawingProgramAppContext *ctx,
                            out_cap,
                            "%s",
                            visual_select_mode_name(
-                               drawing_program_visual_clamp_setting_u8(ctx ? ctx->ui_tool_select_mode : 0u, 0u, 2u)));
+                               drawing_program_visual_clamp_setting_u8(ctx ? ctx->ui.tool_select_mode : 0u, 0u, 2u)));
             break;
         case VISUAL_TOOL_OPTION_SELECT_DELETE:
             (void)snprintf(out_text, out_cap, "DELETE");
@@ -244,85 +244,85 @@ static void visual_tool_option_adjust(DrawingProgramAppContext *ctx, VisualToolO
     }
     switch (option) {
         case VISUAL_TOOL_OPTION_BRUSH_SIZE: {
-            int v = (int)ctx->ui_tool_brush_size + delta;
+            int v = (int)ctx->ui.tool_brush_size + delta;
             if (v < 1) v = 1;
             if (v > 16) v = 16;
-            ctx->ui_tool_brush_size = (uint8_t)v;
+            ctx->ui.tool_brush_size = (uint8_t)v;
             break;
         }
         case VISUAL_TOOL_OPTION_BRUSH_OPACITY: {
-            int v = (int)ctx->ui_tool_brush_opacity + (delta * 5);
+            int v = (int)ctx->ui.tool_brush_opacity + (delta * 5);
             if (v < 1) v = 1;
             if (v > 100) v = 100;
-            ctx->ui_tool_brush_opacity = (uint8_t)v;
+            ctx->ui.tool_brush_opacity = (uint8_t)v;
             break;
         }
         case VISUAL_TOOL_OPTION_BRUSH_SPACING: {
-            int v = (int)ctx->ui_tool_brush_spacing + delta;
+            int v = (int)ctx->ui.tool_brush_spacing + delta;
             if (v < 1) v = 1;
             if (v > 16) v = 16;
-            ctx->ui_tool_brush_spacing = (uint8_t)v;
+            ctx->ui.tool_brush_spacing = (uint8_t)v;
             break;
         }
         case VISUAL_TOOL_OPTION_BRUSH_HARDNESS: {
-            int v = (int)ctx->ui_tool_brush_hardness + (delta * 5);
+            int v = (int)ctx->ui.tool_brush_hardness + (delta * 5);
             if (v < 1) v = 1;
             if (v > 100) v = 100;
-            ctx->ui_tool_brush_hardness = (uint8_t)v;
+            ctx->ui.tool_brush_hardness = (uint8_t)v;
             break;
         }
         case VISUAL_TOOL_OPTION_ERASER_SIZE: {
-            int v = (int)ctx->ui_tool_eraser_size + delta;
+            int v = (int)ctx->ui.tool_eraser_size + delta;
             if (v < 1) v = 1;
             if (v > 16) v = 16;
-            ctx->ui_tool_eraser_size = (uint8_t)v;
+            ctx->ui.tool_eraser_size = (uint8_t)v;
             break;
         }
         case VISUAL_TOOL_OPTION_SHAPE_STROKE_WIDTH: {
-            int v = (int)ctx->ui_tool_shape_stroke_width + delta;
+            int v = (int)ctx->ui.tool_shape_stroke_width + delta;
             if (v < 1) v = 1;
             if (v > 16) v = 16;
-            ctx->ui_tool_shape_stroke_width = (uint8_t)v;
+            ctx->ui.tool_shape_stroke_width = (uint8_t)v;
             break;
         }
         case VISUAL_TOOL_OPTION_SHAPE_MODE: {
-            int v = (int)ctx->ui_tool_shape_mode + delta;
+            int v = (int)ctx->ui.tool_shape_mode + delta;
             while (v < 0) {
                 v += 3;
             }
             while (v > 2) {
                 v -= 3;
             }
-            ctx->ui_tool_shape_mode = (uint8_t)v;
+            ctx->ui.tool_shape_mode = (uint8_t)v;
             break;
         }
         case VISUAL_TOOL_OPTION_SHAPE_TARGET_MODE: {
-            int v = (int)ctx->ui_tool_shape_target_mode + delta;
+            int v = (int)ctx->ui.tool_shape_target_mode + delta;
             while (v < 0) {
                 v += 2;
             }
             while (v > 1) {
                 v -= 2;
             }
-            ctx->ui_tool_shape_target_mode = (uint8_t)v;
+            ctx->ui.tool_shape_target_mode = (uint8_t)v;
             break;
         }
         case VISUAL_TOOL_OPTION_FILL_TOLERANCE: {
-            int v = (int)ctx->ui_tool_fill_tolerance + delta;
+            int v = (int)ctx->ui.tool_fill_tolerance + delta;
             if (v < 0) v = 0;
             if (v > (int)DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX) v = (int)DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX;
-            ctx->ui_tool_fill_tolerance = (uint8_t)v;
+            ctx->ui.tool_fill_tolerance = (uint8_t)v;
             break;
         }
         case VISUAL_TOOL_OPTION_SELECT_MODE: {
-            int v = (int)ctx->ui_tool_select_mode + delta;
+            int v = (int)ctx->ui.tool_select_mode + delta;
             while (v < 0) {
                 v += 3;
             }
             while (v > 2) {
                 v -= 3;
             }
-            ctx->ui_tool_select_mode = (uint8_t)v;
+            ctx->ui.tool_select_mode = (uint8_t)v;
             break;
         }
         case VISUAL_TOOL_OPTION_SELECT_DELETE:
@@ -418,6 +418,6 @@ void drawing_program_visual_sync_panel_ui_from_app(const DrawingProgramAppContex
     if (!ctx || !ui) {
         return;
     }
-    ui->left_slot = drawing_program_visual_clamp_left_slot(ctx->ui_left_panel_slot);
-    ui->right_slot = drawing_program_visual_clamp_right_slot(ctx->ui_right_panel_slot);
+    ui->left_slot = drawing_program_visual_clamp_left_slot(ctx->ui.left_panel_slot);
+    ui->right_slot = drawing_program_visual_clamp_right_slot(ctx->ui.right_panel_slot);
 }
