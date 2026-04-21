@@ -411,7 +411,7 @@ uint8_t drawing_program_visual_clamp_left_slot(uint8_t slot) {
 }
 
 uint8_t drawing_program_visual_clamp_right_slot(uint8_t slot) {
-    return (slot <= 1u) ? slot : 0u;
+    return (slot <= 2u) ? slot : 0u;
 }
 
 void drawing_program_visual_sync_panel_ui_from_app(const DrawingProgramAppContext *ctx, VisualPanelUiState *ui) {

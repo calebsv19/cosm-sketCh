@@ -1,6 +1,6 @@
 # sketCh Keybind Reference
 
-Last updated: 2026-04-15
+Last updated: 2026-04-16
 Scope: current implemented runtime controls (`sdl-debug` lane)
 
 ## Tool Selection
@@ -14,6 +14,8 @@ Scope: current implemented runtime controls (`sdl-debug` lane)
 - `M`: move
 - `I`: picker
 - `P`: path (pen/polygon draft)
+- `B` (`SELECT`, with selected retained `PATH` point): toggle bezier state for that point
+- `Shift+L` (`SELECT`, with selected bezier `PATH` point): toggle linked/unlinked handle state for that point
 
 ## Color + Theme + Font
 - `1..8`: set active palette swatch
@@ -48,15 +50,16 @@ Scope: current implemented runtime controls (`sdl-debug` lane)
 - `Left drag` (`BRUSH` / `ERASER`): draw stroke
 - `Left click` (`FILL`): flood fill
 - `Left drag` (`LINE` / `RECT` / `CIRCLE`): preview then commit on release
-- `Left click` (`PATH`): add draft point
+- `Left click` (`PATH`): insert on selected retained-path edge, otherwise add draft point
 - `Enter` (`PATH`): commit closed path object (requires 3+ points)
+- `Shift+Enter` (`PATH`): commit open path object (requires 2+ points)
 - `Backspace/Delete` (`PATH`): remove last draft point
 - `Esc` (`PATH`): cancel draft path
 - `Left drag` (`SELECT`): marquee select
 - `Shift + Left drag` (`SELECT`): add marquee payload to current selection
 - `Alt/Option + Left drag` (`SELECT`): subtract marquee payload from current selection
 - `Left drag` (`MOVE`, with active selection): move selection
-- `Left drag` (`MOVE`, on selected PATH point handle): adjust selected path point
+- `Left drag` (`MOVE`, on selected bezier PATH handle): adjust the selected path point handle
 - `Alt/Option + Left drag` (`MOVE`, with object selection): point-only drag intent (no object-move fallback on miss)
 - `Arrow` (`MOVE`, with active selection): nudge by 1 sample
 - `Shift+Arrow` (`MOVE`, with active selection): nudge by 10 samples
@@ -79,3 +82,11 @@ Scope: current implemented runtime controls (`sdl-debug` lane)
 - `DELETE SELECTED` is available as a right-panel `LAYER` action button (no keybind assigned yet).
 - Selected `PATH` objects render point handles; dragging a selected handle in `MOVE` commits one history-backed point edit on release.
 - In `MOVE`, selected/hovered PATH point handles render with stronger high-contrast markers and zoom-adaptive hit pick radius.
+- In `SELECT`, clicking a point handle on an already-selected PATH object targets that specific point for follow-up edit/delete.
+- `Delete/Backspace` removes a selected PATH point before falling back to whole-object delete; if too few points remain, the PATH object is removed.
+- In `SELECT`, `B` on a selected retained `PATH` point toggles bezier state for that point; without a selected path point, `B` keeps its normal brush-tool behavior.
+- In `SELECT`, `Shift+L` on a selected retained bezier `PATH` point toggles `handle_linked`; without a selected bezier path point, `L`/`Shift+L` keep the normal line-tool route.
+- In `MOVE`, a selected bezier-active `PATH` point now renders direct handle nodes; dragging a handle commits one history-backed handle edit on release.
+- In the `OBJECTS` inspector, `SET STROKE COLOR` / `SET FILL COLOR` arm a retained-object color-target mode that uses the existing palette.
+- While object color-target mode is armed, the next palette click applies that color to the selected retained object.
+- `Enter` or `Esc` cancels active object color-target mode.

@@ -6,11 +6,13 @@
 #include "drawing_program/drawing_program_visual_layer_opacity.h"
 #include "drawing_program/drawing_program_visual_layout.h"
 #include "drawing_program/drawing_program_visual_panel_render_common.h"
+#include "drawing_program/drawing_program_visual_right_panel_color_render.h"
 #include "drawing_program/drawing_program_visual_theme.h"
 
 enum {
     VISUAL_RIGHT_PANEL_SLOT_CANVAS_VALUE = 0,
-    VISUAL_RIGHT_PANEL_SLOT_LAYER_VALUE = 1
+    VISUAL_RIGHT_PANEL_SLOT_LAYER_VALUE = 1,
+    VISUAL_RIGHT_PANEL_SLOT_COLOR_VALUE = 2
 };
 
 void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
@@ -27,6 +29,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
     VisualThemePalette p;
     SDL_Rect tab_canvas;
     SDL_Rect tab_layer;
+    SDL_Rect tab_color;
     SDL_Rect row;
     int y;
     uint8_t active_visible = 0u;
@@ -38,7 +41,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
         !hooks->tool_brush_spacing_samples || !hooks->tool_uses_shape_commit || !hooks->clamp_setting_u8 ||
         !hooks->shape_mode_name || !hooks->tool_shape_mode || !hooks->tool_fill_tolerance_setting ||
         !hooks->fill_tolerance_sample_delta || !hooks->selection_component_count || !hooks->pane_rect_for_module_type ||
-        !hooks->color_index_clamp || !hooks->color_value_from_index || !hooks->color_rgb_from_index) {
+        !hooks->color_index_clamp || !hooks->color_rgb_from_index) {
         return;
     }
     right_slot = hooks->clamp_right_slot(ctx->ui.right_panel_slot);
@@ -57,8 +60,9 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
     y = rect.y + m.pad_y;
     hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, "RIGHT PANEL", p.text_primary, m.title_scale);
     y += m.title_glyph_h + m.section_gap;
-    tab_canvas = (SDL_Rect){ rect.x + m.pad_x, y, (rect.w - (2 * m.pad_x) - m.tab_gap) / 2, m.tab_h };
-    tab_layer = (SDL_Rect){ tab_canvas.x + tab_canvas.w + m.tab_gap, y, (rect.w - (2 * m.pad_x) - m.tab_gap) / 2, m.tab_h };
+    tab_canvas = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_CANVAS_VALUE, 3u);
+    tab_layer = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_LAYER_VALUE, 3u);
+    tab_color = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_COLOR_VALUE, 3u);
     drawing_program_visual_panel_draw_tab_button(renderer,
                                                  rect,
                                                  tab_canvas,
@@ -85,6 +89,19 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                                                  right_slot == VISUAL_RIGHT_PANEL_SLOT_LAYER_VALUE,
                                                  drawing_program_visual_panel_ui_hovered(ui, tab_layer, hooks),
                                                  hooks);
+    drawing_program_visual_panel_draw_tab_button(renderer,
+                                                 rect,
+                                                 tab_color,
+                                                 "COLOR",
+                                                 p.button_fill,
+                                                 p.button_fill_hover,
+                                                 p.button_fill_active,
+                                                 p.button_border,
+                                                 (right_slot == VISUAL_RIGHT_PANEL_SLOT_COLOR_VALUE) ? p.text_primary : p.text_muted,
+                                                 m.body_scale,
+                                                 right_slot == VISUAL_RIGHT_PANEL_SLOT_COLOR_VALUE,
+                                                 drawing_program_visual_panel_ui_hovered(ui, tab_color, hooks),
+                                                 hooks);
     y += m.tab_h + m.section_gap;
 
     if (right_slot == VISUAL_RIGHT_PANEL_SLOT_CANVAS_VALUE) {
@@ -92,16 +109,10 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
         const char *interaction_hint = "LMB: DRAW  RMB: PAN VIEW  WHEEL: ZOOM";
         uint32_t history_cursor_units = 0u;
         uint32_t history_count_units = 0u;
-        uint8_t active_color_index = hooks->color_index_clamp(ctx->ui.active_color_index);
-        uint8_t active_color_value = hooks->color_value_from_index(active_color_index);
-        uint8_t swatch_r = 0u;
-        uint8_t swatch_g = 0u;
-        uint8_t swatch_b = 0u;
         SDL_Rect reset_view_button;
         SDL_Rect clear_canvas_button;
         SDL_Rect delete_selection_button;
         SDL_Rect clear_history_button;
-        uint8_t palette_i;
         uint32_t brush_radius = hooks->tool_brush_radius_samples(ctx, ctx->editor.active_tool);
         uint32_t brush_spacing = hooks->tool_brush_spacing_samples(ctx, ctx->editor.active_tool, brush_radius);
         uint32_t selection_w = (selection && selection->has_payload) ? selection->width : 0u;
@@ -149,7 +160,8 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
         } else if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_PICKER) {
             interaction_hint = "LMB: PICK COLOR";
         } else if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_PATH) {
-            interaction_hint = "LMB: ADD POINT  ENTER: COMMIT CLOSED PATH  ESC: CANCEL  BACKSPACE: UNDO POINT";
+            interaction_hint =
+                "LMB: ADD POINT  ENTER: CLOSED PATH  SHIFT+ENTER: OPEN PATH  ESC: CANCEL  BACKSPACE: UNDO POINT";
         } else if (ctx->object_selection.count > 0u) {
             interaction_hint = "OBJECTS SELECTED  USE SELECT/MOVE OR CMD+R RASTERIZE";
         }
@@ -167,24 +179,6 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
             }
         }
         drawing_program_history_query_units(&ctx->history, &history_cursor_units, &history_count_units);
-        (void)snprintf(line, sizeof(line), "ACTIVE COLOR %u (%u)", (unsigned)active_color_index + 1u, (unsigned)active_color_value);
-        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_primary, m.body_scale);
-        y = right_canvas_palette_header_y(rect, m);
-        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, "PALETTE", p.text_primary, m.body_scale);
-        for (palette_i = 0u; palette_i < (uint8_t)DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT; ++palette_i) {
-            SDL_Rect swatch = right_canvas_palette_swatch_rect(rect, m, palette_i);
-            int selected = (palette_i == active_color_index) ? 1 : 0;
-            hooks->color_rgb_from_index(palette_i, &swatch_r, &swatch_g, &swatch_b);
-            SDL_SetRenderDrawColor(renderer, swatch_r, swatch_g, swatch_b, 255u);
-            (void)SDL_RenderFillRect(renderer, &swatch);
-            if (selected) {
-                SDL_SetRenderDrawColor(renderer, p.accent_primary.r, p.accent_primary.g, p.accent_primary.b, 255u);
-            } else {
-                SDL_SetRenderDrawColor(renderer, p.button_border.r, p.button_border.g, p.button_border.b, p.button_border.a);
-            }
-            (void)SDL_RenderDrawRect(renderer, &swatch);
-        }
-
         y = right_canvas_metrics_start_y(rect, m);
         (void)snprintf(line, sizeof(line), "HISTORY %u/%u", history_cursor_units, history_count_units);
         hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
@@ -353,7 +347,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                                                      p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
                                                      p.text_primary, m.body_scale, 0,
                                                      drawing_program_visual_panel_ui_hovered(ui, clear_history_button, hooks), hooks);
-    } else {
+    } else if (right_slot == VISUAL_RIGHT_PANEL_SLOT_LAYER_VALUE) {
         uint32_t display_i;
         SDL_Rect button_rect;
         SDL_Rect opacity_row_rect;
@@ -499,5 +493,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                                                      0,
                                                      drawing_program_visual_panel_ui_hovered(ui, button_rect, hooks),
                                                      hooks);
+    } else {
+        drawing_program_visual_render_right_panel_color_tab(renderer, rect, y, ctx, m, p, hooks);
     }
 }

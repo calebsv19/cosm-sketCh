@@ -27,11 +27,25 @@ typedef struct DrawingProgramVisualInputHandlersHooks {
     int (*visual_transform_session_is_move_active)(const VisualCanvasInteractionState *interaction);
     int (*visual_transform_session_is_object_move_active)(const VisualCanvasInteractionState *interaction);
     int (*visual_transform_session_is_object_path_point_move_active)(const VisualCanvasInteractionState *interaction);
+    int (*visual_transform_session_is_object_path_handle_move_active)(const VisualCanvasInteractionState *interaction);
     int (*object_path_point_hit_test_selected)(const DrawingProgramAppContext *ctx,
                                                uint32_t sample_x,
                                                uint32_t sample_y,
                                                uint32_t *out_object_id,
                                                uint16_t *out_point_index);
+    int (*object_path_handle_hit_test_selected)(const DrawingProgramAppContext *ctx,
+                                                uint32_t sample_x,
+                                                uint32_t sample_y,
+                                                uint32_t *out_object_id,
+                                                uint16_t *out_point_index,
+                                                uint8_t *out_handle_kind);
+    int (*object_path_edge_hit_test_selected)(const DrawingProgramAppContext *ctx,
+                                              uint32_t sample_x,
+                                              uint32_t sample_y,
+                                              uint32_t *out_object_id,
+                                              uint16_t *out_insert_index,
+                                              int32_t *out_point_x,
+                                              int32_t *out_point_y);
     void (*visual_transform_session_update_move)(const DrawingProgramAppContext *ctx,
                                                  VisualCanvasInteractionState *interaction,
                                                  DrawingProgramSelectionState *selection,
@@ -48,6 +62,10 @@ typedef struct DrawingProgramVisualInputHandlersHooks {
                                                                    uint32_t sample_x,
                                                                    uint32_t sample_y,
                                                                    SDL_Keymod mods);
+    void (*visual_transform_session_update_object_path_handle_move)(const DrawingProgramAppContext *ctx,
+                                                                    VisualCanvasInteractionState *interaction,
+                                                                    uint32_t sample_x,
+                                                                    uint32_t sample_y);
     CoreResult (*visual_transform_session_commit_move)(DrawingProgramAppContext *ctx,
                                                        VisualCanvasInteractionState *interaction,
                                                        DrawingProgramSelectionState *selection);
@@ -55,6 +73,8 @@ typedef struct DrawingProgramVisualInputHandlersHooks {
                                                               VisualCanvasInteractionState *interaction);
     CoreResult (*visual_transform_session_commit_object_path_point_move)(DrawingProgramAppContext *ctx,
                                                                          VisualCanvasInteractionState *interaction);
+    CoreResult (*visual_transform_session_commit_object_path_handle_move)(DrawingProgramAppContext *ctx,
+                                                                          VisualCanvasInteractionState *interaction);
     VisualMarqueeCommitMode (*visual_marquee_commit_mode_clamp)(uint8_t raw);
     int (*visual_selection_capture_from_marquee)(DrawingProgramAppContext *ctx,
                                                  DrawingProgramSelectionState *selection,
@@ -92,6 +112,11 @@ typedef struct DrawingProgramVisualInputHandlersHooks {
                                                                   uint16_t point_index,
                                                                   uint32_t sample_x,
                                                                   uint32_t sample_y);
+    void (*visual_transform_session_begin_object_path_handle_move)(VisualCanvasInteractionState *interaction,
+                                                                   uint32_t object_id,
+                                                                   uint16_t point_index,
+                                                                   uint8_t handle_kind,
+                                                                   const DrawingProgramPathPoint *point);
     CoreResult (*apply_canvas_picker_at_screen)(DrawingProgramAppContext *ctx,
                                                 SDL_Rect pane_rect,
                                                 int sx,
@@ -104,8 +129,14 @@ typedef struct DrawingProgramVisualInputHandlersHooks {
     int (*delete_active_selection_payload_or_objects)(DrawingProgramAppContext *ctx,
                                                       DrawingProgramSelectionState *selection_state,
                                                       const struct DrawingProgramVisualInputHandlersHooks *hooks);
-    CoreResult (*path_draft_commit_closed)(DrawingProgramAppContext *ctx,
-                                           VisualCanvasInteractionState *interaction);
+    CoreResult (*path_draft_commit)(DrawingProgramAppContext *ctx,
+                                    VisualCanvasInteractionState *interaction,
+                                    uint8_t closed);
+    CoreResult (*apply_insert_object_path_point)(DrawingProgramAppContext *ctx,
+                                                 uint32_t object_id,
+                                                 uint16_t insert_index,
+                                                 int32_t point_x,
+                                                 int32_t point_y);
     void (*path_draft_reset)(VisualCanvasInteractionState *interaction);
     int (*path_draft_pop_point)(VisualCanvasInteractionState *interaction);
     void (*cancel_selection_transient)(DrawingProgramSelectionState *selection);

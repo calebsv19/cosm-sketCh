@@ -25,9 +25,88 @@ int drawing_program_lifecycle_run_snapshot_suite(DrawingProgramAppContext *ctx) 
         }
     }
     {
-        DrawingProgramAppContext layer_save_ctx;
-        DrawingProgramAppContext layer_load_ctx;
-        DrawingProgramAppContext legacy_load_ctx;
+        static DrawingProgramAppContext color_migration_save_ctx;
+        static DrawingProgramAppContext color_migration_load_ctx;
+        char color_arg0[] = "drawing_program_color_snapshot_migration";
+        char color_arg1[] = "--headless";
+        char color_arg2[] = "--smoke-frames";
+        char color_arg3[] = "1";
+        char color_arg4[] = "--preset";
+        char color_arg5[] = "/tmp/drawing_program_color_migration.pack";
+        char *color_argv[] = { color_arg0, color_arg1, color_arg2, color_arg3, color_arg4, color_arg5, 0 };
+        uint32_t sample_x = 21u;
+        uint32_t sample_y = 29u;
+        uint8_t migrated_sample = 0u;
+        (void)unlink(color_arg5);
+        if (!expect_ok(drawing_program_app_bootstrap(&color_migration_save_ctx, 6, color_argv),
+                       "color_snapshot_bootstrap_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_config_load(&color_migration_save_ctx), "color_snapshot_config_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_state_seed(&color_migration_save_ctx), "color_snapshot_state_seed_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_subsystems_init(&color_migration_save_ctx), "color_snapshot_subsystems_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_runtime_start(&color_migration_save_ctx), "color_snapshot_runtime_start_save")) {
+            return 1;
+        }
+        color_migration_save_ctx.document.schema_version = 2u;
+        if (!expect_ok(drawing_program_document_sample_write(&color_migration_save_ctx.document,
+                                                             sample_x,
+                                                             sample_y,
+                                                             168u,
+                                                             0),
+                       "color_snapshot_seed_legacy_grayscale")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_snapshot_save(&color_migration_save_ctx, color_arg5), "color_snapshot_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_bootstrap(&color_migration_load_ctx, 6, color_argv),
+                       "color_snapshot_bootstrap_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_config_load(&color_migration_load_ctx), "color_snapshot_config_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_state_seed(&color_migration_load_ctx), "color_snapshot_state_seed_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_snapshot_load(&color_migration_load_ctx, color_arg5), "color_snapshot_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&color_migration_load_ctx.document,
+                                                            sample_x,
+                                                            sample_y,
+                                                            &migrated_sample),
+                       "color_snapshot_migrated_sample_read")) {
+            return 1;
+        }
+        if (migrated_sample != 5u ||
+            color_migration_load_ctx.document.schema_version != DRAWING_PROGRAM_DOCUMENT_SCHEMA_VERSION_PALETTE_INDEX) {
+            fprintf(stderr,
+                    "lifecycle_test: expected legacy grayscale snapshot sample to migrate to palette index 5 schema=%u got sample=%u schema=%u\n",
+                    (unsigned)DRAWING_PROGRAM_DOCUMENT_SCHEMA_VERSION_PALETTE_INDEX,
+                    (unsigned)migrated_sample,
+                    (unsigned)color_migration_load_ctx.document.schema_version);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_shutdown(&color_migration_save_ctx), "color_snapshot_shutdown_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_shutdown(&color_migration_load_ctx), "color_snapshot_shutdown_load")) {
+            return 1;
+        }
+        (void)unlink(color_arg5);
+    }
+    {
+        static DrawingProgramAppContext layer_save_ctx;
+        static DrawingProgramAppContext layer_load_ctx;
+        static DrawingProgramAppContext legacy_load_ctx;
         char layer_arg0[] = "drawing_program_layer_snapshot_roundtrip";
         char layer_arg1[] = "--headless";
         char layer_arg2[] = "--smoke-frames";
@@ -156,10 +235,10 @@ int drawing_program_lifecycle_run_snapshot_suite(DrawingProgramAppContext *ctx) 
         (void)unlink(legacy_pack_path);
     }
     {
-        DrawingProgramAppContext object_save_ctx;
-        DrawingProgramAppContext object_load_ctx;
-        DrawingProgramAppContext legacy_object_ctx;
-        DrawingProgramAppContext legacy_v1_object_ctx;
+        static DrawingProgramAppContext object_save_ctx;
+        static DrawingProgramAppContext object_load_ctx;
+        static DrawingProgramAppContext legacy_object_ctx;
+        static DrawingProgramAppContext legacy_v1_object_ctx;
         DrawingProgramObjectRecord seed_object;
         const DrawingProgramObjectRecord *loaded_object = 0;
         char object_arg0[] = "drawing_program_object_snapshot_roundtrip";
@@ -309,15 +388,17 @@ int drawing_program_lifecycle_run_snapshot_suite(DrawingProgramAppContext *ctx) 
         (void)unlink(legacy_v1_pack_path);
     }
     {
-        DrawingProgramAppContext path_save_ctx;
-        DrawingProgramAppContext path_load_ctx;
-        DrawingProgramAppContext path_invalid_ctx;
+        static DrawingProgramAppContext path_save_ctx;
+        static DrawingProgramAppContext path_load_ctx;
+        static DrawingProgramAppContext path_invalid_ctx;
+        static DrawingProgramAppContext path_legacy_v2_ctx;
         DrawingProgramObjectRecord rect_seed;
         DrawingProgramObjectRecord path_style_seed;
         DrawingProgramPathPayload path_payload;
         DrawingProgramPathPayload loaded_path_payload;
         const DrawingProgramObjectRecord *loaded_path_object = 0;
         const DrawingProgramObjectRecord *loaded_rect_object = 0;
+        const DrawingProgramObjectRecord *legacy_v2_path_object = 0;
         char path_arg0[] = "drawing_program_path_snapshot_roundtrip";
         char path_arg1[] = "--headless";
         char path_arg2[] = "--smoke-frames";
@@ -326,11 +407,13 @@ int drawing_program_lifecycle_run_snapshot_suite(DrawingProgramAppContext *ctx) 
         char path_arg5[] = "/tmp/drawing_program_path_roundtrip.pack";
         char *path_argv[] = { path_arg0, path_arg1, path_arg2, path_arg3, path_arg4, path_arg5, 0 };
         const char *invalid_path_pack = "/tmp/drawing_program_path_roundtrip_invalid.pack";
+        const char *legacy_v2_pack = "/tmp/drawing_program_path_roundtrip_legacy_v2.pack";
         uint32_t rect_object_id = 0u;
         uint32_t path_object_id = 0u;
         uint32_t i;
         (void)unlink(path_arg5);
         (void)unlink(invalid_path_pack);
+        (void)unlink(legacy_v2_pack);
         if (!expect_ok(drawing_program_app_bootstrap(&path_save_ctx, 6, path_argv), "path_snapshot_bootstrap_save")) {
             return 1;
         }
@@ -379,6 +462,12 @@ int drawing_program_lifecycle_run_snapshot_suite(DrawingProgramAppContext *ctx) 
         path_payload.points[0].y = 100;
         path_payload.points[1].x = 110;
         path_payload.points[1].y = 100;
+        path_payload.points[1].handle_in_dx = -18;
+        path_payload.points[1].handle_in_dy = 4;
+        path_payload.points[1].handle_out_dx = 22;
+        path_payload.points[1].handle_out_dy = -6;
+        path_payload.points[1].bezier_enabled = 1u;
+        path_payload.points[1].handle_linked = 1u;
         path_payload.points[2].x = 110;
         path_payload.points[2].y = 130;
         path_payload.points[3].x = 80;
@@ -402,6 +491,9 @@ int drawing_program_lifecycle_run_snapshot_suite(DrawingProgramAppContext *ctx) 
             return 1;
         }
         if (!write_snapshot_with_invalid_path_payload(path_arg5, invalid_path_pack)) {
+            return 1;
+        }
+        if (!write_legacy_snapshot_with_v2_object_chunk(path_arg5, legacy_v2_pack)) {
             return 1;
         }
         if (!expect_ok(drawing_program_app_bootstrap(&path_load_ctx, 6, path_argv), "path_snapshot_bootstrap_load")) {
@@ -459,6 +551,53 @@ int drawing_program_lifecycle_run_snapshot_suite(DrawingProgramAppContext *ctx) 
                 return 1;
             }
         }
+        if (loaded_path_payload.points[1].bezier_enabled != 1u ||
+            loaded_path_payload.points[1].handle_linked != 1u ||
+            loaded_path_payload.points[1].handle_in_dx != path_payload.points[1].handle_in_dx ||
+            loaded_path_payload.points[1].handle_in_dy != path_payload.points[1].handle_in_dy ||
+            loaded_path_payload.points[1].handle_out_dx != path_payload.points[1].handle_out_dx ||
+            loaded_path_payload.points[1].handle_out_dy != path_payload.points[1].handle_out_dy) {
+            fprintf(stderr,
+                    "lifecycle_test: path payload bezier mismatch enabled=%u linked=%u in=%d,%d out=%d,%d\n",
+                    (unsigned)loaded_path_payload.points[1].bezier_enabled,
+                    (unsigned)loaded_path_payload.points[1].handle_linked,
+                    (int)loaded_path_payload.points[1].handle_in_dx,
+                    (int)loaded_path_payload.points[1].handle_in_dy,
+                    (int)loaded_path_payload.points[1].handle_out_dx,
+                    (int)loaded_path_payload.points[1].handle_out_dy);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_bootstrap(&path_legacy_v2_ctx, 6, path_argv), "path_legacy_v2_bootstrap_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_config_load(&path_legacy_v2_ctx), "path_legacy_v2_config_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_state_seed(&path_legacy_v2_ctx), "path_legacy_v2_state_seed_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_snapshot_load(&path_legacy_v2_ctx, legacy_v2_pack), "path_legacy_v2_snapshot_load")) {
+            return 1;
+        }
+        legacy_v2_path_object = drawing_program_object_store_get_by_id(&path_legacy_v2_ctx.object_store, path_object_id);
+        if (!legacy_v2_path_object ||
+            legacy_v2_path_object->path_points[1].bezier_enabled != 0u ||
+            legacy_v2_path_object->path_points[1].handle_linked != 0u ||
+            legacy_v2_path_object->path_points[1].handle_in_dx != 0 ||
+            legacy_v2_path_object->path_points[1].handle_in_dy != 0 ||
+            legacy_v2_path_object->path_points[1].handle_out_dx != 0 ||
+            legacy_v2_path_object->path_points[1].handle_out_dy != 0) {
+            fprintf(stderr,
+                    "lifecycle_test: expected legacy-v2 path load to zero bezier data loaded=%p enabled=%u linked=%u in=%d,%d out=%d,%d\n",
+                    (void *)legacy_v2_path_object,
+                    legacy_v2_path_object ? (unsigned)legacy_v2_path_object->path_points[1].bezier_enabled : 99u,
+                    legacy_v2_path_object ? (unsigned)legacy_v2_path_object->path_points[1].handle_linked : 99u,
+                    legacy_v2_path_object ? legacy_v2_path_object->path_points[1].handle_in_dx : 999,
+                    legacy_v2_path_object ? legacy_v2_path_object->path_points[1].handle_in_dy : 999,
+                    legacy_v2_path_object ? legacy_v2_path_object->path_points[1].handle_out_dx : 999,
+                    legacy_v2_path_object ? legacy_v2_path_object->path_points[1].handle_out_dy : 999);
+            return 1;
+        }
         if (!expect_ok(drawing_program_app_bootstrap(&path_invalid_ctx, 6, path_argv), "path_invalid_bootstrap_load")) {
             return 1;
         }
@@ -487,11 +626,15 @@ int drawing_program_lifecycle_run_snapshot_suite(DrawingProgramAppContext *ctx) 
         if (!expect_ok(drawing_program_app_shutdown(&path_load_ctx), "path_snapshot_shutdown_load")) {
             return 1;
         }
+        if (!expect_ok(drawing_program_app_shutdown(&path_legacy_v2_ctx), "path_legacy_v2_shutdown_load")) {
+            return 1;
+        }
         if (!expect_ok(drawing_program_app_shutdown(&path_invalid_ctx), "path_invalid_shutdown_load")) {
             return 1;
         }
         (void)unlink(path_arg5);
         (void)unlink(invalid_path_pack);
+        (void)unlink(legacy_v2_pack);
     }
 
     return 0;

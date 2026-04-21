@@ -393,7 +393,7 @@ int drawing_program_lifecycle_run_selection_payload_suite(DrawingProgramAppConte
         return 1;
     }
     {
-        DrawingProgramAppContext selection_load_ctx;
+        static DrawingProgramAppContext selection_load_ctx;
         if (!expect_ok(drawing_program_app_bootstrap(&selection_load_ctx, 5, argv), "selection_load_bootstrap")) {
             return 1;
         }

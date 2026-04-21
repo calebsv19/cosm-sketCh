@@ -3,6 +3,7 @@
 #include <math.h>
 
 #include "drawing_program/drawing_program_color_model.h"
+#include "drawing_program/drawing_program_object_geometry.h"
 #include "drawing_program/drawing_program_visual_layer_opacity.h"
 #include "drawing_program/drawing_program_visual_overlay_shared.h"
 #include "drawing_program/drawing_program_visual_theme.h"
@@ -207,67 +208,23 @@ static void draw_object_ellipse(SDL_Renderer *renderer,
     }
 }
 
-static double path_segment_distance_sq(double px,
-                                       double py,
-                                       double x0,
-                                       double y0,
-                                       double x1,
-                                       double y1) {
-    double dx = x1 - x0;
-    double dy = y1 - y0;
-    double len_sq = (dx * dx) + (dy * dy);
-    double t;
-    double rx;
-    double ry;
-    if (len_sq <= 0.0) {
-        rx = px - x0;
-        ry = py - y0;
-        return (rx * rx) + (ry * ry);
-    }
-    t = (((px - x0) * dx) + ((py - y0) * dy)) / len_sq;
-    if (t < 0.0) {
-        t = 0.0;
-    } else if (t > 1.0) {
-        t = 1.0;
-    }
-    rx = px - (x0 + (t * dx));
-    ry = py - (y0 + (t * dy));
-    return (rx * rx) + (ry * ry);
-}
-
 static int draw_object_path_contains_fill(const DrawingProgramObjectRecord *object,
                                           int32_t delta_x,
                                           int32_t delta_y,
                                           double px,
                                           double py) {
-    uint32_t i;
-    uint32_t j;
-    int inside = 0;
-    uint32_t point_count;
+    double flat_xy[DRAWING_PROGRAM_OBJECT_PATH_MAX_POINTS * 24u * 2u];
+    uint32_t flat_count = 0u;
+    CoreResult result;
     if (!object || !object->path_closed) {
         return 0;
     }
-    point_count = (uint32_t)object->path_point_count;
-    if (point_count < 3u || point_count > DRAWING_PROGRAM_OBJECT_PATH_MAX_POINTS) {
+    result = drawing_program_object_path_flatten_points(
+        object, delta_x, delta_y, flat_xy, DRAWING_PROGRAM_OBJECT_PATH_MAX_POINTS * 24u, &flat_count);
+    if (result.code != CORE_OK) {
         return 0;
     }
-    for (i = 0u, j = point_count - 1u; i < point_count; j = i++) {
-        const double xi = (double)(object->path_points[i].x + delta_x) + 0.5;
-        const double yi = (double)(object->path_points[i].y + delta_y) + 0.5;
-        const double xj = (double)(object->path_points[j].x + delta_x) + 0.5;
-        const double yj = (double)(object->path_points[j].y + delta_y) + 0.5;
-        const int y_cross = ((yi > py) != (yj > py));
-        if (!y_cross) {
-            continue;
-        }
-        if (fabs(yj - yi) < 1e-6) {
-            continue;
-        }
-        if (px < (((xj - xi) * (py - yi)) / (yj - yi)) + xi) {
-            inside = !inside;
-        }
-    }
-    return inside;
+    return drawing_program_object_path_flattened_contains_fill(flat_xy, flat_count, px, py);
 }
 
 static int draw_object_path_contains_outline(const DrawingProgramObjectRecord *object,
@@ -275,23 +232,17 @@ static int draw_object_path_contains_outline(const DrawingProgramObjectRecord *o
                                              int32_t delta_y,
                                              double px,
                                              double py) {
-    uint32_t point_count;
-    uint32_t segment_count;
-    uint32_t i;
+    double flat_xy[DRAWING_PROGRAM_OBJECT_PATH_MAX_POINTS * 24u * 2u];
+    uint32_t flat_count = 0u;
     double half_width;
     double threshold_sq;
+    CoreResult result;
     if (!object) {
         return 0;
     }
-    point_count = (uint32_t)object->path_point_count;
-    if (point_count < 2u || point_count > DRAWING_PROGRAM_OBJECT_PATH_MAX_POINTS) {
-        return 0;
-    }
-    segment_count = point_count - 1u;
-    if (object->path_closed) {
-        segment_count += 1u;
-    }
-    if (segment_count == 0u) {
+    result = drawing_program_object_path_flatten_points(
+        object, delta_x, delta_y, flat_xy, DRAWING_PROGRAM_OBJECT_PATH_MAX_POINTS * 24u, &flat_count);
+    if (result.code != CORE_OK) {
         return 0;
     }
     half_width = ((double)(object->stroke_width == 0u ? 1u : object->stroke_width)) * 0.5;
@@ -299,26 +250,15 @@ static int draw_object_path_contains_outline(const DrawingProgramObjectRecord *o
         half_width = 0.6;
     }
     threshold_sq = half_width * half_width;
-    for (i = 0u; i < segment_count; ++i) {
-        uint32_t a = i;
-        uint32_t b = (i + 1u < point_count) ? (i + 1u) : 0u;
-        double d_sq = path_segment_distance_sq(px,
-                                               py,
-                                               (double)(object->path_points[a].x + delta_x) + 0.5,
-                                               (double)(object->path_points[a].y + delta_y) + 0.5,
-                                               (double)(object->path_points[b].x + delta_x) + 0.5,
-                                               (double)(object->path_points[b].y + delta_y) + 0.5);
-        if (d_sq <= threshold_sq) {
-            return 1;
-        }
-    }
-    return 0;
+    return drawing_program_object_path_flattened_contains_outline(
+        flat_xy, flat_count, object->path_closed, px, py, threshold_sq);
 }
 
 static void draw_object_path(SDL_Renderer *renderer,
                              const DrawingProgramAppContext *ctx,
                              const VisualCanvasSheetMetrics *metrics,
                              const DrawingProgramObjectRecord *object,
+                             const VisualCanvasInteractionState *interaction,
                              int32_t origin_x,
                              int32_t origin_y,
                              uint8_t alpha) {
@@ -328,28 +268,78 @@ static void draw_object_path(SDL_Renderer *renderer,
     int32_t max_y;
     int32_t x;
     int32_t y;
-    int32_t delta_x;
-    int32_t delta_y;
+    int32_t move_delta_x;
+    int32_t move_delta_y;
     int has_fill;
     int has_outline;
+    DrawingProgramObjectRecord preview_object;
     SDL_Color stroke_color = { 0u, 0u, 0u, 255u };
     SDL_Color fill_color = { 0u, 0u, 0u, 255u };
     if (!renderer || !ctx || !metrics || !object || object->path_point_count < 2u) {
         return;
     }
+    preview_object = *object;
+    if (interaction &&
+        interaction->object_path_point_move_active &&
+        interaction->object_path_point_object_id == object->object_id &&
+        interaction->object_path_point_index < preview_object.path_point_count) {
+        preview_object.path_points[interaction->object_path_point_index].x += interaction->object_path_point_offset_x;
+        preview_object.path_points[interaction->object_path_point_index].y += interaction->object_path_point_offset_y;
+    }
+    if (interaction &&
+        interaction->object_path_handle_move_active &&
+        interaction->object_path_handle_object_id == object->object_id &&
+        interaction->object_path_handle_point_index < preview_object.path_point_count) {
+        DrawingProgramPathPoint *point = &preview_object.path_points[interaction->object_path_handle_point_index];
+        if (interaction->object_path_handle_kind == (uint8_t)DRAWING_PROGRAM_PATH_HANDLE_IN) {
+            point->handle_in_dx = interaction->object_path_handle_dx;
+            point->handle_in_dy = interaction->object_path_handle_dy;
+            if (point->handle_linked) {
+                point->handle_out_dx = -interaction->object_path_handle_dx;
+                point->handle_out_dy = -interaction->object_path_handle_dy;
+            }
+        } else if (interaction->object_path_handle_kind == (uint8_t)DRAWING_PROGRAM_PATH_HANDLE_OUT) {
+            point->handle_out_dx = interaction->object_path_handle_dx;
+            point->handle_out_dy = interaction->object_path_handle_dy;
+            if (point->handle_linked) {
+                point->handle_in_dx = -interaction->object_path_handle_dx;
+                point->handle_in_dy = -interaction->object_path_handle_dy;
+            }
+        }
+    }
+    {
+        DrawingProgramPathPayload payload;
+        int32_t bounds_origin_x = 0;
+        int32_t bounds_origin_y = 0;
+        uint32_t bounds_width = 0u;
+        uint32_t bounds_height = 0u;
+        memset(&payload, 0, sizeof(payload));
+        payload.point_count = preview_object.path_point_count;
+        payload.closed = preview_object.path_closed;
+        memcpy(payload.points,
+               preview_object.path_points,
+               (size_t)payload.point_count * sizeof(payload.points[0]));
+        if (drawing_program_object_path_payload_bounds(
+                &payload, &bounds_origin_x, &bounds_origin_y, &bounds_width, &bounds_height).code == CORE_OK) {
+            preview_object.origin_x = bounds_origin_x;
+            preview_object.origin_y = bounds_origin_y;
+            preview_object.width = bounds_width;
+            preview_object.height = bounds_height;
+        }
+    }
     has_fill = object_style_includes_fill(object->style_mode) ? 1 : 0;
     has_outline = object_style_includes_outline(object->style_mode) ? 1 : 0;
-    delta_x = origin_x - object->origin_x;
-    delta_y = origin_y - object->origin_y;
-    min_x = origin_x;
-    min_y = origin_y;
-    max_x = origin_x + (int32_t)object->width - 1;
-    max_y = origin_y + (int32_t)object->height - 1;
-    (void)drawing_program_color_rgb_from_index(drawing_program_color_index_clamp(object->stroke_color_index),
+    move_delta_x = origin_x - object->origin_x;
+    move_delta_y = origin_y - object->origin_y;
+    min_x = preview_object.origin_x + move_delta_x;
+    min_y = preview_object.origin_y + move_delta_y;
+    max_x = min_x + (int32_t)preview_object.width - 1;
+    max_y = min_y + (int32_t)preview_object.height - 1;
+    (void)drawing_program_color_rgb_from_index(drawing_program_color_index_clamp(preview_object.stroke_color_index),
                                                &stroke_color.r,
                                                &stroke_color.g,
                                                &stroke_color.b);
-    (void)drawing_program_color_rgb_from_index(drawing_program_color_index_clamp(object->fill_color_index),
+    (void)drawing_program_color_rgb_from_index(drawing_program_color_index_clamp(preview_object.fill_color_index),
                                                &fill_color.r,
                                                &fill_color.g,
                                                &fill_color.b);
@@ -365,10 +355,10 @@ static void draw_object_path(SDL_Renderer *renderer,
             px = (double)x + 0.5;
             py = (double)y + 0.5;
             if (has_outline) {
-                on_outline = draw_object_path_contains_outline(object, delta_x, delta_y, px, py);
+                on_outline = draw_object_path_contains_outline(&preview_object, move_delta_x, move_delta_y, px, py);
             }
             if (has_fill) {
-                inside_fill = draw_object_path_contains_fill(object, delta_x, delta_y, px, py);
+                inside_fill = draw_object_path_contains_fill(&preview_object, move_delta_x, move_delta_y, px, py);
             }
             if (on_outline) {
                 (void)draw_object_sample_cell(renderer, metrics, x, y, stroke_color, alpha);
@@ -394,6 +384,7 @@ static void draw_selected_path_point_handles(SDL_Renderer *renderer,
     for (i = 0u; i < (uint32_t)object->path_point_count; ++i) {
         int32_t sample_x = object->path_points[i].x;
         int32_t sample_y = object->path_points[i].y;
+        const DrawingProgramPathPoint *point = &object->path_points[i];
         SDL_Rect point_rect;
         SDL_Rect point_inner;
         SDL_Color border_color = { 40u, 112u, 255u, 255u };
@@ -402,11 +393,34 @@ static void draw_selected_path_point_handles(SDL_Renderer *renderer,
         SDL_Rect cross_h;
         SDL_Rect cross_v;
         int min_handle_size = 10;
+        int is_selected_point = (ctx->object_selection.selected_path_point_active &&
+                                 ctx->object_selection.selected_path_point_object_id == object->object_id &&
+                                 ctx->object_selection.selected_path_point_index == i)
+                                    ? 1
+                                    : 0;
         if (interaction &&
             interaction->object_move_active &&
             !interaction->object_path_point_move_active) {
             sample_x += interaction->object_move_offset_x;
             sample_y += interaction->object_move_offset_y;
+        }
+        if (is_selected_point) {
+            border_color = (SDL_Color){ 0u, 148u, 255u, 255u };
+            fill_color = (SDL_Color){ 222u, 241u, 255u, 255u };
+            cross_color = (SDL_Color){ 0u, 110u, 214u, 255u };
+            min_handle_size = 12;
+            if (point->bezier_enabled) {
+                if (point->handle_linked) {
+                    border_color = (SDL_Color){ 0u, 166u, 255u, 255u };
+                    fill_color = (SDL_Color){ 214u, 244u, 255u, 255u };
+                    cross_color = (SDL_Color){ 0u, 114u, 226u, 255u };
+                } else {
+                    border_color = (SDL_Color){ 168u, 76u, 224u, 255u };
+                    fill_color = (SDL_Color){ 248u, 226u, 255u, 255u };
+                    cross_color = (SDL_Color){ 116u, 40u, 176u, 255u };
+                }
+                min_handle_size = 14;
+            }
         }
         if (interaction &&
             interaction->object_path_point_move_active &&
@@ -445,6 +459,11 @@ static void draw_selected_path_point_handles(SDL_Renderer *renderer,
             SDL_Rect outer = { point_rect.x - 1, point_rect.y - 1, point_rect.w + 2, point_rect.h + 2 };
             SDL_SetRenderDrawColor(renderer, 16u, 26u, 52u, 220u);
             (void)SDL_RenderDrawRect(renderer, &outer);
+            if (is_selected_point) {
+                SDL_Rect outer2 = { point_rect.x - 3, point_rect.y - 3, point_rect.w + 6, point_rect.h + 6 };
+                SDL_SetRenderDrawColor(renderer, border_color.r, border_color.g, border_color.b, 210u);
+                (void)SDL_RenderDrawRect(renderer, &outer2);
+            }
         }
         SDL_SetRenderDrawColor(renderer, fill_color.r, fill_color.g, fill_color.b, 230u);
         (void)SDL_RenderFillRect(renderer, &point_inner);
@@ -478,6 +497,185 @@ static int path_point_screen_center(const VisualCanvasSheetMetrics *metrics,
     *out_x = sample_rect.x + (sample_rect.w / 2);
     *out_y = sample_rect.y + (sample_rect.h / 2);
     return 1;
+}
+
+static int draw_bezier_handle_node(SDL_Renderer *renderer,
+                                   const VisualCanvasSheetMetrics *metrics,
+                                   int32_t anchor_sample_x,
+                                   int32_t anchor_sample_y,
+                                   int32_t handle_dx,
+                                   int32_t handle_dy,
+                                   const SDL_Color *line_color,
+                                   const SDL_Color *line_shadow,
+                                   const SDL_Color *fill_color,
+                                   const SDL_Color *border_color) {
+    const int min_handle_size = 10;
+    int anchor_sx = 0;
+    int anchor_sy = 0;
+    int handle_sx = 0;
+    int handle_sy = 0;
+    SDL_Rect rect;
+    SDL_Rect inner;
+    SDL_Rect outer;
+    if (!renderer || !metrics || !line_color || !line_shadow || !fill_color || !border_color) {
+        return 0;
+    }
+    if (handle_dx == 0 && handle_dy == 0) {
+        return 0;
+    }
+    if (!path_point_screen_center(metrics, anchor_sample_x, anchor_sample_y, &anchor_sx, &anchor_sy) ||
+        !path_point_screen_center(metrics,
+                                  anchor_sample_x + handle_dx,
+                                  anchor_sample_y + handle_dy,
+                                  &handle_sx,
+                                  &handle_sy)) {
+        return 0;
+    }
+    SDL_SetRenderDrawColor(renderer, line_shadow->r, line_shadow->g, line_shadow->b, line_shadow->a);
+    (void)SDL_RenderDrawLine(renderer, anchor_sx + 1, anchor_sy + 1, handle_sx + 1, handle_sy + 1);
+    SDL_SetRenderDrawColor(renderer, line_color->r, line_color->g, line_color->b, line_color->a);
+    (void)SDL_RenderDrawLine(renderer, anchor_sx, anchor_sy, handle_sx, handle_sy);
+    rect.x = handle_sx - (min_handle_size / 2);
+    rect.y = handle_sy - (min_handle_size / 2);
+    rect.w = min_handle_size;
+    rect.h = min_handle_size;
+    inner = rect;
+    outer = rect;
+    if (inner.w > 2) {
+        inner.x += 1;
+        inner.w -= 2;
+    }
+    if (inner.h > 2) {
+        inner.y += 1;
+        inner.h -= 2;
+    }
+    outer.x -= 1;
+    outer.y -= 1;
+    outer.w += 2;
+    outer.h += 2;
+    SDL_SetRenderDrawColor(renderer, 16u, 26u, 52u, 220u);
+    (void)SDL_RenderDrawRect(renderer, &outer);
+    SDL_SetRenderDrawColor(renderer, fill_color->r, fill_color->g, fill_color->b, fill_color->a);
+    (void)SDL_RenderFillRect(renderer, &inner);
+    SDL_SetRenderDrawColor(renderer, border_color->r, border_color->g, border_color->b, border_color->a);
+    (void)SDL_RenderDrawRect(renderer, &rect);
+    return 1;
+}
+
+static void draw_selected_bezier_point_handles(SDL_Renderer *renderer,
+                                               const DrawingProgramAppContext *ctx,
+                                               const VisualCanvasSheetMetrics *metrics,
+                                               const DrawingProgramObjectRecord *object,
+                                               const VisualCanvasInteractionState *interaction,
+                                               int32_t draw_origin_x,
+                                               int32_t draw_origin_y) {
+    const DrawingProgramPathPoint *source_point = 0;
+    DrawingProgramPathPoint point;
+    int32_t delta_x = 0;
+    int32_t delta_y = 0;
+    int32_t anchor_x = 0;
+    int32_t anchor_y = 0;
+    uint16_t point_index = 0u;
+    if (!renderer || !ctx || !metrics || !object ||
+        object->type != (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_PATH ||
+        !ctx->object_selection.selected_path_point_active ||
+        ctx->object_selection.selected_path_point_object_id != object->object_id ||
+        ctx->object_selection.selected_path_point_index >= object->path_point_count) {
+        return;
+    }
+    point_index = ctx->object_selection.selected_path_point_index;
+    source_point = &object->path_points[point_index];
+    if (!source_point->bezier_enabled) {
+        return;
+    }
+    point = *source_point;
+    if (interaction &&
+        interaction->object_path_handle_move_active &&
+        interaction->object_path_handle_object_id == object->object_id &&
+        interaction->object_path_handle_point_index == point_index) {
+        if (interaction->object_path_handle_kind == (uint8_t)DRAWING_PROGRAM_PATH_HANDLE_IN) {
+            point.handle_in_dx = interaction->object_path_handle_dx;
+            point.handle_in_dy = interaction->object_path_handle_dy;
+            if (point.handle_linked) {
+                point.handle_out_dx = -interaction->object_path_handle_dx;
+                point.handle_out_dy = -interaction->object_path_handle_dy;
+            }
+        } else if (interaction->object_path_handle_kind == (uint8_t)DRAWING_PROGRAM_PATH_HANDLE_OUT) {
+            point.handle_out_dx = interaction->object_path_handle_dx;
+            point.handle_out_dy = interaction->object_path_handle_dy;
+            if (point.handle_linked) {
+                point.handle_in_dx = -interaction->object_path_handle_dx;
+                point.handle_in_dy = -interaction->object_path_handle_dy;
+            }
+        }
+    }
+    delta_x = draw_origin_x - object->origin_x;
+    delta_y = draw_origin_y - object->origin_y;
+    anchor_x = point.x + delta_x;
+    anchor_y = point.y + delta_y;
+    if (interaction &&
+        interaction->object_path_point_move_active &&
+        interaction->object_path_point_object_id == object->object_id &&
+        interaction->object_path_point_index == point_index) {
+        anchor_x += interaction->object_path_point_offset_x;
+        anchor_y += interaction->object_path_point_offset_y;
+    }
+    {
+        const SDL_Color linked_line_color = { 86u, 162u, 255u, 245u };
+        const SDL_Color linked_line_shadow = { 10u, 20u, 46u, 220u };
+        const SDL_Color linked_handle_fill = { 236u, 246u, 255u, 240u };
+        const SDL_Color linked_handle_border = { 40u, 112u, 255u, 255u };
+        const SDL_Color unlinked_in_line_color = { 218u, 116u, 255u, 245u };
+        const SDL_Color unlinked_in_line_shadow = { 44u, 18u, 62u, 220u };
+        const SDL_Color unlinked_in_fill = { 252u, 232u, 255u, 240u };
+        const SDL_Color unlinked_in_border = { 168u, 76u, 224u, 255u };
+        const SDL_Color unlinked_out_line_color = { 96u, 214u, 168u, 245u };
+        const SDL_Color unlinked_out_line_shadow = { 14u, 42u, 34u, 220u };
+        const SDL_Color unlinked_out_fill = { 226u, 255u, 244u, 240u };
+        const SDL_Color unlinked_out_border = { 44u, 156u, 118u, 255u };
+        const SDL_Color active_fill = { 255u, 228u, 166u, 245u };
+        const SDL_Color active_border = { 212u, 128u, 28u, 255u };
+        const SDL_Color *in_line = point.handle_linked ? &linked_line_color : &unlinked_in_line_color;
+        const SDL_Color *in_shadow = point.handle_linked ? &linked_line_shadow : &unlinked_in_line_shadow;
+        const SDL_Color *in_fill = point.handle_linked ? &linked_handle_fill : &unlinked_in_fill;
+        const SDL_Color *in_border = point.handle_linked ? &linked_handle_border : &unlinked_in_border;
+        const SDL_Color *out_line = point.handle_linked ? &linked_line_color : &unlinked_out_line_color;
+        const SDL_Color *out_shadow = point.handle_linked ? &linked_line_shadow : &unlinked_out_line_shadow;
+        const SDL_Color *out_fill = point.handle_linked ? &linked_handle_fill : &unlinked_out_fill;
+        const SDL_Color *out_border = point.handle_linked ? &linked_handle_border : &unlinked_out_border;
+        if (interaction &&
+            interaction->object_path_handle_move_active &&
+            interaction->object_path_handle_object_id == object->object_id &&
+            interaction->object_path_handle_point_index == point_index) {
+            if (interaction->object_path_handle_kind == (uint8_t)DRAWING_PROGRAM_PATH_HANDLE_IN) {
+                in_fill = &active_fill;
+                in_border = &active_border;
+            } else if (interaction->object_path_handle_kind == (uint8_t)DRAWING_PROGRAM_PATH_HANDLE_OUT) {
+                out_fill = &active_fill;
+                out_border = &active_border;
+            }
+        }
+        (void)draw_bezier_handle_node(renderer,
+                                      metrics,
+                                      anchor_x,
+                                      anchor_y,
+                                      point.handle_in_dx,
+                                      point.handle_in_dy,
+                                      in_line,
+                                      in_shadow,
+                                      in_fill,
+                                      in_border);
+        (void)draw_bezier_handle_node(renderer,
+                                      metrics,
+                                      anchor_x,
+                                      anchor_y,
+                                      point.handle_out_dx,
+                                      point.handle_out_dy,
+                                      out_line,
+                                      out_shadow,
+                                      out_fill,
+                                      out_border);
+    }
 }
 
 static void draw_active_path_point_edge_preview(SDL_Renderer *renderer,
@@ -620,9 +818,11 @@ void drawing_program_visual_draw_object_overlay(SDL_Renderer *renderer,
         if (object->type == (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_ELLIPSE) {
             draw_object_ellipse(renderer, ctx, metrics, object, draw_origin_x, draw_origin_y, alpha);
         } else if (object->type == (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_PATH) {
-            draw_object_path(renderer, ctx, metrics, object, draw_origin_x, draw_origin_y, alpha);
+            draw_object_path(renderer, ctx, metrics, object, interaction, draw_origin_x, draw_origin_y, alpha);
             draw_active_path_point_edge_preview(
                 renderer, metrics, object, interaction, draw_origin_x, draw_origin_y);
+            draw_selected_bezier_point_handles(
+                renderer, ctx, metrics, object, interaction, draw_origin_x, draw_origin_y);
         } else {
             draw_object_rect(renderer, ctx, metrics, object, draw_origin_x, draw_origin_y, alpha);
         }

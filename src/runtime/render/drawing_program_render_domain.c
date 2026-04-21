@@ -97,10 +97,7 @@ static uint8_t render_compose_sample_for_index(const DrawingProgramDocument *doc
             if (opacity >= 100u) {
                 composed = sample;
             } else {
-                uint32_t src = (uint32_t)sample;
-                uint32_t dst = (uint32_t)composed;
-                uint32_t alpha = (uint32_t)opacity;
-                composed = (uint8_t)((src * alpha + dst * (100u - alpha) + 50u) / 100u);
+                composed = drawing_program_color_blend_samples(composed, sample, opacity);
             }
         }
     }

@@ -113,6 +113,7 @@ APP_LOCAL_SRCS := \
 	src/input/canvas/drawing_program_visual_canvas_action_ops.c \
 	src/input/canvas/drawing_program_visual_canvas_coords.c \
 	src/input/canvas/drawing_program_visual_canvas_draw_action_ops.c \
+	src/input/panel/drawing_program_visual_input_panel_color.c \
 	src/input/panel/drawing_program_visual_input_panel_clicks.c \
 	src/input/input_core/drawing_program_visual_input_selection_ops.c \
 	src/input/tools/drawing_program_visual_shape_ops.c \
@@ -123,16 +124,19 @@ APP_LOCAL_SRCS := \
 	src/input/input_core/drawing_program_visual_input_keymap.c \
 	src/input/input_core/drawing_program_visual_input_handlers.c \
 	src/ui/layout/drawing_program_visual_layout.c \
+	src/ui/layout/drawing_program_visual_layout_color.c \
 	src/ui/layers/drawing_program_visual_layer_opacity.c \
 	src/ui/pane/drawing_program_visual_pane_bindings.c \
 	src/ui/panel/drawing_program_visual_panel_render_common.c \
 	src/ui/panel/drawing_program_visual_panel_render.c \
+	src/ui/panel/drawing_program_visual_right_panel_color_render.c \
 	src/ui/panel/drawing_program_visual_right_panel_render.c \
 	src/ui/theme/drawing_program_visual_theme.c \
 	src/ui/resources/drawing_program_visual_resources.c \
 	src/app/drawing_program_visual_runtime_debug.c \
 	src/ui/tools/drawing_program_visual_tool_options.c \
 	src/ui/text/drawing_program_visual_text_render.c \
+	src/app/drawing_program_ui_color_state.c \
 	src/app/drawing_program_app_main.c \
 	src/app/main.c \
 	src/app/drawing_program_app_visual_main.c
@@ -159,6 +163,7 @@ HEADLESS_LOCAL_SRCS := \
 	src/runtime/canvas/drawing_program_visual_canvas_stroke_ops.c \
 	src/runtime/adapters/drawing_program_pane_host.c \
 	src/runtime/adapters/drawing_program_overlay_adapter.c \
+	src/app/drawing_program_ui_color_state.c \
 	src/app/drawing_program_app_main.c \
 	src/app/drawing_program_app_headless_main.c
 
@@ -193,6 +198,7 @@ TEST_LOCAL_SRCS := \
 	src/input/canvas/drawing_program_visual_canvas_action_ops.c \
 	src/input/canvas/drawing_program_visual_canvas_coords.c \
 	src/input/canvas/drawing_program_visual_canvas_draw_action_ops.c \
+	src/input/panel/drawing_program_visual_input_panel_color.c \
 	src/input/panel/drawing_program_visual_input_panel_clicks.c \
 	src/input/input_core/drawing_program_visual_input_selection_ops.c \
 	src/input/tools/drawing_program_visual_shape_ops.c \
@@ -203,25 +209,34 @@ TEST_LOCAL_SRCS := \
 	src/input/input_core/drawing_program_visual_input_keymap.c \
 	src/input/input_core/drawing_program_visual_input_handlers.c \
 	src/ui/layout/drawing_program_visual_layout.c \
+	src/ui/layout/drawing_program_visual_layout_color.c \
 	src/ui/layers/drawing_program_visual_layer_opacity.c \
 	src/ui/pane/drawing_program_visual_pane_bindings.c \
 	src/ui/panel/drawing_program_visual_panel_render_common.c \
 	src/ui/panel/drawing_program_visual_panel_render.c \
+	src/ui/panel/drawing_program_visual_right_panel_color_render.c \
 	src/ui/panel/drawing_program_visual_right_panel_render.c \
 	src/ui/theme/drawing_program_visual_theme.c \
 	src/ui/resources/drawing_program_visual_resources.c \
 	src/app/drawing_program_visual_runtime_debug.c \
 	src/ui/tools/drawing_program_visual_tool_options.c \
 	src/ui/text/drawing_program_visual_text_render.c \
+	src/app/drawing_program_ui_color_state.c \
 	src/app/drawing_program_app_main.c \
 	src/app/drawing_program_app_visual_main.c \
 	tests/drawing_program_lifecycle_snapshot_suite.c \
 	tests/drawing_program_lifecycle_snapshot_helpers.c \
+	tests/drawing_program_lifecycle_snapshot_object_helpers.c \
 	tests/drawing_program_lifecycle_selection_layer_suite.c \
 	tests/drawing_program_lifecycle_selection_payload_suite.c \
 	tests/drawing_program_lifecycle_baseline_history_suite.c \
 	tests/drawing_program_lifecycle_object_path_suite.c \
+	tests/drawing_program_lifecycle_object_path_history_suite.c \
 	tests/drawing_program_lifecycle_runtime_render_suite.c \
+	tests/drawing_program_lifecycle_runtime_path_suite.c \
+	tests/drawing_program_lifecycle_runtime_path_pointer_suite.c \
+	tests/drawing_program_lifecycle_runtime_ui_suite.c \
+	tests/drawing_program_lifecycle_color_panel_suite.c \
 	tests/drawing_program_lifecycle_test_support.c \
 	tests/drawing_program_lifecycle_test.c
 

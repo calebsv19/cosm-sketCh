@@ -47,7 +47,6 @@ typedef struct DrawingProgramVisualPanelRenderHooks {
                                      uint32_t module_type_id,
                                      SDL_Rect *out_rect);
     uint8_t (*color_index_clamp)(uint8_t index);
-    uint8_t (*color_value_from_index)(uint8_t index);
     void (*color_rgb_from_index)(uint8_t index, uint8_t *out_r, uint8_t *out_g, uint8_t *out_b);
     int (*point_in_rect)(SDL_Rect rect, int x, int y);
 } DrawingProgramVisualPanelRenderHooks;

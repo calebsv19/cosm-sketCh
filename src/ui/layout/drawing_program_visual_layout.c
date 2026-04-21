@@ -82,27 +82,21 @@ int right_canvas_content_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m) {
     return y;
 }
 
-int right_canvas_palette_header_y(SDL_Rect rect, VisualPaneLayoutMetrics m) {
-    int y = right_canvas_content_start_y(rect, m);
-    y += m.line_h + m.section_gap;
-    return y;
-}
-
-SDL_Rect right_canvas_palette_swatch_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, uint8_t color_index) {
-    const int cols = 4;
-    int swatch_w = (rect.w - (2 * m.pad_x) - ((cols - 1) * m.tab_gap)) / cols;
-    int row = (int)(color_index / (uint8_t)cols);
-    int col = (int)(color_index % (uint8_t)cols);
-    int swatch_y = right_canvas_palette_header_y(rect, m) + m.line_h;
-    if (swatch_w < 24) {
-        swatch_w = 24;
+SDL_Rect right_panel_slot_tab_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, uint8_t slot_index, uint8_t slot_count) {
+    int total_gap = 0;
+    int tab_w = 0;
+    int x = 0;
+    int y = rect.y + m.pad_y + m.title_glyph_h + m.section_gap;
+    if (slot_count == 0u) {
+        slot_count = 1u;
     }
-    return (SDL_Rect){
-        rect.x + m.pad_x + col * (swatch_w + m.tab_gap),
-        swatch_y + row * (m.row_h + m.section_gap),
-        swatch_w,
-        m.row_h
-    };
+    total_gap = (int)(slot_count - 1u) * m.tab_gap;
+    tab_w = (rect.w - (2 * m.pad_x) - total_gap) / (int)slot_count;
+    if (tab_w < 36) {
+        tab_w = 36;
+    }
+    x = rect.x + m.pad_x + (int)slot_index * (tab_w + m.tab_gap);
+    return (SDL_Rect){ x, y, tab_w, m.tab_h };
 }
 
 SDL_Rect right_canvas_reset_view_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
@@ -126,14 +120,7 @@ SDL_Rect right_canvas_clear_history_button_rect(SDL_Rect rect, VisualPaneLayoutM
 }
 
 int right_canvas_metrics_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m) {
-    int palette_rows = ((int)DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT + 3) / 4;
-    int y = right_canvas_palette_header_y(rect, m) + m.line_h;
-    y += palette_rows * m.row_h;
-    if (palette_rows > 1) {
-        y += (palette_rows - 1) * m.section_gap;
-    }
-    y += m.section_gap;
-    return y;
+    return right_canvas_content_start_y(rect, m);
 }
 
 int right_layer_content_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m) {
@@ -206,7 +193,25 @@ SDL_Rect right_layer_action_button_rect(SDL_Rect rect,
 
 int left_panel_content_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m) {
     int y = rect.y + m.pad_y + m.title_glyph_h + m.section_gap;
+    y += m.tab_h + m.section_gap;
     return y;
+}
+
+SDL_Rect left_panel_slot_tab_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, uint8_t slot_index, uint8_t slot_count) {
+    int total_gap = 0;
+    int tab_w = 0;
+    int x = 0;
+    int y = rect.y + m.pad_y + m.title_glyph_h + m.section_gap;
+    if (slot_count == 0u) {
+        slot_count = 1u;
+    }
+    total_gap = (int)(slot_count - 1u) * m.tab_gap;
+    tab_w = (rect.w - (2 * m.pad_x) - total_gap) / (int)slot_count;
+    if (tab_w < 36) {
+        tab_w = 36;
+    }
+    x = rect.x + m.pad_x + (int)slot_index * (tab_w + m.tab_gap);
+    return (SDL_Rect){ x, y, tab_w, m.tab_h };
 }
 
 SDL_Rect left_panel_tool_list_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, uint32_t tool_count) {
@@ -238,6 +243,61 @@ SDL_Rect left_panel_tool_detail_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, u
         h = m.line_h + m.section_gap + m.row_h;
     }
     return (SDL_Rect){ rect.x + m.pad_x, y, rect.w - (2 * m.pad_x), h };
+}
+
+SDL_Rect left_panel_objects_list_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
+    int y = left_panel_content_start_y(rect, m);
+    int content_bottom = rect.y + rect.h - m.pad_y;
+    int content_h = content_bottom - y;
+    int list_h = (content_h * 2) / 5;
+    int min_h = m.line_h + m.section_gap + (4 * m.row_h) + (3 * m.section_gap);
+    if (list_h < min_h) {
+        list_h = min_h;
+    }
+    if (list_h > content_h - (m.line_h + m.section_gap + m.row_h)) {
+        list_h = content_h - (m.line_h + m.section_gap + m.row_h);
+    }
+    if (list_h < m.row_h) {
+        list_h = m.row_h;
+    }
+    return (SDL_Rect){ rect.x + m.pad_x, y, rect.w - (2 * m.pad_x), list_h };
+}
+
+SDL_Rect left_panel_objects_inspector_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
+    SDL_Rect list = left_panel_objects_list_rect(rect, m);
+    int y = list.y + list.h + m.section_gap;
+    int h = (rect.y + rect.h - m.pad_y) - y;
+    if (h < (m.line_h + m.section_gap + m.row_h)) {
+        h = m.line_h + m.section_gap + m.row_h;
+    }
+    return (SDL_Rect){ rect.x + m.pad_x, y, rect.w - (2 * m.pad_x), h };
+}
+
+int left_panel_objects_rows_start_y(SDL_Rect list_rect, VisualPaneLayoutMetrics m) {
+    return list_rect.y + m.line_h + m.section_gap;
+}
+
+SDL_Rect left_panel_objects_row_rect(SDL_Rect list_rect, VisualPaneLayoutMetrics m, uint32_t row_index) {
+    int y = left_panel_objects_rows_start_y(list_rect, m) + (int)row_index * (m.row_h + m.section_gap);
+    return (SDL_Rect){ list_rect.x + m.tab_gap, y, list_rect.w - m.tab_gap, m.row_h };
+}
+
+SDL_Rect left_panel_objects_inspector_action_row_rect(SDL_Rect inspector_rect,
+                                                      VisualPaneLayoutMetrics m,
+                                                      uint32_t action_index,
+                                                      uint32_t action_count) {
+    int total_h = 0;
+    int y = 0;
+    if (action_count == 0u) {
+        action_count = 1u;
+    }
+    total_h = (int)action_count * m.row_h;
+    if (action_count > 1u) {
+        total_h += (int)(action_count - 1u) * m.section_gap;
+    }
+    y = inspector_rect.y + inspector_rect.h - m.tab_gap - total_h;
+    y += (int)action_index * (m.row_h + m.section_gap);
+    return (SDL_Rect){ inspector_rect.x + m.tab_gap, y, inspector_rect.w - m.tab_gap, m.row_h };
 }
 
 int left_panel_tool_detail_rows_start_y(SDL_Rect detail_rect, VisualPaneLayoutMetrics m) {

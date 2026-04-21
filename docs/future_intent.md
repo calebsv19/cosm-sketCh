@@ -1,6 +1,6 @@
 # Future Intent
 
-Last updated: 2026-04-15
+Last updated: 2026-04-16
 
 Near-term (active):
 - Phase 2 foundations are complete
@@ -101,7 +101,161 @@ Near-term (active):
       - `S2` complete: pen/polygon input authoring baseline (`PATH` tool routing, bounded draft-point authoring, Enter/Esc/Backspace draft control, lifecycle coverage)
       - `S3` complete: path overlay render + hit-test baseline (path geometry overlay + style-aware fill/stroke hit checks + lifecycle regression coverage)
       - `S4` complete: path edit baseline (selected-path-point hit, bounded point-drag commit via history/undo/redo, selected handle overlay)
-      - `S5` next: closeout + boundary lock
+      - pre-`S5` refinement complete:
+        - `Enter` now commits closed paths while `Shift+Enter` commits open paths
+        - selected PATH points persist as a targeted edit/delete lane in `SELECT`
+        - delete now removes the selected PATH point before whole-object fallback
+      - `S5` complete: closeout + boundary lock
+        - selected PATH point pick radius is enlarged so near-handle clicks resolve to point drag more reliably
+  - Phase 15 retained-object inspector v1 is now closed:
+      - `S1` complete: left-panel `TOOLS | OBJECTS` scaffold + slot persistence
+      - `S2` complete: retained-object list baseline with row-click selection sync
+      - `S3` complete: read-only selected-object inspector
+      - `S4` complete: history-safe retained-object property edits (`stroke width`, `fill`, `PATH closed/open`)
+      - `S5` complete: palette-driven retained-object color mode
+        - `SET STROKE COLOR` / `SET FILL COLOR` arm explicit object-color target mode
+        - next palette click applies retained-object color through history-safe helpers
+        - `Enter` / `Esc` cancel object-color target mode cleanly
+      - next retained-object boundary:
+        - deeper path/object edit parity
+        - point insertion/removal depth
+        - rect/circle retained-object edit parity
+        - retained-object history quality polish before bezier/advanced vector work
+  - Phase 16 retained-object edit parity is now planned:
+      - kickoff doc: `../../docs/private_program_docs/drawing_program/2026-04-16_drawing_program_phase_16_retained_object_edit_parity_plan.md`
+      - direction lock:
+        - in `PATH` mode, clicking a hit path edge inserts a new point between that segment's vertices
+        - if no edge is hit on a selected open path, append to the selected open endpoint or the nearer endpoint
+        - deleting a selected path point removes that point first and reconnects neighbors when needed
+        - retained `RECT` / `ELLIPSE` edit parity follows after the path topology lane
+      - `S1` complete:
+        - selected retained-path edge hit detection is live
+        - `PATH` click now inserts a projected point into a hit selected segment when no draft is active
+        - inserted point becomes the active selected path point immediately
+      - `S2` complete:
+        - selected retained-path point delete now routes through a history-backed remove-point mutation helper
+        - endpoint delete preserves the remaining open chain
+        - middle-point delete reconnects neighboring vertices directly
+        - if too few points remain, delete falls back to whole-object removal
+      - `S3` complete:
+        - non-edge clicks on a selected retained open path now append to the selected endpoint or nearer endpoint
+        - appended points reuse the history-backed insert lane and become the active selected path point immediately
+        - closed-path non-edge misses do not append stray points
+        - the `PATH` draft lane now consumes clicks when it starts or extends a draft
+      - `S4` complete:
+        - retained `RECT` / `ELLIPSE` size edits now route through a history-backed size mutation helper
+        - the `OBJECTS` inspector exposes `WIDTH` and `HEIGHT` rows for retained shapes
+        - retained shapes now have a bounded edit lane beyond move/select without widening into handle-based editing yet
+      - `S5` complete:
+        - Phase 16 is closed with retained-object edit parity materially deeper than Phase 15
+        - next vector-edit boundary is now locked to richer path/object authoring rather than more parity rework
+      - next post-Phase-16 priority:
+        - bezier / curved path authoring
+        - richer path segment operations
+        - retained-object history polish beyond the basic mutation units now in place
+  - Phase 17 bezier path authoring v1 is now closed:
+      - kickoff doc: `../../docs/private_program_docs/drawing_program/2026-04-16_drawing_program_phase_17_bezier_path_authoring_v1_plan.md`
+      - direction lock:
+        - retained `PATH` stays the canonical editable vector object for v1 bezier work
+        - bezier authoring is layered onto the existing retained-path point system instead of replacing it
+        - selected path point + `B` toggles bezier-active state for that point
+        - non-bezier points keep zero handles and behave linearly
+      - shared-first decision:
+        - `ray_tracing` bezier code is reference-only for now
+        - `shared/shape` is not adopted in Phase 17 because current need is app-local authoring/history/overlay policy
+        - later shared extraction is deferred until a real cross-app curve contract emerges
+      - `S1` complete:
+        - retained `PATH` point storage now carries bezier handle vectors plus `bezier_enabled` / `handle_linked` flags
+        - snapshot object chunk advanced to `DPOB v3` for full bezier-point persistence
+        - legacy `DPOB v2` retained-path loads stay supported and explicitly zero bezier metadata on import
+        - lifecycle coverage now asserts both `v3` roundtrip preservation and `v2` linear-fallback import behavior
+        - the live `DPOB v3` writer payload-size contract was corrected to match `EntryV3` serialization width
+      - `S2` complete:
+        - selected retained-path point + `B` now toggles bezier state through a history-backed full-point edit lane
+        - initial handle seed now derives from local tangent for both middle points and endpoints
+        - toggle-off returns the point to linear state by zeroing handles and clearing bezier/link flags
+        - `B` remains brush fallback when no retained path point is selected
+        - snapshot/test stack-safety fixes landed alongside this slice:
+          - `DPS2` snapshot save/load now uses heap payloads
+          - object-chunk import now stages object-store rebuild on heap
+          - lifecycle suites moved oversized app contexts off the stack
+      - `S3` complete:
+        - selected retained bezier points now render explicit incoming/outgoing handle lines and handle nodes in overlay
+        - `MOVE` now gives selected handle hits priority over anchor-point move and whole-object drag
+        - handle drag uses a dedicated history-backed full-point edit lane, with linked-handle mirroring preserved on preview and commit
+        - select-mode handle clicks now also preserve selection and enter the same handle-drag session instead of falling into empty-canvas deselect
+        - selected-handle pick radius was widened to make handle hits less brittle at normal zoom
+        - lifecycle coverage now asserts selected-handle hit detection, select-mode handle-drag preservation, and handle-drag undo/redo
+      - `S4` complete:
+        - retained bezier `PATH` segments now render as cubic curves instead of straight anchor polylines
+        - retained curve preview updates live during anchor drag and bezier-handle drag
+        - selected-edge insertion and retained-path containment now approximate curved segments instead of only straight segments
+        - retained-path rasterization now flattens/evaluates bezier segments so `Cmd/Ctrl+R` preserves authored curve shape in pixels
+        - lifecycle coverage now asserts curved-sample containment, curved edge-hit resolution, and curved raster sample output
+      - `S5` complete:
+        - Phase 17 is closed with bezier-v1 authoring baseline locked
+        - select/move handle editing is stable enough to stop widening fixes inside this phase
+      - next vector boundary:
+        - handle link/break policy refinement
+        - smoother curve-authoring ergonomics
+        - then the next explicit vector-authoring phase beyond the current bezier-v1 baseline
+  - Phase 18 curve editing depth is now closed:
+      - kickoff doc: `../../docs/private_program_docs/drawing_program/2026-04-16_drawing_program_phase_18_curve_editing_depth_plan.md`
+      - direction lock:
+        - `Shift+L` is the planned linked/unlinked handle toggle because bare `L` remains the `LINE` tool
+        - retained `PATH` stays the canonical editable vector object
+        - focus is authoring quality, not another baseline plumbing pass
+      - `S1` complete:
+        - in `SELECT`, selected bezier point + `Shift+L` now toggles `handle_linked`
+        - toggle routes through the existing history-backed full-point edit lane, so undo/redo preserves link state
+        - fallback stays explicit: plain `L` remains line-tool route when no selected bezier point exists
+      - `S2` complete:
+        - linked handle drag keeps mirrored behavior
+        - unlinked handle drag now moves independently without mutating the opposite handle
+        - selected unlinked handles render with distinct in/out colors for clearer editing state
+      - `S3` complete:
+        - bezier-active middle-point delete now preserves neighboring curve handles on collapse
+        - remove undo restores the full removed bezier point state instead of recreating a linear placeholder
+      - `S4` complete:
+        - curved selected-edge insertion uses a wider zoom-adaptive pick radius
+  - Phase 19 color system foundation is now active:
+      - kickoff doc: `../../docs/private_program_docs/drawing_program/2026-04-16_drawing_program_phase_19_color_system_foundation_plan.md`
+      - direction lock:
+        - right panel expands to `CANVAS | LAYER | COLOR`
+        - this phase uses a palette-index contract instead of immediate RGBA-per-pixel migration
+        - object color editing continues to consume the shared active-color lane rather than owning a second color UI
+      - `S1` complete:
+        - right panel now exposes `CANVAS | LAYER | COLOR`
+        - `COLOR` renders a bounded scaffold only:
+          - active-color swatch/readout
+          - `RECENT COLORS`, `HUE SLIDER`, `SV GRID`, `PALETTE GRID` placeholder rows
+        - `CANVAS` and `LAYER` stay behaviorally unchanged in this slice
+      - `S2` complete:
+        - raster samples now store palette indices instead of grayscale ramp values
+        - retained object stroke/fill indices and raster tools now share that same sample contract
+        - render, picker, tolerance, and partial-opacity blend paths now resolve sample meaning through the palette contract rather than raw grayscale byte math
+        - legacy grayscale snapshots now load through an explicit sample-normalization migration and promote document schema to `3`
+        - default visible palette remains the current grayscale-looking slot table in this slice; editable palette ownership is still deferred
+      - next:
+        - `S3` color panel controls
+        - selected bezier anchors now read more clearly on canvas
+        - object inspector now reports selected point mode for faster curve-edit feedback
+      - `S5` complete:
+        - Phase 18 is closed at the intended vector-depth scope
+        - the next roadmap boundary is Phase 19 color-system foundation
+  - Phase 19 color system foundation is now the active next boundary:
+      - kickoff doc: `../../docs/private_program_docs/drawing_program/2026-04-16_drawing_program_phase_19_color_system_foundation_plan.md`
+      - direction lock:
+        - move beyond grayscale-only working behavior
+        - expand the right panel to `CANVAS | LAYER | COLOR`
+        - keep raster samples byte-sized, but reinterpret them as palette slot indices rather than grayscale values
+        - define true color contract, palette ownership, and dedicated color-pane workflow before widening tool depth again
+      - planned slices:
+        - `S1` right-panel `COLOR` scaffold
+        - `S2` palette-index color contract
+        - `S3` color panel controls
+        - `S4` tool + picker integration
+        - `S5` closeout + palette-system follow-up boundary
   - pre-feature cleanup lane is now queued before additional behavior depth:
       - kickoff doc: `../../docs/private_program_docs/drawing_program/2026-04-15_drawing_program_source_decomposition_kickoff_plan.md`
       - execution order is locked:

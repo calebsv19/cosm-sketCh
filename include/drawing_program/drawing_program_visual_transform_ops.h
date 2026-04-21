@@ -13,6 +13,10 @@ typedef struct DrawingProgramVisualTransformOpsHooks {
                                                   uint16_t point_index,
                                                   int32_t point_x,
                                                   int32_t point_y);
+    CoreResult (*visual_object_commit_path_point_data)(DrawingProgramAppContext *ctx,
+                                                       uint32_t object_id,
+                                                       uint16_t point_index,
+                                                       const DrawingProgramPathPoint *point);
 } DrawingProgramVisualTransformOpsHooks;
 
 void drawing_program_visual_cancel_canvas_draw_and_shape(VisualCanvasInteractionState *interaction);
@@ -33,6 +37,9 @@ int drawing_program_visual_transform_session_is_move_active(const VisualCanvasIn
 int drawing_program_visual_transform_session_is_object_move_active(const VisualCanvasInteractionState *interaction);
 
 int drawing_program_visual_transform_session_is_object_path_point_move_active(
+    const VisualCanvasInteractionState *interaction);
+
+int drawing_program_visual_transform_session_is_object_path_handle_move_active(
     const VisualCanvasInteractionState *interaction);
 
 void drawing_program_visual_transform_session_begin_move(VisualCanvasInteractionState *interaction,
@@ -69,6 +76,13 @@ void drawing_program_visual_transform_session_begin_object_path_point_move(Visua
                                                                            uint32_t sample_x,
                                                                            uint32_t sample_y);
 
+void drawing_program_visual_transform_session_begin_object_path_handle_move(
+    VisualCanvasInteractionState *interaction,
+    uint32_t object_id,
+    uint16_t point_index,
+    uint8_t handle_kind,
+    const DrawingProgramPathPoint *point);
+
 void drawing_program_visual_transform_session_update_object_move(const DrawingProgramAppContext *ctx,
                                                                  VisualCanvasInteractionState *interaction,
                                                                  uint32_t sample_x,
@@ -82,11 +96,22 @@ void drawing_program_visual_transform_session_update_object_path_point_move(
     uint32_t sample_y,
     SDL_Keymod mods);
 
+void drawing_program_visual_transform_session_update_object_path_handle_move(
+    const DrawingProgramAppContext *ctx,
+    VisualCanvasInteractionState *interaction,
+    uint32_t sample_x,
+    uint32_t sample_y);
+
 CoreResult drawing_program_visual_transform_session_commit_object_move(DrawingProgramAppContext *ctx,
                                                                        VisualCanvasInteractionState *interaction,
                                                                        const DrawingProgramVisualTransformOpsHooks *hooks);
 
 CoreResult drawing_program_visual_transform_session_commit_object_path_point_move(
+    DrawingProgramAppContext *ctx,
+    VisualCanvasInteractionState *interaction,
+    const DrawingProgramVisualTransformOpsHooks *hooks);
+
+CoreResult drawing_program_visual_transform_session_commit_object_path_handle_move(
     DrawingProgramAppContext *ctx,
     VisualCanvasInteractionState *interaction,
     const DrawingProgramVisualTransformOpsHooks *hooks);

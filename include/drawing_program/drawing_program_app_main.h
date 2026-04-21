@@ -71,6 +71,9 @@ typedef struct DrawingProgramAppUiState {
     uint8_t left_panel_slot;
     uint8_t right_panel_slot;
     uint8_t active_color_index;
+    uint8_t color_hue;
+    uint8_t color_saturation;
+    uint8_t color_value;
     uint8_t tool_brush_size;
     uint8_t tool_brush_opacity;
     uint8_t tool_brush_spacing;
@@ -82,9 +85,12 @@ typedef struct DrawingProgramAppUiState {
     uint8_t tool_fill_tolerance;
     uint8_t tool_select_mode;
     uint8_t layer_opacity_entry_count;
+    uint8_t recent_color_count;
     int8_t font_zoom_step;
     uint8_t layer_opacity_values[DRAWING_PROGRAM_MAX_LAYERS];
     uint32_t layer_opacity_layer_ids[DRAWING_PROGRAM_MAX_LAYERS];
+    uint8_t recent_color_rgb[DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT][3];
+    uint8_t color_palette_rgb[DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT][3];
 } DrawingProgramAppUiState;
 
 typedef struct DrawingProgramAppSessionState {

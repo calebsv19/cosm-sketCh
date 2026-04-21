@@ -252,12 +252,8 @@ uint8_t drawing_program_visual_fill_tolerance_sample_delta(uint8_t tolerance_set
 }
 
 int drawing_program_visual_fill_sample_matches_tolerance(uint8_t sample, uint8_t target, uint8_t tolerance_setting) {
-    int diff = (int)sample - (int)target;
     uint8_t threshold = drawing_program_visual_fill_tolerance_sample_delta(tolerance_setting);
-    if (diff < 0) {
-        diff = -diff;
-    }
-    return (diff <= (int)threshold) ? 1 : 0;
+    return (drawing_program_color_sample_distance(sample, target) <= threshold) ? 1 : 0;
 }
 
 const char *drawing_program_visual_shape_mode_name(uint8_t mode) {
@@ -287,21 +283,7 @@ int drawing_program_visual_shape_mode_includes_outline(DrawingProgramToolKind to
 }
 
 uint8_t drawing_program_visual_color_index_for_sample(uint8_t sample) {
-    uint8_t best_index = drawing_program_color_default_index();
-    int best_dist = 256;
-    uint8_t i;
-    for (i = 0u; i < (uint8_t)DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT; ++i) {
-        int palette_value = (int)drawing_program_color_value_from_index(i);
-        int d = palette_value - (int)sample;
-        if (d < 0) {
-            d = -d;
-        }
-        if (d < best_dist) {
-            best_dist = d;
-            best_index = i;
-        }
-    }
-    return best_index;
+    return drawing_program_color_index_from_sample(sample);
 }
 
 uint8_t drawing_program_visual_seeded_background_sample_for_coord(const DrawingProgramDocument *document,

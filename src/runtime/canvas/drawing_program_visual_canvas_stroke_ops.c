@@ -53,8 +53,7 @@ static CoreResult apply_sample_if_changed_on_layer_local(DrawingProgramAppContex
 }
 
 static uint8_t blend_sample_value_u8_local(uint8_t dst, uint8_t src, uint8_t opacity_percent) {
-    uint32_t alpha = (uint32_t)clamp_percent_u8_local(opacity_percent);
-    return (uint8_t)(((uint32_t)src * alpha + (uint32_t)dst * (100u - alpha) + 50u) / 100u);
+    return drawing_program_color_blend_samples(dst, src, clamp_percent_u8_local(opacity_percent));
 }
 
 CoreResult drawing_program_visual_apply_canvas_stamp_square_on_layer(DrawingProgramAppContext *ctx,

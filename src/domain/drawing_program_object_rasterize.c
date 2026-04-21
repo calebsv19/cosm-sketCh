@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "drawing_program/drawing_program_color_model.h"
+#include "drawing_program/drawing_program_object_geometry.h"
 
 static CoreResult object_rasterize_invalid(const char *message) {
     CoreResult r = { CORE_ERR_INVALID_ARG, message };
@@ -229,88 +230,26 @@ static CoreResult object_rasterize_ellipse_outline(DrawingProgramDocument *docum
     return core_result_ok();
 }
 
-static double object_rasterize_path_segment_distance_sq(double px,
-                                                        double py,
-                                                        double x0,
-                                                        double y0,
-                                                        double x1,
-                                                        double y1) {
-    double dx = x1 - x0;
-    double dy = y1 - y0;
-    double len_sq = (dx * dx) + (dy * dy);
-    double t;
-    double rx;
-    double ry;
-    if (len_sq <= 0.0) {
-        rx = px - x0;
-        ry = py - y0;
-        return (rx * rx) + (ry * ry);
-    }
-    t = (((px - x0) * dx) + ((py - y0) * dy)) / len_sq;
-    if (t < 0.0) {
-        t = 0.0;
-    } else if (t > 1.0) {
-        t = 1.0;
-    }
-    rx = px - (x0 + (t * dx));
-    ry = py - (y0 + (t * dy));
-    return (rx * rx) + (ry * ry);
-}
-
 static int object_rasterize_path_contains_fill(const DrawingProgramObjectRecord *object,
+                                               const double *flat_xy,
+                                               uint32_t flat_count,
                                                double px,
                                                double py) {
-    uint32_t i;
-    uint32_t j;
-    uint32_t point_count;
-    int inside = 0;
-    if (!object || !object->path_closed) {
+    if (!object || !object->path_closed || !flat_xy || flat_count < 3u) {
         return 0;
     }
-    point_count = (uint32_t)object->path_point_count;
-    if (point_count < 3u || point_count > DRAWING_PROGRAM_OBJECT_PATH_MAX_POINTS) {
-        return 0;
-    }
-    for (i = 0u, j = point_count - 1u; i < point_count; j = i++) {
-        const double xi = (double)object->path_points[i].x + 0.5;
-        const double yi = (double)object->path_points[i].y + 0.5;
-        const double xj = (double)object->path_points[j].x + 0.5;
-        const double yj = (double)object->path_points[j].y + 0.5;
-        const int y_cross = ((yi > py) != (yj > py));
-        if (!y_cross) {
-            continue;
-        }
-        if (fabs(yj - yi) < 1e-6) {
-            continue;
-        }
-        if (px < (((xj - xi) * (py - yi)) / (yj - yi)) + xi) {
-            inside = !inside;
-        }
-    }
-    return inside;
+    return drawing_program_object_path_flattened_contains_fill(flat_xy, flat_count, px, py);
 }
 
 static int object_rasterize_path_contains_outline(const DrawingProgramObjectRecord *object,
+                                                  const double *flat_xy,
+                                                  uint32_t flat_count,
                                                   double px,
                                                   double py,
                                                   uint32_t stroke_width) {
-    uint32_t point_count;
-    uint32_t segment_count;
-    uint32_t i;
     double half_width;
     double threshold_sq;
-    if (!object) {
-        return 0;
-    }
-    point_count = (uint32_t)object->path_point_count;
-    if (point_count < 2u || point_count > DRAWING_PROGRAM_OBJECT_PATH_MAX_POINTS) {
-        return 0;
-    }
-    segment_count = point_count - 1u;
-    if (object->path_closed) {
-        segment_count += 1u;
-    }
-    if (segment_count == 0u) {
+    if (!object || !flat_xy || flat_count < 2u) {
         return 0;
     }
     if (stroke_width == 0u) {
@@ -321,20 +260,8 @@ static int object_rasterize_path_contains_outline(const DrawingProgramObjectReco
         half_width = 0.6;
     }
     threshold_sq = half_width * half_width;
-    for (i = 0u; i < segment_count; ++i) {
-        uint32_t a = i;
-        uint32_t b = (i + 1u < point_count) ? (i + 1u) : 0u;
-        double d_sq = object_rasterize_path_segment_distance_sq(px,
-                                                                py,
-                                                                (double)object->path_points[a].x + 0.5,
-                                                                (double)object->path_points[a].y + 0.5,
-                                                                (double)object->path_points[b].x + 0.5,
-                                                                (double)object->path_points[b].y + 0.5);
-        if (d_sq <= threshold_sq) {
-            return 1;
-        }
-    }
-    return 0;
+    return drawing_program_object_path_flattened_contains_outline(
+        flat_xy, flat_count, object->path_closed, px, py, threshold_sq);
 }
 
 static CoreResult object_rasterize_path(DrawingProgramDocument *document,
@@ -350,6 +277,9 @@ static CoreResult object_rasterize_path(DrawingProgramDocument *document,
     int32_t y;
     int has_fill;
     int has_outline;
+    double flat_xy[DRAWING_PROGRAM_OBJECT_PATH_MAX_POINTS * 24u * 2u];
+    uint32_t flat_count = 0u;
+    CoreResult flat_result;
     if (!document || !layer_rasters || !history || !object || object->path_point_count < 2u) {
         return core_result_ok();
     }
@@ -357,6 +287,11 @@ static CoreResult object_rasterize_path(DrawingProgramDocument *document,
     has_outline = object_style_includes_outline(style_mode) ? 1 : 0;
     if (!has_fill && !has_outline) {
         return core_result_ok();
+    }
+    flat_result = drawing_program_object_path_flatten_points(
+        object, 0, 0, flat_xy, DRAWING_PROGRAM_OBJECT_PATH_MAX_POINTS * 24u, &flat_count);
+    if (flat_result.code != CORE_OK) {
+        return flat_result;
     }
     for (y = object->origin_y; y < (object->origin_y + (int32_t)object->height); ++y) {
         for (x = object->origin_x; x < (object->origin_x + (int32_t)object->width); ++x) {
@@ -370,10 +305,10 @@ static CoreResult object_rasterize_path(DrawingProgramDocument *document,
             px = (double)x + 0.5;
             py = (double)y + 0.5;
             if (has_outline) {
-                on_outline = object_rasterize_path_contains_outline(object, px, py, stroke_width);
+                on_outline = object_rasterize_path_contains_outline(object, flat_xy, flat_count, px, py, stroke_width);
             }
             if (has_fill) {
-                in_fill = object_rasterize_path_contains_fill(object, px, py);
+                in_fill = object_rasterize_path_contains_fill(object, flat_xy, flat_count, px, py);
             }
             if (on_outline) {
                 CoreResult result = object_rasterize_write_sample(

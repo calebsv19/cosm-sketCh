@@ -1,8 +1,256 @@
 # Current Truth
 
-Last updated: 2026-04-15
+Last updated: 2026-04-16
 
 - Canonical input map is documented in `docs/keybind_reference.md`.
+- Phase 19 `S1` color-system scaffold is now implemented:
+  - right panel now exposes top-level `CANVAS | LAYER | COLOR` slot tabs
+  - `CANVAS` preserves the existing canvas/view/palette controls for now
+  - `LAYER` preserves the existing layer stack/actions branch
+  - `COLOR` now reserves the dedicated right-panel color lane with a stable placeholder scaffold:
+    - active-color swatch/readout
+    - `RECENT COLORS` placeholder row
+    - `HUE SLIDER` placeholder row
+    - `SV GRID` placeholder row
+    - `PALETTE GRID` placeholder row
+  - right-panel slot restore now accepts the third `COLOR` state without a snapshot schema bump
+- Phase 19 `S2` palette-index color contract is now implemented:
+  - raster samples now store palette indices instead of grayscale ramp values
+  - retained object stroke/fill colors and raster tools now share the same sample contract:
+    - `drawing_program_color_value_from_index(...)` now returns the palette sample index
+    - retained object rasterization writes palette-index samples directly
+  - the default visible palette remains the current grayscale-looking slot table in this slice, so visual output stays stable while storage semantics change
+  - render/sample conversion is now explicit:
+    - sample -> RGB render paths resolve palette indices through the palette table
+    - legacy grayscale sample bytes still render safely during migration
+  - picker/sample normalization is now explicit:
+    - sampled palette-index pixels map directly back to their slot
+    - sampled legacy grayscale bytes map to the nearest palette slot
+  - fill-tolerance and partial-opacity blend logic no longer compare or average raw sample bytes:
+    - tolerance compares color-space distance between samples
+    - brush hardness and layer-opacity blending resolve in color space and remap to the nearest palette slot
+  - snapshot migration is now explicit:
+    - newly seeded documents use schema version `3`
+    - legacy grayscale snapshots load, normalize sample payloads to palette indices, and promote the document schema to `3`
+  - editable palette ownership is still deferred to `S3`; this slice changed the storage/render contract, not the control surface
+- Phase 15 `S1` retained-object inspector scaffold is now implemented:
+  - left panel now exposes top-level `TOOLS | OBJECTS` slot tabs
+  - `TOOLS` preserves the existing tool list + per-tool settings branch
+  - `OBJECTS` now reserves a first dedicated retained-object panel scaffold:
+    - object-list placeholder region
+    - selected-object inspector placeholder region
+  - left-panel slot click routing now uses shared layout geometry and persists through the existing `left_panel_slot` snapshot field
+- Phase 15 `S2` retained-object list baseline is now implemented:
+  - `OBJECTS` panel now renders a live retained-object list from `object_store`
+  - each row shows object id + object type (`RECT`, `ELLIPSE`, `PATH`)
+  - rows are rendered in reverse object-store order for fast access to newest/topmost retained objects
+  - clicking an object row now:
+    - replaces retained-object selection with that object
+    - clears raster selection payload
+    - keeps panel selection and canvas selection aligned
+- Phase 15 `S3` selected-object inspector read path is now implemented:
+  - `OBJECTS` inspector now resolves the active retained object from `object_selection.active_object_id`
+  - no-selection state now shows:
+    - `NO OBJECT SELECTED`
+    - `SELECT FROM CANVAS OR LIST`
+  - selected-object readout now exposes:
+    - object id + type
+    - layer id + layer name
+    - origin + size
+    - style summary + stroke width/color index
+    - fill color index + visible/locked flags
+  - `PATH` objects now add:
+    - point count
+    - closed/open state
+    - selected path-point index when a path point is active
+- Phase 15 `S4` history-safe retained-object property edits are now implemented:
+  - inspector edit controls now exist for:
+    - stroke width
+    - fill on/off
+    - `PATH` closed/open
+  - retained-object inspector clicks now route through history-safe helpers instead of directly mutating object records:
+    - `drawing_program_history_apply_set_object_stroke_width(...)`
+    - `drawing_program_history_apply_set_object_style_mode(...)`
+    - `drawing_program_history_apply_set_object_path_closed(...)`
+  - lifecycle coverage now asserts undo/redo for:
+    - stroke-width edits
+    - fill/style-mode edits
+    - path closed/open edits
+- Phase 15 `S5` palette-driven retained-object color mode is now implemented:
+  - `OBJECTS` inspector now exposes:
+    - `SET STROKE COLOR`
+    - `SET FILL COLOR`
+  - selecting one of those actions arms an explicit transient object-color target mode for the selected retained object
+  - while color-target mode is armed:
+    - the matching action button stays visually active
+    - the next palette click applies the chosen color to the selected retained object
+    - `Enter` or `Esc` cancels the color-target mode without mutating the object
+  - palette-driven object color edits route through history-safe helpers:
+    - `drawing_program_history_apply_set_object_stroke_color(...)`
+    - `drawing_program_history_apply_set_object_fill_color(...)`
+  - lifecycle coverage now asserts undo/redo for retained-object stroke/fill color edits
+- Phase 16 `S1` retained-path point insertion is now implemented:
+  - while `PATH` is active and no draft path is in progress:
+    - clicking a selected retained path edge inserts a new point into that segment
+    - if no selected edge is hit, the existing draft-authoring path flow still applies
+  - selected-edge insertion now uses geometric segment hit detection rather than exact raster coincidence
+  - inserted points are projected onto the hit segment and become the active selected path point immediately after insertion
+  - retained-path insertion now routes through a history-safe helper:
+    - `drawing_program_history_apply_insert_object_path_point(...)`
+  - lifecycle coverage now asserts:
+    - selected-edge hit resolution
+    - insert undo/redo topology restoration
+    - handler-level `PATH` click insertion through the real input branch
+- Phase 16 `S2` retained-path point removal is now implemented:
+  - when a specific point on a selected retained `PATH` object is active in `SELECT`, `Delete/Backspace` removes that point before falling back to whole-object delete
+  - retained-path point removal now routes through a history-safe helper:
+    - `drawing_program_history_apply_remove_object_path_point(...)`
+  - removal semantics are now explicit:
+    - endpoint delete on an open path removes that endpoint and keeps the remaining chain intact
+    - middle-point delete reconnects neighboring vertices directly
+    - if too few points remain to preserve valid retained-path semantics, the whole retained path object is removed
+  - follow-up selection semantics are now explicit:
+    - if the object survives, selection stays on that retained path
+    - the selected-path-point index advances to the nearest surviving point for immediate follow-up editing
+  - lifecycle coverage now asserts:
+    - history-backed middle-point removal undo/redo
+    - endpoint removal semantics
+    - keydown delete routing for selected retained-path points
+- Phase 16 `S3` retained-path open-end append policy is now implemented:
+  - while `PATH` is active and no draft path is in progress:
+    - clicking a selected retained open-path edge still inserts into that segment first
+    - if no edge is hit, the selected open path now appends to one of its open endpoints instead of falling directly into a new detached draft
+  - append policy is now explicit:
+    - if an open-path endpoint is currently selected, append from that selected endpoint
+    - otherwise append from the nearer of the two open endpoints
+  - append still routes through the same history-safe insert helper:
+    - `drawing_program_history_apply_insert_object_path_point(...)`
+  - append follow-up behavior is now explicit:
+    - the new appended point becomes the active selected path point immediately
+    - append does not start a path-draft session
+  - closed-path miss behavior is now explicit:
+    - a non-edge miss on a selected closed path does not append a stray point
+    - the prior draft-authoring fallback remains intact for that miss case
+  - input-lane polish now ensures the `PATH` draft branch consumes the click when it starts or extends a draft
+  - lifecycle coverage now asserts:
+    - selected-endpoint append routing
+    - nearest-endpoint fallback append routing
+    - closed-path miss non-append behavior
+- Phase 16 `S4` retained-shape edit parity baseline is now implemented:
+  - retained `RECT` / `ELLIPSE` size edits now route through a history-safe helper:
+    - `drawing_program_history_apply_set_object_size(...)`
+  - retained-shape size mutation is now explicit in the object-store lane:
+    - `drawing_program_object_store_set_size(...)`
+    - valid only for retained `RECT` and `ELLIPSE`
+    - width and height clamp to a minimum of `1`
+  - the `OBJECTS` inspector now exposes first retained-shape dimension controls:
+    - `WIDTH` row with `- / +`
+    - `HEIGHT` row with `- / +`
+  - retained-shape parity is now explicit:
+    - retained shapes keep the existing stroke/fill/color controls
+    - retained shapes now also have a bounded dimension edit lane beyond move/select
+    - retained `PATH` objects keep the current path-topology controls without inheriting irrelevant size controls
+  - lifecycle coverage now asserts retained-shape size edit undo/redo through the history lane
+- Phase 17 `S1` retained-path bezier data contract is now implemented:
+  - retained path points now carry optional bezier metadata:
+    - `handle_in_dx`, `handle_in_dy`
+    - `handle_out_dx`, `handle_out_dy`
+    - `bezier_enabled`
+    - `handle_linked`
+  - linear retained paths remain valid by keeping bezier disabled and handle vectors zeroed
+  - snapshot object chunk format now advances from `DPOB v2` to `DPOB v3`:
+    - `v3` persists the full retained-path bezier point contract
+    - `v2` loads remain supported and explicitly zero bezier metadata on import
+  - lifecycle coverage now asserts:
+    - `v3` retained-path snapshot roundtrip preserves bezier metadata
+    - synthetic legacy `v2` object chunks import as linear paths with zeroed bezier fields
+  - the `DPOB v3` writer payload-size contract was corrected during this slice so the written chunk size now matches the actual `EntryV3` serialization width
+- Phase 17 `S2` bezier point toggle + seed policy is now implemented:
+  - in `SELECT`, when a retained `PATH` point is actively selected, `B` toggles bezier state for that specific point
+  - the existing `B -> BRUSH` route still applies when no retained path point is selected
+  - toggle-on now seeds initial handles from local tangent:
+    - middle points seed from previous/next anchor direction
+    - endpoints seed from the only available neighbor tangent
+  - toggle-off clears bezier state, zeroes both handles, and clears the link flag
+  - path-point history replay now stores full point state, not only anchor `x/y`, so undo/redo preserves bezier handles and flags
+  - stack-safety fixes landed as part of this slice because the larger point/object/history contracts pushed old stack allocations over budget:
+    - `DPS2` snapshot save/load payloads now allocate on heap
+    - object-chunk import now stages its object store on heap
+    - lifecycle suites now keep oversized app-context fixtures off the stack
+- Phase 17 `S3` handle overlay render + handle hit/move is now implemented:
+  - when a selected retained `PATH` point is bezier-active, overlay now renders:
+    - incoming/outgoing handle lines
+    - direct handle nodes
+    - stronger active-handle highlight during drag
+  - `MOVE` tool priority now resolves in this order for a selected retained bezier point:
+    - bezier handle hit
+    - anchor point hit
+    - whole-object move fallback
+  - bezier handle drag is now a dedicated transform session:
+    - direct canvas drag updates handle preview live
+    - linked handles mirror during preview and commit when the point is linked
+    - release commits through the history-backed full-point edit lane
+  - bezier handle interaction is now reliable in both `SELECT` and `MOVE`:
+    - selected handle hits now resolve before empty-canvas marquee clear in `SELECT`
+    - clicking near a selected bezier handle no longer false-deselects the retained object
+    - selected-handle pick radius was widened to make handle hits less brittle at normal zoom
+  - selected-handle hit detection now resolves against the currently selected retained path point, not the full object body
+  - lifecycle coverage now asserts:
+    - selected-handle hit resolution
+    - history-backed bezier handle drag commit
+    - undo/redo restoration of moved handle state
+    - select-mode handle drag preserving object selection
+- Phase 17 `S4` curved segment render + rasterize/commit path is now implemented:
+  - retained bezier-active `PATH` segments now render as evaluated cubic curves instead of straight anchor-to-anchor polylines
+  - retained-path overlay preview now respects live bezier handle drag and live anchor drag before commit, so the visible curve updates during the transform session
+  - live bezier-handle preview now preserves anchor-space positions instead of visually shifting the whole retained object while the handle is dragged
+  - retained-path hit policy is now curve-aware:
+    - selected-edge insertion hit testing approximates cubic segments instead of only straight segments
+    - path containment for retained `PATH` objects now uses flattened curve samples for fill/outline checks
+  - retained-path rasterization is now curve-aware:
+    - `Cmd/Ctrl+R` rasterize-selected-object flow flattens/evaluates bezier segments before fill/outline pixel tests
+    - rasterized pixels now match the authored bowed/curved segment shape instead of falling back to the old straight segment shortcut
+  - path bounds computation now accounts for bezier handle extents so retained curve previews and object interactions stay spatially coherent
+  - lifecycle coverage now asserts:
+    - bowed bezier segments report containment at a curved sample that the old straight segment would have missed
+    - selected-edge hit testing resolves against the curved segment
+    - rasterized stroke pixels appear on the curved sample after retained-object rasterization
+- Phase 17 bezier path authoring v1 is now closed:
+  - retained `PATH` objects now support a bounded bezier-v1 authoring lane:
+    - per-point bezier metadata
+    - `B` toggle from selected path points
+    - direct handle overlay + handle drag
+    - curve-aware retained render, hit, insertion, and rasterization
+  - handle editing is now stable in both `SELECT` and `MOVE`
+  - current next-step boundary is authoring depth, not more baseline plumbing:
+    - handle link/break policy refinement
+    - smoother curve authoring ergonomics
+    - next vector-authoring phase beyond the current bezier-v1 baseline
+- Phase 18 `S1` linked/unlinked handle toggle contract is now implemented:
+  - in `SELECT`, with a selected retained bezier `PATH` point, `Shift+L` now toggles `handle_linked`
+  - this routes through the existing history-backed full-point edit lane, so undo/redo preserves link state without a new command family
+  - persistence contract already carried `handle_linked`, so snapshot behavior stays coherent without schema changes
+  - fallback behavior stays explicit:
+    - bare `L` remains the `LINE` tool
+    - `Shift+L` only consumes when a selected bezier point exists; otherwise it falls through to the normal line-tool route
+  - lifecycle coverage now asserts:
+    - `Shift+L` keydown toggles `handle_linked`
+    - undo/redo restores linked/unlinked state
+- Phase 18 `S2` free-handle drag semantics are now implemented:
+  - linked bezier points still mirror the opposite handle during drag
+  - unlinked bezier points now preserve the opposite handle exactly while the dragged handle moves independently
+  - selected unlinked handles now render with distinct in/out colors, while linked handles stay visually unified
+- Phase 18 `S3` curve-preserving topology edits are now implemented:
+  - deleting a bezier-active middle point now preserves neighboring curve handles on the collapsed chain
+  - retained path-point remove undo restores the full removed bezier point state, not just the anchor position
+  - redo restores the collapsed curve chain deterministically
+- Phase 18 `S4` curve authoring ergonomics polish is now implemented:
+  - curved selected-edge insertion now uses a wider zoom-adaptive pick radius
+  - selected bezier anchors now render with a stronger state cue on canvas
+  - the object inspector now shows selected path-point mode as `LINEAR`, `BEZIER LINKED`, or `BEZIER UNLINKED`
+- Phase 18 is now closed:
+  - linked/unlinked handle policy, bezier delete topology preservation, and bounded curve-authoring ergonomics are the stable baseline
+  - the next explicit roadmap boundary is Phase 19 color-system foundation
 - Phase 14 `S1` path-domain seed is now implemented:
   - object model now supports bounded PATH payloads (`point_count`, `closed`, fixed-capacity points)
   - object store now exposes path helpers:
@@ -27,6 +275,7 @@ Last updated: 2026-04-15
   - path draft authoring baseline is active:
     - `LMB` (`PATH`) appends bounded draft points on canvas
     - `Enter` commits draft as a closed `PATH` object (`3+` points required)
+    - `Shift+Enter` commits draft as an open `PATH` object (`2+` points required)
     - `Backspace/Delete` removes the last draft point
     - `Esc` cancels path draft
   - commit flow creates object-store path entities on active editable layer and promotes committed object to active object selection lane
@@ -45,6 +294,7 @@ Last updated: 2026-04-15
   - delete semantics now unify object+raster selection lanes:
     - `Delete/Backspace` removes selected object entities first (if any), otherwise removes raster selection payload
     - right-panel `DELETE SELECTION` button follows the same object-first delete policy
+    - if a specific point is selected on a selected `PATH` object, delete removes that point before whole-object delete fallback
   - path outline hit-test now uses geometric distance tolerance (nearest-segment range), so selecting/moving paths does not require exact stroke-pixel clicks
   - PATH move commit now keeps geometry and bounds in sync:
     - object-origin updates translate path point payload by the same delta
@@ -71,6 +321,9 @@ Last updated: 2026-04-15
     - mouse-up commits through history
     - fallback remains object-move session when no selected point handle is hit
   - selected PATH objects now render explicit point handles in overlay; active dragged point handle is highlighted
+  - selected PATH point targeting is now persistent:
+    - `SELECT` can target a specific point on an already-selected `PATH` object
+    - the selected point remains highlighted for follow-up delete/edit actions
   - while dragging a selected PATH point in `MOVE`, live edge-preview hint lines now render from the moved point to adjacent path vertices before commit
   - selected/hovered PATH handles in `MOVE` now use stronger high-contrast markers for clear visual targeting
   - selected PATH point hit routing now uses zoom-adaptive pick radius (easier point capture at low zoom)

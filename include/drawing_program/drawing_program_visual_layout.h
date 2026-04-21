@@ -46,8 +46,7 @@ int ui_scale_for_text(const DrawingProgramAppContext *ctx, int base_scale);
 VisualPaneLayoutMetrics make_pane_layout_metrics(const DrawingProgramAppContext *ctx);
 
 int right_canvas_content_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m);
-int right_canvas_palette_header_y(SDL_Rect rect, VisualPaneLayoutMetrics m);
-SDL_Rect right_canvas_palette_swatch_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, uint8_t color_index);
+SDL_Rect right_panel_slot_tab_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, uint8_t slot_index, uint8_t slot_count);
 SDL_Rect right_canvas_reset_view_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m);
 SDL_Rect right_canvas_clear_canvas_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m);
 SDL_Rect right_canvas_delete_selection_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m);
@@ -66,12 +65,21 @@ SDL_Rect right_layer_action_button_rect(SDL_Rect rect,
                                         VisualLayerActionButton button);
 
 int left_panel_content_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m);
+SDL_Rect left_panel_slot_tab_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, uint8_t slot_index, uint8_t slot_count);
 SDL_Rect left_panel_tool_list_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, uint32_t tool_count);
 SDL_Rect left_panel_tool_row_rect(SDL_Rect rect,
                                   VisualPaneLayoutMetrics m,
                                   uint32_t tool_index,
                                   uint32_t tool_count);
 SDL_Rect left_panel_tool_detail_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, uint32_t tool_count);
+SDL_Rect left_panel_objects_list_rect(SDL_Rect rect, VisualPaneLayoutMetrics m);
+SDL_Rect left_panel_objects_inspector_rect(SDL_Rect rect, VisualPaneLayoutMetrics m);
+int left_panel_objects_rows_start_y(SDL_Rect list_rect, VisualPaneLayoutMetrics m);
+SDL_Rect left_panel_objects_row_rect(SDL_Rect list_rect, VisualPaneLayoutMetrics m, uint32_t row_index);
+SDL_Rect left_panel_objects_inspector_action_row_rect(SDL_Rect inspector_rect,
+                                                      VisualPaneLayoutMetrics m,
+                                                      uint32_t action_index,
+                                                      uint32_t action_count);
 int left_panel_tool_detail_rows_start_y(SDL_Rect detail_rect, VisualPaneLayoutMetrics m);
 SDL_Rect left_panel_tool_detail_option_row_rect(SDL_Rect detail_rect,
                                                 VisualPaneLayoutMetrics m,

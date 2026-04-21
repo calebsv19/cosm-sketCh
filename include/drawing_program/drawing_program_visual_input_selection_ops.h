@@ -21,6 +21,8 @@ VisualMarqueeCommitMode drawing_program_visual_input_resolve_select_commit_mode(
 int delete_active_selection_payload_or_objects(DrawingProgramAppContext *ctx,
                                                DrawingProgramSelectionState *selection_state,
                                                const DrawingProgramVisualInputHandlersHooks *hooks);
+int drawing_program_visual_input_toggle_selected_path_point_bezier(DrawingProgramAppContext *ctx);
+int drawing_program_visual_input_toggle_selected_path_point_handle_link(DrawingProgramAppContext *ctx);
 
 #ifdef __cplusplus
 }

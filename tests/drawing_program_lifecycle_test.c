@@ -20,10 +20,10 @@
 #include "drawing_program_lifecycle_runtime_render_suite.h"
 
 int main(void) {
-    DrawingProgramAppContext ctx;
-    DrawingProgramAppContext workflow_ctx;
+    static DrawingProgramAppContext ctx;
+    static DrawingProgramAppContext workflow_ctx;
     static DrawingProgramAppContext size_ctx;
-    DrawingProgramClipboardState workflow_clipboard;
+    static DrawingProgramClipboardState workflow_clipboard;
     uint32_t center_x;
     uint32_t center_y;
     uint32_t workflow_center_x;

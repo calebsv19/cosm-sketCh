@@ -9,6 +9,7 @@
 #include "core_font.h"
 #include "core_theme.h"
 #include "drawing_program/drawing_program_runtime_orchestration.h"
+#include "drawing_program/drawing_program_ui_color_state.h"
 
 typedef enum DrawingProgramAppStage {
     DRAWING_PROGRAM_APP_STAGE_INIT = 0,
@@ -158,10 +159,10 @@ static void drawing_program_normalize_ui_state(DrawingProgramAppContext *ctx) {
     if (ctx->ui.left_panel_slot > 1u) {
         ctx->ui.left_panel_slot = 0u;
     }
-    if (ctx->ui.right_panel_slot > 1u) {
+    if (ctx->ui.right_panel_slot > 2u) {
         ctx->ui.right_panel_slot = 0u;
     }
-    ctx->ui.active_color_index = drawing_program_color_index_clamp(ctx->ui.active_color_index);
+    drawing_program_ui_color_normalize_state(ctx);
     if (ctx->ui.tool_brush_size < 1u) {
         ctx->ui.tool_brush_size = 1u;
     } else if (ctx->ui.tool_brush_size > 16u) {
@@ -465,7 +466,6 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
     ctx->ui.font_preset_id = (uint32_t)CORE_FONT_PRESET_IDE;
     ctx->ui.left_panel_slot = 0u;
     ctx->ui.right_panel_slot = 0u;
-    ctx->ui.active_color_index = drawing_program_color_default_index();
     ctx->ui.tool_brush_size = 2u;
     ctx->ui.tool_brush_opacity = 100u;
     ctx->ui.tool_brush_spacing = 2u;
@@ -477,6 +477,7 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
     ctx->ui.tool_fill_tolerance = 0u;
     ctx->ui.tool_select_mode = (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_REPLACE;
     ctx->ui.font_zoom_step = 0;
+    drawing_program_ui_color_seed_defaults(ctx);
     (void)snprintf(ctx->session.runtime_root_path, sizeof(ctx->session.runtime_root_path), "data/runtime");
     (void)snprintf(ctx->session.input_root_path, sizeof(ctx->session.input_root_path), "data/input");
     (void)snprintf(ctx->session.output_root_path, sizeof(ctx->session.output_root_path), "data/output");

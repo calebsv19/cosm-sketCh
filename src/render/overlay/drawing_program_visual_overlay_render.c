@@ -2,6 +2,8 @@
 
 #include <math.h>
 
+#include "drawing_program/drawing_program_color_model.h"
+#include "drawing_program/drawing_program_object_geometry.h"
 #include "drawing_program/drawing_program_visual_overlay_shared.h"
 #include "drawing_program/drawing_program_visual_theme.h"
 
@@ -23,6 +25,23 @@ static int sample_center_to_screen(const VisualCanvasSheetMetrics *metrics,
     fy = (float)metrics->sheet_rect.y + (((float)sample_y + 0.5f) * metrics->pixel_size);
     *out_x = (int)fx;
     *out_y = (int)fy;
+    return 1;
+}
+
+static int sample_point_center_to_screen(const VisualCanvasSheetMetrics *metrics,
+                                         int32_t sample_x,
+                                         int32_t sample_y,
+                                         int *out_x,
+                                         int *out_y) {
+    SDL_Rect sample_rect;
+    if (!metrics || !out_x || !out_y) {
+        return 0;
+    }
+    if (!drawing_program_visual_overlay_sample_rect_to_screen_rect(metrics, sample_x, sample_y, 1u, 1u, &sample_rect)) {
+        return 0;
+    }
+    *out_x = sample_rect.x + (sample_rect.w / 2);
+    *out_y = sample_rect.y + (sample_rect.h / 2);
     return 1;
 }
 
@@ -198,6 +217,107 @@ static void draw_preview_point_handle(SDL_Renderer *renderer,
     (void)SDL_RenderDrawRect(renderer, &r);
 }
 
+static void draw_preview_bezier_handle_node(SDL_Renderer *renderer,
+                                            const VisualCanvasSheetMetrics *metrics,
+                                            int32_t anchor_sample_x,
+                                            int32_t anchor_sample_y,
+                                            int32_t handle_dx,
+                                            int32_t handle_dy,
+                                            SDL_Color line_color,
+                                            SDL_Color fill_color,
+                                            SDL_Color border_color,
+                                            int half_size) {
+    int anchor_sx = 0;
+    int anchor_sy = 0;
+    int handle_sx = 0;
+    int handle_sy = 0;
+    if (!renderer || !metrics) {
+        return;
+    }
+    if (handle_dx == 0 && handle_dy == 0) {
+        return;
+    }
+    if (!sample_point_center_to_screen(metrics, anchor_sample_x, anchor_sample_y, &anchor_sx, &anchor_sy) ||
+        !sample_point_center_to_screen(
+            metrics, anchor_sample_x + handle_dx, anchor_sample_y + handle_dy, &handle_sx, &handle_sy)) {
+        return;
+    }
+    draw_preview_thick_line(renderer, anchor_sx, anchor_sy, handle_sx, handle_sy, 1, line_color, 220u);
+    draw_preview_point_handle(renderer, handle_sx, handle_sy, half_size, fill_color, border_color, 240u, 255u);
+}
+
+static void draw_preview_bezier_handles(SDL_Renderer *renderer,
+                                        const VisualCanvasSheetMetrics *metrics,
+                                        const DrawingProgramPathPoint *point,
+                                        int is_active_drag_point,
+                                        int half_size) {
+    SDL_Color linked_line = { 86u, 162u, 255u, 255u };
+    SDL_Color linked_fill = { 236u, 246u, 255u, 255u };
+    SDL_Color linked_border = { 40u, 112u, 255u, 255u };
+    SDL_Color active_line = { 255u, 196u, 84u, 255u };
+    SDL_Color active_fill = { 255u, 228u, 166u, 255u };
+    SDL_Color active_border = { 212u, 128u, 28u, 255u };
+    SDL_Color line = is_active_drag_point ? active_line : linked_line;
+    SDL_Color fill = is_active_drag_point ? active_fill : linked_fill;
+    SDL_Color border = is_active_drag_point ? active_border : linked_border;
+    if (!renderer || !metrics || !point || !drawing_program_object_path_point_is_bezier_active(point)) {
+        return;
+    }
+    draw_preview_bezier_handle_node(renderer,
+                                    metrics,
+                                    point->x,
+                                    point->y,
+                                    point->handle_in_dx,
+                                    point->handle_in_dy,
+                                    line,
+                                    fill,
+                                    border,
+                                    half_size);
+    draw_preview_bezier_handle_node(renderer,
+                                    metrics,
+                                    point->x,
+                                    point->y,
+                                    point->handle_out_dx,
+                                    point->handle_out_dy,
+                                    line,
+                                    fill,
+                                    border,
+                                    half_size);
+}
+
+static void draw_preview_path_polyline(SDL_Renderer *renderer,
+                                       const VisualCanvasSheetMetrics *metrics,
+                                       const double *flat_xy,
+                                       uint16_t flat_count,
+                                       uint8_t closed,
+                                       int stroke_px,
+                                       SDL_Color color,
+                                       uint8_t alpha) {
+    uint32_t i;
+    if (!renderer || !metrics || !flat_xy || flat_count < 2u) {
+        return;
+    }
+    if (stroke_px > 3) {
+        stroke_px = 3;
+    }
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, alpha);
+    for (i = 1u; i < flat_count; ++i) {
+        int x0 = (int)lround((double)metrics->sheet_rect.x + (flat_xy[(i - 1u) * 2u] * (double)metrics->pixel_size));
+        int y0 = (int)lround((double)metrics->sheet_rect.y + (flat_xy[((i - 1u) * 2u) + 1u] * (double)metrics->pixel_size));
+        int x1 = (int)lround((double)metrics->sheet_rect.x + (flat_xy[i * 2u] * (double)metrics->pixel_size));
+        int y1 = (int)lround((double)metrics->sheet_rect.y + (flat_xy[(i * 2u) + 1u] * (double)metrics->pixel_size));
+        draw_preview_thick_line(renderer, x0, y0, x1, y1, stroke_px, color, alpha);
+    }
+    if (closed && flat_count > 2u) {
+        int x0 = (int)lround((double)metrics->sheet_rect.x + (flat_xy[(flat_count - 1u) * 2u] * (double)metrics->pixel_size));
+        int y0 = (int)lround((double)metrics->sheet_rect.y +
+                             (flat_xy[((flat_count - 1u) * 2u) + 1u] * (double)metrics->pixel_size));
+        int x1 = (int)lround((double)metrics->sheet_rect.x + (flat_xy[0] * (double)metrics->pixel_size));
+        int y1 = (int)lround((double)metrics->sheet_rect.y + (flat_xy[1] * (double)metrics->pixel_size));
+        draw_preview_thick_line(renderer, x0, y0, x1, y1, stroke_px, color, alpha);
+    }
+}
+
 static void draw_preview_path_draft(SDL_Renderer *renderer,
                                     const DrawingProgramAppContext *ctx,
                                     const VisualCanvasSheetMetrics *metrics,
@@ -207,10 +327,11 @@ static void draw_preview_path_draft(SDL_Renderer *renderer,
                                     SDL_Color accent) {
     uint32_t i;
     uint16_t point_count;
+    uint8_t active_color_index;
     int stroke_px;
     int handle_half = 4;
     SDL_Color point_fill = { 20u, 24u, 34u, 255u };
-    SDL_Color preview_color = { 180u, 210u, 255u, 255u };
+    SDL_Color preview_color = { 0u, 0u, 0u, 255u };
     if (!renderer || !ctx || !metrics || !interaction || !hooks) {
         return;
     }
@@ -218,6 +339,9 @@ static void draw_preview_path_draft(SDL_Renderer *renderer,
         return;
     }
     point_count = interaction->path_draft_point_count;
+    active_color_index = drawing_program_color_index_clamp(ctx->ui.active_color_index);
+    drawing_program_color_rgb_from_index(
+        active_color_index, &preview_color.r, &preview_color.g, &preview_color.b);
     stroke_px = preview_stroke_width_pixels(metrics, hooks->tool_shape_stroke_width(ctx));
     handle_half = (int)lroundf(metrics->pixel_size * 0.6f);
     if (handle_half < 3) {
@@ -226,32 +350,36 @@ static void draw_preview_path_draft(SDL_Renderer *renderer,
     if (handle_half > 8) {
         handle_half = 8;
     }
+    if (interaction->path_preview_flatten_valid) {
+        draw_preview_path_polyline(renderer,
+                                   metrics,
+                                   interaction->path_preview_flatten_xy,
+                                   interaction->path_preview_flatten_point_count,
+                                   interaction->path_draft_closed,
+                                   stroke_px,
+                                   preview_color,
+                                   235u);
+    }
     for (i = 0u; i < (uint32_t)point_count; ++i) {
         int cx = 0;
         int cy = 0;
-        if (!sample_center_to_screen(metrics,
-                                     ctx,
-                                     (uint32_t)interaction->path_draft_points[i].x,
-                                     (uint32_t)interaction->path_draft_points[i].y,
-                                     &cx,
-                                     &cy)) {
+        if (!sample_point_center_to_screen(metrics,
+                                           interaction->path_draft_points[i].x,
+                                           interaction->path_draft_points[i].y,
+                                           &cx,
+                                           &cy)) {
             continue;
         }
-        if (i > 0u) {
-            int px = 0;
-            int py = 0;
-            if (sample_center_to_screen(metrics,
-                                        ctx,
-                                        (uint32_t)interaction->path_draft_points[i - 1u].x,
-                                        (uint32_t)interaction->path_draft_points[i - 1u].y,
-                                        &px,
-                                        &py)) {
-                draw_preview_thick_line(renderer, px, py, cx, cy, stroke_px, accent, 235u);
-            }
-        }
+        draw_preview_bezier_handles(renderer,
+                                    metrics,
+                                    &interaction->path_draft_points[i],
+                                    interaction->path_draft_drag_active &&
+                                        interaction->path_draft_drag_point_index == i,
+                                    handle_half - 1);
         draw_preview_point_handle(renderer, cx, cy, handle_half, point_fill, accent, 255u, 255u);
     }
-    if (point_count > 0u && ui && ui->mouse_known && ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_PATH) {
+    if (point_count > 0u && ui && ui->mouse_known && ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_PATH &&
+        !interaction->path_draft_drag_active) {
         int last_x = 0;
         int last_y = 0;
         int preview_x = 0;

@@ -30,6 +30,25 @@ int drawing_program_visual_input_handle_keydown_payload(const SDL_Event *event,
     }
     ctrl_or_cmd = (event->key.keysym.mod & (KMOD_CTRL | KMOD_GUI)) != 0;
     shift = (event->key.keysym.mod & KMOD_SHIFT) != 0;
+    if (!ctrl_or_cmd && event->key.keysym.sym == SDLK_b &&
+        drawing_program_visual_input_toggle_selected_path_point_bezier(app)) {
+        hooks->cancel_canvas_draw_and_shape(canvas_interaction);
+        hooks->cancel_selection_transient(selection_state);
+        return 1;
+    }
+    if (!ctrl_or_cmd && shift && event->key.keysym.sym == SDLK_l &&
+        drawing_program_visual_input_toggle_selected_path_point_handle_link(app)) {
+        hooks->cancel_canvas_draw_and_shape(canvas_interaction);
+        hooks->cancel_selection_transient(selection_state);
+        return 1;
+    }
+    if (panel_ui->object_color_target_kind != 0u &&
+        (event->key.keysym.sym == SDLK_RETURN || event->key.keysym.sym == SDLK_KP_ENTER ||
+         event->key.keysym.sym == SDLK_ESCAPE)) {
+        panel_ui->object_color_target_kind = 0u;
+        panel_ui->object_color_target_object_id = 0u;
+        return 1;
+    }
     if (drawing_program_visual_input_try_module_slot_hotkey(ctrl_or_cmd,
                                                             shift,
                                                             event->key.keysym.sym,
@@ -197,8 +216,8 @@ int drawing_program_visual_input_handle_keydown_payload(const SDL_Event *event,
     }
     if (app->editor.active_tool == DRAWING_PROGRAM_TOOL_PATH) {
         if (event->key.keysym.sym == SDLK_RETURN || event->key.keysym.sym == SDLK_KP_ENTER) {
-            CoreResult commit_result = hooks->path_draft_commit_closed
-                                           ? hooks->path_draft_commit_closed(app, canvas_interaction)
+            CoreResult commit_result = hooks->path_draft_commit
+                                           ? hooks->path_draft_commit(app, canvas_interaction, shift ? 0u : 1u)
                                            : core_result_ok();
             if (commit_result.code != CORE_OK) {
                 fprintf(stderr, "drawing_program: path commit failed: %s\n", commit_result.message);

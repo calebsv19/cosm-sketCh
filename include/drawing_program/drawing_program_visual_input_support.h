@@ -7,7 +7,9 @@
 extern "C" {
 #endif
 
-CoreResult path_draft_commit_closed(DrawingProgramAppContext *ctx, VisualCanvasInteractionState *interaction);
+CoreResult path_draft_commit(DrawingProgramAppContext *ctx,
+                             VisualCanvasInteractionState *interaction,
+                             uint8_t closed);
 void path_draft_reset(VisualCanvasInteractionState *interaction);
 int path_draft_pop_point(VisualCanvasInteractionState *interaction);
 

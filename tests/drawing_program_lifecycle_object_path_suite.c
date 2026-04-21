@@ -2,8 +2,10 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "drawing_program/drawing_program_object_geometry.h"
 #include "drawing_program/drawing_program_object_transform.h"
 #include "drawing_program/drawing_program_visual_transform_ops.h"
+#include "drawing_program_lifecycle_object_path_history_suite.h"
 #include "drawing_program_lifecycle_object_path_suite.h"
 #include "drawing_program_lifecycle_test_support.h"
 
@@ -139,6 +141,67 @@ int drawing_program_lifecycle_run_object_path_suite(DrawingProgramAppContext *wo
         }
     }
     {
+        DrawingProgramObjectStore shape_store;
+        DrawingProgramObjectRecord shape_seed;
+        DrawingProgramHistory history;
+        const DrawingProgramObjectRecord *shape_object = 0;
+        CoreResult result;
+        uint32_t object_id = 0u;
+        drawing_program_object_store_reset(&shape_store);
+        drawing_program_history_init(&history);
+        memset(&shape_seed, 0, sizeof(shape_seed));
+        shape_seed.layer_id = workflow_ctx.document.layers[0].layer_id;
+        shape_seed.type = (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_RECT;
+        shape_seed.visible = 1u;
+        shape_seed.locked = 0u;
+        shape_seed.origin_x = 20;
+        shape_seed.origin_y = 24;
+        shape_seed.width = 32u;
+        shape_seed.height = 20u;
+        shape_seed.stroke_width = 2u;
+        shape_seed.style_mode = 2u;
+        if (!expect_ok(drawing_program_object_store_add(&shape_store, &shape_seed, &object_id),
+                       "shape_size_seed_add")) {
+            return 1;
+        }
+        result = drawing_program_history_apply_set_object_size(&history, &shape_store, object_id, 48u, 28u);
+        if (!expect_ok(result, "shape_size_apply")) {
+            return 1;
+        }
+        shape_object = drawing_program_object_store_get_by_id(&shape_store, object_id);
+        if (!shape_object || shape_object->width != 48u || shape_object->height != 28u) {
+            fprintf(stderr,
+                    "lifecycle_test: shape size apply failed width=%u height=%u\n",
+                    shape_object ? (unsigned)shape_object->width : 0u,
+                    shape_object ? (unsigned)shape_object->height : 0u);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_history_undo(&history, &workflow_ctx.document, &workflow_ctx.layer_rasters, &shape_store),
+                       "shape_size_undo")) {
+            return 1;
+        }
+        shape_object = drawing_program_object_store_get_by_id(&shape_store, object_id);
+        if (!shape_object || shape_object->width != 32u || shape_object->height != 20u) {
+            fprintf(stderr,
+                    "lifecycle_test: shape size undo failed width=%u height=%u\n",
+                    shape_object ? (unsigned)shape_object->width : 0u,
+                    shape_object ? (unsigned)shape_object->height : 0u);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_history_redo(&history, &workflow_ctx.document, &workflow_ctx.layer_rasters, &shape_store),
+                       "shape_size_redo")) {
+            return 1;
+        }
+        shape_object = drawing_program_object_store_get_by_id(&shape_store, object_id);
+        if (!shape_object || shape_object->width != 48u || shape_object->height != 28u) {
+            fprintf(stderr,
+                    "lifecycle_test: shape size redo failed width=%u height=%u\n",
+                    shape_object ? (unsigned)shape_object->width : 0u,
+                    shape_object ? (unsigned)shape_object->height : 0u);
+            return 1;
+        }
+    }
+    {
         DrawingProgramObjectStore path_hit_store;
         DrawingProgramObjectRecord style_seed;
         DrawingProgramPathPayload path_payload;
@@ -252,6 +315,28 @@ int drawing_program_lifecycle_run_object_path_suite(DrawingProgramAppContext *wo
                     (int)hit_result.code,
                     (unsigned)hit_object_id,
                     (unsigned)hit_point_index);
+            return 1;
+        }
+        hit_result = drawing_program_object_store_hit_test_selected_path_edge(&path_hit_store,
+                                                                              &path_hit_document,
+                                                                              &path_selection,
+                                                                              170u,
+                                                                              140u,
+                                                                              6u,
+                                                                              &hit_object_id,
+                                                                              &hit_point_index,
+                                                                              &path_payload.points[0].x,
+                                                                              &path_payload.points[0].y);
+        if (hit_result.code != CORE_OK || hit_object_id != outline_id || hit_point_index != 1u ||
+            path_payload.points[0].x != 170 || path_payload.points[0].y != 140) {
+            fprintf(stderr,
+                    "lifecycle_test: expected selected path-edge hit id=%u idx=1 point=(170,140) got code=%d id=%u idx=%u point=(%d,%d)\n",
+                    (unsigned)outline_id,
+                    (int)hit_result.code,
+                    (unsigned)hit_object_id,
+                    (unsigned)hit_point_index,
+                    (int)path_payload.points[0].x,
+                    (int)path_payload.points[0].y);
             return 1;
         }
     }
@@ -407,287 +492,8 @@ int drawing_program_lifecycle_run_object_path_suite(DrawingProgramAppContext *wo
             return 1;
         }
     }
-    {
-        DrawingProgramObjectRecord path_seed;
-        DrawingProgramPathPayload path_payload;
-        const DrawingProgramObjectRecord *path_object = 0;
-        uint32_t path_object_id = 0u;
-        uint32_t unit_cursor_before = 0u;
-        uint32_t unit_count_before = 0u;
-        uint32_t unit_cursor_after = 0u;
-        uint32_t unit_count_after = 0u;
-
-        drawing_program_object_store_reset(&workflow_ctx.object_store);
-        drawing_program_object_selection_reset(&workflow_ctx.object_selection);
-        drawing_program_history_clear(&workflow_ctx.history);
-        memset(&path_seed, 0, sizeof(path_seed));
-        memset(&path_payload, 0, sizeof(path_payload));
-        path_seed.layer_id = workflow_ctx.document.layers[0].layer_id;
-        path_seed.visible = 1u;
-        path_seed.locked = 0u;
-        path_seed.stroke_color_index = 6u;
-        path_seed.fill_color_index = 6u;
-        path_seed.stroke_width = 2u;
-        path_seed.style_mode = 0u;
-        path_payload.point_count = 3u;
-        path_payload.closed = 1u;
-        path_payload.points[0].x = 64;
-        path_payload.points[0].y = 64;
-        path_payload.points[1].x = 96;
-        path_payload.points[1].y = 64;
-        path_payload.points[2].x = 80;
-        path_payload.points[2].y = 96;
-        if (!expect_ok(drawing_program_object_store_add_path(
-                           &workflow_ctx.object_store, &path_seed, &path_payload, &path_object_id),
-                       "path_point_move_seed_add")) {
-            return 1;
-        }
-        drawing_program_history_query_units(&workflow_ctx.history, &unit_cursor_before, &unit_count_before);
-        if (!expect_ok(drawing_program_history_apply_set_object_path_point(
-                           &workflow_ctx.history, &workflow_ctx.object_store, path_object_id, 1u, 110, 70),
-                       "path_point_move_history_apply")) {
-            return 1;
-        }
-        drawing_program_history_query_units(&workflow_ctx.history, &unit_cursor_after, &unit_count_after);
-        if (unit_count_after != unit_count_before + 1u ||
-            unit_cursor_after != unit_cursor_before + 1u) {
-            fprintf(stderr,
-                    "lifecycle_test: expected path-point edit one history unit before=%u/%u after=%u/%u\n",
-                    (unsigned)unit_cursor_before,
-                    (unsigned)unit_count_before,
-                    (unsigned)unit_cursor_after,
-                    (unsigned)unit_count_after);
-            return 1;
-        }
-        path_object = drawing_program_object_store_get_by_id(&workflow_ctx.object_store, path_object_id);
-        if (!path_object ||
-            path_object->type != (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_PATH ||
-            path_object->path_points[1].x != 110 ||
-            path_object->path_points[1].y != 70) {
-            fprintf(stderr, "lifecycle_test: expected path point update to commit\n");
-            return 1;
-        }
-        if (!expect_ok(drawing_program_history_undo(
-                           &workflow_ctx.history, &workflow_ctx.document, &workflow_ctx.layer_rasters, &workflow_ctx.object_store),
-                       "path_point_move_undo")) {
-            return 1;
-        }
-        path_object = drawing_program_object_store_get_by_id(&workflow_ctx.object_store, path_object_id);
-        if (!path_object || path_object->path_points[1].x != 96 || path_object->path_points[1].y != 64) {
-            fprintf(stderr, "lifecycle_test: expected path-point undo to restore prior coordinate\n");
-            return 1;
-        }
-        if (!expect_ok(drawing_program_history_redo(
-                           &workflow_ctx.history, &workflow_ctx.document, &workflow_ctx.layer_rasters, &workflow_ctx.object_store),
-                       "path_point_move_redo")) {
-            return 1;
-        }
-        path_object = drawing_program_object_store_get_by_id(&workflow_ctx.object_store, path_object_id);
-        if (!path_object || path_object->path_points[1].x != 110 || path_object->path_points[1].y != 70) {
-            fprintf(stderr, "lifecycle_test: expected path-point redo to restore new coordinate\n");
-            return 1;
-        }
-    }
-    {
-        DrawingProgramObjectRecord back_object;
-        DrawingProgramObjectRecord front_object;
-        DrawingProgramVisualTransformOpsHooks hooks;
-        VisualCanvasInteractionState interaction;
-        CoreResult hit_result;
-        uint32_t back_id = 0u;
-        uint32_t front_id = 0u;
-        uint32_t hit_object_id = 0u;
-
-        drawing_program_object_store_reset(&workflow_ctx.object_store);
-        drawing_program_object_selection_reset(&workflow_ctx.object_selection);
-        drawing_program_history_clear(&workflow_ctx.history);
-        memset(&back_object, 0, sizeof(back_object));
-        memset(&front_object, 0, sizeof(front_object));
-        back_object.layer_id = workflow_ctx.document.layers[0].layer_id;
-        back_object.type = (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_RECT;
-        back_object.visible = 1u;
-        back_object.origin_x = 40;
-        back_object.origin_y = 40;
-        back_object.width = 40u;
-        back_object.height = 40u;
-        front_object = back_object;
-        front_object.origin_x = 44;
-        front_object.origin_y = 44;
-        if (!expect_ok(drawing_program_object_store_add(&workflow_ctx.object_store, &back_object, &back_id),
-                       "object_promote_seed_back_add")) {
-            return 1;
-        }
-        if (!expect_ok(drawing_program_object_store_add(&workflow_ctx.object_store, &front_object, &front_id),
-                       "object_promote_seed_front_add")) {
-            return 1;
-        }
-        hit_result = drawing_program_object_store_hit_test_topmost(
-            &workflow_ctx.object_store, &workflow_ctx.document, 50u, 50u, &hit_object_id, 0);
-        if (hit_result.code != CORE_OK || hit_object_id != front_id) {
-            fprintf(stderr,
-                    "lifecycle_test: expected initial topmost hit=front id=%u got code=%d id=%u\n",
-                    (unsigned)front_id,
-                    (int)hit_result.code,
-                    (unsigned)hit_object_id);
-            return 1;
-        }
-        drawing_program_object_selection_replace_single(&workflow_ctx.object_selection, back_id);
-        memset(&hooks, 0, sizeof(hooks));
-        hooks.visual_object_commit_move = lifecycle_test_object_commit_move;
-        memset(&interaction, 0, sizeof(interaction));
-        if (!expect_ok(drawing_program_visual_transform_session_nudge_object_move(
-                           &workflow_ctx, &interaction, 4, 0, &hooks),
-                       "object_promote_move_nudge")) {
-            return 1;
-        }
-        hit_result = drawing_program_object_store_hit_test_topmost(
-            &workflow_ctx.object_store, &workflow_ctx.document, 50u, 50u, &hit_object_id, 0);
-        if (hit_result.code != CORE_OK || hit_object_id != back_id) {
-            fprintf(stderr,
-                    "lifecycle_test: expected moved selected object promoted topmost id=%u got code=%d id=%u\n",
-                    (unsigned)back_id,
-                    (int)hit_result.code,
-                    (unsigned)hit_object_id);
-            return 1;
-        }
-    }
-    {
-        DrawingProgramObjectRecord raster_object;
-        uint32_t object_id = 0u;
-        uint8_t sample_value = drawing_program_color_eraser_value();
-        uint8_t expected_fill = drawing_program_color_value_from_index(3u);
-        uint32_t units_before = 0u;
-        uint32_t units_after = 0u;
-        drawing_program_object_store_reset(&workflow_ctx.object_store);
-        drawing_program_object_selection_reset(&workflow_ctx.object_selection);
-        drawing_program_history_clear(&workflow_ctx.history);
-        memset(&raster_object, 0, sizeof(raster_object));
-        raster_object.layer_id = workflow_ctx.document.layers[0].layer_id;
-        raster_object.type = (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_RECT;
-        raster_object.visible = 1u;
-        raster_object.locked = 0u;
-        raster_object.fill_color_index = 3u;
-        raster_object.stroke_color_index = 7u;
-        raster_object.stroke_width = 2u;
-        raster_object.style_mode = 1u;
-        raster_object.origin_x = 24;
-        raster_object.origin_y = 24;
-        raster_object.width = 10u;
-        raster_object.height = 8u;
-        if (!expect_ok(drawing_program_object_store_add(&workflow_ctx.object_store, &raster_object, &object_id),
-                       "object_rasterize_seed_add")) {
-            return 1;
-        }
-        drawing_program_object_selection_replace_single(&workflow_ctx.object_selection, object_id);
-        drawing_program_history_query_units(&workflow_ctx.history, &units_before, 0);
-        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
-                           &workflow_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_RASTERIZE_SELECTED_OBJECTS),
-                       "object_rasterize_workflow_control")) {
-            return 1;
-        }
-        if (workflow_ctx.object_store.object_count != 0u ||
-            workflow_ctx.object_selection.count != 0u ||
-            workflow_ctx.object_selection.active_object_id != 0u) {
-            fprintf(stderr,
-                    "lifecycle_test: expected rasterize workflow to remove selected object entities\n");
-            return 1;
-        }
-        if (!expect_ok(drawing_program_layer_raster_store_sample_read(&workflow_ctx.layer_rasters,
-                                                                      workflow_ctx.editor.active_layer_id,
-                                                                      27u,
-                                                                      27u,
-                                                                      &sample_value),
-                       "object_rasterize_sample_read")) {
-            return 1;
-        }
-        if (sample_value != expected_fill) {
-            fprintf(stderr,
-                    "lifecycle_test: expected rasterized object sample=%u got=%u\n",
-                    (unsigned)expected_fill,
-                    (unsigned)sample_value);
-            return 1;
-        }
-        drawing_program_history_query_units(&workflow_ctx.history, &units_after, 0);
-        if (units_after != units_before + 1u) {
-            fprintf(stderr,
-                    "lifecycle_test: expected rasterize workflow to append one history unit before=%u after=%u\n",
-                    (unsigned)units_before,
-                    (unsigned)units_after);
-            return 1;
-        }
-    }
-    {
-        DrawingProgramObjectRecord path_seed;
-        DrawingProgramPathPayload path_payload;
-        uint32_t object_id = 0u;
-        uint8_t sample_value = drawing_program_color_eraser_value();
-        uint8_t expected_fill = drawing_program_color_value_from_index(5u);
-        uint32_t units_before = 0u;
-        uint32_t units_after = 0u;
-        drawing_program_object_store_reset(&workflow_ctx.object_store);
-        drawing_program_object_selection_reset(&workflow_ctx.object_selection);
-        drawing_program_history_clear(&workflow_ctx.history);
-        memset(&path_seed, 0, sizeof(path_seed));
-        memset(&path_payload, 0, sizeof(path_payload));
-        path_seed.layer_id = workflow_ctx.document.layers[0].layer_id;
-        path_seed.visible = 1u;
-        path_seed.locked = 0u;
-        path_seed.fill_color_index = 5u;
-        path_seed.stroke_color_index = 7u;
-        path_seed.stroke_width = 2u;
-        path_seed.style_mode = 2u;
-        path_payload.point_count = 3u;
-        path_payload.closed = 1u;
-        path_payload.points[0].x = 40;
-        path_payload.points[0].y = 40;
-        path_payload.points[1].x = 80;
-        path_payload.points[1].y = 40;
-        path_payload.points[2].x = 60;
-        path_payload.points[2].y = 80;
-        if (!expect_ok(drawing_program_object_store_add_path(&workflow_ctx.object_store,
-                                                             &path_seed,
-                                                             &path_payload,
-                                                             &object_id),
-                       "path_rasterize_seed_add")) {
-            return 1;
-        }
-        drawing_program_object_selection_replace_single(&workflow_ctx.object_selection, object_id);
-        drawing_program_history_query_units(&workflow_ctx.history, &units_before, 0);
-        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
-                           &workflow_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_RASTERIZE_SELECTED_OBJECTS),
-                       "path_rasterize_workflow_control")) {
-            return 1;
-        }
-        if (workflow_ctx.object_store.object_count != 0u ||
-            workflow_ctx.object_selection.count != 0u ||
-            workflow_ctx.object_selection.active_object_id != 0u) {
-            fprintf(stderr,
-                    "lifecycle_test: expected path rasterize workflow to remove selected object entities\n");
-            return 1;
-        }
-        if (!expect_ok(drawing_program_layer_raster_store_sample_read(&workflow_ctx.layer_rasters,
-                                                                      workflow_ctx.editor.active_layer_id,
-                                                                      60u,
-                                                                      55u,
-                                                                      &sample_value),
-                       "path_rasterize_sample_read")) {
-            return 1;
-        }
-        if (sample_value != expected_fill) {
-            fprintf(stderr,
-                    "lifecycle_test: expected rasterized path sample=%u got=%u\n",
-                    (unsigned)expected_fill,
-                    (unsigned)sample_value);
-            return 1;
-        }
-        drawing_program_history_query_units(&workflow_ctx.history, &units_after, 0);
-        if (units_after != units_before + 1u) {
-            fprintf(stderr,
-                    "lifecycle_test: expected path rasterize workflow to append one history unit before=%u after=%u\n",
-                    (unsigned)units_before,
-                    (unsigned)units_after);
-            return 1;
-        }
+    if (drawing_program_lifecycle_run_object_path_history_suite(&workflow_ctx) != 0) {
+        return 1;
     }
 
 #undef workflow_ctx

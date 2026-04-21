@@ -77,13 +77,44 @@ typedef struct DrawingProgramObjectChunkEntryV2 {
     uint32_t width;
     uint32_t height;
     char name[DRAWING_PROGRAM_OBJECT_NAME_CAPACITY];
-    DrawingProgramPathPoint path_points[DRAWING_PROGRAM_OBJECT_PATH_MAX_POINTS];
+    struct {
+        int32_t x;
+        int32_t y;
+    } path_points[DRAWING_PROGRAM_OBJECT_PATH_MAX_POINTS];
 } DrawingProgramObjectChunkEntryV2;
+
+typedef struct DrawingProgramObjectChunkHeaderV3 {
+    uint32_t version;
+    uint32_t object_count;
+    uint32_t next_object_id;
+    uint32_t reserved0;
+} DrawingProgramObjectChunkHeaderV3;
+
+typedef struct DrawingProgramObjectChunkEntryV3 {
+    uint32_t object_id;
+    uint32_t layer_id;
+    uint8_t type;
+    uint8_t visible;
+    uint8_t locked;
+    uint8_t stroke_color_index;
+    uint8_t fill_color_index;
+    uint8_t stroke_width;
+    uint8_t style_mode;
+    uint8_t path_closed;
+    uint16_t path_point_count;
+    int32_t origin_x;
+    int32_t origin_y;
+    uint32_t width;
+    uint32_t height;
+    char name[DRAWING_PROGRAM_OBJECT_NAME_CAPACITY];
+    DrawingProgramPathPoint path_points[DRAWING_PROGRAM_OBJECT_PATH_MAX_POINTS];
+} DrawingProgramObjectChunkEntryV3;
 
 enum {
     DRAWING_PROGRAM_LAYER_RASTER_CHUNK_VERSION_V1 = 1u,
     DRAWING_PROGRAM_OBJECT_CHUNK_VERSION_V1 = 1u,
-    DRAWING_PROGRAM_OBJECT_CHUNK_VERSION_V2 = 2u
+    DRAWING_PROGRAM_OBJECT_CHUNK_VERSION_V2 = 2u,
+    DRAWING_PROGRAM_OBJECT_CHUNK_VERSION_V3 = 3u
 };
 
 static CoreResult snapshot_invalid(const char *message) {
@@ -110,6 +141,56 @@ static int drawing_program_snapshot_document_has_layer_id(const DrawingProgramDo
         }
     }
     return 0;
+}
+
+static CoreResult drawing_program_snapshot_upgrade_legacy_palette_index_samples(
+    struct DrawingProgramAppContext *ctx,
+    uint8_t *out_upgraded) {
+    uint8_t upgraded = 0u;
+    uint32_t i;
+    if (!ctx) {
+        return snapshot_invalid("invalid palette sample upgrade request");
+    }
+    if (ctx->document.schema_version >= DRAWING_PROGRAM_DOCUMENT_SCHEMA_VERSION_PALETTE_INDEX) {
+        if (out_upgraded) {
+            *out_upgraded = 0u;
+        }
+        return core_result_ok();
+    }
+    for (i = 0u; i < ctx->document.raster_sample_count; ++i) {
+        uint8_t normalized = drawing_program_color_normalize_legacy_sample(ctx->document.raster_samples[i]);
+        if (normalized != ctx->document.raster_samples[i]) {
+            ctx->document.raster_samples[i] = normalized;
+            upgraded = 1u;
+        }
+    }
+    if (ctx->layer_rasters.slot_samples &&
+        ctx->layer_rasters.sample_count == ctx->document.raster_sample_count) {
+        uint32_t slot;
+        for (slot = 0u; slot < ctx->layer_rasters.slot_capacity; ++slot) {
+            uint8_t *slot_samples;
+            if (ctx->layer_rasters.slot_layer_ids[slot] == 0u) {
+                continue;
+            }
+            slot_samples = ctx->layer_rasters.slot_samples +
+                           ((size_t)slot * (size_t)ctx->layer_rasters.sample_count);
+            for (i = 0u; i < ctx->layer_rasters.sample_count; ++i) {
+                uint8_t normalized = drawing_program_color_normalize_legacy_sample(slot_samples[i]);
+                if (normalized != slot_samples[i]) {
+                    slot_samples[i] = normalized;
+                    upgraded = 1u;
+                }
+            }
+        }
+    }
+    if (ctx->document.schema_version != DRAWING_PROGRAM_DOCUMENT_SCHEMA_VERSION_PALETTE_INDEX) {
+        ctx->document.schema_version = DRAWING_PROGRAM_DOCUMENT_SCHEMA_VERSION_PALETTE_INDEX;
+        upgraded = 1u;
+    }
+    if (out_upgraded) {
+        *out_upgraded = upgraded;
+    }
+    return core_result_ok();
 }
 
 static CoreResult drawing_program_snapshot_write_layer_raster_chunk(
@@ -252,7 +333,7 @@ static CoreResult drawing_program_snapshot_apply_layer_raster_chunk(
 static CoreResult drawing_program_snapshot_write_object_chunk(
     CorePackWriter *writer,
     const struct DrawingProgramAppContext *ctx) {
-    DrawingProgramObjectChunkHeaderV2 header;
+    DrawingProgramObjectChunkHeaderV3 header;
     uint64_t payload_size;
     uint8_t *payload = 0;
     uint8_t *cursor = 0;
@@ -264,14 +345,14 @@ static CoreResult drawing_program_snapshot_write_object_chunk(
         return (CoreResult){ CORE_ERR_FORMAT, "object store count exceeds max object capacity" };
     }
     memset(&header, 0, sizeof(header));
-    header.version = DRAWING_PROGRAM_OBJECT_CHUNK_VERSION_V2;
+    header.version = DRAWING_PROGRAM_OBJECT_CHUNK_VERSION_V3;
     header.object_count = ctx->object_store.object_count;
     header.next_object_id = ctx->object_store.next_object_id;
     if (header.next_object_id == 0u) {
         header.next_object_id = 1u;
     }
     payload_size = (uint64_t)sizeof(header) +
-                   ((uint64_t)header.object_count * (uint64_t)sizeof(DrawingProgramObjectChunkEntryV2));
+                   ((uint64_t)header.object_count * (uint64_t)sizeof(DrawingProgramObjectChunkEntryV3));
     payload = (uint8_t *)malloc((size_t)payload_size);
     if (!payload) {
         return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "failed to allocate object snapshot payload" };
@@ -280,7 +361,7 @@ static CoreResult drawing_program_snapshot_write_object_chunk(
     memcpy(cursor, &header, sizeof(header));
     cursor += sizeof(header);
     for (i = 0u; i < header.object_count; ++i) {
-        DrawingProgramObjectChunkEntryV2 entry;
+        DrawingProgramObjectChunkEntryV3 entry;
         const DrawingProgramObjectRecord *object = &ctx->object_store.objects[i];
         memset(&entry, 0, sizeof(entry));
         entry.object_id = object->object_id;
@@ -325,7 +406,8 @@ static CoreResult drawing_program_snapshot_apply_object_chunk(
     uint64_t chunk_size) {
     DrawingProgramObjectChunkHeaderV1 header_v1;
     DrawingProgramObjectChunkHeaderV2 header_v2;
-    DrawingProgramObjectStore staged_store;
+    DrawingProgramObjectChunkHeaderV3 header_v3;
+    DrawingProgramObjectStore *staged_store = 0;
     const uint8_t *cursor = (const uint8_t *)chunk_data;
     const uint8_t *end = cursor + chunk_size;
     uint32_t version = 0u;
@@ -333,7 +415,11 @@ static CoreResult drawing_program_snapshot_apply_object_chunk(
         return snapshot_invalid("invalid object chunk payload");
     }
     memcpy(&version, cursor, sizeof(uint32_t));
-    drawing_program_object_store_reset(&staged_store);
+    staged_store = (DrawingProgramObjectStore *)calloc(1u, sizeof(*staged_store));
+    if (!staged_store) {
+        return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "failed to allocate staged object store" };
+    }
+    drawing_program_object_store_reset(staged_store);
     if (version == DRAWING_PROGRAM_OBJECT_CHUNK_VERSION_V1) {
         DrawingProgramObjectRecord records[DRAWING_PROGRAM_MAX_OBJECTS];
         uint32_t i;
@@ -341,11 +427,13 @@ static CoreResult drawing_program_snapshot_apply_object_chunk(
         memset(&header_v1, 0, sizeof(header_v1));
         memcpy(&header_v1, cursor, sizeof(header_v1));
         if (header_v1.object_count > DRAWING_PROGRAM_MAX_OBJECTS) {
+            free(staged_store);
             return (CoreResult){ CORE_ERR_FORMAT, "object chunk count exceeds max object capacity" };
         }
         expected_size = (uint64_t)sizeof(header_v1) +
                         ((uint64_t)header_v1.object_count * (uint64_t)sizeof(DrawingProgramObjectChunkEntryV1));
         if (expected_size != chunk_size) {
+            free(staged_store);
             return (CoreResult){ CORE_ERR_FORMAT, "drawing object chunk size mismatch" };
         }
         cursor += sizeof(header_v1);
@@ -354,6 +442,7 @@ static CoreResult drawing_program_snapshot_apply_object_chunk(
             DrawingProgramObjectChunkEntryV1 entry;
             DrawingProgramObjectRecord record;
             if ((uint64_t)(end - cursor) < (uint64_t)sizeof(entry)) {
+                free(staged_store);
                 return (CoreResult){ CORE_ERR_FORMAT, "drawing object chunk truncated entries" };
             }
             memcpy(&entry, cursor, sizeof(entry));
@@ -377,12 +466,17 @@ static CoreResult drawing_program_snapshot_apply_object_chunk(
             records[i] = record;
         }
         if (cursor != end) {
+            free(staged_store);
             return (CoreResult){ CORE_ERR_FORMAT, "drawing object chunk trailing bytes" };
         }
-        return drawing_program_object_store_replace_all(&ctx->object_store,
-                                                        records,
-                                                        header_v1.object_count,
-                                                        header_v1.next_object_id);
+        {
+            CoreResult replace_result = drawing_program_object_store_replace_all(&ctx->object_store,
+                                                                                 records,
+                                                                                 header_v1.object_count,
+                                                                                 header_v1.next_object_id);
+            free(staged_store);
+            return replace_result;
+        }
     }
     if (version == DRAWING_PROGRAM_OBJECT_CHUNK_VERSION_V2) {
         uint32_t i;
@@ -390,11 +484,13 @@ static CoreResult drawing_program_snapshot_apply_object_chunk(
         memset(&header_v2, 0, sizeof(header_v2));
         memcpy(&header_v2, cursor, sizeof(header_v2));
         if (header_v2.object_count > DRAWING_PROGRAM_MAX_OBJECTS) {
+            free(staged_store);
             return (CoreResult){ CORE_ERR_FORMAT, "object chunk count exceeds max object capacity" };
         }
         expected_size = (uint64_t)sizeof(header_v2) +
                         ((uint64_t)header_v2.object_count * (uint64_t)sizeof(DrawingProgramObjectChunkEntryV2));
         if (expected_size != chunk_size) {
+            free(staged_store);
             return (CoreResult){ CORE_ERR_FORMAT, "drawing object chunk size mismatch" };
         }
         cursor += sizeof(header_v2);
@@ -403,6 +499,91 @@ static CoreResult drawing_program_snapshot_apply_object_chunk(
             DrawingProgramObjectRecord record;
             CoreResult insert_result;
             if ((uint64_t)(end - cursor) < (uint64_t)sizeof(entry)) {
+                free(staged_store);
+                return (CoreResult){ CORE_ERR_FORMAT, "drawing object chunk truncated entries" };
+            }
+            memcpy(&entry, cursor, sizeof(entry));
+            cursor += sizeof(entry);
+            memset(&record, 0, sizeof(record));
+            record.object_id = entry.object_id;
+            record.layer_id = entry.layer_id;
+            record.type = entry.type;
+            record.visible = entry.visible ? 1u : 0u;
+            record.locked = entry.locked ? 1u : 0u;
+            record.stroke_color_index = entry.stroke_color_index;
+            record.fill_color_index = entry.fill_color_index;
+            record.stroke_width = entry.stroke_width;
+            record.style_mode = entry.style_mode;
+            record.origin_x = entry.origin_x;
+            record.origin_y = entry.origin_y;
+            record.width = entry.width;
+            record.height = entry.height;
+            memcpy(record.name, entry.name, sizeof(record.name));
+            record.name[sizeof(record.name) - 1u] = '\0';
+            if (record.type == (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_PATH) {
+                if (entry.path_point_count < 2u ||
+                    entry.path_point_count > DRAWING_PROGRAM_OBJECT_PATH_MAX_POINTS) {
+                    continue;
+                }
+                record.path_point_count = entry.path_point_count;
+                record.path_closed = entry.path_closed ? 1u : 0u;
+                {
+                    uint32_t point_i;
+                    for (point_i = 0u; point_i < (uint32_t)entry.path_point_count; ++point_i) {
+                        record.path_points[point_i].x = entry.path_points[point_i].x;
+                        record.path_points[point_i].y = entry.path_points[point_i].y;
+                        record.path_points[point_i].handle_in_dx = 0;
+                        record.path_points[point_i].handle_in_dy = 0;
+                        record.path_points[point_i].handle_out_dx = 0;
+                        record.path_points[point_i].handle_out_dy = 0;
+                        record.path_points[point_i].bezier_enabled = 0u;
+                        record.path_points[point_i].handle_linked = 0u;
+                        record.path_points[point_i].reserved0 = 0u;
+                        record.path_points[point_i].reserved1 = 0u;
+                    }
+                }
+            }
+            insert_result = drawing_program_object_store_insert_with_id(staged_store, &record, record.object_id);
+            if (insert_result.code != CORE_OK) {
+                continue;
+            }
+        }
+        if (cursor != end) {
+            free(staged_store);
+            return (CoreResult){ CORE_ERR_FORMAT, "drawing object chunk trailing bytes" };
+        }
+        if (header_v2.next_object_id > staged_store->next_object_id) {
+            staged_store->next_object_id = header_v2.next_object_id;
+            if (staged_store->next_object_id == 0u) {
+                staged_store->next_object_id = 1u;
+            }
+        }
+        ctx->object_store = *staged_store;
+        free(staged_store);
+        return core_result_ok();
+    }
+    if (version == DRAWING_PROGRAM_OBJECT_CHUNK_VERSION_V3) {
+        uint32_t i;
+        uint64_t expected_size;
+        memset(&header_v3, 0, sizeof(header_v3));
+        memcpy(&header_v3, cursor, sizeof(header_v3));
+        if (header_v3.object_count > DRAWING_PROGRAM_MAX_OBJECTS) {
+            free(staged_store);
+            return (CoreResult){ CORE_ERR_FORMAT, "object chunk count exceeds max object capacity" };
+        }
+        expected_size = (uint64_t)sizeof(header_v3) +
+                        ((uint64_t)header_v3.object_count * (uint64_t)sizeof(DrawingProgramObjectChunkEntryV3));
+        if (expected_size != chunk_size) {
+            free(staged_store);
+            return (CoreResult){ CORE_ERR_FORMAT, "drawing object chunk size mismatch" };
+        }
+        cursor += sizeof(header_v3);
+        for (i = 0u; i < header_v3.object_count; ++i) {
+            DrawingProgramObjectChunkEntryV3 entry;
+            DrawingProgramObjectRecord record;
+            CoreResult insert_result;
+            if ((uint64_t)(end - cursor) < (uint64_t)sizeof(entry)) {
+                free(staged_store);
                 return (CoreResult){ CORE_ERR_FORMAT, "drawing object chunk truncated entries" };
             }
             memcpy(&entry, cursor, sizeof(entry));
@@ -434,46 +615,52 @@ static CoreResult drawing_program_snapshot_apply_object_chunk(
                        entry.path_points,
                        (size_t)entry.path_point_count * sizeof(record.path_points[0]));
             }
-            insert_result = drawing_program_object_store_insert_with_id(&staged_store, &record, record.object_id);
+            insert_result = drawing_program_object_store_insert_with_id(staged_store, &record, record.object_id);
             if (insert_result.code != CORE_OK) {
                 continue;
             }
         }
         if (cursor != end) {
+            free(staged_store);
             return (CoreResult){ CORE_ERR_FORMAT, "drawing object chunk trailing bytes" };
         }
-        if (header_v2.next_object_id > staged_store.next_object_id) {
-            staged_store.next_object_id = header_v2.next_object_id;
-            if (staged_store.next_object_id == 0u) {
-                staged_store.next_object_id = 1u;
+        if (header_v3.next_object_id > staged_store->next_object_id) {
+            staged_store->next_object_id = header_v3.next_object_id;
+            if (staged_store->next_object_id == 0u) {
+                staged_store->next_object_id = 1u;
             }
         }
-        ctx->object_store = staged_store;
+        ctx->object_store = *staged_store;
+        free(staged_store);
         return core_result_ok();
     }
+    free(staged_store);
     return (CoreResult){ CORE_ERR_FORMAT, "unsupported drawing object chunk version" };
 }
 
 CoreResult drawing_program_snapshot_save(const struct DrawingProgramAppContext *ctx, const char *path) {
     CorePackWriter writer;
-    DrawingProgramSnapshotV1 payload;
+    DrawingProgramSnapshotV1 *payload = 0;
     CoreResult result;
     if (!ctx || !path) {
         return snapshot_invalid("invalid snapshot save request");
     }
 
-    memset(&payload, 0, sizeof(payload));
-    payload.header.version = 1u;
-    payload.header.node_count = ctx->pane_host.node_count;
-    payload.header.binding_count = ctx->pane_host.module_binding_count;
-    payload.header.history_count = ctx->history.count;
-    payload.header.history_cursor = ctx->history.cursor;
-    payload.document = ctx->document;
-    payload.editor = ctx->editor;
-    payload.layout_state = ctx->pane_host.layout_state;
-    memcpy(payload.nodes, ctx->pane_host.nodes, sizeof(payload.nodes));
-    memcpy(payload.bindings, ctx->pane_host.module_bindings, sizeof(payload.bindings));
-    memcpy(payload.history_entries, ctx->history.entries, sizeof(payload.history_entries));
+    payload = (DrawingProgramSnapshotV1 *)calloc(1u, sizeof(*payload));
+    if (!payload) {
+        return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "failed to allocate snapshot payload" };
+    }
+    payload->header.version = 1u;
+    payload->header.node_count = ctx->pane_host.node_count;
+    payload->header.binding_count = ctx->pane_host.module_binding_count;
+    payload->header.history_count = ctx->history.count;
+    payload->header.history_cursor = ctx->history.cursor;
+    payload->document = ctx->document;
+    payload->editor = ctx->editor;
+    payload->layout_state = ctx->pane_host.layout_state;
+    memcpy(payload->nodes, ctx->pane_host.nodes, sizeof(payload->nodes));
+    memcpy(payload->bindings, ctx->pane_host.module_bindings, sizeof(payload->bindings));
+    memcpy(payload->history_entries, ctx->history.entries, sizeof(payload->history_entries));
     if (snapshot_trace_enabled()) {
         fprintf(stderr,
                 "drawing_program trace snapshot_save begin path=%s tool=%u theme=%u font=%u zoom=%d slot_l=%u slot_r=%u color=%u\n",
@@ -489,6 +676,7 @@ CoreResult drawing_program_snapshot_save(const struct DrawingProgramAppContext *
 
     result = core_pack_writer_open(path, &writer);
     if (result.code != CORE_OK) {
+        free(payload);
         if (snapshot_trace_enabled()) {
             fprintf(stderr,
                     "drawing_program trace snapshot_save fail path=%s code=%d message=%s\n",
@@ -498,27 +686,32 @@ CoreResult drawing_program_snapshot_save(const struct DrawingProgramAppContext *
         }
         return result;
     }
-    result = core_pack_writer_add_chunk(&writer, "DPS2", &payload, (uint64_t)sizeof(payload));
+    result = core_pack_writer_add_chunk(&writer, "DPS2", payload, (uint64_t)sizeof(*payload));
     if (result.code != CORE_OK) {
+        free(payload);
         (void)core_pack_writer_close(&writer);
         return result;
     }
     result = drawing_program_snapshot_write_layer_raster_chunk(&writer, ctx);
     if (result.code != CORE_OK) {
+        free(payload);
         (void)core_pack_writer_close(&writer);
         return result;
     }
     result = drawing_program_snapshot_write_object_chunk(&writer, ctx);
     if (result.code != CORE_OK) {
+        free(payload);
         (void)core_pack_writer_close(&writer);
         return result;
     }
     result = drawing_program_snapshot_write_ui_settings_chunk(&writer, ctx);
     if (result.code != CORE_OK) {
+        free(payload);
         (void)core_pack_writer_close(&writer);
         return result;
     }
     result = core_pack_writer_close(&writer);
+    free(payload);
     if (snapshot_trace_enabled()) {
         fprintf(stderr,
                 "drawing_program trace snapshot_save end path=%s code=%d message=%s\n",
@@ -535,20 +728,25 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
     CorePackChunkInfo ui_chunk;
     CorePackChunkInfo layer_chunk;
     CorePackChunkInfo object_chunk;
-    DrawingProgramSnapshotV1 payload;
+    DrawingProgramSnapshotV1 *payload = 0;
     CoreResult result;
+    uint8_t upgraded_legacy_palette_samples = 0u;
     uint8_t *layer_chunk_data = 0;
     uint8_t *object_chunk_data = 0;
     if (!ctx || !path) {
         return snapshot_invalid("invalid snapshot load request");
     }
 
-    memset(&payload, 0, sizeof(payload));
+    payload = (DrawingProgramSnapshotV1 *)calloc(1u, sizeof(*payload));
+    if (!payload) {
+        return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "failed to allocate snapshot load payload" };
+    }
     if (snapshot_trace_enabled()) {
         fprintf(stderr, "drawing_program trace snapshot_load begin path=%s\n", path ? path : "(null)");
     }
     result = core_pack_reader_open(path, &reader);
     if (result.code != CORE_OK) {
+        free(payload);
         if (snapshot_trace_enabled()) {
             fprintf(stderr,
                     "drawing_program trace snapshot_load fail_open path=%s code=%d message=%s\n",
@@ -560,51 +758,58 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
     }
     result = core_pack_reader_find_chunk(&reader, "DPS2", 0u, &chunk);
     if (result.code != CORE_OK) {
+        free(payload);
         (void)core_pack_reader_close(&reader);
         return result;
     }
-    if (chunk.size != (uint64_t)sizeof(payload)) {
+    if (chunk.size != (uint64_t)sizeof(*payload)) {
+        free(payload);
         (void)core_pack_reader_close(&reader);
         return (CoreResult){ CORE_ERR_FORMAT, "unexpected drawing snapshot payload size" };
     }
-    result = core_pack_reader_read_chunk_data(&reader, &chunk, &payload, (uint64_t)sizeof(payload));
+    result = core_pack_reader_read_chunk_data(&reader, &chunk, payload, (uint64_t)sizeof(*payload));
     if (result.code != CORE_OK) {
+        free(payload);
         (void)core_pack_reader_close(&reader);
         return result;
     }
-    if (payload.header.version != 1u) {
+    if (payload->header.version != 1u) {
+        free(payload);
         return (CoreResult){ CORE_ERR_FORMAT, "unsupported drawing snapshot version" };
     }
-    if (payload.header.node_count > DRAWING_PROGRAM_PANE_NODE_CAPACITY ||
-        payload.header.binding_count > DRAWING_PROGRAM_MODULE_BINDING_CAPACITY ||
-        payload.header.history_count > DRAWING_PROGRAM_HISTORY_CAPACITY ||
-        payload.header.history_cursor > payload.header.history_count) {
+    if (payload->header.node_count > DRAWING_PROGRAM_PANE_NODE_CAPACITY ||
+        payload->header.binding_count > DRAWING_PROGRAM_MODULE_BINDING_CAPACITY ||
+        payload->header.history_count > DRAWING_PROGRAM_HISTORY_CAPACITY ||
+        payload->header.history_cursor > payload->header.history_count) {
+        free(payload);
         return (CoreResult){ CORE_ERR_FORMAT, "invalid drawing snapshot bounds" };
     }
 
-    ctx->document = payload.document;
-    ctx->editor = payload.editor;
+    ctx->document = payload->document;
+    ctx->editor = payload->editor;
     drawing_program_object_store_reset(&ctx->object_store);
     result = drawing_program_layer_raster_store_init_from_document(&ctx->layer_rasters, &ctx->document);
     if (result.code != CORE_OK) {
+        free(payload);
         (void)core_pack_reader_close(&reader);
         return result;
     }
-    ctx->pane_host.layout_state = payload.layout_state;
-    memcpy(ctx->pane_host.nodes, payload.nodes, sizeof(ctx->pane_host.nodes));
-    memcpy(ctx->pane_host.module_bindings, payload.bindings, sizeof(ctx->pane_host.module_bindings));
-    memcpy(ctx->history.entries, payload.history_entries, sizeof(ctx->history.entries));
-    ctx->history.count = payload.header.history_count;
-    ctx->history.cursor = payload.header.history_cursor;
-    ctx->pane_host.node_count = payload.header.node_count;
+    ctx->pane_host.layout_state = payload->layout_state;
+    memcpy(ctx->pane_host.nodes, payload->nodes, sizeof(ctx->pane_host.nodes));
+    memcpy(ctx->pane_host.module_bindings, payload->bindings, sizeof(ctx->pane_host.module_bindings));
+    memcpy(ctx->history.entries, payload->history_entries, sizeof(ctx->history.entries));
+    ctx->history.count = payload->header.history_count;
+    ctx->history.cursor = payload->header.history_cursor;
+    ctx->pane_host.node_count = payload->header.node_count;
     ctx->pane_host.root_index = 0u;
-    ctx->pane_host.module_binding_count = payload.header.binding_count;
+    ctx->pane_host.module_binding_count = payload->header.binding_count;
     memset(&layer_chunk, 0, sizeof(layer_chunk));
     memset(&object_chunk, 0, sizeof(object_chunk));
     result = core_pack_reader_find_chunk(&reader, "DPLR", 0u, &layer_chunk);
     if (result.code == CORE_OK) {
         layer_chunk_data = (uint8_t *)malloc((size_t)layer_chunk.size);
         if (!layer_chunk_data) {
+            free(payload);
             (void)core_pack_reader_close(&reader);
             return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "failed to allocate layer raster chunk buffer" };
         }
@@ -612,6 +817,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
         if (result.code != CORE_OK) {
             free(layer_chunk_data);
             layer_chunk_data = 0;
+            free(payload);
             (void)core_pack_reader_close(&reader);
             return result;
         }
@@ -619,6 +825,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
         free(layer_chunk_data);
         layer_chunk_data = 0;
         if (result.code != CORE_OK) {
+            free(payload);
             (void)core_pack_reader_close(&reader);
             return result;
         }
@@ -627,6 +834,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
     if (result.code == CORE_OK) {
         object_chunk_data = (uint8_t *)malloc((size_t)object_chunk.size);
         if (!object_chunk_data) {
+            free(payload);
             (void)core_pack_reader_close(&reader);
             return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "failed to allocate object chunk buffer" };
         }
@@ -634,6 +842,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
         if (result.code != CORE_OK) {
             free(object_chunk_data);
             object_chunk_data = 0;
+            free(payload);
             (void)core_pack_reader_close(&reader);
             return result;
         }
@@ -641,19 +850,27 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
         free(object_chunk_data);
         object_chunk_data = 0;
         if (result.code != CORE_OK) {
+            free(payload);
             (void)core_pack_reader_close(&reader);
             return result;
         }
+    }
+    result = drawing_program_snapshot_upgrade_legacy_palette_index_samples(ctx, &upgraded_legacy_palette_samples);
+    if (result.code != CORE_OK) {
+        free(payload);
+        (void)core_pack_reader_close(&reader);
+        return result;
     }
     result = core_pack_reader_find_chunk(&reader, "DPUI", 0u, &ui_chunk);
     if (result.code == CORE_OK) {
         result = drawing_program_snapshot_apply_ui_settings_chunk(ctx, &reader, &ui_chunk);
     }
     (void)core_pack_reader_close(&reader);
+    free(payload);
     result = drawing_program_pane_host_rebuild(ctx);
     if (snapshot_trace_enabled()) {
         fprintf(stderr,
-                "drawing_program trace snapshot_load end path=%s code=%d tool=%u theme=%u font=%u zoom=%d slot_l=%u slot_r=%u color=%u leafs=%u\n",
+                "drawing_program trace snapshot_load end path=%s code=%d tool=%u theme=%u font=%u zoom=%d slot_l=%u slot_r=%u color=%u leafs=%u upgraded_palette=%u\n",
                 path ? path : "(null)",
                 (int)result.code,
                 (unsigned)ctx->editor.active_tool,
@@ -663,7 +880,8 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
                 (unsigned)ctx->ui.left_panel_slot,
                 (unsigned)ctx->ui.right_panel_slot,
                 (unsigned)ctx->ui.active_color_index,
-                (unsigned)ctx->pane_host.leaf_count);
+                (unsigned)ctx->pane_host.leaf_count,
+                (unsigned)upgraded_legacy_palette_samples);
     }
     return result;
 }
@@ -731,7 +949,7 @@ CoreResult drawing_program_snapshot_export_debug_json(const struct DrawingProgra
     fprintf(f, "    \"left_panel_slot\": %u,\n", (unsigned)ctx->ui.left_panel_slot);
     fprintf(f, "    \"right_panel_slot\": %u,\n", (unsigned)ctx->ui.right_panel_slot);
     fprintf(f, "    \"active_color_index\": %u,\n", (unsigned)ctx->ui.active_color_index);
-    fprintf(f, "    \"active_color_value\": %u\n",
+    fprintf(f, "    \"active_color_sample\": %u\n",
             (unsigned)drawing_program_color_value_from_index(ctx->ui.active_color_index));
     fprintf(f, "  },\n");
     fprintf(f, "  \"tool_settings\": {\n");

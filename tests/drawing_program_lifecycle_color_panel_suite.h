@@ -1,0 +1,8 @@
+#ifndef DRAWING_PROGRAM_LIFECYCLE_COLOR_PANEL_SUITE_H
+#define DRAWING_PROGRAM_LIFECYCLE_COLOR_PANEL_SUITE_H
+
+#include "drawing_program/drawing_program_app_main.h"
+
+int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *workflow_ctx);
+
+#endif

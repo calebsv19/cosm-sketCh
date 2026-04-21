@@ -78,7 +78,7 @@ CoreResult drawing_program_document_init_with_shape(DrawingProgramDocument *docu
     }
 
     memset(document, 0, sizeof(*document));
-    document->schema_version = 2u;
+    document->schema_version = DRAWING_PROGRAM_DOCUMENT_SCHEMA_VERSION_PALETTE_INDEX;
     document->logical_width = logical_width;
     document->logical_height = logical_height;
     document->sample_density = sample_density;

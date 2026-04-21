@@ -13,6 +13,7 @@ void drawing_program_visual_cancel_canvas_draw_and_shape(VisualCanvasInteraction
     interaction->shape_active = 0u;
     interaction->path_draft_active = 0u;
     interaction->path_draft_closed = 0u;
+    interaction->path_draft_drag_active = 0u;
     interaction->transform_active = 0u;
     interaction->transform_kind = (uint8_t)VISUAL_TRANSFORM_SESSION_NONE;
     interaction->move_axis_lock = 0u;
@@ -30,9 +31,19 @@ void drawing_program_visual_cancel_canvas_draw_and_shape(VisualCanvasInteraction
     interaction->object_path_point_anchor_sample_y = 0u;
     interaction->object_path_point_offset_x = 0;
     interaction->object_path_point_offset_y = 0;
+    interaction->object_path_handle_move_active = 0u;
+    interaction->object_path_handle_kind = (uint8_t)DRAWING_PROGRAM_PATH_HANDLE_NONE;
+    interaction->object_path_handle_point_index = 0u;
+    interaction->object_path_handle_object_id = 0u;
+    interaction->object_path_handle_dx = 0;
+    interaction->object_path_handle_dy = 0;
     interaction->path_preview_sample_x = 0u;
     interaction->path_preview_sample_y = 0u;
     interaction->path_draft_point_count = 0u;
+    interaction->path_draft_drag_point_index = 0u;
+    interaction->path_preview_flatten_dirty = 0u;
+    interaction->path_preview_flatten_valid = 0u;
+    interaction->path_preview_flatten_point_count = 0u;
     memset(interaction->path_draft_points, 0, sizeof(interaction->path_draft_points));
 }
 
@@ -114,6 +125,12 @@ void drawing_program_visual_transform_session_reset(VisualCanvasInteractionState
     interaction->object_path_point_object_id = 0u;
     interaction->object_path_point_offset_x = 0;
     interaction->object_path_point_offset_y = 0;
+    interaction->object_path_handle_move_active = 0u;
+    interaction->object_path_handle_kind = (uint8_t)DRAWING_PROGRAM_PATH_HANDLE_NONE;
+    interaction->object_path_handle_point_index = 0u;
+    interaction->object_path_handle_object_id = 0u;
+    interaction->object_path_handle_dx = 0;
+    interaction->object_path_handle_dy = 0;
 }
 
 int drawing_program_visual_transform_session_is_move_active(const VisualCanvasInteractionState *interaction) {
@@ -144,6 +161,17 @@ int drawing_program_visual_transform_session_is_object_path_point_move_active(
                : 0;
 }
 
+int drawing_program_visual_transform_session_is_object_path_handle_move_active(
+    const VisualCanvasInteractionState *interaction) {
+    if (!interaction) {
+        return 0;
+    }
+    return drawing_program_visual_transform_session_is_move_active(interaction) &&
+                   interaction->object_path_handle_move_active
+               ? 1
+               : 0;
+}
+
 void drawing_program_visual_transform_session_begin_move(VisualCanvasInteractionState *interaction,
                                                          VisualSelectionState *selection,
                                                          uint32_t sample_x,
@@ -163,6 +191,12 @@ void drawing_program_visual_transform_session_begin_move(VisualCanvasInteraction
     interaction->object_path_point_object_id = 0u;
     interaction->object_path_point_offset_x = 0;
     interaction->object_path_point_offset_y = 0;
+    interaction->object_path_handle_move_active = 0u;
+    interaction->object_path_handle_kind = (uint8_t)DRAWING_PROGRAM_PATH_HANDLE_NONE;
+    interaction->object_path_handle_point_index = 0u;
+    interaction->object_path_handle_object_id = 0u;
+    interaction->object_path_handle_dx = 0;
+    interaction->object_path_handle_dy = 0;
 }
 
 void drawing_program_visual_transform_session_update_move(const DrawingProgramAppContext *ctx,
@@ -259,6 +293,44 @@ void drawing_program_visual_transform_session_begin_object_move(VisualCanvasInte
     interaction->object_path_point_object_id = 0u;
     interaction->object_path_point_offset_x = 0;
     interaction->object_path_point_offset_y = 0;
+    interaction->object_path_handle_move_active = 0u;
+    interaction->object_path_handle_kind = (uint8_t)DRAWING_PROGRAM_PATH_HANDLE_NONE;
+    interaction->object_path_handle_point_index = 0u;
+    interaction->object_path_handle_object_id = 0u;
+    interaction->object_path_handle_dx = 0;
+    interaction->object_path_handle_dy = 0;
+}
+
+void drawing_program_visual_transform_session_begin_object_path_handle_move(
+    VisualCanvasInteractionState *interaction,
+    uint32_t object_id,
+    uint16_t point_index,
+    uint8_t handle_kind,
+    const DrawingProgramPathPoint *point) {
+    if (!interaction || !point || object_id == 0u ||
+        (handle_kind != (uint8_t)DRAWING_PROGRAM_PATH_HANDLE_IN &&
+         handle_kind != (uint8_t)DRAWING_PROGRAM_PATH_HANDLE_OUT)) {
+        return;
+    }
+    interaction->transform_active = 1u;
+    interaction->transform_kind = (uint8_t)VISUAL_TRANSFORM_SESSION_MOVE;
+    interaction->object_move_active = 0u;
+    interaction->object_move_offset_x = 0;
+    interaction->object_move_offset_y = 0;
+    interaction->object_path_point_move_active = 0u;
+    interaction->object_path_point_index = 0u;
+    interaction->object_path_point_object_id = 0u;
+    interaction->object_path_point_offset_x = 0;
+    interaction->object_path_point_offset_y = 0;
+    interaction->object_path_handle_move_active = 1u;
+    interaction->object_path_handle_kind = handle_kind;
+    interaction->object_path_handle_point_index = point_index;
+    interaction->object_path_handle_object_id = object_id;
+    interaction->object_path_handle_dx =
+        (handle_kind == (uint8_t)DRAWING_PROGRAM_PATH_HANDLE_IN) ? point->handle_in_dx : point->handle_out_dx;
+    interaction->object_path_handle_dy =
+        (handle_kind == (uint8_t)DRAWING_PROGRAM_PATH_HANDLE_IN) ? point->handle_in_dy : point->handle_out_dy;
+    interaction->move_axis_lock = 0u;
 }
 
 void drawing_program_visual_transform_session_begin_object_path_point_move(VisualCanvasInteractionState *interaction,
@@ -361,6 +433,32 @@ void drawing_program_visual_transform_session_update_object_path_point_move(
         clamped_y - object->path_points[interaction->object_path_point_index].y;
 }
 
+void drawing_program_visual_transform_session_update_object_path_handle_move(
+    const DrawingProgramAppContext *ctx,
+    VisualCanvasInteractionState *interaction,
+    uint32_t sample_x,
+    uint32_t sample_y) {
+    const DrawingProgramObjectRecord *object = 0;
+    const DrawingProgramPathPoint *point = 0;
+    int32_t dx = 0;
+    int32_t dy = 0;
+    if (!ctx || !interaction ||
+        !drawing_program_visual_transform_session_is_object_path_handle_move_active(interaction)) {
+        return;
+    }
+    object = drawing_program_object_store_get_by_id(&ctx->object_store, interaction->object_path_handle_object_id);
+    if (!object || object->type != (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_PATH ||
+        interaction->object_path_handle_point_index >= object->path_point_count) {
+        drawing_program_visual_transform_session_reset(interaction);
+        return;
+    }
+    point = &object->path_points[interaction->object_path_handle_point_index];
+    dx = (int32_t)sample_x - point->x;
+    dy = (int32_t)sample_y - point->y;
+    interaction->object_path_handle_dx = dx;
+    interaction->object_path_handle_dy = dy;
+}
+
 CoreResult drawing_program_visual_transform_session_commit_object_move(DrawingProgramAppContext *ctx,
                                                                        VisualCanvasInteractionState *interaction,
                                                                        const DrawingProgramVisualTransformOpsHooks *hooks) {
@@ -402,6 +500,49 @@ CoreResult drawing_program_visual_transform_session_commit_object_path_point_mov
                                                     interaction->object_path_point_index,
                                                     target_x,
                                                     target_y);
+    drawing_program_visual_transform_session_reset(interaction);
+    return result;
+}
+
+CoreResult drawing_program_visual_transform_session_commit_object_path_handle_move(
+    DrawingProgramAppContext *ctx,
+    VisualCanvasInteractionState *interaction,
+    const DrawingProgramVisualTransformOpsHooks *hooks) {
+    const DrawingProgramObjectRecord *object = 0;
+    DrawingProgramPathPoint point;
+    CoreResult result;
+    if (!ctx || !interaction || !hooks || !hooks->visual_object_commit_path_point_data ||
+        !drawing_program_visual_transform_session_is_object_path_handle_move_active(interaction)) {
+        return core_result_ok();
+    }
+    object = drawing_program_object_store_get_by_id(&ctx->object_store, interaction->object_path_handle_object_id);
+    if (!object || object->type != (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_PATH ||
+        interaction->object_path_handle_point_index >= object->path_point_count) {
+        drawing_program_visual_transform_session_reset(interaction);
+        return core_result_ok();
+    }
+    point = object->path_points[interaction->object_path_handle_point_index];
+    if (interaction->object_path_handle_kind == (uint8_t)DRAWING_PROGRAM_PATH_HANDLE_IN) {
+        point.handle_in_dx = interaction->object_path_handle_dx;
+        point.handle_in_dy = interaction->object_path_handle_dy;
+        if (point.handle_linked) {
+            point.handle_out_dx = -interaction->object_path_handle_dx;
+            point.handle_out_dy = -interaction->object_path_handle_dy;
+        }
+    } else if (interaction->object_path_handle_kind == (uint8_t)DRAWING_PROGRAM_PATH_HANDLE_OUT) {
+        point.handle_out_dx = interaction->object_path_handle_dx;
+        point.handle_out_dy = interaction->object_path_handle_dy;
+        if (point.handle_linked) {
+            point.handle_in_dx = -interaction->object_path_handle_dx;
+            point.handle_in_dy = -interaction->object_path_handle_dy;
+        }
+    }
+    point.bezier_enabled = 1u;
+    result = hooks->visual_object_commit_path_point_data(
+        ctx,
+        interaction->object_path_handle_object_id,
+        interaction->object_path_handle_point_index,
+        &point);
     drawing_program_visual_transform_session_reset(interaction);
     return result;
 }

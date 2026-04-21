@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-#define DRAWING_PROGRAM_OBJECT_STORE_SCHEMA_VERSION 1u
+#define DRAWING_PROGRAM_OBJECT_STORE_SCHEMA_VERSION 2u
 #define DRAWING_PROGRAM_MAX_OBJECTS 256u
 #define DRAWING_PROGRAM_OBJECT_NAME_CAPACITY 32u
 #define DRAWING_PROGRAM_OBJECT_PATH_MAX_POINTS 128u
@@ -22,9 +22,23 @@ typedef enum DrawingProgramObjectType {
     DRAWING_PROGRAM_OBJECT_TYPE_PATH = 3u
 } DrawingProgramObjectType;
 
+typedef enum DrawingProgramPathHandleKind {
+    DRAWING_PROGRAM_PATH_HANDLE_NONE = 0u,
+    DRAWING_PROGRAM_PATH_HANDLE_IN = 1u,
+    DRAWING_PROGRAM_PATH_HANDLE_OUT = 2u
+} DrawingProgramPathHandleKind;
+
 typedef struct DrawingProgramPathPoint {
     int32_t x;
     int32_t y;
+    int32_t handle_in_dx;
+    int32_t handle_in_dy;
+    int32_t handle_out_dx;
+    int32_t handle_out_dy;
+    uint8_t bezier_enabled;
+    uint8_t handle_linked;
+    uint8_t reserved0;
+    uint8_t reserved1;
 } DrawingProgramPathPoint;
 
 typedef struct DrawingProgramPathPayload {
@@ -69,6 +83,10 @@ typedef struct DrawingProgramObjectStore {
 typedef struct DrawingProgramObjectSelectionState {
     uint32_t count;
     uint32_t active_object_id;
+    uint8_t selected_path_point_active;
+    uint8_t selected_path_point_reserved0;
+    uint16_t selected_path_point_index;
+    uint32_t selected_path_point_object_id;
     uint32_t object_ids[DRAWING_PROGRAM_MAX_OBJECTS];
 } DrawingProgramObjectSelectionState;
 
@@ -101,6 +119,32 @@ CoreResult drawing_program_object_store_set_origin(DrawingProgramObjectStore *st
                                                    int32_t origin_y,
                                                    int32_t *out_previous_x,
                                                    int32_t *out_previous_y);
+CoreResult drawing_program_object_store_set_size(DrawingProgramObjectStore *store,
+                                                 uint32_t object_id,
+                                                 uint32_t width,
+                                                 uint32_t height,
+                                                 uint32_t *out_previous_width,
+                                                 uint32_t *out_previous_height);
+CoreResult drawing_program_object_store_set_stroke_width(DrawingProgramObjectStore *store,
+                                                         uint32_t object_id,
+                                                         uint8_t stroke_width,
+                                                         uint8_t *out_previous_stroke_width);
+CoreResult drawing_program_object_store_set_stroke_color_index(DrawingProgramObjectStore *store,
+                                                               uint32_t object_id,
+                                                               uint8_t color_index,
+                                                               uint8_t *out_previous_color_index);
+CoreResult drawing_program_object_store_set_fill_color_index(DrawingProgramObjectStore *store,
+                                                             uint32_t object_id,
+                                                             uint8_t color_index,
+                                                             uint8_t *out_previous_color_index);
+CoreResult drawing_program_object_store_set_style_mode(DrawingProgramObjectStore *store,
+                                                       uint32_t object_id,
+                                                       uint8_t style_mode,
+                                                       uint8_t *out_previous_style_mode);
+CoreResult drawing_program_object_store_set_path_closed(DrawingProgramObjectStore *store,
+                                                        uint32_t object_id,
+                                                        uint8_t closed,
+                                                        uint8_t *out_previous_closed);
 CoreResult drawing_program_object_store_set_path_payload(DrawingProgramObjectStore *store,
                                                          uint32_t object_id,
                                                          const DrawingProgramPathPayload *payload);
@@ -111,6 +155,25 @@ CoreResult drawing_program_object_store_set_path_point(DrawingProgramObjectStore
                                                        int32_t point_y,
                                                        int32_t *out_previous_x,
                                                        int32_t *out_previous_y);
+CoreResult drawing_program_object_store_set_path_point_data(DrawingProgramObjectStore *store,
+                                                            uint32_t object_id,
+                                                            uint16_t point_index,
+                                                            const DrawingProgramPathPoint *point,
+                                                            DrawingProgramPathPoint *out_previous_point);
+CoreResult drawing_program_object_store_insert_path_point(DrawingProgramObjectStore *store,
+                                                          uint32_t object_id,
+                                                          uint16_t insert_index,
+                                                          int32_t point_x,
+                                                          int32_t point_y);
+CoreResult drawing_program_object_store_insert_path_point_data(DrawingProgramObjectStore *store,
+                                                               uint32_t object_id,
+                                                               uint16_t insert_index,
+                                                               const DrawingProgramPathPoint *point);
+CoreResult drawing_program_object_store_remove_path_point(DrawingProgramObjectStore *store,
+                                                          uint32_t object_id,
+                                                          uint16_t point_index,
+                                                          int32_t *out_removed_x,
+                                                          int32_t *out_removed_y);
 CoreResult drawing_program_object_store_get_path_payload(const DrawingProgramObjectStore *store,
                                                          uint32_t object_id,
                                                          DrawingProgramPathPayload *out_payload);
@@ -123,6 +186,35 @@ CoreResult drawing_program_object_store_hit_test_selected_path_point(
     uint32_t pick_radius_samples,
     uint32_t *out_object_id,
     uint16_t *out_point_index);
+CoreResult drawing_program_object_store_hit_test_selected_path_handle(
+    const DrawingProgramObjectStore *store,
+    const DrawingProgramDocument *document,
+    const DrawingProgramObjectSelectionState *selection,
+    uint32_t sample_x,
+    uint32_t sample_y,
+    uint32_t pick_radius_samples,
+    uint32_t *out_object_id,
+    uint16_t *out_point_index,
+    uint8_t *out_handle_kind);
+CoreResult drawing_program_object_store_hit_test_selected_path_edge(
+    const DrawingProgramObjectStore *store,
+    const DrawingProgramDocument *document,
+    const DrawingProgramObjectSelectionState *selection,
+    uint32_t sample_x,
+    uint32_t sample_y,
+    uint32_t pick_radius_samples,
+    uint32_t *out_object_id,
+    uint16_t *out_insert_index,
+    int32_t *out_point_x,
+    int32_t *out_point_y);
+CoreResult drawing_program_object_store_resolve_selected_open_path_append_target(
+    const DrawingProgramObjectStore *store,
+    const DrawingProgramDocument *document,
+    const DrawingProgramObjectSelectionState *selection,
+    uint32_t sample_x,
+    uint32_t sample_y,
+    uint32_t *out_object_id,
+    uint16_t *out_insert_index);
 CoreResult drawing_program_object_store_clamp_selection_delta(const DrawingProgramObjectStore *store,
                                                               const DrawingProgramDocument *document,
                                                               const DrawingProgramObjectSelectionState *selection,
@@ -153,6 +245,13 @@ void drawing_program_object_selection_replace_single(DrawingProgramObjectSelecti
                                                      uint32_t object_id);
 int drawing_program_object_selection_add(DrawingProgramObjectSelectionState *selection,
                                          uint32_t object_id);
+void drawing_program_object_selection_clear_path_point(DrawingProgramObjectSelectionState *selection);
+int drawing_program_object_selection_set_path_point(DrawingProgramObjectSelectionState *selection,
+                                                    uint32_t object_id,
+                                                    uint16_t point_index);
+int drawing_program_object_selection_get_path_point(const DrawingProgramObjectSelectionState *selection,
+                                                    uint32_t *out_object_id,
+                                                    uint16_t *out_point_index);
 
 #ifdef __cplusplus
 }
