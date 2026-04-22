@@ -52,4 +52,6 @@ void drawing_program_visual_draw_shape_preview_overlay(
     const VisualPanelUiState *ui,
     const DrawingProgramVisualShapePreviewHooks *hooks);
 
+void drawing_program_visual_object_overlay_cache_shutdown(void);
+
 #endif

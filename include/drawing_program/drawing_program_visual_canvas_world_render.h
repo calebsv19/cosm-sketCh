@@ -42,4 +42,6 @@ void drawing_program_visual_draw_canvas_world_view(
     const VisualCanvasInteractionState *interaction,
     const DrawingProgramVisualCanvasWorldRenderHooks *hooks);
 
+void drawing_program_visual_canvas_world_backdrop_cache_shutdown(void);
+
 #endif

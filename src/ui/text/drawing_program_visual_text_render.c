@@ -1,10 +1,129 @@
 #include "drawing_program/drawing_program_visual_text_render.h"
 
 #include <SDL2/SDL_ttf.h>
+#include <stdio.h>
+#include <string.h>
 
 #include "drawing_program/drawing_program_visual_resources.h"
 
 static uint32_t g_visual_text_font_preset_id = (uint32_t)CORE_FONT_PRESET_IDE;
+
+enum {
+    DRAWING_PROGRAM_TEXT_CACHE_MAX_ENTRIES = 512,
+    DRAWING_PROGRAM_TEXT_CACHE_MAX_TEXT_BYTES = 160
+};
+
+typedef struct VisualTextCacheEntry {
+    uint8_t in_use;
+    SDL_Renderer *renderer;
+    uint32_t font_preset_id;
+    int scale;
+    SDL_Color color;
+    char text[DRAWING_PROGRAM_TEXT_CACHE_MAX_TEXT_BYTES];
+    SDL_Texture *texture;
+    int width;
+    int height;
+    uint32_t last_used_tick;
+} VisualTextCacheEntry;
+
+static VisualTextCacheEntry g_text_cache[DRAWING_PROGRAM_TEXT_CACHE_MAX_ENTRIES];
+static uint32_t g_text_cache_tick = 1u;
+
+static uint32_t visual_text_cache_next_tick(void) {
+    g_text_cache_tick += 1u;
+    if (g_text_cache_tick == 0u) {
+        g_text_cache_tick = 1u;
+    }
+    return g_text_cache_tick;
+}
+
+static int visual_text_cache_text_fits(const char *text) {
+    size_t len = 0u;
+    if (!text) {
+        return 0;
+    }
+    len = strlen(text);
+    return (len + 1u) < DRAWING_PROGRAM_TEXT_CACHE_MAX_TEXT_BYTES ? 1 : 0;
+}
+
+static int visual_text_cache_color_equal(SDL_Color a, SDL_Color b) {
+    return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
+}
+
+static int visual_text_cache_find_exact(SDL_Renderer *renderer,
+                                        uint32_t font_preset_id,
+                                        int scale,
+                                        const char *text,
+                                        SDL_Color color) {
+    uint32_t i;
+    for (i = 0u; i < DRAWING_PROGRAM_TEXT_CACHE_MAX_ENTRIES; ++i) {
+        const VisualTextCacheEntry *entry = &g_text_cache[i];
+        if (!entry->in_use || !entry->texture) {
+            continue;
+        }
+        if (entry->renderer != renderer ||
+            entry->font_preset_id != font_preset_id ||
+            entry->scale != scale) {
+            continue;
+        }
+        if (!visual_text_cache_color_equal(entry->color, color)) {
+            continue;
+        }
+        if (strcmp(entry->text, text) == 0) {
+            return (int)i;
+        }
+    }
+    return -1;
+}
+
+static int visual_text_cache_find_width_match(uint32_t font_preset_id,
+                                              int scale,
+                                              const char *text) {
+    uint32_t i;
+    for (i = 0u; i < DRAWING_PROGRAM_TEXT_CACHE_MAX_ENTRIES; ++i) {
+        const VisualTextCacheEntry *entry = &g_text_cache[i];
+        if (!entry->in_use || !entry->texture) {
+            continue;
+        }
+        if (entry->font_preset_id != font_preset_id || entry->scale != scale) {
+            continue;
+        }
+        if (strcmp(entry->text, text) == 0) {
+            return (int)i;
+        }
+    }
+    return -1;
+}
+
+static int visual_text_cache_reserve_slot(void) {
+    uint32_t i;
+    uint32_t lru_tick = 0u;
+    int lru_index = -1;
+    for (i = 0u; i < DRAWING_PROGRAM_TEXT_CACHE_MAX_ENTRIES; ++i) {
+        VisualTextCacheEntry *entry = &g_text_cache[i];
+        if (!entry->in_use || !entry->texture) {
+            return (int)i;
+        }
+        if (lru_index < 0 || entry->last_used_tick < lru_tick) {
+            lru_tick = entry->last_used_tick;
+            lru_index = (int)i;
+        }
+    }
+    return lru_index;
+}
+
+void drawing_program_visual_text_cache_shutdown(void) {
+    uint32_t i;
+    for (i = 0u; i < DRAWING_PROGRAM_TEXT_CACHE_MAX_ENTRIES; ++i) {
+        VisualTextCacheEntry *entry = &g_text_cache[i];
+        if (entry->texture) {
+            SDL_DestroyTexture(entry->texture);
+            entry->texture = 0;
+        }
+        memset(entry, 0, sizeof(*entry));
+    }
+    g_text_cache_tick = 1u;
+}
 
 static void bitmap_glyph_rows(unsigned char c, uint8_t rows[7]) {
     size_t i;
@@ -69,6 +188,7 @@ int drawing_program_visual_draw_bitmap_text(SDL_Renderer *renderer,
                                             const char *text,
                                             SDL_Color color,
                                             int scale) {
+    int cache_index = -1;
     TTF_Font *font = 0;
     SDL_Surface *surface = 0;
     SDL_Texture *texture = 0;
@@ -78,17 +198,53 @@ int drawing_program_visual_draw_bitmap_text(SDL_Renderer *renderer,
         return 0;
     }
     font = drawing_program_visual_get_ttf_font_for_preset(g_visual_text_font_preset_id, scale);
+    if (font && visual_text_cache_text_fits(text)) {
+        cache_index = visual_text_cache_find_exact(renderer, g_visual_text_font_preset_id, scale, text, color);
+        if (cache_index >= 0) {
+            VisualTextCacheEntry *entry = &g_text_cache[cache_index];
+            SDL_Rect dst = { x, y, entry->width, entry->height };
+            (void)SDL_RenderSetClipRect(renderer, &clip_rect);
+            (void)SDL_RenderCopy(renderer, entry->texture, 0, &dst);
+            (void)SDL_RenderSetClipRect(renderer, 0);
+            entry->last_used_tick = visual_text_cache_next_tick();
+            return entry->width;
+        }
+    }
     if (font) {
         surface = TTF_RenderUTF8_Blended(font, text, color);
         if (surface) {
             texture = SDL_CreateTextureFromSurface(renderer, surface);
             if (texture) {
                 SDL_Rect dst = { x, y, surface->w, surface->h };
+                int can_cache = visual_text_cache_text_fits(text) ? 1 : 0;
                 (void)SDL_RenderSetClipRect(renderer, &clip_rect);
                 (void)SDL_RenderCopy(renderer, texture, 0, &dst);
                 (void)SDL_RenderSetClipRect(renderer, 0);
                 cursor_x = x + surface->w;
-                SDL_DestroyTexture(texture);
+                if (can_cache) {
+                    int slot = visual_text_cache_reserve_slot();
+                    if (slot >= 0) {
+                        VisualTextCacheEntry *entry = &g_text_cache[slot];
+                        if (entry->texture) {
+                            SDL_DestroyTexture(entry->texture);
+                        }
+                        memset(entry, 0, sizeof(*entry));
+                        entry->in_use = 1u;
+                        entry->renderer = renderer;
+                        entry->font_preset_id = g_visual_text_font_preset_id;
+                        entry->scale = scale;
+                        entry->color = color;
+                        (void)snprintf(entry->text, sizeof(entry->text), "%s", text);
+                        entry->texture = texture;
+                        entry->width = surface->w;
+                        entry->height = surface->h;
+                        entry->last_used_tick = visual_text_cache_next_tick();
+                        texture = 0;
+                    }
+                }
+                if (texture) {
+                    SDL_DestroyTexture(texture);
+                }
                 SDL_FreeSurface(surface);
                 return cursor_x - x;
             }
@@ -120,12 +276,19 @@ int drawing_program_visual_draw_bitmap_text(SDL_Renderer *renderer,
 }
 
 int drawing_program_visual_measure_bitmap_text_width(const char *text, int scale) {
+    int cache_index = -1;
     TTF_Font *font = 0;
     int width = 0;
     int height = 0;
     size_t i;
     if (!text || scale < 1) {
         return 0;
+    }
+    if (visual_text_cache_text_fits(text)) {
+        cache_index = visual_text_cache_find_width_match(g_visual_text_font_preset_id, scale, text);
+        if (cache_index >= 0) {
+            return g_text_cache[cache_index].width;
+        }
     }
     font = drawing_program_visual_get_ttf_font_for_preset(g_visual_text_font_preset_id, scale);
     if (font && TTF_SizeUTF8(font, text, &width, &height) == 0 && width > 0) {

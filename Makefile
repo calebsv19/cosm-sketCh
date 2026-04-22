@@ -87,14 +87,18 @@ APP_LOCAL_SRCS := \
 	src/domain/drawing_program_document.c \
 	src/domain/drawing_program_editor_state.c \
 	src/domain/drawing_program_history.c \
+	src/domain/drawing_program_history_object_commands.c \
 	src/domain/drawing_program_layer_raster.c \
 	src/domain/drawing_program_object_geometry.c \
 	src/domain/drawing_program_object_rasterize.c \
 	src/domain/drawing_program_object_store.c \
+	src/domain/drawing_program_object_store_path_hit_test.c \
+	src/domain/drawing_program_object_selection.c \
 	src/domain/drawing_program_object_transform.c \
 	src/domain/drawing_program_selection.c \
 	src/domain/drawing_program_selection_edit_ops.c \
 	src/io/session/drawing_program_snapshot.c \
+	src/io/session/drawing_program_snapshot_export_json.c \
 	src/io/session/drawing_program_snapshot_ui_settings.c \
 	src/io/session/drawing_program_snapshot_bridge.c \
 	src/domain/drawing_program_viewport.c \
@@ -134,11 +138,15 @@ APP_LOCAL_SRCS := \
 	src/ui/theme/drawing_program_visual_theme.c \
 	src/ui/resources/drawing_program_visual_resources.c \
 	src/app/drawing_program_visual_runtime_debug.c \
+	src/app/drawing_program_visual_loop_diag.c \
+	src/app/drawing_program_visual_loop_policy.c \
 	src/ui/tools/drawing_program_visual_tool_options.c \
 	src/ui/text/drawing_program_visual_text_render.c \
 	src/app/drawing_program_ui_color_state.c \
 	src/app/drawing_program_app_main.c \
 	src/app/main.c \
+	src/app/drawing_program_app_visual_runtime.c \
+	src/app/drawing_program_app_visual_runtime_loop.c \
 	src/app/drawing_program_app_visual_main.c
 
 HEADLESS_LOCAL_SRCS := \
@@ -146,14 +154,18 @@ HEADLESS_LOCAL_SRCS := \
 	src/domain/drawing_program_document.c \
 	src/domain/drawing_program_editor_state.c \
 	src/domain/drawing_program_history.c \
+	src/domain/drawing_program_history_object_commands.c \
 	src/domain/drawing_program_layer_raster.c \
 	src/domain/drawing_program_object_geometry.c \
 	src/domain/drawing_program_object_rasterize.c \
 	src/domain/drawing_program_object_store.c \
+	src/domain/drawing_program_object_store_path_hit_test.c \
+	src/domain/drawing_program_object_selection.c \
 	src/domain/drawing_program_object_transform.c \
 	src/domain/drawing_program_selection.c \
 	src/domain/drawing_program_selection_edit_ops.c \
 	src/io/session/drawing_program_snapshot.c \
+	src/io/session/drawing_program_snapshot_export_json.c \
 	src/io/session/drawing_program_snapshot_ui_settings.c \
 	src/io/session/drawing_program_snapshot_bridge.c \
 	src/domain/drawing_program_viewport.c \
@@ -172,14 +184,18 @@ TEST_LOCAL_SRCS := \
 	src/domain/drawing_program_document.c \
 	src/domain/drawing_program_editor_state.c \
 	src/domain/drawing_program_history.c \
+	src/domain/drawing_program_history_object_commands.c \
 	src/domain/drawing_program_layer_raster.c \
 	src/domain/drawing_program_object_geometry.c \
 	src/domain/drawing_program_object_rasterize.c \
 	src/domain/drawing_program_object_store.c \
+	src/domain/drawing_program_object_store_path_hit_test.c \
+	src/domain/drawing_program_object_selection.c \
 	src/domain/drawing_program_object_transform.c \
 	src/domain/drawing_program_selection.c \
 	src/domain/drawing_program_selection_edit_ops.c \
 	src/io/session/drawing_program_snapshot.c \
+	src/io/session/drawing_program_snapshot_export_json.c \
 	src/io/session/drawing_program_snapshot_ui_settings.c \
 	src/io/session/drawing_program_snapshot_bridge.c \
 	src/domain/drawing_program_viewport.c \
@@ -219,10 +235,14 @@ TEST_LOCAL_SRCS := \
 	src/ui/theme/drawing_program_visual_theme.c \
 	src/ui/resources/drawing_program_visual_resources.c \
 	src/app/drawing_program_visual_runtime_debug.c \
+	src/app/drawing_program_visual_loop_diag.c \
+	src/app/drawing_program_visual_loop_policy.c \
 	src/ui/tools/drawing_program_visual_tool_options.c \
 	src/ui/text/drawing_program_visual_text_render.c \
 	src/app/drawing_program_ui_color_state.c \
 	src/app/drawing_program_app_main.c \
+	src/app/drawing_program_app_visual_runtime.c \
+	src/app/drawing_program_app_visual_runtime_loop.c \
 	src/app/drawing_program_app_visual_main.c \
 	tests/drawing_program_lifecycle_snapshot_suite.c \
 	tests/drawing_program_lifecycle_snapshot_helpers.c \
@@ -232,6 +252,7 @@ TEST_LOCAL_SRCS := \
 	tests/drawing_program_lifecycle_baseline_history_suite.c \
 	tests/drawing_program_lifecycle_object_path_suite.c \
 	tests/drawing_program_lifecycle_object_path_history_suite.c \
+	tests/drawing_program_lifecycle_object_path_history_mutation_suite.c \
 	tests/drawing_program_lifecycle_runtime_render_suite.c \
 	tests/drawing_program_lifecycle_runtime_path_suite.c \
 	tests/drawing_program_lifecycle_runtime_path_pointer_suite.c \

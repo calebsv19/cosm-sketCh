@@ -29,10 +29,28 @@ typedef struct VisualCanvasTextureState {
     uint32_t height;
     uint8_t *composited_samples;
     uint32_t composited_capacity;
+    uint8_t has_sync_signature;
+    uint32_t last_raster_hash32;
+    uint32_t last_raster_nonzero_count;
+    uint32_t last_layer_opacity_hash32;
 } VisualCanvasTextureState;
 
 static VisualTextRendererState g_visual_text_renderer = {0};
 static VisualCanvasTextureState g_visual_canvas_texture = {0};
+
+static uint32_t visual_layer_opacity_hash32(const uint8_t *layer_opacity_percent,
+                                            uint32_t layer_opacity_count) {
+    uint32_t hash32 = 2166136261u;
+    uint32_t i;
+    if (!layer_opacity_percent || layer_opacity_count == 0u) {
+        return 0u;
+    }
+    for (i = 0u; i < layer_opacity_count; ++i) {
+        hash32 ^= (uint32_t)layer_opacity_percent[i];
+        hash32 *= 16777619u;
+    }
+    return hash32;
+}
 
 static int visual_file_exists(const char *path) {
     FILE *f;
@@ -243,19 +261,28 @@ void drawing_program_visual_canvas_texture_shutdown(void) {
     free(g_visual_canvas_texture.composited_samples);
     g_visual_canvas_texture.composited_samples = 0;
     g_visual_canvas_texture.composited_capacity = 0u;
+    g_visual_canvas_texture.has_sync_signature = 0u;
+    g_visual_canvas_texture.last_raster_hash32 = 0u;
+    g_visual_canvas_texture.last_raster_nonzero_count = 0u;
+    g_visual_canvas_texture.last_layer_opacity_hash32 = 0u;
 }
 
-int drawing_program_visual_canvas_texture_sync(SDL_Renderer *renderer,
-                                               const struct DrawingProgramDocument *document,
-                                               const struct DrawingProgramLayerRasterStore *layer_rasters,
-                                               const uint8_t *layer_opacity_percent,
-                                               uint32_t layer_opacity_count) {
+int drawing_program_visual_canvas_texture_sync_with_signature(
+    SDL_Renderer *renderer,
+    const struct DrawingProgramDocument *document,
+    const struct DrawingProgramLayerRasterStore *layer_rasters,
+    const uint8_t *layer_opacity_percent,
+    uint32_t layer_opacity_count,
+    uint32_t raster_hash32,
+    uint32_t raster_nonzero_count) {
     void *pixels = 0;
     int pitch = 0;
     uint32_t x;
     uint32_t y;
+    uint32_t layer_opacity_hash32 = 0u;
     const uint8_t *source_samples = 0;
     CoreResult compose_result;
+    int signature_unchanged = 0;
     if (!renderer || !document || !layer_rasters || !layer_opacity_percent || layer_opacity_count == 0u) {
         return 0;
     }
@@ -264,26 +291,7 @@ int drawing_program_visual_canvas_texture_sync(SDL_Renderer *renderer,
         document->raster_sample_count == 0u) {
         return 0;
     }
-    if (g_visual_canvas_texture.composited_capacity < document->raster_sample_count) {
-        uint8_t *next_samples = (uint8_t *)realloc(g_visual_canvas_texture.composited_samples,
-                                                   (size_t)document->raster_sample_count);
-        if (!next_samples) {
-            return 0;
-        }
-        g_visual_canvas_texture.composited_samples = next_samples;
-        g_visual_canvas_texture.composited_capacity = document->raster_sample_count;
-    }
-    compose_result = drawing_program_render_compose_visible_samples_with_layer_opacity(document,
-                                                                                        layer_rasters,
-                                                                                        layer_opacity_percent,
-                                                                                        layer_opacity_count,
-                                                                                        g_visual_canvas_texture.composited_samples,
-                                                                                        g_visual_canvas_texture.composited_capacity);
-    if (compose_result.code == CORE_OK) {
-        source_samples = g_visual_canvas_texture.composited_samples;
-    } else {
-        source_samples = document->raster_samples;
-    }
+    layer_opacity_hash32 = visual_layer_opacity_hash32(layer_opacity_percent, layer_opacity_count);
     if (!g_visual_canvas_texture.pixel_format) {
         g_visual_canvas_texture.pixel_format = SDL_AllocFormat(SDL_PIXELFORMAT_RGBA8888);
         if (!g_visual_canvas_texture.pixel_format) {
@@ -309,7 +317,34 @@ int drawing_program_visual_canvas_texture_sync(SDL_Renderer *renderer,
         }
         g_visual_canvas_texture.width = document->raster_width;
         g_visual_canvas_texture.height = document->raster_height;
+        g_visual_canvas_texture.has_sync_signature = 0u;
         (void)SDL_SetTextureBlendMode(g_visual_canvas_texture.texture, SDL_BLENDMODE_NONE);
+    }
+    signature_unchanged = (g_visual_canvas_texture.has_sync_signature &&
+                           g_visual_canvas_texture.last_raster_hash32 == raster_hash32 &&
+                           g_visual_canvas_texture.last_raster_nonzero_count == raster_nonzero_count &&
+                           g_visual_canvas_texture.last_layer_opacity_hash32 == layer_opacity_hash32);
+    if (signature_unchanged) {
+        return 1;
+    }
+    if (g_visual_canvas_texture.composited_capacity < document->raster_sample_count) {
+        uint8_t *next_samples = (uint8_t *)realloc(g_visual_canvas_texture.composited_samples,
+                                                   (size_t)document->raster_sample_count);
+        if (!next_samples) {
+            return 0;
+        }
+        g_visual_canvas_texture.composited_samples = next_samples;
+        g_visual_canvas_texture.composited_capacity = document->raster_sample_count;
+    }
+    source_samples = document->raster_samples;
+    compose_result = drawing_program_render_compose_visible_samples_with_layer_opacity(document,
+                                                                                        layer_rasters,
+                                                                                        layer_opacity_percent,
+                                                                                        layer_opacity_count,
+                                                                                        g_visual_canvas_texture.composited_samples,
+                                                                                        g_visual_canvas_texture.composited_capacity);
+    if (compose_result.code == CORE_OK) {
+        source_samples = g_visual_canvas_texture.composited_samples;
     }
     if (SDL_LockTexture(g_visual_canvas_texture.texture, 0, &pixels, &pitch) != 0) {
         return 0;
@@ -327,7 +362,26 @@ int drawing_program_visual_canvas_texture_sync(SDL_Renderer *renderer,
         }
     }
     SDL_UnlockTexture(g_visual_canvas_texture.texture);
+    g_visual_canvas_texture.has_sync_signature = 1u;
+    g_visual_canvas_texture.last_raster_hash32 = raster_hash32;
+    g_visual_canvas_texture.last_raster_nonzero_count = raster_nonzero_count;
+    g_visual_canvas_texture.last_layer_opacity_hash32 = layer_opacity_hash32;
     return 1;
+}
+
+int drawing_program_visual_canvas_texture_sync(SDL_Renderer *renderer,
+                                               const struct DrawingProgramDocument *document,
+                                               const struct DrawingProgramLayerRasterStore *layer_rasters,
+                                               const uint8_t *layer_opacity_percent,
+                                               uint32_t layer_opacity_count) {
+    g_visual_canvas_texture.has_sync_signature = 0u;
+    return drawing_program_visual_canvas_texture_sync_with_signature(renderer,
+                                                                     document,
+                                                                     layer_rasters,
+                                                                     layer_opacity_percent,
+                                                                     layer_opacity_count,
+                                                                     0u,
+                                                                     0u);
 }
 
 SDL_Texture *drawing_program_visual_canvas_texture_get(void) {

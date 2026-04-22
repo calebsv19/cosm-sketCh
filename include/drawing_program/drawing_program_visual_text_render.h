@@ -4,6 +4,7 @@
 #include <SDL2/SDL.h>
 
 void drawing_program_visual_text_set_font_preset_id(uint32_t ui_font_preset_id);
+void drawing_program_visual_text_cache_shutdown(void);
 
 int drawing_program_visual_draw_bitmap_text(SDL_Renderer *renderer,
                                             SDL_Rect clip_rect,

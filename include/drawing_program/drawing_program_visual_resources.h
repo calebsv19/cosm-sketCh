@@ -20,6 +20,14 @@ int drawing_program_visual_canvas_texture_sync(SDL_Renderer *renderer,
                                                const struct DrawingProgramLayerRasterStore *layer_rasters,
                                                const uint8_t *layer_opacity_percent,
                                                uint32_t layer_opacity_count);
+int drawing_program_visual_canvas_texture_sync_with_signature(
+    SDL_Renderer *renderer,
+    const struct DrawingProgramDocument *document,
+    const struct DrawingProgramLayerRasterStore *layer_rasters,
+    const uint8_t *layer_opacity_percent,
+    uint32_t layer_opacity_count,
+    uint32_t raster_hash32,
+    uint32_t raster_nonzero_count);
 SDL_Texture *drawing_program_visual_canvas_texture_get(void);
 void drawing_program_visual_canvas_texture_shutdown(void);
 
