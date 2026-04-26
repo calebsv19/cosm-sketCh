@@ -222,8 +222,8 @@ int drawing_program_lifecycle_run_object_path_suite(DrawingProgramAppContext *wo
         style_seed.type = (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_PATH;
         style_seed.visible = 1u;
         style_seed.locked = 0u;
-        style_seed.stroke_color_index = 0u;
-        style_seed.fill_color_index = 7u;
+        style_seed.stroke_color_value = drawing_program_color_value_from_index(0u);
+        style_seed.fill_color_value = drawing_program_color_value_from_index(7u);
         style_seed.stroke_width = 2u;
         style_seed.style_mode = 1u; /* fill-only */
 

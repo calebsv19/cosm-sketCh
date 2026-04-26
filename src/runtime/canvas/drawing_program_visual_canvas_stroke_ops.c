@@ -22,12 +22,12 @@ static CoreResult layer_sample_read_visual_local(const DrawingProgramAppContext 
                                                  uint32_t layer_id,
                                                  uint32_t sample_x,
                                                  uint32_t sample_y,
-                                                 uint8_t *out_value) {
+                                                 DrawingProgramRasterSample *out_value) {
     CoreResult result;
     if (!ctx || !out_value || layer_id == 0u) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid layer sample read request" };
     }
-    result = drawing_program_layer_raster_store_sample_read(&ctx->layer_rasters,
+    result = drawing_program_layer_raster_store_raster_sample_read(&ctx->layer_rasters,
                                                             layer_id,
                                                             sample_x,
                                                             sample_y,
@@ -35,14 +35,14 @@ static CoreResult layer_sample_read_visual_local(const DrawingProgramAppContext 
     if (result.code == CORE_OK) {
         return core_result_ok();
     }
-    return drawing_program_document_sample_read(&ctx->document, sample_x, sample_y, out_value);
+    return drawing_program_document_raster_sample_read(&ctx->document, sample_x, sample_y, out_value);
 }
 
 static CoreResult apply_sample_if_changed_on_layer_local(DrawingProgramAppContext *ctx,
                                                          uint32_t layer_id,
                                                          uint32_t sample_x,
                                                          uint32_t sample_y,
-                                                         uint8_t value) {
+                                                         DrawingProgramRasterSample value) {
     return drawing_program_history_apply_set_sample_value(&ctx->history,
                                                           &ctx->document,
                                                           &ctx->layer_rasters,
@@ -52,7 +52,9 @@ static CoreResult apply_sample_if_changed_on_layer_local(DrawingProgramAppContex
                                                           value);
 }
 
-static uint8_t blend_sample_value_u8_local(uint8_t dst, uint8_t src, uint8_t opacity_percent) {
+static DrawingProgramRasterSample blend_sample_value_u8_local(DrawingProgramRasterSample dst,
+                                                              DrawingProgramRasterSample src,
+                                                              uint8_t opacity_percent) {
     return drawing_program_color_blend_samples(dst, src, clamp_percent_u8_local(opacity_percent));
 }
 
@@ -60,7 +62,7 @@ CoreResult drawing_program_visual_apply_canvas_stamp_square_on_layer(DrawingProg
                                                                      uint32_t layer_id,
                                                                      int32_t sample_x,
                                                                      int32_t sample_y,
-                                                                     uint8_t value,
+                                                                     DrawingProgramRasterSample value,
                                                                      uint32_t stroke_width,
                                                                      uint8_t hardness_percent) {
     int32_t start_offset;
@@ -134,9 +136,9 @@ CoreResult drawing_program_visual_apply_canvas_stamp_square_on_layer(DrawingProg
                 opacity = (uint8_t)edge_alpha;
             }
             {
-                uint8_t out_value = value;
+                DrawingProgramRasterSample out_value = value;
                 if (opacity < 100u) {
-                    uint8_t current = drawing_program_color_eraser_value();
+                    DrawingProgramRasterSample current = drawing_program_color_eraser_value();
                     (void)layer_sample_read_visual_local(ctx, layer_id, (uint32_t)tx, (uint32_t)ty, &current);
                     out_value = blend_sample_value_u8_local(current, value, opacity);
                 }
@@ -162,7 +164,7 @@ CoreResult drawing_program_visual_apply_canvas_line_between_samples_on_layer(Dra
                                                                               uint32_t y0,
                                                                               uint32_t x1,
                                                                               uint32_t y1,
-                                                                              uint8_t value,
+                                                                              DrawingProgramRasterSample value,
                                                                               uint32_t stroke_width,
                                                                               uint8_t hardness_percent) {
     int32_t x = (int32_t)x0;
@@ -219,7 +221,7 @@ CoreResult drawing_program_visual_apply_canvas_rect_fill_between_samples_on_laye
                                                                                    uint32_t y0,
                                                                                    uint32_t x1,
                                                                                    uint32_t y1,
-                                                                                   uint8_t value) {
+                                                                                   DrawingProgramRasterSample value) {
     uint32_t min_x = (x0 < x1) ? x0 : x1;
     uint32_t min_y = (y0 < y1) ? y0 : y1;
     uint32_t max_x = (x0 > x1) ? x0 : x1;
@@ -246,7 +248,7 @@ CoreResult drawing_program_visual_apply_canvas_rect_outline_between_samples_on_l
                                                                                       uint32_t y0,
                                                                                       uint32_t x1,
                                                                                       uint32_t y1,
-                                                                                      uint8_t value,
+                                                                                      DrawingProgramRasterSample value,
                                                                                       uint32_t stroke_width) {
     uint32_t min_x = (x0 < x1) ? x0 : x1;
     uint32_t min_y = (y0 < y1) ? y0 : y1;
@@ -294,7 +296,7 @@ CoreResult drawing_program_visual_apply_canvas_circle_fill_between_samples_on_la
                                                                                      uint32_t center_y,
                                                                                      uint32_t edge_x,
                                                                                      uint32_t edge_y,
-                                                                                     uint8_t value) {
+                                                                                     DrawingProgramRasterSample value) {
     int32_t cx = (int32_t)center_x;
     int32_t cy = (int32_t)center_y;
     int32_t rx = (int32_t)edge_x - cx;
@@ -349,7 +351,7 @@ CoreResult drawing_program_visual_apply_canvas_circle_outline_between_samples_on
                                                                                         uint32_t center_y,
                                                                                         uint32_t edge_x,
                                                                                         uint32_t edge_y,
-                                                                                        uint8_t value,
+                                                                                        DrawingProgramRasterSample value,
                                                                                         uint32_t stroke_width) {
     int32_t cx = (int32_t)center_x;
     int32_t cy = (int32_t)center_y;

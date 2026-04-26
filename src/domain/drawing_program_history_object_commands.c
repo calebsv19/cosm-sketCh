@@ -251,26 +251,27 @@ CoreResult drawing_program_history_apply_set_object_path_closed(DrawingProgramHi
 CoreResult drawing_program_history_apply_set_object_stroke_color(DrawingProgramHistory *history,
                                                                  DrawingProgramObjectStore *object_store,
                                                                  uint32_t object_id,
-                                                                 uint8_t color_index) {
+                                                                 DrawingProgramRasterSample color_value) {
     DrawingProgramCommand command;
     CoreResult result;
-    uint8_t previous_color_index = 0u;
+    DrawingProgramRasterSample previous_color_value = drawing_program_color_eraser_value();
     if (!history || !object_store || object_id == 0u) {
         return history_invalid("invalid object-stroke-color command request");
     }
-    result = drawing_program_object_store_set_stroke_color_index(
-        object_store, object_id, color_index, &previous_color_index);
+    color_value = drawing_program_color_normalize_input_sample(color_value);
+    result = drawing_program_object_store_set_stroke_color_value(
+        object_store, object_id, color_value, &previous_color_value);
     if (result.code != CORE_OK) {
         return result;
     }
-    if (previous_color_index == color_index) {
+    if (previous_color_value == color_value) {
         return core_result_ok();
     }
     memset(&command, 0, sizeof(command));
     command.type = DRAWING_PROGRAM_COMMAND_SET_OBJECT_STROKE_COLOR;
     command.object_id = object_id;
-    command.new_object_stroke_color_index = color_index;
-    command.previous_object_stroke_color_index = previous_color_index;
+    command.new_object_stroke_color_value = color_value;
+    command.previous_object_stroke_color_value = previous_color_value;
     drawing_program_history_push(history, &command);
     return core_result_ok();
 }
@@ -278,26 +279,27 @@ CoreResult drawing_program_history_apply_set_object_stroke_color(DrawingProgramH
 CoreResult drawing_program_history_apply_set_object_fill_color(DrawingProgramHistory *history,
                                                                DrawingProgramObjectStore *object_store,
                                                                uint32_t object_id,
-                                                               uint8_t color_index) {
+                                                               DrawingProgramRasterSample color_value) {
     DrawingProgramCommand command;
     CoreResult result;
-    uint8_t previous_color_index = 0u;
+    DrawingProgramRasterSample previous_color_value = drawing_program_color_eraser_value();
     if (!history || !object_store || object_id == 0u) {
         return history_invalid("invalid object-fill-color command request");
     }
-    result = drawing_program_object_store_set_fill_color_index(
-        object_store, object_id, color_index, &previous_color_index);
+    color_value = drawing_program_color_normalize_input_sample(color_value);
+    result = drawing_program_object_store_set_fill_color_value(
+        object_store, object_id, color_value, &previous_color_value);
     if (result.code != CORE_OK) {
         return result;
     }
-    if (previous_color_index == color_index) {
+    if (previous_color_value == color_value) {
         return core_result_ok();
     }
     memset(&command, 0, sizeof(command));
     command.type = DRAWING_PROGRAM_COMMAND_SET_OBJECT_FILL_COLOR;
     command.object_id = object_id;
-    command.new_object_fill_color_index = color_index;
-    command.previous_object_fill_color_index = previous_color_index;
+    command.new_object_fill_color_value = color_value;
+    command.previous_object_fill_color_value = previous_color_value;
     drawing_program_history_push(history, &command);
     return core_result_ok();
 }

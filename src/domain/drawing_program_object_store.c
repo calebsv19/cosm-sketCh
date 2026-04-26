@@ -80,6 +80,10 @@ static CoreResult object_store_prepare_record(const DrawingProgramObjectRecord *
     out_record->object_id = object_id;
     out_record->visible = seed->visible ? 1u : 0u;
     out_record->locked = seed->locked ? 1u : 0u;
+    out_record->stroke_color_value =
+        drawing_program_color_normalize_input_sample(seed->stroke_color_value);
+    out_record->fill_color_value =
+        drawing_program_color_normalize_input_sample(seed->fill_color_value);
     out_record->name[DRAWING_PROGRAM_OBJECT_NAME_CAPACITY - 1u] = '\0';
     if (out_record->type != (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_PATH) {
         drawing_program_object_path_payload_clear(out_record);
@@ -396,49 +400,51 @@ CoreResult drawing_program_object_store_set_stroke_width(DrawingProgramObjectSto
     return core_result_ok();
 }
 
-CoreResult drawing_program_object_store_set_stroke_color_index(DrawingProgramObjectStore *store,
+CoreResult drawing_program_object_store_set_stroke_color_value(DrawingProgramObjectStore *store,
                                                                uint32_t object_id,
-                                                               uint8_t color_index,
-                                                               uint8_t *out_previous_color_index) {
+                                                               DrawingProgramRasterSample color_value,
+                                                               DrawingProgramRasterSample *out_previous_color_value) {
     uint32_t index = 0u;
     CoreResult result;
-    uint8_t previous_color_index = 0u;
+    DrawingProgramRasterSample previous_color_value = drawing_program_color_eraser_value();
     if (!store || object_id == 0u) {
         return drawing_program_object_store_invalid("invalid object stroke-color set request");
     }
-    color_index = drawing_program_color_index_clamp(color_index);
+    color_value = drawing_program_color_normalize_input_sample(color_value);
     result = drawing_program_object_store_find_index_for_id(store, object_id, &index);
     if (result.code != CORE_OK) {
         return result;
     }
-    previous_color_index = drawing_program_color_index_clamp(store->objects[index].stroke_color_index);
-    if (out_previous_color_index) {
-        *out_previous_color_index = previous_color_index;
+    previous_color_value =
+        drawing_program_color_normalize_input_sample(store->objects[index].stroke_color_value);
+    if (out_previous_color_value) {
+        *out_previous_color_value = previous_color_value;
     }
-    store->objects[index].stroke_color_index = color_index;
+    store->objects[index].stroke_color_value = color_value;
     return core_result_ok();
 }
 
-CoreResult drawing_program_object_store_set_fill_color_index(DrawingProgramObjectStore *store,
+CoreResult drawing_program_object_store_set_fill_color_value(DrawingProgramObjectStore *store,
                                                              uint32_t object_id,
-                                                             uint8_t color_index,
-                                                             uint8_t *out_previous_color_index) {
+                                                             DrawingProgramRasterSample color_value,
+                                                             DrawingProgramRasterSample *out_previous_color_value) {
     uint32_t index = 0u;
     CoreResult result;
-    uint8_t previous_color_index = 0u;
+    DrawingProgramRasterSample previous_color_value = drawing_program_color_eraser_value();
     if (!store || object_id == 0u) {
         return drawing_program_object_store_invalid("invalid object fill-color set request");
     }
-    color_index = drawing_program_color_index_clamp(color_index);
+    color_value = drawing_program_color_normalize_input_sample(color_value);
     result = drawing_program_object_store_find_index_for_id(store, object_id, &index);
     if (result.code != CORE_OK) {
         return result;
     }
-    previous_color_index = drawing_program_color_index_clamp(store->objects[index].fill_color_index);
-    if (out_previous_color_index) {
-        *out_previous_color_index = previous_color_index;
+    previous_color_value =
+        drawing_program_color_normalize_input_sample(store->objects[index].fill_color_value);
+    if (out_previous_color_value) {
+        *out_previous_color_value = previous_color_value;
     }
-    store->objects[index].fill_color_index = color_index;
+    store->objects[index].fill_color_value = color_value;
     return core_result_ok();
 }
 

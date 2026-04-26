@@ -23,6 +23,8 @@ extern "C" {
 
 #define DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX 32u
 #define DRAWING_PROGRAM_UI_FILL_TOLERANCE_SAMPLE_SCALE 8u
+#define DRAWING_PROGRAM_PROJECT_PATH_CAPACITY 512u
+#define DRAWING_PROGRAM_RECENT_PROJECT_CAPACITY 8u
 
 typedef enum DrawingProgramUiShapeTargetMode {
     DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_PIXEL = 0u,
@@ -71,6 +73,9 @@ typedef struct DrawingProgramAppUiState {
     uint8_t left_panel_slot;
     uint8_t right_panel_slot;
     uint8_t active_color_index;
+    uint8_t active_paint_r;
+    uint8_t active_paint_g;
+    uint8_t active_paint_b;
     uint8_t color_hue;
     uint8_t color_saturation;
     uint8_t color_value;
@@ -86,6 +91,7 @@ typedef struct DrawingProgramAppUiState {
     uint8_t tool_select_mode;
     uint8_t layer_opacity_entry_count;
     uint8_t recent_color_count;
+    uint8_t selected_recent_color_index;
     int8_t font_zoom_step;
     uint8_t layer_opacity_values[DRAWING_PROGRAM_MAX_LAYERS];
     uint32_t layer_opacity_layer_ids[DRAWING_PROGRAM_MAX_LAYERS];
@@ -112,7 +118,15 @@ typedef struct DrawingProgramAppSessionState {
     char input_root_path[512];
     char output_root_path[512];
     char preset_path_buffer[512];
+    char project_path_buffer[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    char recent_project_paths[DRAWING_PROGRAM_RECENT_PROJECT_CAPACITY][DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    char file_action_status_message[160];
+    uint32_t project_saved_history_count;
+    uint32_t project_saved_history_cursor;
+    uint8_t project_has_saved_state;
+    uint8_t recent_project_count;
     const char *preset_path;
+    const char *project_path;
     const char *export_json_path;
     const char *bridge_workspace_preset_path;
 } DrawingProgramAppSessionState;

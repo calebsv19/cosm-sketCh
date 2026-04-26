@@ -7,6 +7,7 @@
 #include "core_theme.h"
 #include "drawing_program/drawing_program_app_main.h"
 #include "drawing_program/drawing_program_runtime_orchestration.h"
+#include "drawing_program/drawing_program_ui_color_state.h"
 #include "drawing_program/drawing_program_visual_input_handlers.h"
 #include "drawing_program/drawing_program_visual_input_selection_ops.h"
 #include "drawing_program/drawing_program_visual_input_support.h"
@@ -16,6 +17,7 @@
 #include "drawing_program_lifecycle_snapshot_suite.h"
 #include "drawing_program_lifecycle_selection_layer_suite.h"
 #include "drawing_program_lifecycle_baseline_history_suite.h"
+#include "drawing_program_lifecycle_export_suite.h"
 #include "drawing_program_lifecycle_object_path_suite.h"
 #include "drawing_program_lifecycle_runtime_render_suite.h"
 
@@ -40,7 +42,8 @@ int main(void) {
     char *argv[] = { arg0, arg1, arg2, arg3, arg4, 0 };
     char *size_argv[] = { arg0, arg1, arg2, arg3, arg4, arg5, arg6, 0 };
     uint8_t expected_draw_value = 0u;
-    uint8_t expected_eraser_value = drawing_program_color_eraser_value();
+    uint8_t expected_eraser_value =
+        drawing_program_color_legacy_sample_from_sample(drawing_program_color_eraser_value());
     drawing_program_clipboard_reset(&workflow_clipboard);
 
     if (!expect_ok(drawing_program_app_bootstrap(&ctx, 5, argv), "bootstrap")) {
@@ -50,6 +53,20 @@ int main(void) {
         return 1;
     }
     if (!expect_ok(drawing_program_app_state_seed(&ctx), "state_seed")) {
+        return 1;
+    }
+    if (ctx.document.logical_width != DRAWING_PROGRAM_DEFAULT_LOGICAL_WIDTH ||
+        ctx.document.logical_height != DRAWING_PROGRAM_DEFAULT_LOGICAL_HEIGHT ||
+        ctx.document.raster_width != DRAWING_PROGRAM_DEFAULT_LOGICAL_WIDTH ||
+        ctx.document.raster_height != DRAWING_PROGRAM_DEFAULT_LOGICAL_HEIGHT) {
+        fprintf(stderr,
+                "lifecycle_test: expected default canvas seed %ux%u got logical=%ux%u raster=%ux%u\n",
+                (unsigned)DRAWING_PROGRAM_DEFAULT_LOGICAL_WIDTH,
+                (unsigned)DRAWING_PROGRAM_DEFAULT_LOGICAL_HEIGHT,
+                (unsigned)ctx.document.logical_width,
+                (unsigned)ctx.document.logical_height,
+                (unsigned)ctx.document.raster_width,
+                (unsigned)ctx.document.raster_height);
         return 1;
     }
     if (!expect_ok(drawing_program_app_bootstrap(&workflow_ctx, 5, argv), "workflow_bootstrap")) {
@@ -67,8 +84,7 @@ int main(void) {
     if (!expect_ok(drawing_program_runtime_start(&workflow_ctx), "workflow_runtime_start")) {
         return 1;
     }
-    expected_draw_value = drawing_program_color_value_from_index(
-        drawing_program_color_index_clamp(workflow_ctx.ui.active_color_index));
+    expected_draw_value = drawing_program_ui_color_active_paint_sample_value(&workflow_ctx);
     if (!expect_ok(drawing_program_app_bootstrap(&size_ctx, 7, size_argv), "size_bootstrap")) {
         return 1;
     }
@@ -133,8 +149,7 @@ int main(void) {
                    "workflow_sample_after_brush_stamp")) {
         return 1;
     }
-    expected_draw_value = drawing_program_color_value_from_index(
-        drawing_program_color_index_clamp(workflow_ctx.ui.active_color_index));
+    expected_draw_value = drawing_program_ui_color_active_paint_sample_value(&workflow_ctx);
     if (workflow_center_value != expected_draw_value) {
         fprintf(stderr,
                 "lifecycle_test: expected workflow brush stamp to set center sample to %u got=%u\n",
@@ -167,6 +182,9 @@ int main(void) {
     if (drawing_program_lifecycle_run_snapshot_suite(&ctx) != 0) {
         return 1;
     }
+    if (drawing_program_lifecycle_run_export_suite() != 0) {
+        return 1;
+    }
     if (drawing_program_lifecycle_run_object_path_suite(&workflow_ctx,
                                                         expected_draw_value,
                                                         expected_eraser_value) != 0) {
@@ -176,7 +194,6 @@ int main(void) {
                                                            &workflow_ctx,
                                                            center_x,
                                                            center_y,
-                                                           center_before,
                                                            expected_draw_value,
                                                            expected_eraser_value) != 0) {
         return 1;

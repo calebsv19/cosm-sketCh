@@ -38,7 +38,7 @@ typedef struct DrawingProgramSelectionState {
     int32_t move_anchor_offset_y;
     uint32_t payload_count;
     uint8_t payload_mask[DRAWING_PROGRAM_SELECTION_MAX_AREA];
-    uint8_t payload_value[DRAWING_PROGRAM_SELECTION_MAX_AREA];
+    DrawingProgramRasterSample payload_value[DRAWING_PROGRAM_SELECTION_MAX_AREA];
 } DrawingProgramSelectionState;
 
 typedef struct DrawingProgramClipboardState {
@@ -48,7 +48,7 @@ typedef struct DrawingProgramClipboardState {
     uint32_t height;
     uint32_t payload_count;
     uint8_t payload_mask[DRAWING_PROGRAM_SELECTION_MAX_AREA];
-    uint8_t payload_value[DRAWING_PROGRAM_SELECTION_MAX_AREA];
+    DrawingProgramRasterSample payload_value[DRAWING_PROGRAM_SELECTION_MAX_AREA];
 } DrawingProgramClipboardState;
 
 void drawing_program_selection_reset(DrawingProgramSelectionState *selection);
@@ -57,9 +57,9 @@ void drawing_program_clipboard_reset(DrawingProgramClipboardState *clipboard);
 uint8_t drawing_program_selection_mask_at(const DrawingProgramSelectionState *selection,
                                           uint32_t local_x,
                                           uint32_t local_y);
-uint8_t drawing_program_selection_value_at(const DrawingProgramSelectionState *selection,
-                                           uint32_t local_x,
-                                           uint32_t local_y);
+DrawingProgramRasterSample drawing_program_selection_value_at(const DrawingProgramSelectionState *selection,
+                                                              uint32_t local_x,
+                                                              uint32_t local_y);
 int drawing_program_selection_capture_from_rect(const DrawingProgramDocument *document,
                                                 const DrawingProgramLayerRasterStore *layer_rasters,
                                                 uint32_t active_layer_id,

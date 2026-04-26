@@ -5,10 +5,13 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include "core_font.h"
 #include "core_theme.h"
+#include "drawing_program/drawing_program_project_state.h"
 #include "drawing_program/drawing_program_runtime_orchestration.h"
+#include "drawing_program/drawing_program_session_prefs.h"
 #include "drawing_program/drawing_program_ui_color_state.h"
 
 typedef enum DrawingProgramAppStage {
@@ -159,7 +162,7 @@ static void drawing_program_normalize_ui_state(DrawingProgramAppContext *ctx) {
     if (ctx->ui.left_panel_slot > 1u) {
         ctx->ui.left_panel_slot = 0u;
     }
-    if (ctx->ui.right_panel_slot > 2u) {
+    if (ctx->ui.right_panel_slot > 3u) {
         ctx->ui.right_panel_slot = 0u;
     }
     drawing_program_ui_color_normalize_state(ctx);
@@ -455,9 +458,10 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
     memset(ctx, 0, sizeof(*ctx));
     ctx->session.smoke_frames = 1u;
     ctx->session.persist_enabled = 1u;
-    ctx->session.seed_canvas_logical_width = 512u;
-    ctx->session.seed_canvas_logical_height = 512u;
+    ctx->session.seed_canvas_logical_width = DRAWING_PROGRAM_DEFAULT_LOGICAL_WIDTH;
+    ctx->session.seed_canvas_logical_height = DRAWING_PROGRAM_DEFAULT_LOGICAL_HEIGHT;
     ctx->session.preset_path = 0;
+    ctx->session.project_path = 0;
     ctx->session.export_json_path = 0;
     ctx->session.bridge_workspace_preset_path = "workspace_sandbox/data/presets/sketch_layout_v1.pack";
     ctx->pane_host_bounds_width = 1200.0f;
@@ -478,6 +482,10 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
     ctx->ui.tool_select_mode = (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_REPLACE;
     ctx->ui.font_zoom_step = 0;
     drawing_program_ui_color_seed_defaults(ctx);
+    (void)snprintf(ctx->session.file_action_status_message,
+                   sizeof(ctx->session.file_action_status_message),
+                   "%s",
+                   "READY");
     (void)snprintf(ctx->session.runtime_root_path, sizeof(ctx->session.runtime_root_path), "data/runtime");
     (void)snprintf(ctx->session.input_root_path, sizeof(ctx->session.input_root_path), "data/input");
     (void)snprintf(ctx->session.output_root_path, sizeof(ctx->session.output_root_path), "data/output");
@@ -578,6 +586,12 @@ CoreResult drawing_program_app_config_load(DrawingProgramAppContext *ctx) {
     if (result.code != CORE_OK) {
         return result;
     }
+    if (ctx->session.persist_enabled) {
+        result = drawing_program_session_prefs_load(ctx);
+        if (result.code != CORE_OK) {
+            return result;
+        }
+    }
     result = drawing_program_mkdirs_if_needed(ctx->session.input_root_path);
     if (result.code != CORE_OK) {
         return result;
@@ -589,6 +603,10 @@ CoreResult drawing_program_app_config_load(DrawingProgramAppContext *ctx) {
     if (!ctx->session.preset_path_cli_override) {
         (void)snprintf(ctx->session.preset_path_buffer, sizeof(ctx->session.preset_path_buffer), "%s/last_session.pack", ctx->session.runtime_root_path);
         ctx->session.preset_path = ctx->session.preset_path_buffer;
+    }
+    result = drawing_program_project_state_configure_defaults(ctx);
+    if (result.code != CORE_OK) {
+        return result;
     }
     result = drawing_program_ensure_parent_dir(ctx->session.preset_path);
     if (result.code != CORE_OK) {
@@ -655,6 +673,7 @@ CoreResult drawing_program_runtime_start(DrawingProgramAppContext *ctx) {
     CoreResult result;
     CoreResult load_result;
     uint8_t upgraded_legacy_checker_seed = 0u;
+    uint8_t saved_project_exists = 0u;
     if (!ctx) {
         return drawing_program_invalid("null app context");
     }
@@ -665,7 +684,18 @@ CoreResult drawing_program_runtime_start(DrawingProgramAppContext *ctx) {
     if (ctx->session.canvas_size_cli_override) {
         load_result = (CoreResult){ CORE_ERR_NOT_FOUND, "snapshot load bypassed by explicit canvas-size override" };
     } else {
-        load_result = drawing_program_snapshot_load(ctx, ctx->session.preset_path);
+        result = drawing_program_project_state_current_exists(ctx, &saved_project_exists);
+        if (result.code != CORE_OK) {
+            return result;
+        }
+        if (saved_project_exists) {
+            load_result = drawing_program_project_state_load_current(ctx);
+        } else if (ctx->session.preset_path_cli_override && ctx->session.preset_path &&
+                   access(ctx->session.preset_path, F_OK) == 0) {
+            load_result = drawing_program_snapshot_load(ctx, ctx->session.preset_path);
+        } else {
+            load_result = (CoreResult){ CORE_ERR_NOT_FOUND, "no saved project selected for boot" };
+        }
     }
     result = load_result;
     if (drawing_program_trace_ui_state_enabled()) {
@@ -800,6 +830,11 @@ CoreResult drawing_program_app_shutdown(DrawingProgramAppContext *ctx) {
         }
         drawing_program_layer_raster_store_dispose(&ctx->layer_rasters);
         return core_result_ok();
+    }
+    result = drawing_program_session_prefs_save(ctx);
+    if (result.code != CORE_OK) {
+        drawing_program_layer_raster_store_dispose(&ctx->layer_rasters);
+        return result;
     }
     result = drawing_program_ensure_parent_dir(ctx->session.preset_path);
     if (result.code != CORE_OK) {

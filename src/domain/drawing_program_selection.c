@@ -15,7 +15,7 @@ static int32_t selection_clamp_i32(int32_t value, int32_t min_value, int32_t max
     return value;
 }
 
-static uint8_t selection_seeded_background_sample(void) {
+static DrawingProgramRasterSample selection_seeded_background_sample(void) {
     return drawing_program_color_eraser_value();
 }
 
@@ -24,7 +24,7 @@ static CoreResult selection_sample_read_from_active_layer(const DrawingProgramDo
                                                           uint32_t active_layer_id,
                                                           uint32_t sample_x,
                                                           uint32_t sample_y,
-                                                          uint8_t *out_value) {
+                                                          DrawingProgramRasterSample *out_value) {
     CoreResult result;
     if (!document || !out_value || active_layer_id == 0u) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid active-layer selection sample read request" };
@@ -33,7 +33,7 @@ static CoreResult selection_sample_read_from_active_layer(const DrawingProgramDo
         layer_rasters->sample_count == document->raster_sample_count &&
         layer_rasters->raster_width == document->raster_width &&
         layer_rasters->raster_height == document->raster_height) {
-        result = drawing_program_layer_raster_store_sample_read(layer_rasters,
+        result = drawing_program_layer_raster_store_raster_sample_read(layer_rasters,
                                                                 active_layer_id,
                                                                 sample_x,
                                                                 sample_y,
@@ -42,7 +42,7 @@ static CoreResult selection_sample_read_from_active_layer(const DrawingProgramDo
             return core_result_ok();
         }
     }
-    return drawing_program_document_sample_read(document, sample_x, sample_y, out_value);
+    return drawing_program_document_raster_sample_read(document, sample_x, sample_y, out_value);
 }
 
 void drawing_program_selection_reset(DrawingProgramSelectionState *selection) {
@@ -86,19 +86,19 @@ uint8_t drawing_program_selection_mask_at(const DrawingProgramSelectionState *se
     return selection->payload_mask[index];
 }
 
-uint8_t drawing_program_selection_value_at(const DrawingProgramSelectionState *selection,
-                                           uint32_t local_x,
-                                           uint32_t local_y) {
+DrawingProgramRasterSample drawing_program_selection_value_at(const DrawingProgramSelectionState *selection,
+                                                              uint32_t local_x,
+                                                              uint32_t local_y) {
     uint32_t index;
     if (!selection || selection->width == 0u || selection->height == 0u) {
-        return 0u;
+        return drawing_program_color_eraser_value();
     }
     if (local_x >= selection->width || local_y >= selection->height) {
-        return 0u;
+        return drawing_program_color_eraser_value();
     }
     index = local_y * selection->width + local_x;
     if (index >= DRAWING_PROGRAM_SELECTION_MAX_AREA) {
-        return 0u;
+        return drawing_program_color_eraser_value();
     }
     return selection->payload_value[index];
 }
@@ -165,7 +165,7 @@ int drawing_program_selection_capture_from_rect(const DrawingProgramDocument *do
     for (y = 0u; y < clipped_h; ++y) {
         for (x = 0u; x < clipped_w; ++x) {
             uint32_t index = y * clipped_w + x;
-            uint8_t sample = 0u;
+            DrawingProgramRasterSample sample = drawing_program_color_eraser_value();
             uint32_t sx = (uint32_t)min_x + x;
             uint32_t sy = (uint32_t)min_y + y;
             if (index >= DRAWING_PROGRAM_SELECTION_MAX_AREA) {
@@ -212,7 +212,7 @@ int drawing_program_selection_add_from_rect(const DrawingProgramDocument *docume
     uint32_t merged_h;
     uint32_t merged_area;
     uint8_t *merged_mask = 0;
-    uint8_t *merged_value = 0;
+    DrawingProgramRasterSample *merged_value = 0;
     uint32_t merged_payload_count = 0u;
     uint32_t x;
     uint32_t y;
@@ -280,7 +280,7 @@ int drawing_program_selection_add_from_rect(const DrawingProgramDocument *docume
         return 0;
     }
     merged_mask = (uint8_t *)calloc(merged_area, sizeof(uint8_t));
-    merged_value = (uint8_t *)calloc(merged_area, sizeof(uint8_t));
+    merged_value = (DrawingProgramRasterSample *)calloc(merged_area, sizeof(DrawingProgramRasterSample));
     if (!merged_mask || !merged_value) {
         free(merged_mask);
         free(merged_value);
@@ -340,7 +340,9 @@ int drawing_program_selection_add_from_rect(const DrawingProgramDocument *docume
     memset(selection->payload_mask, 0, sizeof(selection->payload_mask));
     memset(selection->payload_value, 0, sizeof(selection->payload_value));
     memcpy(selection->payload_mask, merged_mask, merged_area);
-    memcpy(selection->payload_value, merged_value, merged_area);
+    memcpy(selection->payload_value,
+           merged_value,
+           (size_t)merged_area * sizeof(selection->payload_value[0]));
     selection->has_payload = (merged_payload_count > 0u) ? 1u : 0u;
     selection->selecting = 0u;
     selection->moving = 0u;
@@ -382,7 +384,7 @@ int drawing_program_selection_subtract_from_rect(const DrawingProgramDocument *d
     uint32_t new_h;
     uint32_t new_area;
     uint8_t *new_mask = 0;
-    uint8_t *new_value = 0;
+    DrawingProgramRasterSample *new_value = 0;
     uint32_t new_payload_count = 0u;
     if (!document || !selection || width == 0u || height == 0u) {
         return 0;
@@ -470,7 +472,7 @@ int drawing_program_selection_subtract_from_rect(const DrawingProgramDocument *d
         return 0;
     }
     new_mask = (uint8_t *)calloc(new_area, sizeof(uint8_t));
-    new_value = (uint8_t *)calloc(new_area, sizeof(uint8_t));
+    new_value = (DrawingProgramRasterSample *)calloc(new_area, sizeof(DrawingProgramRasterSample));
     if (!new_mask || !new_value) {
         free(new_mask);
         free(new_value);
@@ -516,7 +518,9 @@ int drawing_program_selection_subtract_from_rect(const DrawingProgramDocument *d
     memset(selection->payload_mask, 0, sizeof(selection->payload_mask));
     memset(selection->payload_value, 0, sizeof(selection->payload_value));
     memcpy(selection->payload_mask, new_mask, new_area);
-    memcpy(selection->payload_value, new_value, new_area);
+    memcpy(selection->payload_value,
+           new_value,
+           (size_t)new_area * sizeof(selection->payload_value[0]));
     selection->origin_x += min_local_x;
     selection->origin_y += min_local_y;
     selection->width = new_w;
@@ -735,7 +739,7 @@ int drawing_program_selection_select_all(const DrawingProgramDocument *document,
     uint32_t max_x = 0u;
     uint32_t max_y = 0u;
     uint8_t found = 0u;
-    uint8_t background;
+    DrawingProgramRasterSample background;
     if (!document || !selection || document->raster_width == 0u || document->raster_height == 0u) {
         drawing_program_selection_reset(selection);
         return 0;
@@ -743,7 +747,7 @@ int drawing_program_selection_select_all(const DrawingProgramDocument *document,
     background = selection_seeded_background_sample();
     for (y = 0u; y < document->raster_height; ++y) {
         for (x = 0u; x < document->raster_width; ++x) {
-            uint8_t sample = background;
+            DrawingProgramRasterSample sample = background;
             if (selection_sample_read_from_active_layer(document,
                                                         layer_rasters,
                                                         active_layer_id,

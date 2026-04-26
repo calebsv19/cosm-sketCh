@@ -18,18 +18,21 @@ typedef struct DrawingProgramVisualCanvasDrawActionOpsHooks {
                               uint32_t *out_index,
                               uint8_t *out_visible,
                               uint8_t *out_locked);
-    uint8_t (*sample_value_for_tool)(const DrawingProgramAppContext *ctx, DrawingProgramToolKind tool);
+    DrawingProgramRasterSample (*sample_value_for_tool)(const DrawingProgramAppContext *ctx,
+                                                        DrawingProgramToolKind tool);
     uint32_t (*tool_brush_radius_samples)(const DrawingProgramAppContext *ctx, DrawingProgramToolKind tool);
     uint32_t (*tool_brush_spacing_samples)(const DrawingProgramAppContext *ctx,
                                            DrawingProgramToolKind tool,
                                            uint32_t radius);
     uint8_t (*tool_brush_hardness_percent)(const DrawingProgramAppContext *ctx, DrawingProgramToolKind tool);
-    uint8_t (*seeded_background_sample_for_coord)(const DrawingProgramDocument *document, uint32_t x, uint32_t y);
+    DrawingProgramRasterSample (*seeded_background_sample_for_coord)(const DrawingProgramDocument *document,
+                                                                     uint32_t x,
+                                                                     uint32_t y);
     CoreResult (*apply_canvas_stamp_square_on_layer)(DrawingProgramAppContext *ctx,
                                                      uint32_t layer_id,
                                                      int32_t sample_x,
                                                      int32_t sample_y,
-                                                     uint8_t value,
+                                                     DrawingProgramRasterSample value,
                                                      uint32_t stroke_width,
                                                      uint8_t hardness_percent);
 } DrawingProgramVisualCanvasDrawActionOpsHooks;

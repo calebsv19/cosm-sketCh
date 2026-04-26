@@ -7,7 +7,7 @@ CoreResult drawing_program_visual_apply_canvas_stamp_square_on_layer(DrawingProg
                                                                      uint32_t layer_id,
                                                                      int32_t sample_x,
                                                                      int32_t sample_y,
-                                                                     uint8_t value,
+                                                                     DrawingProgramRasterSample value,
                                                                      uint32_t stroke_width,
                                                                      uint8_t hardness_percent);
 
@@ -17,7 +17,7 @@ CoreResult drawing_program_visual_apply_canvas_line_between_samples_on_layer(Dra
                                                                               uint32_t y0,
                                                                               uint32_t x1,
                                                                               uint32_t y1,
-                                                                              uint8_t value,
+                                                                              DrawingProgramRasterSample value,
                                                                               uint32_t stroke_width,
                                                                               uint8_t hardness_percent);
 
@@ -27,7 +27,7 @@ CoreResult drawing_program_visual_apply_canvas_rect_fill_between_samples_on_laye
                                                                                    uint32_t y0,
                                                                                    uint32_t x1,
                                                                                    uint32_t y1,
-                                                                                   uint8_t value);
+                                                                                   DrawingProgramRasterSample value);
 
 CoreResult drawing_program_visual_apply_canvas_rect_outline_between_samples_on_layer(DrawingProgramAppContext *ctx,
                                                                                       uint32_t layer_id,
@@ -35,7 +35,7 @@ CoreResult drawing_program_visual_apply_canvas_rect_outline_between_samples_on_l
                                                                                       uint32_t y0,
                                                                                       uint32_t x1,
                                                                                       uint32_t y1,
-                                                                                      uint8_t value,
+                                                                                      DrawingProgramRasterSample value,
                                                                                       uint32_t stroke_width);
 
 CoreResult drawing_program_visual_apply_canvas_circle_fill_between_samples_on_layer(DrawingProgramAppContext *ctx,
@@ -44,7 +44,7 @@ CoreResult drawing_program_visual_apply_canvas_circle_fill_between_samples_on_la
                                                                                      uint32_t center_y,
                                                                                      uint32_t edge_x,
                                                                                      uint32_t edge_y,
-                                                                                     uint8_t value);
+                                                                                     DrawingProgramRasterSample value);
 
 CoreResult drawing_program_visual_apply_canvas_circle_outline_between_samples_on_layer(DrawingProgramAppContext *ctx,
                                                                                         uint32_t layer_id,
@@ -52,7 +52,7 @@ CoreResult drawing_program_visual_apply_canvas_circle_outline_between_samples_on
                                                                                         uint32_t center_y,
                                                                                         uint32_t edge_x,
                                                                                         uint32_t edge_y,
-                                                                                        uint8_t value,
+                                                                                        DrawingProgramRasterSample value,
                                                                                         uint32_t stroke_width);
 
 #endif

@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 
+#include "drawing_program/drawing_program_color_model.h"
 #include "drawing_program/drawing_program_visual_layout.h"
 #include "drawing_program/drawing_program_visual_panel_render_common.h"
 #include "drawing_program/drawing_program_visual_right_panel_render.h"
@@ -43,6 +44,24 @@ static const char *visual_layer_name_for_id(const DrawingProgramDocument *docume
         return "UNKNOWN";
     }
     return document->layers[layer_index].name[0] ? document->layers[layer_index].name : "LAYER";
+}
+
+static void visual_object_sample_label(DrawingProgramRasterSample sample,
+                                       char *buffer,
+                                       size_t buffer_size) {
+    uint8_t r = 0u;
+    uint8_t g = 0u;
+    uint8_t b = 0u;
+    uint8_t a = 0u;
+    if (!buffer || buffer_size == 0u) {
+        return;
+    }
+    drawing_program_color_rgba_from_sample(sample, &r, &g, &b, &a);
+    if (a < 255u) {
+        (void)snprintf(buffer, buffer_size, "#%02X%02X%02X A%u", (unsigned)r, (unsigned)g, (unsigned)b, (unsigned)a);
+    } else {
+        (void)snprintf(buffer, buffer_size, "#%02X%02X%02X", (unsigned)r, (unsigned)g, (unsigned)b);
+    }
 }
 
 void drawing_program_visual_render_menu_bar_chrome(SDL_Renderer *renderer,
@@ -283,6 +302,8 @@ void drawing_program_visual_render_left_panel_chrome(SDL_Renderer *renderer,
                                     m.body_scale);
         } else {
             char line[96];
+            char stroke_label[24];
+            char fill_label[24];
             int info_y = object_inspector_rect.y + m.line_h + m.row_text_y;
             uint32_t selected_point_object_id = 0u;
             uint16_t selected_point_index = 0u;
@@ -303,6 +324,8 @@ void drawing_program_visual_render_left_panel_chrome(SDL_Renderer *renderer,
             int fill_color_target_active =
                 ui && ui->object_color_target_kind == VISUAL_OBJECT_COLOR_TARGET_FILL &&
                 ui->object_color_target_object_id == selected_object->object_id;
+            visual_object_sample_label(selected_object->stroke_color_value, stroke_label, sizeof(stroke_label));
+            visual_object_sample_label(selected_object->fill_color_value, fill_label, sizeof(fill_label));
 
             (void)snprintf(line,
                            sizeof(line),
@@ -332,17 +355,17 @@ void drawing_program_visual_render_left_panel_chrome(SDL_Renderer *renderer,
 
             (void)snprintf(line,
                            sizeof(line),
-                           "STYLE %s  STROKE W%u C%u",
+                           "STYLE %s  STROKE W%u %s",
                            visual_object_style_name(selected_object->style_mode),
                            (unsigned)selected_object->stroke_width,
-                           (unsigned)selected_object->stroke_color_index);
+                           stroke_label);
             hooks->draw_bitmap_text(renderer, rect, object_inspector_rect.x + 6, info_y, line, p.text_muted, m.body_scale);
             info_y += m.line_h;
 
             (void)snprintf(line,
                            sizeof(line),
-                           "FILL C%u  VISIBLE %s  LOCKED %s",
-                           (unsigned)selected_object->fill_color_index,
+                           "FILL %s  VISIBLE %s  LOCKED %s",
+                           fill_label,
                            selected_object->visible ? "ON" : "OFF",
                            selected_object->locked ? "ON" : "OFF");
             hooks->draw_bitmap_text(renderer, rect, object_inspector_rect.x + 6, info_y, line, p.text_muted, m.body_scale);
@@ -403,8 +426,7 @@ void drawing_program_visual_render_left_panel_chrome(SDL_Renderer *renderer,
                 char stroke_color_label[32];
                 (void)snprintf(stroke_color_label,
                                sizeof(stroke_color_label),
-                               "SET STROKE COLOR C%u",
-                               (unsigned)selected_object->stroke_color_index);
+                               "SET STROKE COLOR");
                 drawing_program_visual_panel_draw_tab_button(renderer,
                                                              rect,
                                                              stroke_color_row,
@@ -425,8 +447,7 @@ void drawing_program_visual_render_left_panel_chrome(SDL_Renderer *renderer,
                 char fill_color_label[32];
                 (void)snprintf(fill_color_label,
                                sizeof(fill_color_label),
-                               "SET FILL COLOR C%u",
-                               (unsigned)selected_object->fill_color_index);
+                               "SET FILL COLOR");
                 drawing_program_visual_panel_draw_tab_button(renderer,
                                                              rect,
                                                              fill_color_row,

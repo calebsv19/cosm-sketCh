@@ -144,17 +144,18 @@ int drawing_program_lifecycle_run_baseline_history_suite(DrawingProgramAppContex
                        "document_upgrade_legacy_checker_seed")) {
             return 1;
         }
-        preserved_sample = legacy_doc.raster_samples[5u * legacy_doc.raster_width + 9u];
+        preserved_sample = drawing_program_color_legacy_sample_from_sample(
+            legacy_doc.raster_samples[5u * legacy_doc.raster_width + 9u]);
         if (upgraded != 1u ||
-            legacy_doc.raster_samples[0] != expected_eraser_value ||
+            drawing_program_color_legacy_sample_from_sample(legacy_doc.raster_samples[0]) != expected_eraser_value ||
             preserved_sample != 200u ||
-            legacy_doc.schema_version != 2u) {
+            legacy_doc.schema_version != DRAWING_PROGRAM_DOCUMENT_SCHEMA_VERSION_TRUE_COLOR) {
             fprintf(stderr,
                     "lifecycle_test: expected checker legacy upgrade to flatten background and preserve edits"
                     " value=%u upgraded=%u sample0=%u preserved=%u schema=%u\n",
                     (unsigned)expected_eraser_value,
                     (unsigned)upgraded,
-                    (unsigned)legacy_doc.raster_samples[0],
+                    (unsigned)drawing_program_color_legacy_sample_from_sample(legacy_doc.raster_samples[0]),
                     (unsigned)preserved_sample,
                     (unsigned)legacy_doc.schema_version);
             return 1;
@@ -174,12 +175,13 @@ int drawing_program_lifecycle_run_baseline_history_suite(DrawingProgramAppContex
                        "document_upgrade_legacy_checker_seed_v2_recovery")) {
             return 1;
         }
-        if (upgraded_v2 != 1u || legacy_doc_v2.raster_samples[0] != expected_eraser_value) {
+        if (upgraded_v2 != 1u ||
+            drawing_program_color_legacy_sample_from_sample(legacy_doc_v2.raster_samples[0]) != expected_eraser_value) {
             fprintf(stderr,
                     "lifecycle_test: expected v2 recovery upgrade to flatten checker seed value=%u upgraded=%u sample0=%u\n",
                     (unsigned)expected_eraser_value,
                     (unsigned)upgraded_v2,
-                    (unsigned)legacy_doc_v2.raster_samples[0]);
+                    (unsigned)drawing_program_color_legacy_sample_from_sample(legacy_doc_v2.raster_samples[0]));
             return 1;
         }
     }

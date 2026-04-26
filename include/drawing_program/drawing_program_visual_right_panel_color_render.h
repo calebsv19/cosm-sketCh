@@ -14,6 +14,7 @@ void drawing_program_visual_render_right_panel_color_tab(SDL_Renderer *renderer,
                                                          SDL_Rect rect,
                                                          int y,
                                                          const DrawingProgramAppContext *ctx,
+                                                         const VisualPanelUiState *ui,
                                                          VisualPaneLayoutMetrics m,
                                                          VisualThemePalette p,
                                                          const DrawingProgramVisualPanelRenderHooks *hooks);

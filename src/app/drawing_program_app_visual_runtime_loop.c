@@ -1,6 +1,7 @@
 #include <SDL2/SDL.h>
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "core_font.h"
@@ -208,26 +209,29 @@ static int drawing_program_visual_loop_event_requires_runtime_tick(const SDL_Eve
 }
 
 int drawing_program_app_visual_run_mode(int argc, char **argv) {
-    CoreResult result;
+    CoreResult result = core_result_ok();
     DrawingProgramRenderBackendKind backend_kind = DRAWING_PROGRAM_RENDER_BACKEND_SDL_DEBUG;
     CoreThemePreset theme_preset;
     CoreResult theme_env_result;
     CoreThemePresetId selected_theme = CORE_THEME_PRESET_DARK_DEFAULT;
     CoreFontPresetId selected_font = CORE_FONT_PRESET_IDE;
-    DrawingProgramAppContext app;
+    DrawingProgramAppContext *app_ptr = 0;
     SDL_Window *window = 0;
     SDL_Renderer *renderer = 0;
     int quit = 0;
+    int exit_code = 1;
     Uint64 perf_freq = 0u;
     uint32_t last_present_ms = 0u;
     uint32_t last_input_event_ms = 0u;
     uint64_t present_count = 0u;
+    uint8_t layer_rasters_initialized = 0u;
     VisualCanvasInteractionState canvas_interaction;
     VisualPanelUiState panel_ui;
     DrawingProgramVisualLoopWaitPolicyInput wait_policy_input = {0};
     const DrawingProgramVisualInputHandlersHooks *input_handlers =
         drawing_program_visual_input_handlers_hooks();
-#define selection_state app.selection
+#define app_ctx (*app_ptr)
+#define selection_state app_ctx.selection
 
     result = drawing_program_render_backend_parse_flag(argc, argv, &backend_kind);
     if (result.code != CORE_OK) {
@@ -268,75 +272,69 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
         SDL_Quit();
         return 1;
     }
+    app_ptr = (DrawingProgramAppContext *)calloc(1u, sizeof(*app_ptr));
+    if (!app_ptr) {
+        fprintf(stderr, "drawing_program: failed to allocate visual app context\n");
+        goto cleanup;
+    }
 
-    result = drawing_program_app_bootstrap(&app, argc, argv);
+    result = drawing_program_app_bootstrap(&app_ctx, argc, argv);
     if (result.code != CORE_OK) {
         fprintf(stderr, "drawing_program: bootstrap failed: %s\n", result.message);
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return 1;
+        goto cleanup;
     }
-    result = drawing_program_app_config_load(&app);
+    result = drawing_program_app_config_load(&app_ctx);
     if (result.code != CORE_OK) {
         fprintf(stderr, "drawing_program: config_load failed: %s\n", result.message);
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return 1;
+        goto cleanup;
     }
-    result = drawing_program_app_state_seed(&app);
+    result = drawing_program_app_state_seed(&app_ctx);
     if (result.code != CORE_OK) {
         fprintf(stderr, "drawing_program: state_seed failed: %s\n", result.message);
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return 1;
+        goto cleanup;
     }
-    result = drawing_program_app_subsystems_init(&app);
+    result = drawing_program_app_subsystems_init(&app_ctx);
     if (result.code != CORE_OK) {
         fprintf(stderr, "drawing_program: subsystems_init failed: %s\n", result.message);
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return 1;
+        goto cleanup;
     }
-    result = drawing_program_runtime_start(&app);
+    layer_rasters_initialized = 1u;
+    result = drawing_program_runtime_start(&app_ctx);
     if (result.code != CORE_OK) {
         fprintf(stderr, "drawing_program: runtime_start failed: %s\n", result.message);
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return 1;
+        goto cleanup;
     }
-    drawing_program_visual_trace_after_runtime_start(&app);
-    if (theme_env_result.code == CORE_OK && !app.runtime.snapshot_loaded_from_preset) {
-        app.ui.theme_preset_id = (uint32_t)selected_theme;
+    drawing_program_visual_trace_after_runtime_start(&app_ctx);
+    if (theme_env_result.code == CORE_OK && !app_ctx.runtime.snapshot_loaded_from_preset) {
+        app_ctx.ui.theme_preset_id = (uint32_t)selected_theme;
     }
-    selected_theme = clamp_theme_preset_id(app.ui.theme_preset_id);
-    app.ui.theme_preset_id = (uint32_t)selected_theme;
+    selected_theme = clamp_theme_preset_id(app_ctx.ui.theme_preset_id);
+    app_ctx.ui.theme_preset_id = (uint32_t)selected_theme;
     if (core_theme_get_preset(selected_theme, &theme_preset).code != CORE_OK) {
         selected_theme = CORE_THEME_PRESET_DARK_DEFAULT;
-        app.ui.theme_preset_id = (uint32_t)selected_theme;
+        app_ctx.ui.theme_preset_id = (uint32_t)selected_theme;
         if (core_theme_get_preset(selected_theme, &theme_preset).code != CORE_OK) {
             fprintf(stderr, "drawing_program: failed to resolve core theme preset\n");
-            SDL_DestroyRenderer(renderer);
-            SDL_DestroyWindow(window);
-            SDL_Quit();
-            return 1;
+            result = (CoreResult){CORE_ERR_INVALID_ARG, "failed to resolve core theme preset"};
+            goto cleanup;
         }
     }
-    if (app.ui.font_preset_id < (uint32_t)CORE_FONT_PRESET_COUNT) {
-        selected_font = (CoreFontPresetId)app.ui.font_preset_id;
+    if (app_ctx.ui.font_preset_id < (uint32_t)CORE_FONT_PRESET_COUNT) {
+        selected_font = (CoreFontPresetId)app_ctx.ui.font_preset_id;
     } else {
-        app.ui.font_preset_id = (uint32_t)selected_font;
+        app_ctx.ui.font_preset_id = (uint32_t)selected_font;
     }
     if (!core_font_preset_name(selected_font)) {
         selected_font = CORE_FONT_PRESET_IDE;
-        app.ui.font_preset_id = (uint32_t)selected_font;
+        app_ctx.ui.font_preset_id = (uint32_t)selected_font;
     }
-    app.ui.font_zoom_step = (int8_t)clamp_font_zoom_step((int)app.ui.font_zoom_step);
+    app_ctx.ui.font_zoom_step = (int8_t)clamp_font_zoom_step((int)app_ctx.ui.font_zoom_step);
     memset(&canvas_interaction, 0, sizeof(canvas_interaction));
     canvas_interaction.marquee_commit_mode = (uint8_t)VISUAL_MARQUEE_COMMIT_REPLACE;
     memset(&panel_ui, 0, sizeof(panel_ui));
     drawing_program_selection_cancel_transient(&selection_state);
-    drawing_program_visual_sync_panel_ui_from_app(&app, &panel_ui);
-    drawing_program_visual_trace_after_ui_resolve(&app, theme_env_result.code == CORE_OK ? 1 : 0);
+    drawing_program_visual_sync_panel_ui_from_app(&app_ctx, &panel_ui);
+    drawing_program_visual_trace_after_ui_resolve(&app_ctx, theme_env_result.code == CORE_OK ? 1 : 0);
     perf_freq = SDL_GetPerformanceFrequency();
     wait_policy_input.interaction_active = 1u;
     {
@@ -344,12 +342,10 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
         int initial_h = 0;
         if (SDL_GetRendererOutputSize(renderer, &initial_w, &initial_h) == 0 &&
             initial_w > 0 && initial_h > 0) {
-            result = drawing_program_app_set_pane_host_bounds(&app, (float)initial_w, (float)initial_h);
+            result = drawing_program_app_set_pane_host_bounds(&app_ctx, (float)initial_w, (float)initial_h);
             if (result.code != CORE_OK) {
                 fprintf(stderr, "drawing_program: set pane host bounds failed: %s\n", result.message);
-                SDL_DestroyWindow(window);
-                SDL_Quit();
-                return 1;
+                goto cleanup;
             }
         }
     }
@@ -379,7 +375,7 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
         DrawingProgramVisualLoopRenderPolicyInput render_policy_input = {0};
         event_ctx.window = window;
         event_ctx.renderer = renderer;
-        event_ctx.app = &app;
+        event_ctx.app = &app_ctx;
         event_ctx.canvas_interaction = &canvas_interaction;
         event_ctx.selection = &selection_state;
         event_ctx.panel_ui = &panel_ui;
@@ -421,7 +417,7 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
         if (require_window_sync &&
             SDL_GetRendererOutputSize(renderer, &current_w, &current_h) == 0 &&
             current_w > 0 && current_h > 0) {
-            result = drawing_program_app_set_pane_host_bounds(&app, (float)current_w, (float)current_h);
+            result = drawing_program_app_set_pane_host_bounds(&app_ctx, (float)current_w, (float)current_h);
             if (result.code != CORE_OK) {
                 fprintf(stderr, "drawing_program: set pane host bounds failed: %s\n", result.message);
                 break;
@@ -456,17 +452,17 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
         }
 
         if (should_run_runtime_tick) {
-            result = drawing_program_app_run_loop(&app);
+            result = drawing_program_app_run_loop(&app_ctx);
             if (result.code != CORE_OK) {
                 fprintf(stderr, "drawing_program: run_loop failed: %s\n", result.message);
                 break;
             }
         }
-        drawing_program_visual_layer_opacity_sync_document(&app);
-        drawing_program_visual_text_set_font_preset_id(app.ui.font_preset_id);
+        drawing_program_visual_layer_opacity_sync_document(&app_ctx);
+        drawing_program_visual_text_set_font_preset_id(app_ctx.ui.font_preset_id);
         if (!drawing_program_visual_draw_debug_frame(window,
                                                      renderer,
-                                                     &app,
+                                                     &app_ctx,
                                                      &theme_preset,
                                                      &panel_ui,
                                                      &selection_state,
@@ -478,7 +474,7 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
         SDL_RenderPresent(renderer);
         present_count += 1u;
         last_present_ms = (uint32_t)SDL_GetTicks();
-        drawing_program_visual_update_window_title(window, &app, &selection_state, present_count);
+        drawing_program_visual_update_window_title(window, &app_ctx, &selection_state, present_count);
         frame_elapsed_sec = drawing_program_visual_loop_elapsed_sec(frame_begin_counter,
                                                                     SDL_GetPerformanceCounter(),
                                                                     perf_freq);
@@ -490,20 +486,32 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
                                                        resize_pending);
     }
 
-#undef selection_state
-
-    result = drawing_program_app_shutdown(&app);
+    result = drawing_program_app_shutdown(&app_ctx);
     if (result.code != CORE_OK) {
         fprintf(stderr, "drawing_program: shutdown failed: %s\n", result.message);
     }
+    layer_rasters_initialized = 0u;
+    exit_code = (result.code == CORE_OK) ? 0 : 1;
 
+cleanup:
     drawing_program_visual_text_cache_shutdown();
     drawing_program_visual_font_cache_shutdown();
     drawing_program_visual_canvas_world_backdrop_cache_shutdown();
     drawing_program_visual_object_overlay_cache_shutdown();
     drawing_program_visual_canvas_texture_shutdown();
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
+    if (layer_rasters_initialized && app_ptr) {
+        drawing_program_layer_raster_store_dispose(&app_ctx.layer_rasters);
+    }
+    free(app_ptr);
+    if (renderer) {
+        SDL_DestroyRenderer(renderer);
+    }
+    if (window) {
+        SDL_DestroyWindow(window);
+    }
     SDL_Quit();
-    return (result.code == CORE_OK) ? 0 : 1;
+    return exit_code;
 }
+
+#undef selection_state
+#undef app_ctx

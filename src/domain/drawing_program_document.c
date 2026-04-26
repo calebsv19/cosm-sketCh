@@ -78,7 +78,7 @@ CoreResult drawing_program_document_init_with_shape(DrawingProgramDocument *docu
     }
 
     memset(document, 0, sizeof(*document));
-    document->schema_version = DRAWING_PROGRAM_DOCUMENT_SCHEMA_VERSION_PALETTE_INDEX;
+    document->schema_version = DRAWING_PROGRAM_DOCUMENT_SCHEMA_VERSION_TRUE_COLOR;
     document->logical_width = logical_width;
     document->logical_height = logical_height;
     document->sample_density = sample_density;
@@ -97,15 +97,20 @@ CoreResult drawing_program_document_init_with_shape(DrawingProgramDocument *docu
     document->layers[0].locked = 0u;
 
     if (document->raster_sample_count > 0u) {
-        memset(document->raster_samples,
-               (int)drawing_program_color_eraser_value(),
-               (size_t)document->raster_sample_count);
+        uint32_t i;
+        DrawingProgramRasterSample empty_sample = drawing_program_color_eraser_value();
+        for (i = 0u; i < document->raster_sample_count; ++i) {
+            document->raster_samples[i] = empty_sample;
+        }
     }
     return core_result_ok();
 }
 
 CoreResult drawing_program_document_init_default(DrawingProgramDocument *document) {
-    return drawing_program_document_init_with_shape(document, 512u, 512u, 1u);
+    return drawing_program_document_init_with_shape(document,
+                                                    DRAWING_PROGRAM_DEFAULT_LOGICAL_WIDTH,
+                                                    DRAWING_PROGRAM_DEFAULT_LOGICAL_HEIGHT,
+                                                    1u);
 }
 
 CoreResult drawing_program_document_set_layer_visibility(DrawingProgramDocument *document,
@@ -281,6 +286,19 @@ CoreResult drawing_program_document_sample_read(const DrawingProgramDocument *do
                                                 uint32_t sample_x,
                                                 uint32_t sample_y,
                                                 uint8_t *out_value) {
+    DrawingProgramRasterSample sample = drawing_program_color_eraser_value();
+    CoreResult result = drawing_program_document_raster_sample_read(document, sample_x, sample_y, &sample);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    *out_value = drawing_program_color_legacy_sample_from_sample(sample);
+    return core_result_ok();
+}
+
+CoreResult drawing_program_document_raster_sample_read(const DrawingProgramDocument *document,
+                                                       uint32_t sample_x,
+                                                       uint32_t sample_y,
+                                                       DrawingProgramRasterSample *out_value) {
     uint32_t idx;
     if (!document || !out_value) {
         return drawing_program_document_invalid("invalid sample read request");
@@ -299,8 +317,8 @@ CoreResult drawing_program_document_sample_read(const DrawingProgramDocument *do
 CoreResult drawing_program_document_sample_write(DrawingProgramDocument *document,
                                                  uint32_t sample_x,
                                                  uint32_t sample_y,
-                                                 uint8_t value,
-                                                 uint8_t *out_previous_value) {
+                                                 DrawingProgramRasterSample value,
+                                                 DrawingProgramRasterSample *out_previous_value) {
     uint32_t idx;
     if (!document) {
         return drawing_program_document_invalid("invalid sample write request");
@@ -315,7 +333,7 @@ CoreResult drawing_program_document_sample_write(DrawingProgramDocument *documen
     if (out_previous_value) {
         *out_previous_value = document->raster_samples[idx];
     }
-    document->raster_samples[idx] = value;
+    document->raster_samples[idx] = drawing_program_color_normalize_input_sample(value);
     return core_result_ok();
 }
 
@@ -331,12 +349,12 @@ CoreResult drawing_program_document_upgrade_legacy_checker_seed(DrawingProgramDo
     if (!document) {
         return drawing_program_document_invalid("invalid legacy checker upgrade request");
     }
-    if (document->schema_version >= 2u) {
+    if (document->schema_version >= DRAWING_PROGRAM_DOCUMENT_SCHEMA_VERSION_PALETTE_INDEX) {
         /* Recovery lane: tolerate prior bad schema tagging only for near-perfect checker signature. */
         required_match_percent = 95u;
     }
     if (document->raster_sample_count == 0u || document->raster_width == 0u || document->raster_height == 0u) {
-        document->schema_version = 2u;
+        document->schema_version = DRAWING_PROGRAM_DOCUMENT_SCHEMA_VERSION_TRUE_COLOR;
         if (out_upgraded) {
             *out_upgraded = 0u;
         }
@@ -345,12 +363,17 @@ CoreResult drawing_program_document_upgrade_legacy_checker_seed(DrawingProgramDo
     for (y = 0u; y < document->raster_height; ++y) {
         for (x = 0u; x < document->raster_width; ++x) {
             uint32_t idx = (y * document->raster_width) + x;
-            uint8_t expected = (((x / 16u) + (y / 16u)) & 1u) ? 44u : 24u;
+            DrawingProgramRasterSample normalized_sample;
+            DrawingProgramRasterSample expected =
+                (((x / 16u) + (y / 16u)) & 1u)
+                    ? drawing_program_color_normalize_legacy_sample(44u)
+                    : drawing_program_color_normalize_legacy_sample(24u);
             if (idx >= document->raster_sample_count) {
                 break;
             }
+            normalized_sample = drawing_program_color_normalize_input_sample(document->raster_samples[idx]);
             sample_total += 1u;
-            if (document->raster_samples[idx] == expected) {
+            if (normalized_sample == expected) {
                 checker_match_count += 1u;
             }
         }
@@ -359,19 +382,26 @@ CoreResult drawing_program_document_upgrade_legacy_checker_seed(DrawingProgramDo
         for (y = 0u; y < document->raster_height; ++y) {
             for (x = 0u; x < document->raster_width; ++x) {
                 uint32_t idx = (y * document->raster_width) + x;
-                uint8_t expected = (((x / 16u) + (y / 16u)) & 1u) ? 44u : 24u;
+                DrawingProgramRasterSample normalized_sample;
+                DrawingProgramRasterSample expected =
+                    (((x / 16u) + (y / 16u)) & 1u)
+                        ? drawing_program_color_normalize_legacy_sample(44u)
+                        : drawing_program_color_normalize_legacy_sample(24u);
                 if (idx >= document->raster_sample_count) {
                     break;
                 }
-                if (document->raster_samples[idx] == expected) {
+                normalized_sample = drawing_program_color_normalize_input_sample(document->raster_samples[idx]);
+                if (normalized_sample == expected) {
                     document->raster_samples[idx] = drawing_program_color_eraser_value();
                     upgraded_by_conversion = 1u;
+                } else {
+                    document->raster_samples[idx] = normalized_sample;
                 }
             }
         }
     }
     if (upgraded_by_conversion) {
-        document->schema_version = 2u;
+        document->schema_version = DRAWING_PROGRAM_DOCUMENT_SCHEMA_VERSION_TRUE_COLOR;
     }
     upgraded = upgraded_by_conversion;
     if (out_upgraded) {

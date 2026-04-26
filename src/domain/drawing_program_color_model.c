@@ -1,5 +1,10 @@
 #include "drawing_program/drawing_program_color_model.h"
 
+#define DRAWING_PROGRAM_COLOR_CHANNEL_A_SHIFT 24u
+#define DRAWING_PROGRAM_COLOR_CHANNEL_R_SHIFT 16u
+#define DRAWING_PROGRAM_COLOR_CHANNEL_G_SHIFT 8u
+#define DRAWING_PROGRAM_COLOR_CHANNEL_B_SHIFT 0u
+
 static const uint8_t k_drawing_program_default_palette_rgb[DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT][3] = {
     { 24u, 24u, 24u },
     { 48u, 48u, 48u },
@@ -21,31 +26,32 @@ static uint8_t g_drawing_program_palette_rgb[DRAWING_PROGRAM_UI_COLOR_PALETTE_CO
     { 232u, 232u, 232u }
 };
 
-static void drawing_program_color_rgb_from_sample_internal(uint8_t sample,
-                                                           uint8_t *out_r,
-                                                           uint8_t *out_g,
-                                                           uint8_t *out_b) {
-    if (sample < (uint8_t)DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT) {
-        uint8_t index = drawing_program_color_index_clamp(sample);
-        if (out_r) {
-            *out_r = g_drawing_program_palette_rgb[index][0];
-        }
-        if (out_g) {
-            *out_g = g_drawing_program_palette_rgb[index][1];
-        }
-        if (out_b) {
-            *out_b = g_drawing_program_palette_rgb[index][2];
-        }
-        return;
-    }
+static DrawingProgramRasterSample drawing_program_color_pack_rgba(uint8_t r,
+                                                                  uint8_t g,
+                                                                  uint8_t b,
+                                                                  uint8_t a) {
+    return (((DrawingProgramRasterSample)r) << DRAWING_PROGRAM_COLOR_CHANNEL_R_SHIFT) |
+           (((DrawingProgramRasterSample)g) << DRAWING_PROGRAM_COLOR_CHANNEL_G_SHIFT) |
+           (((DrawingProgramRasterSample)b) << DRAWING_PROGRAM_COLOR_CHANNEL_B_SHIFT) |
+           (((DrawingProgramRasterSample)a) << DRAWING_PROGRAM_COLOR_CHANNEL_A_SHIFT);
+}
+
+static void drawing_program_color_unpack_rgba(DrawingProgramRasterSample sample,
+                                              uint8_t *out_r,
+                                              uint8_t *out_g,
+                                              uint8_t *out_b,
+                                              uint8_t *out_a) {
     if (out_r) {
-        *out_r = sample;
+        *out_r = (uint8_t)((sample >> DRAWING_PROGRAM_COLOR_CHANNEL_R_SHIFT) & 0xffu);
     }
     if (out_g) {
-        *out_g = sample;
+        *out_g = (uint8_t)((sample >> DRAWING_PROGRAM_COLOR_CHANNEL_G_SHIFT) & 0xffu);
     }
     if (out_b) {
-        *out_b = sample;
+        *out_b = (uint8_t)((sample >> DRAWING_PROGRAM_COLOR_CHANNEL_B_SHIFT) & 0xffu);
+    }
+    if (out_a) {
+        *out_a = (uint8_t)((sample >> DRAWING_PROGRAM_COLOR_CHANNEL_A_SHIFT) & 0xffu);
     }
 }
 
@@ -60,32 +66,46 @@ uint8_t drawing_program_color_default_index(void) {
     return (uint8_t)DRAWING_PROGRAM_UI_DEFAULT_COLOR_INDEX;
 }
 
-uint8_t drawing_program_color_eraser_value(void) {
-    return 244u;
+DrawingProgramRasterSample drawing_program_color_eraser_value(void) {
+    return drawing_program_color_pack_rgba(0u, 0u, 0u, 0u);
 }
 
-uint8_t drawing_program_color_value_from_index(uint8_t index) {
-    return drawing_program_color_index_clamp(index);
+DrawingProgramRasterSample drawing_program_color_value_from_index(uint8_t index) {
+    uint8_t clamped = drawing_program_color_index_clamp(index);
+    return drawing_program_color_pack_rgba(g_drawing_program_palette_rgb[clamped][0],
+                                           g_drawing_program_palette_rgb[clamped][1],
+                                           g_drawing_program_palette_rgb[clamped][2],
+                                           255u);
 }
 
-uint8_t drawing_program_color_index_from_sample(uint8_t sample) {
-    uint8_t best_index = drawing_program_color_default_index();
+DrawingProgramRasterSample drawing_program_color_value_from_rgb(uint8_t r, uint8_t g, uint8_t b) {
+    return drawing_program_color_pack_rgba(r, g, b, 255u);
+}
+
+DrawingProgramRasterSample drawing_program_color_value_from_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+    return drawing_program_color_pack_rgba(r, g, b, a);
+}
+
+uint8_t drawing_program_color_index_from_sample(DrawingProgramRasterSample sample) {
     uint8_t src_r = 0u;
     uint8_t src_g = 0u;
     uint8_t src_b = 0u;
-    uint32_t best_score = UINT32_MAX;
-    uint8_t i;
-    if (sample < (uint8_t)DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT) {
-        return sample;
-    }
-    if (sample == drawing_program_color_eraser_value()) {
+    uint8_t src_a = 0u;
+    drawing_program_color_unpack_rgba(sample, &src_r, &src_g, &src_b, &src_a);
+    if (src_a == 0u) {
         return drawing_program_color_default_index();
     }
-    drawing_program_color_rgb_from_sample_internal(sample, &src_r, &src_g, &src_b);
+    return drawing_program_color_index_from_rgb(src_r, src_g, src_b);
+}
+
+uint8_t drawing_program_color_index_from_rgb(uint8_t r, uint8_t g, uint8_t b) {
+    uint8_t best_index = drawing_program_color_default_index();
+    uint32_t best_score = UINT32_MAX;
+    uint8_t i;
     for (i = 0u; i < (uint8_t)DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT; ++i) {
-        int dr = (int)g_drawing_program_palette_rgb[i][0] - (int)src_r;
-        int dg = (int)g_drawing_program_palette_rgb[i][1] - (int)src_g;
-        int db = (int)g_drawing_program_palette_rgb[i][2] - (int)src_b;
+        int dr = (int)g_drawing_program_palette_rgb[i][0] - (int)r;
+        int dg = (int)g_drawing_program_palette_rgb[i][1] - (int)g;
+        int db = (int)g_drawing_program_palette_rgb[i][2] - (int)b;
         uint32_t score = (uint32_t)(dr * dr) + (uint32_t)(dg * dg) + (uint32_t)(db * db);
         if (score < best_score) {
             best_score = score;
@@ -95,78 +115,123 @@ uint8_t drawing_program_color_index_from_sample(uint8_t sample) {
     return best_index;
 }
 
-uint8_t drawing_program_color_normalize_legacy_sample(uint8_t sample) {
-    if (sample == drawing_program_color_eraser_value()) {
-        return sample;
+DrawingProgramRasterSample drawing_program_color_normalize_legacy_sample(uint8_t sample) {
+    if (sample == 244u) {
+        return drawing_program_color_eraser_value();
     }
     if (sample < (uint8_t)DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT) {
-        return sample;
+        return drawing_program_color_value_from_index(sample);
     }
-    return drawing_program_color_index_from_sample(sample);
+    return drawing_program_color_pack_rgba(sample, sample, sample, 255u);
 }
 
-uint8_t drawing_program_color_sample_distance(uint8_t a, uint8_t b) {
+DrawingProgramRasterSample drawing_program_color_normalize_input_sample(DrawingProgramRasterSample sample) {
+    if (sample == 0u) {
+        return drawing_program_color_eraser_value();
+    }
+    if (sample <= 255u) {
+        return drawing_program_color_normalize_legacy_sample((uint8_t)sample);
+    }
+    return sample;
+}
+
+uint8_t drawing_program_color_legacy_sample_from_sample(DrawingProgramRasterSample sample) {
+    uint8_t r = 0u;
+    uint8_t g = 0u;
+    uint8_t b = 0u;
+    uint8_t a = 0u;
+    drawing_program_color_unpack_rgba(sample, &r, &g, &b, &a);
+    if (a == 0u) {
+        return 244u;
+    }
+    if (r == g && g == b) {
+        return r;
+    }
+    return drawing_program_color_index_from_rgb(r, g, b);
+}
+
+uint8_t drawing_program_color_sample_distance(DrawingProgramRasterSample a, DrawingProgramRasterSample b) {
     uint8_t ar = 0u;
     uint8_t ag = 0u;
     uint8_t ab = 0u;
+    uint8_t aa = 0u;
     uint8_t br = 0u;
     uint8_t bg = 0u;
     uint8_t bb = 0u;
+    uint8_t ba = 0u;
     uint8_t dr;
     uint8_t dg;
     uint8_t db;
-    drawing_program_color_rgb_from_sample_internal(a, &ar, &ag, &ab);
-    drawing_program_color_rgb_from_sample_internal(b, &br, &bg, &bb);
+    uint8_t da;
+    drawing_program_color_unpack_rgba(a, &ar, &ag, &ab, &aa);
+    drawing_program_color_unpack_rgba(b, &br, &bg, &bb, &ba);
     dr = (ar > br) ? (uint8_t)(ar - br) : (uint8_t)(br - ar);
     dg = (ag > bg) ? (uint8_t)(ag - bg) : (uint8_t)(bg - ag);
     db = (ab > bb) ? (uint8_t)(ab - bb) : (uint8_t)(bb - ab);
+    da = (aa > ba) ? (uint8_t)(aa - ba) : (uint8_t)(ba - aa);
     if (dg > dr) {
         dr = dg;
     }
     if (db > dr) {
         dr = db;
     }
+    if (da > dr) {
+        dr = da;
+    }
     return dr;
 }
 
-uint8_t drawing_program_color_blend_samples(uint8_t dst, uint8_t src, uint8_t opacity_percent) {
-    uint32_t alpha = (opacity_percent > 100u) ? 100u : (uint32_t)opacity_percent;
+DrawingProgramRasterSample drawing_program_color_blend_samples(DrawingProgramRasterSample dst,
+                                                               DrawingProgramRasterSample src,
+                                                               uint8_t opacity_percent) {
+    uint32_t opacity = (opacity_percent > 100u) ? 100u : (uint32_t)opacity_percent;
     uint8_t dst_r = 0u;
     uint8_t dst_g = 0u;
     uint8_t dst_b = 0u;
+    uint8_t dst_a = 0u;
     uint8_t src_r = 0u;
     uint8_t src_g = 0u;
     uint8_t src_b = 0u;
-    uint8_t out_r;
-    uint8_t out_g;
-    uint8_t out_b;
-    uint8_t best_index = drawing_program_color_default_index();
-    uint32_t best_score = UINT32_MAX;
-    uint8_t i;
-    if (alpha >= 100u) {
+    uint8_t src_a = 0u;
+    uint32_t src_alpha;
+    uint32_t dst_alpha;
+    uint32_t out_alpha;
+    uint8_t out_r = 0u;
+    uint8_t out_g = 0u;
+    uint8_t out_b = 0u;
+    uint8_t out_a = 0u;
+    if (opacity >= 100u && drawing_program_color_sample_is_transparent(dst)) {
         return src;
     }
-    drawing_program_color_rgb_from_sample_internal(dst, &dst_r, &dst_g, &dst_b);
-    drawing_program_color_rgb_from_sample_internal(src, &src_r, &src_g, &src_b);
-    out_r = (uint8_t)(((uint32_t)src_r * alpha + (uint32_t)dst_r * (100u - alpha) + 50u) / 100u);
-    out_g = (uint8_t)(((uint32_t)src_g * alpha + (uint32_t)dst_g * (100u - alpha) + 50u) / 100u);
-    out_b = (uint8_t)(((uint32_t)src_b * alpha + (uint32_t)dst_b * (100u - alpha) + 50u) / 100u);
-    if (out_r == drawing_program_color_eraser_value() &&
-        out_g == drawing_program_color_eraser_value() &&
-        out_b == drawing_program_color_eraser_value()) {
+    drawing_program_color_unpack_rgba(dst, &dst_r, &dst_g, &dst_b, &dst_a);
+    drawing_program_color_unpack_rgba(src, &src_r, &src_g, &src_b, &src_a);
+    src_alpha = ((uint32_t)src_a * opacity + 50u) / 100u;
+    dst_alpha = (uint32_t)dst_a;
+    if (src_alpha == 0u) {
+        return dst;
+    }
+    if (src_alpha >= 255u && dst_alpha == 0u) {
+        return drawing_program_color_pack_rgba(src_r, src_g, src_b, 255u);
+    }
+    out_alpha = src_alpha + ((dst_alpha * (255u - src_alpha) + 127u) / 255u);
+    if (out_alpha == 0u) {
         return drawing_program_color_eraser_value();
     }
-    for (i = 0u; i < (uint8_t)DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT; ++i) {
-        int dr = (int)g_drawing_program_palette_rgb[i][0] - (int)out_r;
-        int dg = (int)g_drawing_program_palette_rgb[i][1] - (int)out_g;
-        int db = (int)g_drawing_program_palette_rgb[i][2] - (int)out_b;
-        uint32_t score = (uint32_t)(dr * dr) + (uint32_t)(dg * dg) + (uint32_t)(db * db);
-        if (score < best_score) {
-            best_score = score;
-            best_index = i;
-        }
-    }
-    return best_index;
+    out_r = (uint8_t)((((uint32_t)src_r * src_alpha * 255u) +
+                       ((uint32_t)dst_r * dst_alpha * (255u - src_alpha))) /
+                      (out_alpha * 255u));
+    out_g = (uint8_t)((((uint32_t)src_g * src_alpha * 255u) +
+                       ((uint32_t)dst_g * dst_alpha * (255u - src_alpha))) /
+                      (out_alpha * 255u));
+    out_b = (uint8_t)((((uint32_t)src_b * src_alpha * 255u) +
+                       ((uint32_t)dst_b * dst_alpha * (255u - src_alpha))) /
+                      (out_alpha * 255u));
+    out_a = (uint8_t)out_alpha;
+    return drawing_program_color_pack_rgba(out_r, out_g, out_b, out_a);
+}
+
+uint8_t drawing_program_color_sample_is_transparent(DrawingProgramRasterSample sample) {
+    return (uint8_t)((((sample >> DRAWING_PROGRAM_COLOR_CHANNEL_A_SHIFT) & 0xffu) == 0u) ? 1u : 0u);
 }
 
 void drawing_program_color_reset_palette_defaults(void) {
@@ -315,8 +380,19 @@ void drawing_program_color_rgb_to_hsv(uint8_t r,
     }
 }
 
-void drawing_program_color_rgb_from_sample(uint8_t sample, uint8_t *out_r, uint8_t *out_g, uint8_t *out_b) {
-    drawing_program_color_rgb_from_sample_internal(sample, out_r, out_g, out_b);
+void drawing_program_color_rgb_from_sample(DrawingProgramRasterSample sample,
+                                           uint8_t *out_r,
+                                           uint8_t *out_g,
+                                           uint8_t *out_b) {
+    drawing_program_color_unpack_rgba(sample, out_r, out_g, out_b, 0);
+}
+
+void drawing_program_color_rgba_from_sample(DrawingProgramRasterSample sample,
+                                            uint8_t *out_r,
+                                            uint8_t *out_g,
+                                            uint8_t *out_b,
+                                            uint8_t *out_a) {
+    drawing_program_color_unpack_rgba(sample, out_r, out_g, out_b, out_a);
 }
 
 void drawing_program_color_rgb_from_index(uint8_t index, uint8_t *out_r, uint8_t *out_g, uint8_t *out_b) {

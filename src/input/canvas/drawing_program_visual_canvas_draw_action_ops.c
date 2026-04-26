@@ -13,7 +13,7 @@ CoreResult drawing_program_visual_apply_canvas_draw_at_screen(DrawingProgramAppC
     uint32_t spacing;
     uint32_t stamp_width;
     uint8_t hardness;
-    uint8_t value;
+    DrawingProgramRasterSample value;
     CoreResult result;
     if (!ctx || !state || !hooks || !hooks->screen_to_canvas_sample || !hooks->active_layer_allows_edits_visual ||
         !hooks->active_layer_query || !hooks->sample_value_for_tool || !hooks->tool_brush_radius_samples ||
@@ -38,7 +38,7 @@ CoreResult drawing_program_visual_apply_canvas_draw_at_screen(DrawingProgramAppC
     stamp_width = (radius * 2u) + 1u;
 
     if (!state->has_last_sample) {
-        uint8_t write_value = value;
+        DrawingProgramRasterSample write_value = value;
         if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_ERASER) {
             write_value = hooks->seeded_background_sample_for_coord(&ctx->document, sample_x, sample_y);
             hardness = 100u;
@@ -79,7 +79,7 @@ CoreResult drawing_program_visual_apply_canvas_draw_at_screen(DrawingProgramAppC
         for (i = 1; i <= steps; ++i) {
             int32_t ix = x0 + (dx * i) / ((steps > 0) ? steps : 1);
             int32_t iy = y0 + (dy * i) / ((steps > 0) ? steps : 1);
-            uint8_t write_value = value;
+            DrawingProgramRasterSample write_value = value;
             if (((uint32_t)i % stamp_every) != 0u && i != steps) {
                 continue;
             }

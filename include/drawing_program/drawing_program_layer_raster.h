@@ -17,7 +17,7 @@ typedef struct DrawingProgramLayerRasterStore {
     uint32_t slot_capacity;
     uint32_t slot_count;
     uint32_t slot_layer_ids[DRAWING_PROGRAM_MAX_LAYERS];
-    uint8_t *slot_samples;
+    DrawingProgramRasterSample *slot_samples;
 } DrawingProgramLayerRasterStore;
 
 CoreResult drawing_program_layer_raster_store_init_from_document(
@@ -36,22 +36,33 @@ CoreResult drawing_program_layer_raster_store_sample_read(
     uint32_t sample_x,
     uint32_t sample_y,
     uint8_t *out_value);
+CoreResult drawing_program_layer_raster_store_raster_sample_read(
+    const DrawingProgramLayerRasterStore *store,
+    uint32_t layer_id,
+    uint32_t sample_x,
+    uint32_t sample_y,
+    DrawingProgramRasterSample *out_value);
 CoreResult drawing_program_layer_raster_store_sample_write(
     DrawingProgramLayerRasterStore *store,
     uint32_t layer_id,
     uint32_t sample_x,
     uint32_t sample_y,
-    uint8_t value,
-    uint8_t *out_previous_value);
+    DrawingProgramRasterSample value,
+    DrawingProgramRasterSample *out_previous_value);
 CoreResult drawing_program_layer_raster_store_export_layer(
     const DrawingProgramLayerRasterStore *store,
     uint32_t layer_id,
-    const uint8_t **out_samples,
+    const DrawingProgramRasterSample **out_samples,
+    uint32_t *out_sample_count);
+CoreResult drawing_program_layer_raster_store_export_layer_mutable(
+    DrawingProgramLayerRasterStore *store,
+    uint32_t layer_id,
+    DrawingProgramRasterSample **out_samples,
     uint32_t *out_sample_count);
 CoreResult drawing_program_layer_raster_store_import_layer(
     DrawingProgramLayerRasterStore *store,
     uint32_t layer_id,
-    const uint8_t *samples,
+    const DrawingProgramRasterSample *samples,
     uint32_t sample_count);
 
 #ifdef __cplusplus

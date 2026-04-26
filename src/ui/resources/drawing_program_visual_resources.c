@@ -27,7 +27,7 @@ typedef struct VisualCanvasTextureState {
     SDL_PixelFormat *pixel_format;
     uint32_t width;
     uint32_t height;
-    uint8_t *composited_samples;
+    DrawingProgramRasterSample *composited_samples;
     uint32_t composited_capacity;
     uint8_t has_sync_signature;
     uint32_t last_raster_hash32;
@@ -280,7 +280,7 @@ int drawing_program_visual_canvas_texture_sync_with_signature(
     uint32_t x;
     uint32_t y;
     uint32_t layer_opacity_hash32 = 0u;
-    const uint8_t *source_samples = 0;
+    const DrawingProgramRasterSample *source_samples = 0;
     CoreResult compose_result;
     int signature_unchanged = 0;
     if (!renderer || !document || !layer_rasters || !layer_opacity_percent || layer_opacity_count == 0u) {
@@ -328,8 +328,9 @@ int drawing_program_visual_canvas_texture_sync_with_signature(
         return 1;
     }
     if (g_visual_canvas_texture.composited_capacity < document->raster_sample_count) {
-        uint8_t *next_samples = (uint8_t *)realloc(g_visual_canvas_texture.composited_samples,
-                                                   (size_t)document->raster_sample_count);
+        DrawingProgramRasterSample *next_samples =
+            (DrawingProgramRasterSample *)realloc(g_visual_canvas_texture.composited_samples,
+                                                  (size_t)document->raster_sample_count * sizeof(*next_samples));
         if (!next_samples) {
             return 0;
         }
@@ -353,12 +354,13 @@ int drawing_program_visual_canvas_texture_sync_with_signature(
         uint32_t *row = (uint32_t *)((uint8_t *)pixels + ((size_t)y * (size_t)pitch));
         size_t row_offset = (size_t)y * (size_t)document->raster_width;
         for (x = 0u; x < document->raster_width; ++x) {
-            uint8_t sample = source_samples[row_offset + x];
+            DrawingProgramRasterSample sample = source_samples[row_offset + x];
             uint8_t r = 0u;
             uint8_t g = 0u;
             uint8_t b = 0u;
-            drawing_program_color_rgb_from_sample(sample, &r, &g, &b);
-            row[x] = SDL_MapRGBA(g_visual_canvas_texture.pixel_format, r, g, b, 255u);
+            uint8_t a = 0u;
+            drawing_program_color_rgba_from_sample(sample, &r, &g, &b, &a);
+            row[x] = SDL_MapRGBA(g_visual_canvas_texture.pixel_format, r, g, b, a);
         }
     }
     SDL_UnlockTexture(g_visual_canvas_texture.texture);

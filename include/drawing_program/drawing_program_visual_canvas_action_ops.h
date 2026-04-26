@@ -18,14 +18,20 @@ typedef struct DrawingProgramVisualCanvasActionOpsHooks {
                               uint32_t *out_index,
                               uint8_t *out_visible,
                               uint8_t *out_locked);
-    uint8_t (*sample_value_for_tool)(const DrawingProgramAppContext *ctx, DrawingProgramToolKind tool);
+    DrawingProgramRasterSample (*sample_value_for_tool)(const DrawingProgramAppContext *ctx,
+                                                        DrawingProgramToolKind tool);
     uint8_t (*tool_fill_tolerance_setting)(const DrawingProgramAppContext *ctx);
-    int (*fill_sample_matches_tolerance)(uint8_t sample, uint8_t target, uint8_t tolerance_setting);
+    int (*fill_sample_matches_tolerance)(DrawingProgramRasterSample sample,
+                                         DrawingProgramRasterSample target,
+                                         uint8_t tolerance_setting);
+    CoreResult (*visible_sample_read_visual)(const DrawingProgramAppContext *ctx,
+                                             uint32_t sample_x,
+                                             uint32_t sample_y,
+                                             DrawingProgramRasterSample *out_value);
     CoreResult (*active_layer_sample_read_visual)(const DrawingProgramAppContext *ctx,
                                                   uint32_t sample_x,
                                                   uint32_t sample_y,
-                                                  uint8_t *out_value);
-    uint8_t (*color_index_for_sample)(uint8_t sample);
+                                                  DrawingProgramRasterSample *out_value);
 } DrawingProgramVisualCanvasActionOpsHooks;
 
 CoreResult drawing_program_visual_apply_canvas_picker_at_screen(DrawingProgramAppContext *ctx,

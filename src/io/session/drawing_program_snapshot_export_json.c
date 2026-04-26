@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 #include "drawing_program/drawing_program_app_main.h"
+#include "drawing_program/drawing_program_ui_color_state.h"
 
 static CoreResult snapshot_export_invalid(const char *message) {
     return (CoreResult){ CORE_ERR_INVALID_ARG, message };
@@ -71,8 +72,12 @@ CoreResult drawing_program_snapshot_export_debug_json(const struct DrawingProgra
     fprintf(f, "    \"left_panel_slot\": %u,\n", (unsigned)ctx->ui.left_panel_slot);
     fprintf(f, "    \"right_panel_slot\": %u,\n", (unsigned)ctx->ui.right_panel_slot);
     fprintf(f, "    \"active_color_index\": %u,\n", (unsigned)ctx->ui.active_color_index);
+    fprintf(f, "    \"active_paint_rgb\": [%u, %u, %u],\n",
+            (unsigned)ctx->ui.active_paint_r,
+            (unsigned)ctx->ui.active_paint_g,
+            (unsigned)ctx->ui.active_paint_b);
     fprintf(f, "    \"active_color_sample\": %u\n",
-            (unsigned)drawing_program_color_value_from_index(ctx->ui.active_color_index));
+            (unsigned)drawing_program_ui_color_active_paint_sample_value(ctx));
     fprintf(f, "  },\n");
     fprintf(f, "  \"tool_settings\": {\n");
     fprintf(f, "    \"brush_size\": %u,\n", (unsigned)ctx->ui.tool_brush_size);

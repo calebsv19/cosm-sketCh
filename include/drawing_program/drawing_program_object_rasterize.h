@@ -21,6 +21,12 @@ CoreResult drawing_program_object_rasterize_selection_to_layer(
     DrawingProgramObjectSelectionState *selection,
     uint32_t target_layer_id,
     uint32_t *out_rasterized_count);
+CoreResult drawing_program_object_rasterize_visible_to_layers(
+    DrawingProgramDocument *document,
+    DrawingProgramLayerRasterStore *layer_rasters,
+    DrawingProgramHistory *history,
+    const DrawingProgramObjectStore *object_store,
+    uint32_t *out_rasterized_count);
 
 #ifdef __cplusplus
 }

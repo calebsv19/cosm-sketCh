@@ -9,4 +9,5 @@ ide_files/
 data/last_session.pack
 data/runtime/
 data/last_session_debug.json
+tools/packaging/macos/local_app_icon/
 *.log

@@ -4,7 +4,7 @@
 
 #include "drawing_program/drawing_program_color_model.h"
 
-static uint8_t selection_seeded_background_sample(void) {
+static DrawingProgramRasterSample selection_seeded_background_sample(void) {
     return drawing_program_color_eraser_value();
 }
 
@@ -31,7 +31,7 @@ CoreResult drawing_program_selection_commit_move(DrawingProgramDocument *documen
                                                  uint32_t active_layer_id,
                                                  DrawingProgramHistory *history,
                                                  DrawingProgramSelectionState *selection) {
-    uint8_t background = selection_seeded_background_sample();
+    DrawingProgramRasterSample background = selection_seeded_background_sample();
     uint32_t x;
     uint32_t y;
     int32_t target_origin_x;
@@ -97,7 +97,7 @@ CoreResult drawing_program_selection_commit_move(DrawingProgramDocument *documen
         for (x = 0u; x < selection->width; ++x) {
             int32_t dx;
             int32_t dy;
-            uint8_t value;
+            DrawingProgramRasterSample value;
             if (!drawing_program_selection_mask_at(selection, x, y)) continue;
             dx = (int32_t)selection->origin_x + selection->offset_x + (int32_t)x;
             dy = (int32_t)selection->origin_y + selection->offset_y + (int32_t)y;
@@ -148,7 +148,7 @@ CoreResult drawing_program_selection_delete_payload(DrawingProgramDocument *docu
                                                     DrawingProgramSelectionState *selection) {
     uint32_t x;
     uint32_t y;
-    uint8_t background = selection_seeded_background_sample();
+    DrawingProgramRasterSample background = selection_seeded_background_sample();
     uint32_t target_layer_id = 0u;
     CoreResult result;
     if (!document || !history || !selection || !selection->has_payload) {
@@ -222,7 +222,7 @@ CoreResult drawing_program_selection_cut_to_clipboard(DrawingProgramDocument *do
                                                       DrawingProgramClipboardState *clipboard) {
     uint32_t x;
     uint32_t y;
-    uint8_t background;
+    DrawingProgramRasterSample background;
     CoreResult result;
     uint32_t target_layer_id = 0u;
     if (!document || !history || !selection || !clipboard) {

@@ -24,8 +24,8 @@ int drawing_program_lifecycle_run_object_path_history_mutation_suite(DrawingProg
         path_seed.layer_id = workflow_ctx.document.layers[0].layer_id;
         path_seed.visible = 1u;
         path_seed.locked = 0u;
-        path_seed.fill_color_index = 5u;
-        path_seed.stroke_color_index = 7u;
+        path_seed.fill_color_value = drawing_program_color_value_from_index(5u);
+        path_seed.stroke_color_value = drawing_program_color_value_from_index(7u);
         path_seed.stroke_width = 2u;
         path_seed.style_mode = 0u;
         path_payload.point_count = 2u;
@@ -106,8 +106,8 @@ int drawing_program_lifecycle_run_object_path_history_mutation_suite(DrawingProg
         path_seed.layer_id = workflow_ctx.document.layers[0].layer_id;
         path_seed.visible = 1u;
         path_seed.locked = 0u;
-        path_seed.fill_color_index = 5u;
-        path_seed.stroke_color_index = 7u;
+        path_seed.fill_color_value = drawing_program_color_value_from_index(5u);
+        path_seed.stroke_color_value = drawing_program_color_value_from_index(7u);
         path_seed.stroke_width = 2u;
         path_seed.style_mode = 0u;
         path_payload.point_count = 4u;
@@ -190,8 +190,8 @@ int drawing_program_lifecycle_run_object_path_history_mutation_suite(DrawingProg
         path_seed.layer_id = workflow_ctx.document.layers[0].layer_id;
         path_seed.visible = 1u;
         path_seed.locked = 0u;
-        path_seed.fill_color_index = 5u;
-        path_seed.stroke_color_index = 7u;
+        path_seed.fill_color_value = drawing_program_color_value_from_index(5u);
+        path_seed.stroke_color_value = drawing_program_color_value_from_index(7u);
         path_seed.stroke_width = 2u;
         path_seed.style_mode = 0u;
         path_payload.point_count = 3u;
@@ -288,8 +288,8 @@ int drawing_program_lifecycle_run_object_path_history_mutation_suite(DrawingProg
         path_seed.layer_id = workflow_ctx.document.layers[0].layer_id;
         path_seed.visible = 1u;
         path_seed.locked = 0u;
-        path_seed.fill_color_index = 5u;
-        path_seed.stroke_color_index = 7u;
+        path_seed.fill_color_value = drawing_program_color_value_from_index(5u);
+        path_seed.stroke_color_value = drawing_program_color_value_from_index(7u);
         path_seed.stroke_width = 2u;
         path_seed.style_mode = 0u;
         path_payload.point_count = 4u;
@@ -340,8 +340,8 @@ int drawing_program_lifecycle_run_object_path_history_mutation_suite(DrawingProg
         path_seed.layer_id = workflow_ctx.document.layers[0].layer_id;
         path_seed.visible = 1u;
         path_seed.locked = 0u;
-        path_seed.fill_color_index = 5u;
-        path_seed.stroke_color_index = 7u;
+        path_seed.fill_color_value = drawing_program_color_value_from_index(5u);
+        path_seed.stroke_color_value = drawing_program_color_value_from_index(7u);
         path_seed.stroke_width = 2u;
         path_seed.style_mode = 0u;
         path_payload.point_count = 3u;
@@ -463,8 +463,8 @@ int drawing_program_lifecycle_run_object_path_history_mutation_suite(DrawingProg
         rect_seed.type = (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_RECT;
         rect_seed.visible = 1u;
         rect_seed.locked = 0u;
-        rect_seed.stroke_color_index = 2u;
-        rect_seed.fill_color_index = 4u;
+        rect_seed.stroke_color_value = drawing_program_color_value_from_index(2u);
+        rect_seed.fill_color_value = drawing_program_color_value_from_index(4u);
         rect_seed.stroke_width = 2u;
         rect_seed.style_mode = 2u;
         rect_seed.origin_x = 20;
@@ -478,12 +478,14 @@ int drawing_program_lifecycle_run_object_path_history_mutation_suite(DrawingProg
 
         drawing_program_history_query_units(&workflow_ctx.history, &units_before, 0);
         if (!expect_ok(drawing_program_history_apply_set_object_stroke_color(
-                           &workflow_ctx.history, &workflow_ctx.object_store, object_id, 6u),
+                           &workflow_ctx.history, &workflow_ctx.object_store, object_id,
+                           drawing_program_color_value_from_index(6u)),
                        "object_color_history_set_stroke")) {
             return 1;
         }
         if (!expect_ok(drawing_program_history_apply_set_object_fill_color(
-                           &workflow_ctx.history, &workflow_ctx.object_store, object_id, 1u),
+                           &workflow_ctx.history, &workflow_ctx.object_store, object_id,
+                           drawing_program_color_value_from_index(1u)),
                        "object_color_history_set_fill")) {
             return 1;
         }
@@ -496,7 +498,9 @@ int drawing_program_lifecycle_run_object_path_history_mutation_suite(DrawingProg
             return 1;
         }
         object = drawing_program_object_store_get_by_id(&workflow_ctx.object_store, object_id);
-        if (!object || object->stroke_color_index != 6u || object->fill_color_index != 1u) {
+        if (!object ||
+            object->stroke_color_value != drawing_program_color_value_from_index(6u) ||
+            object->fill_color_value != drawing_program_color_value_from_index(1u)) {
             fprintf(stderr, "lifecycle_test: expected object color edits to update retained object colors\n");
             return 1;
         }
@@ -511,7 +515,9 @@ int drawing_program_lifecycle_run_object_path_history_mutation_suite(DrawingProg
             return 1;
         }
         object = drawing_program_object_store_get_by_id(&workflow_ctx.object_store, object_id);
-        if (!object || object->stroke_color_index != 2u || object->fill_color_index != 4u) {
+        if (!object ||
+            object->stroke_color_value != drawing_program_color_value_from_index(2u) ||
+            object->fill_color_value != drawing_program_color_value_from_index(4u)) {
             fprintf(stderr, "lifecycle_test: expected color undo to restore original retained object colors\n");
             return 1;
         }
@@ -526,7 +532,9 @@ int drawing_program_lifecycle_run_object_path_history_mutation_suite(DrawingProg
             return 1;
         }
         object = drawing_program_object_store_get_by_id(&workflow_ctx.object_store, object_id);
-        if (!object || object->stroke_color_index != 6u || object->fill_color_index != 1u) {
+        if (!object ||
+            object->stroke_color_value != drawing_program_color_value_from_index(6u) ||
+            object->fill_color_value != drawing_program_color_value_from_index(1u)) {
             fprintf(stderr, "lifecycle_test: expected color redo to restore edited retained object colors\n");
             return 1;
         }

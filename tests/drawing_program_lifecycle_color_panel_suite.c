@@ -35,11 +35,14 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
         VisualPaneLayoutMetrics metrics;
         SDL_Rect tab_color;
         SDL_Rect palette_rect;
+        SDL_Rect recent_rect;
         SDL_Rect hue_rect;
         SDL_Rect sv_rect;
         uint8_t before_r = 0u;
         uint8_t before_g = 0u;
         uint8_t before_b = 0u;
+        int8_t font_zoom_before = 0;
+        uint8_t recent_slot = 0u;
         memset(&hooks, 0, sizeof(hooks));
         memset(&panel_ui, 0, sizeof(panel_ui));
         hooks.point_in_rect = lifecycle_test_point_in_rect;
@@ -47,7 +50,7 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
         hooks.clamp_left_slot = drawing_program_visual_clamp_left_slot;
         hooks.clamp_right_slot = drawing_program_visual_clamp_right_slot;
         metrics = make_pane_layout_metrics(&workflow_ctx);
-        tab_color = right_panel_slot_tab_rect(right_rect, metrics, 2u, 3u);
+        tab_color = right_panel_slot_tab_rect(right_rect, metrics, 2u, 4u);
         drawing_program_visual_input_handle_right_panel_click_payload(&workflow_ctx,
                                                                       right_rect,
                                                                       tab_color.x + 2,
@@ -58,6 +61,31 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
         if (workflow_ctx.ui.right_panel_slot != 2u) {
             fprintf(stderr, "lifecycle_test: expected color tab click to select right COLOR slot\n");
             return 1;
+        }
+        font_zoom_before = workflow_ctx.ui.font_zoom_step;
+        for (recent_slot = 0u; recent_slot < (uint8_t)DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT; ++recent_slot) {
+            recent_rect = right_color_recent_swatch_rect(right_rect, metrics, recent_slot);
+            drawing_program_visual_input_handle_right_panel_click_payload(&workflow_ctx,
+                                                                          right_rect,
+                                                                          recent_rect.x + (recent_rect.w / 2),
+                                                                          recent_rect.y + (recent_rect.h / 2),
+                                                                          &workflow_ctx.selection,
+                                                                          &panel_ui,
+                                                                          &hooks);
+            if (workflow_ctx.ui.selected_recent_color_index != recent_slot) {
+                fprintf(stderr,
+                        "lifecycle_test: expected paint slot click to select recent slot %u\n",
+                        (unsigned)recent_slot);
+                return 1;
+            }
+            if (workflow_ctx.ui.font_zoom_step != font_zoom_before) {
+                fprintf(stderr,
+                        "lifecycle_test: expected paint slot click to preserve font zoom step %d but saw %d on slot %u\n",
+                        (int)font_zoom_before,
+                        (int)workflow_ctx.ui.font_zoom_step,
+                        (unsigned)recent_slot);
+                return 1;
+            }
         }
         palette_rect = right_color_palette_swatch_rect(right_rect, metrics, 5u);
         drawing_program_visual_input_handle_right_panel_click_payload(&workflow_ctx,
@@ -88,14 +116,16 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
                                                                       &workflow_ctx.selection,
                                                                       &panel_ui,
                                                                       &hooks);
-        if (workflow_ctx.ui.recent_color_count == 0u) {
-            fprintf(stderr, "lifecycle_test: expected color edits to seed recent colors\n");
+        if (workflow_ctx.ui.active_paint_r == before_r &&
+            workflow_ctx.ui.active_paint_g == before_g &&
+            workflow_ctx.ui.active_paint_b == before_b) {
+            fprintf(stderr, "lifecycle_test: expected hue/sv edit to change active paint rgb\n");
             return 1;
         }
-        if (workflow_ctx.ui.color_palette_rgb[5u][0] == before_r &&
-            workflow_ctx.ui.color_palette_rgb[5u][1] == before_g &&
-            workflow_ctx.ui.color_palette_rgb[5u][2] == before_b) {
-            fprintf(stderr, "lifecycle_test: expected hue/sv edit to change active palette slot rgb\n");
+        if (workflow_ctx.ui.color_palette_rgb[5u][0] != before_r ||
+            workflow_ctx.ui.color_palette_rgb[5u][1] != before_g ||
+            workflow_ctx.ui.color_palette_rgb[5u][2] != before_b) {
+            fprintf(stderr, "lifecycle_test: expected hue/sv edit to preserve the preset swatch rgb\n");
             return 1;
         }
         memset(&object_seed, 0, sizeof(object_seed));
@@ -107,8 +137,8 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
         object_seed.height = 10u;
         object_seed.stroke_width = 1u;
         object_seed.style_mode = 2u;
-        object_seed.stroke_color_index = 1u;
-        object_seed.fill_color_index = 2u;
+        object_seed.stroke_color_value = drawing_program_color_value_from_index(1u);
+        object_seed.fill_color_value = drawing_program_color_value_from_index(2u);
         if (!expect_ok(drawing_program_object_store_add(&workflow_ctx.object_store, &object_seed, &object_id),
                        "color_panel_object_target_add")) {
             return 1;
@@ -130,8 +160,7 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
             fprintf(stderr, "lifecycle_test: expected stroke color inspector row to arm stroke target\n");
             return 1;
         }
-        workflow_ctx.ui.active_color_index = 6u;
-        drawing_program_ui_color_sync_selector_from_active(&workflow_ctx);
+        drawing_program_ui_color_load_active_paint_from_swatch(&workflow_ctx, 6u);
         history_count_before = workflow_ctx.history.count;
         drawing_program_visual_input_handle_right_panel_click_payload(&workflow_ctx,
                                                                       right_rect,
@@ -141,9 +170,10 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
                                                                       &panel_ui,
                                                                       &hooks);
         selected_object = drawing_program_object_store_get_by_id(&workflow_ctx.object_store, object_id);
-        if (!selected_object || selected_object->stroke_color_index != 6u ||
+        if (!selected_object || workflow_ctx.ui.active_color_index != 6u ||
+            selected_object->stroke_color_value != drawing_program_ui_color_active_paint_sample_value(&workflow_ctx) ||
             workflow_ctx.history.count <= history_count_before) {
-            fprintf(stderr, "lifecycle_test: expected hue edit with armed stroke target to apply active color index\n");
+            fprintf(stderr, "lifecycle_test: expected hue edit with armed stroke target to apply active paint sample\n");
             return 1;
         }
         fill_color_row_rect = left_panel_objects_inspector_action_row_rect(inspector_rect, metrics, 1u, 6u);
@@ -169,10 +199,11 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
                                                                       &panel_ui,
                                                                       &hooks);
         selected_object = drawing_program_object_store_get_by_id(&workflow_ctx.object_store, object_id);
-        if (!selected_object || workflow_ctx.ui.active_color_index != 4u || selected_object->fill_color_index != 4u ||
+        if (!selected_object || workflow_ctx.ui.active_color_index != 4u ||
+            selected_object->fill_color_value != drawing_program_ui_color_active_paint_sample_value(&workflow_ctx) ||
             workflow_ctx.history.count <= history_count_before) {
             fprintf(stderr,
-                    "lifecycle_test: expected palette slot click with armed fill target to apply selected index\n");
+                    "lifecycle_test: expected palette slot click with armed fill target to apply selected sample\n");
             return 1;
         }
     }
@@ -215,9 +246,6 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
         save_ctx.ui.left_panel_slot = 1u;
         save_ctx.ui.right_panel_slot = 1u;
         save_ctx.ui.active_color_index = 6u;
-        save_ctx.ui.color_hue = 200u;
-        save_ctx.ui.color_saturation = 180u;
-        save_ctx.ui.color_value = 144u;
         save_ctx.ui.tool_brush_size = 7u;
         save_ctx.ui.tool_brush_opacity = 65u;
         save_ctx.ui.tool_eraser_size = 5u;
@@ -226,7 +254,8 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
         save_ctx.ui.tool_shape_target_mode = (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_OBJECT;
         save_ctx.ui.tool_fill_tolerance = 255u;
         save_ctx.ui.tool_select_mode = (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_SUBTRACT;
-        save_ctx.ui.recent_color_count = 2u;
+        save_ctx.ui.recent_color_count = DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT;
+        save_ctx.ui.selected_recent_color_index = 1u;
         save_ctx.ui.recent_color_rgb[0][0] = 12u;
         save_ctx.ui.recent_color_rgb[0][1] = 90u;
         save_ctx.ui.recent_color_rgb[0][2] = 200u;
@@ -236,9 +265,10 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
         save_ctx.ui.color_palette_rgb[6u][0] = 15u;
         save_ctx.ui.color_palette_rgb[6u][1] = 45u;
         save_ctx.ui.color_palette_rgb[6u][2] = 180u;
-        drawing_program_color_rgb_to_hsv(save_ctx.ui.color_palette_rgb[6u][0],
-                                         save_ctx.ui.color_palette_rgb[6u][1],
-                                         save_ctx.ui.color_palette_rgb[6u][2],
+        drawing_program_ui_color_set_active_paint_rgb(&save_ctx, 15u, 45u, 180u, 0u);
+        drawing_program_color_rgb_to_hsv(save_ctx.ui.active_paint_r,
+                                         save_ctx.ui.active_paint_g,
+                                         save_ctx.ui.active_paint_b,
                                          &expected_hue,
                                          &expected_saturation,
                                          &expected_value);
@@ -263,10 +293,12 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
         }
         if (load_ctx.editor.active_tool != DRAWING_PROGRAM_TOOL_PICKER ||
             load_ctx.ui.theme_preset_id != (uint32_t)CORE_THEME_PRESET_LIGHT_DEFAULT ||
-            load_ctx.ui.font_zoom_step != 3 ||
             load_ctx.ui.left_panel_slot != 1u ||
             load_ctx.ui.right_panel_slot != 1u ||
             load_ctx.ui.active_color_index != 6u ||
+            load_ctx.ui.active_paint_r != 15u ||
+            load_ctx.ui.active_paint_g != 45u ||
+            load_ctx.ui.active_paint_b != 180u ||
             load_ctx.ui.color_hue != expected_hue ||
             load_ctx.ui.color_saturation != expected_saturation ||
             load_ctx.ui.color_value != expected_value ||
@@ -278,21 +310,28 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
             load_ctx.ui.tool_shape_target_mode != (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_OBJECT ||
             load_ctx.ui.tool_fill_tolerance != DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX ||
             load_ctx.ui.tool_select_mode != (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_SUBTRACT ||
-            load_ctx.ui.recent_color_count != 2u ||
+            load_ctx.ui.recent_color_count != DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT ||
+            load_ctx.ui.selected_recent_color_index != 1u ||
             load_ctx.ui.recent_color_rgb[0][0] != 12u ||
             load_ctx.ui.recent_color_rgb[0][1] != 90u ||
             load_ctx.ui.recent_color_rgb[0][2] != 200u ||
+            load_ctx.ui.recent_color_rgb[1][0] != 200u ||
+            load_ctx.ui.recent_color_rgb[1][1] != 40u ||
+            load_ctx.ui.recent_color_rgb[1][2] != 70u ||
             load_ctx.ui.color_palette_rgb[6u][0] != 15u ||
             load_ctx.ui.color_palette_rgb[6u][1] != 45u ||
             load_ctx.ui.color_palette_rgb[6u][2] != 180u) {
             fprintf(stderr,
-                    "lifecycle_test: persistence roundtrip mismatch tool=%u theme=%u zoom=%d left=%u right=%u color=%u hsv=%u/%u/%u expected_hsv=%u/%u/%u brush=%u/%u eraser=%u shape=%u mode=%u target=%u fill_tol=%u select_mode=%u recent=%u palette6=%u,%u,%u expected_fill_tol_max=%u\n",
+                    "lifecycle_test: persistence roundtrip mismatch tool=%u theme=%u zoom=%d left=%u right=%u color=%u paint=%u,%u,%u hsv=%u/%u/%u expected_hsv=%u/%u/%u brush=%u/%u eraser=%u shape=%u mode=%u target=%u fill_tol=%u select_mode=%u recent=%u selected_recent=%u palette6=%u,%u,%u expected_fill_tol_max=%u\n",
                     (unsigned)load_ctx.editor.active_tool,
                     (unsigned)load_ctx.ui.theme_preset_id,
                     (int)load_ctx.ui.font_zoom_step,
                     (unsigned)load_ctx.ui.left_panel_slot,
                     (unsigned)load_ctx.ui.right_panel_slot,
                     (unsigned)load_ctx.ui.active_color_index,
+                    (unsigned)load_ctx.ui.active_paint_r,
+                    (unsigned)load_ctx.ui.active_paint_g,
+                    (unsigned)load_ctx.ui.active_paint_b,
                     (unsigned)load_ctx.ui.color_hue,
                     (unsigned)load_ctx.ui.color_saturation,
                     (unsigned)load_ctx.ui.color_value,
@@ -308,6 +347,7 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
                     (unsigned)load_ctx.ui.tool_fill_tolerance,
                     (unsigned)load_ctx.ui.tool_select_mode,
                     (unsigned)load_ctx.ui.recent_color_count,
+                    (unsigned)load_ctx.ui.selected_recent_color_index,
                     (unsigned)load_ctx.ui.color_palette_rgb[6u][0],
                     (unsigned)load_ctx.ui.color_palette_rgb[6u][1],
                     (unsigned)load_ctx.ui.color_palette_rgb[6u][2],

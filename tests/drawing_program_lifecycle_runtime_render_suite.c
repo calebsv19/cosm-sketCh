@@ -18,7 +18,6 @@ int drawing_program_lifecycle_run_runtime_render_suite(DrawingProgramAppContext 
                                                        DrawingProgramAppContext *workflow_ctx_ptr,
                                                        uint32_t center_x,
                                                        uint32_t center_y,
-                                                       uint8_t center_before,
                                                        uint8_t expected_draw_value,
                                                        uint8_t expected_eraser_value)
 {
@@ -142,8 +141,8 @@ int drawing_program_lifecycle_run_runtime_render_suite(DrawingProgramAppContext 
             path_seed.layer_id = workflow_ctx.document.layers[0].layer_id;
             path_seed.visible = 1u;
             path_seed.locked = 0u;
-            path_seed.stroke_color_index = 7u;
-            path_seed.fill_color_index = 7u;
+            path_seed.stroke_color_value = drawing_program_color_value_from_index(7u);
+            path_seed.fill_color_value = drawing_program_color_value_from_index(7u);
             path_seed.stroke_width = 1u;
             path_seed.style_mode = 0u;
             path_payload.point_count = 4u;
@@ -276,7 +275,7 @@ int drawing_program_lifecycle_run_runtime_render_suite(DrawingProgramAppContext 
             return 1;
         }
     }
-    if (drawing_program_lifecycle_run_runtime_ui_suite(&ctx, center_x, center_y, center_before, expected_draw_value) != 0) {
+    if (drawing_program_lifecycle_run_runtime_ui_suite(&ctx, center_x, center_y, expected_draw_value) != 0) {
         return 1;
     }
     if (drawing_program_lifecycle_run_color_panel_suite(&workflow_ctx) != 0) {

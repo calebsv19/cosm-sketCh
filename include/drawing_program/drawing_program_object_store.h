@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-#define DRAWING_PROGRAM_OBJECT_STORE_SCHEMA_VERSION 2u
+#define DRAWING_PROGRAM_OBJECT_STORE_SCHEMA_VERSION 3u
 #define DRAWING_PROGRAM_MAX_OBJECTS 256u
 #define DRAWING_PROGRAM_OBJECT_NAME_CAPACITY 32u
 #define DRAWING_PROGRAM_OBJECT_PATH_MAX_POINTS 128u
@@ -56,8 +56,8 @@ typedef struct DrawingProgramObjectRecord {
     uint8_t type;
     uint8_t visible;
     uint8_t locked;
-    uint8_t stroke_color_index;
-    uint8_t fill_color_index;
+    DrawingProgramRasterSample stroke_color_value;
+    DrawingProgramRasterSample fill_color_value;
     uint8_t stroke_width;
     uint8_t style_mode;
     uint8_t reserved0;
@@ -129,14 +129,14 @@ CoreResult drawing_program_object_store_set_stroke_width(DrawingProgramObjectSto
                                                          uint32_t object_id,
                                                          uint8_t stroke_width,
                                                          uint8_t *out_previous_stroke_width);
-CoreResult drawing_program_object_store_set_stroke_color_index(DrawingProgramObjectStore *store,
+CoreResult drawing_program_object_store_set_stroke_color_value(DrawingProgramObjectStore *store,
                                                                uint32_t object_id,
-                                                               uint8_t color_index,
-                                                               uint8_t *out_previous_color_index);
-CoreResult drawing_program_object_store_set_fill_color_index(DrawingProgramObjectStore *store,
+                                                               DrawingProgramRasterSample color_value,
+                                                               DrawingProgramRasterSample *out_previous_color_value);
+CoreResult drawing_program_object_store_set_fill_color_value(DrawingProgramObjectStore *store,
                                                              uint32_t object_id,
-                                                             uint8_t color_index,
-                                                             uint8_t *out_previous_color_index);
+                                                             DrawingProgramRasterSample color_value,
+                                                             DrawingProgramRasterSample *out_previous_color_value);
 CoreResult drawing_program_object_store_set_style_mode(DrawingProgramObjectStore *store,
                                                        uint32_t object_id,
                                                        uint8_t style_mode,

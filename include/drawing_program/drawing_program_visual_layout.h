@@ -49,9 +49,30 @@ int right_canvas_content_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m);
 SDL_Rect right_panel_slot_tab_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, uint8_t slot_index, uint8_t slot_count);
 SDL_Rect right_canvas_reset_view_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m);
 SDL_Rect right_canvas_clear_canvas_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m);
+SDL_Rect right_canvas_clear_objects_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m);
 SDL_Rect right_canvas_delete_selection_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m);
 SDL_Rect right_canvas_clear_history_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m);
 int right_canvas_metrics_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m);
+int right_file_content_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m);
+int right_file_actions_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m);
+int right_file_recent_projects_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m, uint32_t action_count);
+int right_file_state_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m, uint32_t line_count);
+int right_file_route_actions_start_y(SDL_Rect rect,
+                                     VisualPaneLayoutMetrics m,
+                                     uint32_t state_line_count,
+                                     uint32_t action_count);
+SDL_Rect right_file_recent_project_row_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, uint32_t row_index);
+SDL_Rect right_file_action_button_rect(SDL_Rect rect,
+                                       VisualPaneLayoutMetrics m,
+                                       uint32_t action_index,
+                                       uint32_t action_count);
+SDL_Rect right_file_save_session_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m);
+SDL_Rect right_file_reload_session_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m);
+SDL_Rect right_file_route_action_button_rect(SDL_Rect rect,
+                                             VisualPaneLayoutMetrics m,
+                                             uint32_t state_line_count,
+                                             uint32_t action_index,
+                                             uint32_t action_count);
 
 int right_layer_content_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m);
 SDL_Rect right_layer_row_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, uint32_t display_row_index);

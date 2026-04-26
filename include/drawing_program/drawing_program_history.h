@@ -40,8 +40,8 @@ typedef struct DrawingProgramCommand {
     uint32_t sample_y;
     uint8_t new_visibility;
     uint8_t previous_visibility;
-    uint8_t new_sample_value;
-    uint8_t previous_sample_value;
+    DrawingProgramRasterSample new_sample_value;
+    DrawingProgramRasterSample previous_sample_value;
     uint32_t object_id;
     int32_t new_object_origin_x;
     int32_t new_object_origin_y;
@@ -57,10 +57,10 @@ typedef struct DrawingProgramCommand {
     uint8_t previous_object_style_mode;
     uint8_t new_object_path_closed;
     uint8_t previous_object_path_closed;
-    uint8_t new_object_stroke_color_index;
-    uint8_t previous_object_stroke_color_index;
-    uint8_t new_object_fill_color_index;
-    uint8_t previous_object_fill_color_index;
+    DrawingProgramRasterSample new_object_stroke_color_value;
+    DrawingProgramRasterSample previous_object_stroke_color_value;
+    DrawingProgramRasterSample new_object_fill_color_value;
+    DrawingProgramRasterSample previous_object_fill_color_value;
     uint16_t path_point_index;
     uint16_t path_point_reserved0;
     int32_t new_path_point_x;
@@ -104,14 +104,14 @@ CoreResult drawing_program_history_apply_set_sample_value(DrawingProgramHistory 
                                                           uint32_t layer_id,
                                                           uint32_t sample_x,
                                                           uint32_t sample_y,
-                                                          uint8_t value);
+                                                          DrawingProgramRasterSample value);
 CoreResult drawing_program_history_apply_set_sample_span_value(DrawingProgramHistory *history,
                                                                DrawingProgramDocument *document,
                                                                DrawingProgramLayerRasterStore *layer_rasters,
                                                                uint32_t layer_id,
                                                                uint32_t span_start_index,
                                                                uint32_t span_length,
-                                                               uint8_t value);
+                                                               DrawingProgramRasterSample value);
 CoreResult drawing_program_history_apply_set_object_origin(DrawingProgramHistory *history,
                                                            DrawingProgramObjectStore *object_store,
                                                            uint32_t object_id,
@@ -143,11 +143,11 @@ CoreResult drawing_program_history_apply_set_object_path_closed(DrawingProgramHi
 CoreResult drawing_program_history_apply_set_object_stroke_color(DrawingProgramHistory *history,
                                                                  DrawingProgramObjectStore *object_store,
                                                                  uint32_t object_id,
-                                                                 uint8_t color_index);
+                                                                 DrawingProgramRasterSample color_value);
 CoreResult drawing_program_history_apply_set_object_fill_color(DrawingProgramHistory *history,
                                                                DrawingProgramObjectStore *object_store,
                                                                uint32_t object_id,
-                                                               uint8_t color_index);
+                                                               DrawingProgramRasterSample color_value);
 CoreResult drawing_program_history_apply_insert_object_path_point(DrawingProgramHistory *history,
                                                                   DrawingProgramObjectStore *object_store,
                                                                   uint32_t object_id,

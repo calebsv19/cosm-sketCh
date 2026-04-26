@@ -8,7 +8,8 @@ extern "C" {
 #endif
 
 uint8_t drawing_program_visual_clamp_setting_u8(uint8_t value, uint8_t min_v, uint8_t max_v);
-uint8_t drawing_program_visual_sample_value_for_tool(const DrawingProgramAppContext *ctx, DrawingProgramToolKind tool);
+DrawingProgramRasterSample drawing_program_visual_sample_value_for_tool(const DrawingProgramAppContext *ctx,
+                                                                       DrawingProgramToolKind tool);
 uint32_t drawing_program_visual_tool_brush_radius_samples(const DrawingProgramAppContext *ctx, DrawingProgramToolKind tool);
 uint32_t drawing_program_visual_tool_brush_spacing_samples(const DrawingProgramAppContext *ctx,
                                                            DrawingProgramToolKind tool,
@@ -21,14 +22,16 @@ uint8_t drawing_program_visual_tool_shape_mode(const DrawingProgramAppContext *c
 uint32_t drawing_program_visual_tool_shape_stroke_width(const DrawingProgramAppContext *ctx);
 uint8_t drawing_program_visual_tool_fill_tolerance_setting(const DrawingProgramAppContext *ctx);
 uint8_t drawing_program_visual_fill_tolerance_sample_delta(uint8_t tolerance_setting);
-int drawing_program_visual_fill_sample_matches_tolerance(uint8_t sample, uint8_t target, uint8_t tolerance_setting);
+int drawing_program_visual_fill_sample_matches_tolerance(DrawingProgramRasterSample sample,
+                                                         DrawingProgramRasterSample target,
+                                                         uint8_t tolerance_setting);
 const char *drawing_program_visual_shape_mode_name(uint8_t mode);
 int drawing_program_visual_shape_mode_includes_fill(DrawingProgramToolKind tool, uint8_t mode);
 int drawing_program_visual_shape_mode_includes_outline(DrawingProgramToolKind tool, uint8_t mode);
-uint8_t drawing_program_visual_color_index_for_sample(uint8_t sample);
-uint8_t drawing_program_visual_seeded_background_sample_for_coord(const DrawingProgramDocument *document,
-                                                                  uint32_t x,
-                                                                  uint32_t y);
+DrawingProgramRasterSample drawing_program_visual_seeded_background_sample_for_coord(
+    const DrawingProgramDocument *document,
+    uint32_t x,
+    uint32_t y);
 CoreResult drawing_program_visual_apply_canvas_shape_commit(DrawingProgramAppContext *ctx,
                                                             DrawingProgramToolKind tool,
                                                             uint32_t start_x,

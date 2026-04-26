@@ -7,7 +7,6 @@ int drawing_program_lifecycle_run_runtime_render_suite(DrawingProgramAppContext 
                                                        DrawingProgramAppContext *workflow_ctx,
                                                        uint32_t center_x,
                                                        uint32_t center_y,
-                                                       uint8_t center_before,
                                                        uint8_t expected_draw_value,
                                                        uint8_t expected_eraser_value);
 

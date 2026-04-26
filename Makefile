@@ -31,6 +31,8 @@ SDL_CFLAGS := $(shell $(PKG_CONFIG) --cflags sdl2 2>/dev/null)
 SDL_LIBS := $(shell $(PKG_CONFIG) --libs sdl2 2>/dev/null)
 SDL_TTF_CFLAGS := $(shell $(PKG_CONFIG) --cflags sdl2_ttf 2>/dev/null)
 SDL_TTF_LIBS := $(shell $(PKG_CONFIG) --libs sdl2_ttf 2>/dev/null)
+PNG_CFLAGS := $(shell $(PKG_CONFIG) --cflags libpng 2>/dev/null)
+PNG_LIBS := $(shell $(PKG_CONFIG) --libs libpng 2>/dev/null)
 ifeq ($(strip $(SDL_CFLAGS)),)
   ifneq ($(wildcard /opt/homebrew/include/SDL2/SDL.h),)
     SDL_CFLAGS := -I/opt/homebrew/include -D_THREAD_SAFE
@@ -63,6 +65,24 @@ ifeq ($(strip $(SDL_TTF_LIBS)),)
     SDL_TTF_LIBS :=
   endif
 endif
+ifeq ($(strip $(PNG_CFLAGS)),)
+  ifneq ($(wildcard /opt/homebrew/include/png.h),)
+    PNG_CFLAGS := -I/opt/homebrew/include
+  else ifneq ($(wildcard /usr/local/include/png.h),)
+    PNG_CFLAGS := -I/usr/local/include
+  endif
+endif
+ifeq ($(strip $(PNG_LIBS)),)
+  ifneq ($(wildcard /opt/homebrew/lib/libpng.dylib),)
+    PNG_LIBS := -L/opt/homebrew/lib -lpng
+  else ifneq ($(wildcard /opt/homebrew/lib/libpng16.dylib),)
+    PNG_LIBS := -L/opt/homebrew/lib -lpng16
+  else ifneq ($(wildcard /usr/local/lib/libpng.dylib),)
+    PNG_LIBS := -L/usr/local/lib -lpng
+  else ifneq ($(wildcard /usr/local/lib/libpng16.dylib),)
+    PNG_LIBS := -L/usr/local/lib -lpng16
+  endif
+endif
 
 CFLAGS := -std=c11 -Wall -Wextra -pedantic \
 	-Iinclude \
@@ -74,9 +94,10 @@ CFLAGS := -std=c11 -Wall -Wextra -pedantic \
 	-I$(CORE_LAYOUT_DIR)/include \
 	-I$(CORE_PANE_MODULE_DIR)/include \
 	$(SDL_CFLAGS) \
+	$(PNG_CFLAGS) \
 	$(SDL_TTF_CFLAGS)
 LDLIBS := -lm
-APP_LDLIBS := $(LDLIBS) $(SDL_LIBS) $(SDL_TTF_LIBS)
+APP_LDLIBS := $(LDLIBS) $(SDL_LIBS) $(SDL_TTF_LIBS) $(PNG_LIBS)
 
 BUILD_DIR := build
 OBJ_DIR := $(BUILD_DIR)/obj
@@ -97,7 +118,15 @@ APP_LOCAL_SRCS := \
 	src/domain/drawing_program_object_transform.c \
 	src/domain/drawing_program_selection.c \
 	src/domain/drawing_program_selection_edit_ops.c \
+	src/io/export/drawing_program_export_image.c \
+	src/io/export/drawing_program_icns_export.c \
+	src/io/export/drawing_program_iconset_export.c \
+	src/io/export/drawing_program_png_export.c \
+	src/io/session/drawing_program_project_state.c \
+	src/io/session/drawing_program_session_prefs.c \
+	src/io/session/drawing_program_native_dialogs.c \
 	src/io/session/drawing_program_snapshot.c \
+	src/io/session/drawing_program_snapshot_shell.c \
 	src/io/session/drawing_program_snapshot_export_json.c \
 	src/io/session/drawing_program_snapshot_ui_settings.c \
 	src/io/session/drawing_program_snapshot_bridge.c \
@@ -140,6 +169,7 @@ APP_LOCAL_SRCS := \
 	src/app/drawing_program_visual_runtime_debug.c \
 	src/app/drawing_program_visual_loop_diag.c \
 	src/app/drawing_program_visual_loop_policy.c \
+	src/app/drawing_program_app_post_load.c \
 	src/ui/tools/drawing_program_visual_tool_options.c \
 	src/ui/text/drawing_program_visual_text_render.c \
 	src/app/drawing_program_ui_color_state.c \
@@ -164,7 +194,15 @@ HEADLESS_LOCAL_SRCS := \
 	src/domain/drawing_program_object_transform.c \
 	src/domain/drawing_program_selection.c \
 	src/domain/drawing_program_selection_edit_ops.c \
+	src/io/export/drawing_program_export_image.c \
+	src/io/export/drawing_program_icns_export.c \
+	src/io/export/drawing_program_iconset_export.c \
+	src/io/export/drawing_program_png_export.c \
+	src/io/session/drawing_program_project_state.c \
+	src/io/session/drawing_program_session_prefs.c \
+	src/io/session/drawing_program_native_dialogs.c \
 	src/io/session/drawing_program_snapshot.c \
+	src/io/session/drawing_program_snapshot_shell.c \
 	src/io/session/drawing_program_snapshot_export_json.c \
 	src/io/session/drawing_program_snapshot_ui_settings.c \
 	src/io/session/drawing_program_snapshot_bridge.c \
@@ -176,6 +214,7 @@ HEADLESS_LOCAL_SRCS := \
 	src/runtime/adapters/drawing_program_pane_host.c \
 	src/runtime/adapters/drawing_program_overlay_adapter.c \
 	src/app/drawing_program_ui_color_state.c \
+	src/app/drawing_program_app_post_load.c \
 	src/app/drawing_program_app_main.c \
 	src/app/drawing_program_app_headless_main.c
 
@@ -194,7 +233,15 @@ TEST_LOCAL_SRCS := \
 	src/domain/drawing_program_object_transform.c \
 	src/domain/drawing_program_selection.c \
 	src/domain/drawing_program_selection_edit_ops.c \
+	src/io/export/drawing_program_export_image.c \
+	src/io/export/drawing_program_icns_export.c \
+	src/io/export/drawing_program_iconset_export.c \
+	src/io/export/drawing_program_png_export.c \
+	src/io/session/drawing_program_project_state.c \
+	src/io/session/drawing_program_session_prefs.c \
+	src/io/session/drawing_program_native_dialogs.c \
 	src/io/session/drawing_program_snapshot.c \
+	src/io/session/drawing_program_snapshot_shell.c \
 	src/io/session/drawing_program_snapshot_export_json.c \
 	src/io/session/drawing_program_snapshot_ui_settings.c \
 	src/io/session/drawing_program_snapshot_bridge.c \
@@ -237,6 +284,7 @@ TEST_LOCAL_SRCS := \
 	src/app/drawing_program_visual_runtime_debug.c \
 	src/app/drawing_program_visual_loop_diag.c \
 	src/app/drawing_program_visual_loop_policy.c \
+	src/app/drawing_program_app_post_load.c \
 	src/ui/tools/drawing_program_visual_tool_options.c \
 	src/ui/text/drawing_program_visual_text_render.c \
 	src/app/drawing_program_ui_color_state.c \
@@ -245,6 +293,7 @@ TEST_LOCAL_SRCS := \
 	src/app/drawing_program_app_visual_runtime_loop.c \
 	src/app/drawing_program_app_visual_main.c \
 	tests/drawing_program_lifecycle_snapshot_suite.c \
+	tests/drawing_program_lifecycle_export_suite.c \
 	tests/drawing_program_lifecycle_snapshot_helpers.c \
 	tests/drawing_program_lifecycle_snapshot_object_helpers.c \
 	tests/drawing_program_lifecycle_selection_layer_suite.c \
@@ -289,6 +338,12 @@ PACKAGE_SHARED_FONTS_DIR := $(PACKAGE_RESOURCES_DIR)/shared/assets/fonts
 PACKAGE_INFO_PLIST_SRC := tools/packaging/macos/Info.plist
 PACKAGE_LAUNCHER_SRC := tools/packaging/macos/sketch-launcher
 PACKAGE_DYLIB_BUNDLER := tools/packaging/macos/bundle-dylibs.sh
+PACKAGE_LOCAL_ICON_DIR := tools/packaging/macos/local_app_icon
+PACKAGE_APP_ICON_NAME := AppIcon
+PACKAGE_APP_ICON_FILE := $(PACKAGE_APP_ICON_NAME).icns
+PACKAGE_APP_ICON_SRC ?= $(PACKAGE_LOCAL_ICON_DIR)/$(PACKAGE_APP_ICON_FILE)
+PACKAGE_APP_ICONSET_SRC ?= $(PACKAGE_LOCAL_ICON_DIR)/$(PACKAGE_APP_ICON_NAME).iconset
+PACKAGE_BUNDLED_ICON_PATH := $(PACKAGE_RESOURCES_DIR)/$(PACKAGE_APP_ICON_FILE)
 PACKAGE_ADHOC_SIGN_IDENTITY ?= -
 DESKTOP_APP_DIR ?= $(HOME)/Desktop/$(PACKAGE_APP_NAME)
 EXPORT_PRESET ?= data/last_session.pack
@@ -339,7 +394,7 @@ $(APP_TARGET): $(APP_OBJS) $(SHARED_LIBS)
 
 $(HEADLESS_TARGET): $(HEADLESS_OBJS) $(SHARED_LIBS)
 	@mkdir -p "$(BIN_DIR)"
-	$(CC) $(HEADLESS_OBJS) $(SHARED_LIBS) -o "$@" $(LDLIBS)
+	$(CC) $(HEADLESS_OBJS) $(SHARED_LIBS) -o "$@" $(LDLIBS) $(PNG_LIBS)
 
 $(TEST_TARGET): $(TEST_OBJS) $(SHARED_LIBS)
 	@mkdir -p "$(BIN_DIR)"
@@ -417,11 +472,20 @@ package-desktop: $(APP_TARGET)
 	@cp "$(PACKAGE_LAUNCHER_SRC)" "$(PACKAGE_MACOS_DIR)/$(LAUNCHER_BIN)"
 	@chmod +x "$(PACKAGE_MACOS_DIR)/$(APP_BIN)" "$(PACKAGE_MACOS_DIR)/$(LAUNCHER_BIN)"
 	@if [ -d "$(PACKAGE_FONTS_SRC_PRIMARY)" ]; then \
-		cp -R "$(PACKAGE_FONTS_SRC_PRIMARY)"/. "$(PACKAGE_SHARED_FONTS_DIR)"/; \
+		rsync -a "$(PACKAGE_FONTS_SRC_PRIMARY)"/ "$(PACKAGE_SHARED_FONTS_DIR)"/; \
 	elif [ -d "$(PACKAGE_FONTS_SRC_VENDOR)" ]; then \
-		cp -R "$(PACKAGE_FONTS_SRC_VENDOR)"/. "$(PACKAGE_SHARED_FONTS_DIR)"/; \
+		rsync -a "$(PACKAGE_FONTS_SRC_VENDOR)"/ "$(PACKAGE_SHARED_FONTS_DIR)"/; \
 	else \
 		echo "warning: no font source dir found for packaging"; \
+	fi
+	@if [ -f "$(PACKAGE_APP_ICON_SRC)" ]; then \
+		cp "$(PACKAGE_APP_ICON_SRC)" "$(PACKAGE_BUNDLED_ICON_PATH)"; \
+		echo "Bundled app icon from $(PACKAGE_APP_ICON_SRC)"; \
+	elif [ -d "$(PACKAGE_APP_ICONSET_SRC)" ]; then \
+		/usr/bin/iconutil -c icns -o "$(PACKAGE_BUNDLED_ICON_PATH)" "$(PACKAGE_APP_ICONSET_SRC)" || exit 1; \
+		echo "Bundled app icon from $(PACKAGE_APP_ICONSET_SRC)"; \
+	else \
+		echo "warning: no app icon source found at $(PACKAGE_APP_ICON_SRC) or $(PACKAGE_APP_ICONSET_SRC)"; \
 	fi
 	@"$(PACKAGE_DYLIB_BUNDLER)" "$(PACKAGE_MACOS_DIR)/$(APP_BIN)" "$(PACKAGE_FRAMEWORKS_DIR)"
 	@for dylib in "$(PACKAGE_FRAMEWORKS_DIR)"/*.dylib; do \
@@ -437,6 +501,9 @@ package-desktop-smoke: package-desktop
 	@test -x "$(PACKAGE_MACOS_DIR)/$(LAUNCHER_BIN)" || (echo "Missing launcher"; exit 1)
 	@test -x "$(PACKAGE_MACOS_DIR)/$(APP_BIN)" || (echo "Missing app binary"; exit 1)
 	@test -f "$(PACKAGE_CONTENTS_DIR)/Info.plist" || (echo "Missing Info.plist"; exit 1)
+	@if [ -f "$(PACKAGE_APP_ICON_SRC)" ] || [ -d "$(PACKAGE_APP_ICONSET_SRC)" ]; then \
+		test -f "$(PACKAGE_BUNDLED_ICON_PATH)" || (echo "Missing bundled AppIcon.icns"; exit 1); \
+	fi
 	@echo "package-desktop-smoke passed."
 
 package-desktop-self-test: package-desktop-smoke
@@ -446,7 +513,7 @@ package-desktop-self-test: package-desktop-smoke
 package-desktop-copy-desktop: package-desktop
 	@mkdir -p "$(dir $(DESKTOP_APP_DIR))"
 	@rm -rf "$(DESKTOP_APP_DIR)"
-	@cp -R "$(PACKAGE_APP_DIR)" "$(DESKTOP_APP_DIR)"
+	@ditto "$(PACKAGE_APP_DIR)" "$(DESKTOP_APP_DIR)"
 	@echo "Copied $(PACKAGE_APP_NAME) to $(DESKTOP_APP_DIR)"
 
 package-desktop-sync: package-desktop-copy-desktop
@@ -462,5 +529,5 @@ package-desktop-remove:
 package-desktop-refresh: package-desktop
 	@mkdir -p "$(dir $(DESKTOP_APP_DIR))"
 	@rm -rf "$(DESKTOP_APP_DIR)"
-	@cp -R "$(PACKAGE_APP_DIR)" "$(DESKTOP_APP_DIR)"
+	@ditto "$(PACKAGE_APP_DIR)" "$(DESKTOP_APP_DIR)"
 	@echo "Refreshed $(PACKAGE_APP_NAME) at $(DESKTOP_APP_DIR)"

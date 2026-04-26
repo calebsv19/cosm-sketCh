@@ -2,6 +2,8 @@
 
 #include <string.h>
 
+#include "drawing_program/drawing_program_ui_color_state.h"
+
 #include "drawing_program/drawing_program_color_model.h"
 #include "drawing_program/drawing_program_history.h"
 #include "drawing_program/drawing_program_object_rasterize.h"
@@ -132,8 +134,7 @@ static CoreResult stamp_center_sample(DrawingProgramAppContext *ctx) {
     uint32_t sx;
     uint32_t sy;
     uint32_t active_index = 0u;
-    uint8_t value = drawing_program_color_value_from_index(
-        ctx ? drawing_program_color_index_clamp(ctx->ui.active_color_index) : drawing_program_color_default_index());
+    DrawingProgramRasterSample value = drawing_program_ui_color_active_paint_sample_value(ctx);
     if (!ctx) {
         return orchestration_invalid("null app context for stamp center sample");
     }
@@ -157,7 +158,7 @@ static CoreResult stamp_center_sample(DrawingProgramAppContext *ctx) {
         case DRAWING_PROGRAM_TOOL_PICKER:
         case DRAWING_PROGRAM_TOOL_PATH:
         default:
-            value = drawing_program_color_value_from_index(drawing_program_color_index_clamp(ctx->ui.active_color_index));
+            value = drawing_program_ui_color_active_paint_sample_value(ctx);
             break;
     }
     return drawing_program_history_apply_set_sample_value(&ctx->history,
@@ -170,7 +171,7 @@ static CoreResult stamp_center_sample(DrawingProgramAppContext *ctx) {
 }
 
 static CoreResult clear_canvas_samples(DrawingProgramAppContext *ctx) {
-    uint8_t clear_value;
+    DrawingProgramRasterSample clear_value;
     uint32_t slot;
     uint32_t active_index = 0u;
     CoreResult result;
@@ -179,7 +180,10 @@ static CoreResult clear_canvas_samples(DrawingProgramAppContext *ctx) {
     }
     clear_value = drawing_program_color_eraser_value();
     if (ctx->document.raster_sample_count > 0u) {
-        memset(ctx->document.raster_samples, (int)clear_value, (size_t)ctx->document.raster_sample_count);
+        uint32_t i;
+        for (i = 0u; i < ctx->document.raster_sample_count; ++i) {
+            ctx->document.raster_samples[i] = clear_value;
+        }
     }
     if (ctx->layer_rasters.slot_samples &&
         ctx->layer_rasters.sample_count == ctx->document.raster_sample_count &&
@@ -188,9 +192,12 @@ static CoreResult clear_canvas_samples(DrawingProgramAppContext *ctx) {
             if (ctx->layer_rasters.slot_layer_ids[slot] == 0u) {
                 continue;
             }
-            memset(ctx->layer_rasters.slot_samples + ((size_t)slot * (size_t)ctx->layer_rasters.sample_count),
-                   (int)clear_value,
-                   (size_t)ctx->layer_rasters.sample_count);
+            uint32_t i;
+            DrawingProgramRasterSample *slot_samples =
+                ctx->layer_rasters.slot_samples + ((size_t)slot * (size_t)ctx->layer_rasters.sample_count);
+            for (i = 0u; i < ctx->layer_rasters.sample_count; ++i) {
+                slot_samples[i] = clear_value;
+            }
         }
     }
     result = find_layer_index(ctx, ctx->editor.active_layer_id, &active_index);
@@ -204,6 +211,15 @@ static CoreResult clear_canvas_samples(DrawingProgramAppContext *ctx) {
         ctx->document.layers[active_index].locked = 0u;
     }
     drawing_program_selection_reset(&ctx->selection);
+    return core_result_ok();
+}
+
+static CoreResult clear_objects(DrawingProgramAppContext *ctx) {
+    if (!ctx) {
+        return orchestration_invalid("null app context for clear objects");
+    }
+    drawing_program_object_store_reset(&ctx->object_store);
+    drawing_program_object_selection_reset(&ctx->object_selection);
     return core_result_ok();
 }
 
@@ -355,6 +371,8 @@ CoreResult drawing_program_runtime_orchestration_apply_workflow_control(
             return drawing_program_history_redo(&ctx->history, &ctx->document, &ctx->layer_rasters, &ctx->object_store);
         case DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS:
             return clear_canvas_samples(ctx);
+        case DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_OBJECTS:
+            return clear_objects(ctx);
         case DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_HISTORY:
             drawing_program_history_clear(&ctx->history);
             return core_result_ok();

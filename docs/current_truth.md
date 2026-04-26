@@ -1,6 +1,6 @@
 # Current Truth
 
-Last updated: 2026-04-16
+Last updated: 2026-04-24
 
 - Canonical input map is documented in `docs/keybind_reference.md`.
 - Phase 19 `S1` color-system scaffold is now implemented:
@@ -501,11 +501,143 @@ Last updated: 2026-04-16
     - `make -C drawing_program package-desktop-refresh`
   - boundary lock advanced to Phase 14 path tooling v1 (polygon/pen loop creation + per-object fill/stroke semantics)
 - Canvas seed shape is no longer fixed square-only:
-  - default seed remains `512x512`
+  - default seed is now `1024x1024`
   - runtime boot now supports explicit non-square overrides:
     - `--canvas-size <W>x<H>`
     - `--canvas-width <W> --canvas-height <H>`
   - explicit canvas-size override bypasses snapshot-load document restore so requested shape is applied deterministically
+- Right-panel file lane shell is now implemented:
+  - right panel now exposes a fourth `FILE` tab alongside `CANVAS`, `LAYER`, and `COLOR`
+  - the `FILE` lane now separates project and autosave concepts:
+    - current project pack under `input_root`
+    - autosave session pack under `runtime_root`
+    - eight visible project target rows, where saved packs come first and remaining rows resolve to new numbered project slots
+  - file-lane actions now include:
+    - `NEW BLANK`
+    - `OPEN PROJECT`
+    - `SAVE TARGET`
+    - `SAVE AS`
+    - `LOAD TARGET`
+    - `SAVE SESSION`
+    - `RELOAD SESSION`
+    - `PICK INPUT ROOT`
+    - `PICK OUTPUT ROOT`
+    - `EXPORT PNG`
+    - `EXPORT ICONSET`
+    - `EXPORT ICNS`
+  - file-lane layout is now organized as:
+    - action buttons at the top
+    - project target list in the middle
+    - route-picker/export controls above the footer
+    - project/autosave/input/output/png/iconset/debug/action state footer at the bottom
+  - project save/load uses the existing snapshot pack payload, so retained objects, layers, UI state, and history all round-trip through named project packs
+  - clicking an empty project row now prepares a concrete new save target path, so a user can select that slot and immediately `SAVE PROJECT` into it
+  - project-state authority is now tighter:
+    - runtime boot prefers the currently selected saved project pack when that pack exists
+    - autosave scratch under `runtime_root/last_session.pack` is no longer the default named-project boot source
+    - `NEW PROJECT` now creates a true blank working document at the next target slot:
+      - raster content reset
+      - object store reset
+      - selection/object-selection/clipboard reset
+      - history reset
+    - `LOAD PROJECT` now rejects empty target slots instead of silently leaving the previous document on screen as if it had loaded
+  - app-level file-lane roots now persist separately from project packs:
+    - `runtime_root/session_prefs_v1.txt` stores the chosen `input_root`, `output_root`, and current project target path
+    - normal relaunch now restores those values before project-target defaulting runs
+    - `--no-persist` skips this load/save lane so headless and deterministic test flows stay isolated
+  - `OPEN PROJECT` now uses a native macOS file chooser, retargets `input_root` to the selected pack’s parent folder, then loads that pack and re-syncs panel/selection state
+  - `SAVE AS` now uses a native macOS save chooser, automatically normalizes the chosen target to a `.pack` path, updates `input_root` to that file’s parent folder, and persists the project immediately
+  - runtime reload re-syncs selection/object-selection and panel UI after `snapshot_load(...)`
+  - document-swap flows now run a shared post-load rearm helper:
+    - used after snapshot/project load and `NEW BLANK` document resets
+    - normalizes `active_layer_id` back onto a real layer after the swap
+    - cancels transient selection state
+    - zeros runtime render-projection and cached render-signature fields so the next frame re-syncs the visible canvas from current document state instead of stale counters
+  - lifecycle coverage now locks the immediate post-load editability contract:
+    - a freshly loaded pack must accept an immediate same-session brush edit in the deterministic headless runtime path
+    - that edit must repopulate render-projection state and the cached visible-canvas signature fields without requiring shutdown/relaunch
+  - large-fill responsiveness is tightened on top of that correctness lane:
+    - fill traversal now uses a scanline flood-fill path that snapshots the active layer once, queues neighbor row segments, and commits spans during traversal instead of doing a later full-mask sweep
+    - span commits now fast-path usable mutable layer-raster storage, so target-layer validation/write and visible-sample recomposition stay bounded to the affected span instead of re-routing every pixel through the slower per-sample write path
+    - lifecycle coverage now locks mixed-value tolerance-fill replacement so contiguous prior values like `A/B/A` can still be replaced in one fill action while history growth stays bounded to the required prior-value groups
+  - the project target queue now communicates slot intent directly:
+    - saved rows render as `S# LOAD ...`
+    - unsaved concrete targets render as `N# SAVE ...`
+    - empty numbered rows render as `N# NEW TARGET`
+    - clicking a row updates the footer action status so the selected slot reports whether it is ready to load or ready to save
+  - canvas reset controls are now explicitly separated:
+    - `CLEAR CANVAS` is raster-only and preserves live objects
+    - `CLEAR OBJECTS` wipes the object store and current object selection without touching raster samples
+    - `NEW BLANK` remains the full-project reset path for raster, objects, selections, clipboard, and history
+  - `PICK INPUT ROOT` opens a native macOS folder chooser, resets the visible project target rows to the chosen directory, and reseeds the current target path against that root
+  - `PICK OUTPUT ROOT` opens a native macOS folder chooser and updates where rendered image exports land
+  - image export composition is now built from a temporary scratch layer stack:
+    - current visible raster layers are copied into scratch layer rasters
+    - visible live objects are replay-rasterized into their owning layers in scratch space
+    - the export path does not destructive-rasterize or remove objects from the active project
+  - `EXPORT PNG` now writes a true transparent PNG using the visible-layer compositor plus current layer-opacity state:
+    - output path defaults to `<output_root>/<project_basename>.png`
+    - eraser/background samples export as alpha `0`
+    - raster/object colors export from the document's stored packed `RGBA8` sample values rather than being remapped through preset swatches
+    - visible live objects now appear in the exported image even when they have not been permanently rasterized into a layer
+  - `EXPORT ICONSET` now writes the canonical macOS `.iconset` family into a folder rooted at `<output_root>/<project_basename>.iconset`
+    - includes the standard Apple icon filenames from `icon_16x16.png` through `icon_512x512@2x.png`
+    - variants are scaled from the current document export image using premultiplied bilinear filtering so transparency edges stay clean
+    - iconset variants now precompose a macOS-style inset rounded-square mask on top of the exported art, because the current `.icns` / `CFBundleIconFile` packaging path does not receive the newer asset-catalog/Icon Composer system masking automatically
+  - `EXPORT ICNS` now writes a real macOS `.icns` container to `<output_root>/<project_basename>.icns`
+    - export refreshes the sibling `.iconset` folder first, then embeds the canonical PNG variants into the `.icns` payload directly
+    - the current exporter does not depend on `iconutil`, so `.icns` generation remains available in local/test lanes where Apple iconset conversion is unreliable
+  - file-lane action feedback is now surfaced in-panel through a bottom `ACTION ...` status line
+  - dirty/clean status is still a lightweight save/load marker for the active project path
+  - file-lane footer telemetry now includes the derived `.icns` target alongside project/autosave/root/export state
+  - the color system now runs a Phase-B bridge between swatch selection and future true-color storage:
+    - `active_color_index` is now the selected swatch/preset, not the canonical live paint identity
+    - the UI/runtime own explicit `active_paint_r/g/b` state and persist it through snapshot UI settings `DPUI` v9
+    - palette clicks, picker samples, and palette hotkeys copy the chosen swatch color into active paint
+    - HSV edits and recent-color clicks mutate only active paint color and no longer silently rewrite the selected swatch definition
+    - raster/object paint routing no longer depends on palette-slot byte storage underneath that bridge
+    - older snapshot UI payloads still load, but now derive active paint from the saved selected swatch instead of re-entering the old hidden slot-mutation path
+  - the Phase G color-panel/preset cleanup is now in place on top of that bridge:
+    - the color tab now presents active paint as the primary visual control instead of implying that swatch identity is the live pixel identity
+    - active paint and preset target telemetry are now split explicitly into `ACTIVE PAINT`, `RGB`, and `PRESET RGB`
+    - the top-row paint bank is now a stable 8-slot `PAINT SLOTS` lane instead of a sparse recent-history queue
+    - `PRESET SWATCHES` now reflects optional stored presets rather than raster-storage identity
+    - clicking a preset swatch loads that preset into active paint and keeps it as the current target preset
+    - overwriting a preset now requires the explicit `SAVE PAINT TO C#` action instead of happening as a hidden side effect of ordinary HSV edits
+  - the Phase H render/export closeout is now in place on top of that model:
+    - canvas picker now samples the rendered visible layer stack and loads the exact sampled RGB into active paint instead of snapping back to the nearest preset swatch
+    - transparent picker hits now leave active paint unchanged instead of fabricating a preset-derived color
+    - lifecycle coverage now locks arbitrary non-preset raster RGB surviving export composition unchanged
+    - lifecycle coverage now also locks picker-driven active paint updates on exact sampled RGB values rather than preset approximation
+  - the true-color storage cutover for raster payloads is now in place:
+    - canonical raster samples are packed `RGBA8` via `DrawingProgramRasterSample`
+    - document raster storage, layer-raster slot storage, history sample commands, selection/clipboard payloads, render-domain composition, visible-canvas texture upload, and export image composition now operate on explicit packed samples instead of palette-slot bytes
+    - transparent erase is now an explicit true-color sample path rather than a palette-slot remap
+    - compatibility bridges still exist for older byte-style sample read/write seams and older `DPLR` layer-raster snapshot payloads, which now normalize into packed samples during the migration window
+    - one compatibility carry-forward remains explicit:
+      - the outer snapshot shell still has older raw-struct coupling and is not yet the final long-term persistence contract
+  - Phase D history/selection closure is now in place on top of that storage cutover:
+    - marquee additive/subtractive payload reshape now preserves full packed samples instead of truncating to low-byte values during selection merge/collapse
+    - clipboard payload copy/move remains full-width packed-sample safe
+    - duplicate-layer actions now copy full packed raster sample buffers instead of byte-sized buffers
+    - lifecycle coverage now locks true-color marquee merge/collapse plus duplicate-layer packed-sample preservation
+  - right-panel layout cleanup now keeps the most failure-prone controls from drawing on top of their own labels:
+    - color-tab active paint swatch is pushed below the paint/swatch telemetry lines
+    - color-tab active preview, recent paints, and preset swatches now use tighter compact heights so the panel spends more vertical room on the actual picker surfaces
+    - HSV status text now renders below the active swatch instead of inside it
+    - the recent-colors section is pushed down to respect that extra status line
+    - `PAINT SLOTS` now always exposes all 8 stable selectable paint references, with a dedicated selected-slot index driving in-place color updates
+    - preset loads, HSV edits, and picker samples now overwrite the currently selected paint slot in place instead of relying on sparse recent-color count or MRU behavior
+    - the selected paint slot and the selected preset swatch now render with explicit accent borders
+    - layer opacity now renders as a dedicated label row above the slider track
+    - layer opacity hit-testing is limited to the slider track instead of the whole mixed label/track block
+  - packaged macOS icon consumption is now wired:
+    - `drawing_program/tools/packaging/macos/Info.plist` sets `CFBundleIconFile` to `AppIcon`
+    - default packaging icon source is `tools/packaging/macos/local_app_icon/AppIcon.icns`
+    - default packaging iconset source is `tools/packaging/macos/local_app_icon/AppIcon.iconset`
+    - `make package-desktop*` will bundle `AppIcon.icns` from `PACKAGE_APP_ICON_SRC` when provided
+    - packaging can also derive `AppIcon.icns` from `PACKAGE_APP_ICONSET_SRC` when a canonical iconset folder is supplied
+    - the local packaging icon store is intentionally gitignored and treated as a local distribution asset
 - Phase 10 `S4` select/move correctness slice is now implemented:
   - move begin-hit detection now resolves against selection payload mask (not just selection bounds)
   - transparent holes inside selection bounds no longer start move drags
@@ -845,6 +977,7 @@ Last updated: 2026-04-16
 - Packaging baseline targets are implemented:
   - `package-desktop*` lane including smoke and launcher self-test
   - package now bundles dependent dylibs into `Contents/Frameworks` and ad-hoc signs bundle artifacts
+  - visual desktop launch no longer allocates `DrawingProgramAppContext` on the main-thread stack in `drawing_program_app_visual_run_mode(...)`; the launcher now heap-owns that oversized runtime context so the packaged app survives true-color startup without tripping the macOS stack guard
 - Reference layout artifacts are available from workspace sandbox export:
   - `workspace_sandbox/data/presets/sketch_layout_v1.pack`
   - `workspace_sandbox/data/presets/sketch_layout_v1.json`
@@ -882,6 +1015,7 @@ Last updated: 2026-04-16
 - Synthetic seed input path is now headless-only:
   - visual mode no longer force-injects frame-0 key/pointer actions each frame
   - headless lifecycle lane remains deterministic for contract regression checks
+  - runtime UI lifecycle coverage now snapshots the actual pre-run-loop center sample before synthetic run-loop actions, so undo/redo assertions track the live document handoff instead of an older blank-seed value
 - CLI/Make snapshot validation paths:
   - `make -C drawing_program export-snapshot-json EXPORT_PRESET=<pack> EXPORT_JSON=<json>`
   - `make -C drawing_program snapshot-bridge-check WORKSPACE_PRESET=../workspace_sandbox/data/presets/sketch_layout_v1.pack`
@@ -890,3 +1024,13 @@ Last updated: 2026-04-16
   - `make -C drawing_program shared-mode`
   - `make -C drawing_program shared-subtree-check`
   - `make -C drawing_program shared-subtree-prepare`
+- True-color migration status:
+  - retained-object storage now uses explicit packed stroke/fill samples instead of palette-slot ids
+  - shape/path object creation and object color-targeting now apply the active paint sample directly
+  - object rasterization writes those true-color object samples into raster/history without palette remapping
+  - object overlay preview and inspector readouts now resolve from stored object sample values rather than `C#` identity
+  - snapshot persistence now writes `DPOB` v4 for retained-object colors while continuing to load legacy v1/v2/v3 object chunks through deterministic sample upgrade
+  - snapshot save now also writes a structured `DPS3` outer shell for true-color document/editor/pane/history metadata, and snapshot load prefers that shell while still falling back to legacy `DPS2`
+  - `DPLR` import now re-seeds the document base-layer raster surface as well as the layer-raster store, so base-layer state remains coherent under both `DPS3` and legacy shell paths
+  - a bounded `DPS2` dual-write compatibility bridge still exists during the migration window so older shell-based upgrade fixtures and helper-generated legacy packs remain usable
+  - legacy `DPS2` packs with stale raw-shell sizes now salvage through `DPLR`/`DPOB`/`DPUI` chunk recovery instead of hard-failing on the outer shell size mismatch, so pre-true-color saved projects remain loadable even when the embedded raw shell no longer matches the current in-memory struct width

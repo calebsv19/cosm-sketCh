@@ -19,17 +19,13 @@ static int object_style_includes_outline(uint8_t style_mode) {
     return (style_mode == 1u) ? 0 : 1;
 }
 
-static uint8_t object_sample_value_from_color_index(uint8_t color_index) {
-    return drawing_program_color_value_from_index(drawing_program_color_index_clamp(color_index));
-}
-
 static CoreResult object_rasterize_write_sample(DrawingProgramDocument *document,
                                                 DrawingProgramLayerRasterStore *layer_rasters,
                                                 DrawingProgramHistory *history,
                                                 uint32_t target_layer_id,
                                                 int32_t sample_x,
                                                 int32_t sample_y,
-                                                uint8_t value) {
+                                                DrawingProgramRasterSample value) {
     if (!document || !layer_rasters || !history || target_layer_id == 0u) {
         return object_rasterize_invalid("invalid object sample write request");
     }
@@ -52,7 +48,7 @@ static CoreResult object_rasterize_rect_fill(DrawingProgramDocument *document,
                                              DrawingProgramHistory *history,
                                              uint32_t target_layer_id,
                                              const DrawingProgramObjectRecord *object,
-                                             uint8_t fill_value) {
+                                             DrawingProgramRasterSample fill_value) {
     uint32_t x;
     uint32_t y;
     if (!object || object->width == 0u || object->height == 0u) {
@@ -80,7 +76,7 @@ static CoreResult object_rasterize_rect_outline(DrawingProgramDocument *document
                                                 DrawingProgramHistory *history,
                                                 uint32_t target_layer_id,
                                                 const DrawingProgramObjectRecord *object,
-                                                uint8_t stroke_value,
+                                                DrawingProgramRasterSample stroke_value,
                                                 uint32_t stroke_width) {
     uint32_t pass;
     int32_t left;
@@ -141,7 +137,7 @@ static CoreResult object_rasterize_ellipse_fill(DrawingProgramDocument *document
                                                 DrawingProgramHistory *history,
                                                 uint32_t target_layer_id,
                                                 const DrawingProgramObjectRecord *object,
-                                                uint8_t fill_value) {
+                                                DrawingProgramRasterSample fill_value) {
     int32_t x;
     int32_t y;
     double rx;
@@ -180,7 +176,7 @@ static CoreResult object_rasterize_ellipse_outline(DrawingProgramDocument *docum
                                                    DrawingProgramHistory *history,
                                                    uint32_t target_layer_id,
                                                    const DrawingProgramObjectRecord *object,
-                                                   uint8_t stroke_value,
+                                                   DrawingProgramRasterSample stroke_value,
                                                    uint32_t stroke_width) {
     int32_t x;
     int32_t y;
@@ -270,8 +266,8 @@ static CoreResult object_rasterize_path(DrawingProgramDocument *document,
                                         uint32_t target_layer_id,
                                         const DrawingProgramObjectRecord *object,
                                         uint8_t style_mode,
-                                        uint8_t stroke_value,
-                                        uint8_t fill_value,
+                                        DrawingProgramRasterSample stroke_value,
+                                        DrawingProgramRasterSample fill_value,
                                         uint32_t stroke_width) {
     int32_t x;
     int32_t y;
@@ -334,8 +330,8 @@ static CoreResult object_rasterize_single(DrawingProgramDocument *document,
                                           uint32_t target_layer_id,
                                           const DrawingProgramObjectRecord *object) {
     uint8_t style_mode;
-    uint8_t stroke_value;
-    uint8_t fill_value;
+    DrawingProgramRasterSample stroke_value;
+    DrawingProgramRasterSample fill_value;
     uint32_t stroke_width;
     CoreResult result = core_result_ok();
     if (!document || !layer_rasters || !history || !object || target_layer_id == 0u) {
@@ -345,8 +341,8 @@ static CoreResult object_rasterize_single(DrawingProgramDocument *document,
     if (style_mode > 2u) {
         style_mode = 2u;
     }
-    stroke_value = object_sample_value_from_color_index(object->stroke_color_index);
-    fill_value = object_sample_value_from_color_index(object->fill_color_index);
+    stroke_value = drawing_program_color_normalize_input_sample(object->stroke_color_value);
+    fill_value = drawing_program_color_normalize_input_sample(object->fill_color_value);
     stroke_width = object->stroke_width == 0u ? 1u : (uint32_t)object->stroke_width;
 
     if (object->type == (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_PATH) {
@@ -448,6 +444,48 @@ CoreResult drawing_program_object_rasterize_selection_to_layer(
         (void)drawing_program_object_store_remove_by_id(object_store, rasterized_ids[i], 0);
     }
     drawing_program_object_selection_reset(selection);
+    if (out_rasterized_count) {
+        *out_rasterized_count = rasterized_count;
+    }
+    return core_result_ok();
+}
+
+CoreResult drawing_program_object_rasterize_visible_to_layers(
+    DrawingProgramDocument *document,
+    DrawingProgramLayerRasterStore *layer_rasters,
+    DrawingProgramHistory *history,
+    const DrawingProgramObjectStore *object_store,
+    uint32_t *out_rasterized_count) {
+    uint32_t visible_indices[DRAWING_PROGRAM_MAX_OBJECTS];
+    uint32_t visible_count = 0u;
+    uint32_t rasterized_count = 0u;
+    uint32_t i;
+    if (!document || !layer_rasters || !history || !object_store) {
+        return object_rasterize_invalid("invalid rasterize-visible-objects request");
+    }
+    visible_count = drawing_program_object_store_collect_visible_indices(
+        object_store, document, visible_indices, DRAWING_PROGRAM_MAX_OBJECTS);
+    for (i = 0u; i < visible_count && i < DRAWING_PROGRAM_MAX_OBJECTS; ++i) {
+        uint32_t object_index = visible_indices[i];
+        const DrawingProgramObjectRecord *object;
+        uint32_t layer_index = 0u;
+        CoreResult result;
+        if (object_index >= object_store->object_count) {
+            continue;
+        }
+        object = &object_store->objects[object_index];
+        if (!object->visible) {
+            continue;
+        }
+        if (drawing_program_document_layer_index_for_id(document, object->layer_id, &layer_index).code != CORE_OK) {
+            continue;
+        }
+        result = object_rasterize_single(document, layer_rasters, history, object->layer_id, object);
+        if (result.code != CORE_OK) {
+            return result;
+        }
+        rasterized_count += 1u;
+    }
     if (out_rasterized_count) {
         *out_rasterized_count = rasterized_count;
     }

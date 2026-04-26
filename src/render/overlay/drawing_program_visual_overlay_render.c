@@ -327,7 +327,6 @@ static void draw_preview_path_draft(SDL_Renderer *renderer,
                                     SDL_Color accent) {
     uint32_t i;
     uint16_t point_count;
-    uint8_t active_color_index;
     int stroke_px;
     int handle_half = 4;
     SDL_Color point_fill = { 20u, 24u, 34u, 255u };
@@ -339,9 +338,9 @@ static void draw_preview_path_draft(SDL_Renderer *renderer,
         return;
     }
     point_count = interaction->path_draft_point_count;
-    active_color_index = drawing_program_color_index_clamp(ctx->ui.active_color_index);
-    drawing_program_color_rgb_from_index(
-        active_color_index, &preview_color.r, &preview_color.g, &preview_color.b);
+    preview_color.r = ctx->ui.active_paint_r;
+    preview_color.g = ctx->ui.active_paint_g;
+    preview_color.b = ctx->ui.active_paint_b;
     stroke_px = preview_stroke_width_pixels(metrics, hooks->tool_shape_stroke_width(ctx));
     handle_half = (int)lroundf(metrics->pixel_size * 0.6f);
     if (handle_half < 3) {

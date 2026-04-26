@@ -100,7 +100,7 @@ SDL_Rect right_panel_slot_tab_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, uin
 }
 
 SDL_Rect right_canvas_reset_view_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
-    int y = rect.y + rect.h - m.pad_y - (4 * m.row_h) - (3 * m.section_gap);
+    int y = rect.y + rect.h - m.pad_y - (5 * m.row_h) - (4 * m.section_gap);
     return (SDL_Rect){ rect.x + m.pad_x, y, rect.w - (2 * m.pad_x), m.row_h };
 }
 
@@ -109,9 +109,14 @@ SDL_Rect right_canvas_clear_canvas_button_rect(SDL_Rect rect, VisualPaneLayoutMe
     return (SDL_Rect){ reset.x, reset.y + reset.h + m.section_gap, reset.w, reset.h };
 }
 
-SDL_Rect right_canvas_delete_selection_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
+SDL_Rect right_canvas_clear_objects_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
     SDL_Rect clear_canvas = right_canvas_clear_canvas_button_rect(rect, m);
     return (SDL_Rect){ clear_canvas.x, clear_canvas.y + clear_canvas.h + m.section_gap, clear_canvas.w, clear_canvas.h };
+}
+
+SDL_Rect right_canvas_delete_selection_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
+    SDL_Rect clear_objects = right_canvas_clear_objects_button_rect(rect, m);
+    return (SDL_Rect){ clear_objects.x, clear_objects.y + clear_objects.h + m.section_gap, clear_objects.w, clear_objects.h };
 }
 
 SDL_Rect right_canvas_clear_history_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
@@ -121,6 +126,92 @@ SDL_Rect right_canvas_clear_history_button_rect(SDL_Rect rect, VisualPaneLayoutM
 
 int right_canvas_metrics_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m) {
     return right_canvas_content_start_y(rect, m);
+}
+
+int right_file_content_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m) {
+    return right_canvas_content_start_y(rect, m);
+}
+
+int right_file_actions_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m) {
+    return right_file_content_start_y(rect, m);
+}
+
+int right_file_recent_projects_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m, uint32_t action_count) {
+    int y = right_file_actions_start_y(rect, m);
+    if (action_count == 0u) {
+        action_count = 1u;
+    }
+    y += (int)action_count * m.row_h;
+    y += (int)(action_count - 1u) * m.section_gap;
+    y += m.line_h;
+    y += m.section_gap;
+    return y;
+}
+
+int right_file_state_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m, uint32_t line_count) {
+    int y = rect.y + rect.h - m.pad_y;
+    if (line_count == 0u) {
+        line_count = 1u;
+    }
+    y -= (int)line_count * m.line_h;
+    return y;
+}
+
+int right_file_route_actions_start_y(SDL_Rect rect,
+                                     VisualPaneLayoutMetrics m,
+                                     uint32_t state_line_count,
+                                     uint32_t action_count) {
+    int y = right_file_state_start_y(rect, m, state_line_count);
+    int action_block_h = 0;
+    if (action_count == 0u) {
+        action_count = 1u;
+    }
+    action_block_h = (int)action_count * m.row_h;
+    action_block_h += (int)(action_count - 1u) * m.section_gap;
+    y -= m.section_gap;
+    y -= action_block_h;
+    return y;
+}
+
+SDL_Rect right_file_recent_project_row_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, uint32_t row_index) {
+    int y = right_file_recent_projects_start_y(rect, m, 7u);
+    y += (int)row_index * (m.row_h + m.section_gap);
+    return (SDL_Rect){ rect.x + m.pad_x, y, rect.w - (2 * m.pad_x), m.row_h };
+}
+
+SDL_Rect right_file_action_button_rect(SDL_Rect rect,
+                                       VisualPaneLayoutMetrics m,
+                                       uint32_t action_index,
+                                       uint32_t action_count) {
+    int y;
+    if (action_count == 0u) {
+        action_count = 1u;
+    }
+    y = right_file_actions_start_y(rect, m);
+    y += (int)action_index * (m.row_h + m.section_gap);
+    return (SDL_Rect){ rect.x + m.pad_x, y, rect.w - (2 * m.pad_x), m.row_h };
+}
+
+SDL_Rect right_file_save_session_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
+    return right_file_action_button_rect(rect, m, 5u, 7u);
+}
+
+SDL_Rect right_file_reload_session_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
+    return right_file_action_button_rect(rect, m, 6u, 7u);
+}
+
+SDL_Rect right_file_route_action_button_rect(SDL_Rect rect,
+                                             VisualPaneLayoutMetrics m,
+                                             uint32_t state_line_count,
+                                             uint32_t action_index,
+                                             uint32_t action_count) {
+    int y;
+    if (action_count == 0u) {
+        action_count = 1u;
+    }
+    y = right_file_route_actions_start_y(rect, m, state_line_count, action_count);
+    y += (int)action_index * (m.row_h + m.section_gap);
+    return (SDL_Rect){ rect.x + m.pad_x, y, rect.w - (2 * m.pad_x), m.row_h };
 }
 
 int right_layer_content_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m) {
@@ -155,7 +246,7 @@ SDL_Rect right_layer_opacity_row_rect(SDL_Rect rect,
                                       uint32_t layer_count) {
     int y = right_layer_after_rows_y(rect, m, layer_count);
     y += m.section_gap;
-    return (SDL_Rect){ rect.x + m.pad_x, y, rect.w - (2 * m.pad_x), m.row_h };
+    return (SDL_Rect){ rect.x + m.pad_x, y, rect.w - (2 * m.pad_x), m.line_h + m.section_gap + m.row_h };
 }
 
 SDL_Rect right_layer_opacity_track_rect(SDL_Rect opacity_row, VisualPaneLayoutMetrics m) {
@@ -169,7 +260,7 @@ SDL_Rect right_layer_opacity_track_rect(SDL_Rect opacity_row, VisualPaneLayoutMe
     if (track.w < 24) {
         track.w = 24;
     }
-    track.y += (track.h / 2);
+    track.y += m.line_h + m.section_gap + ((m.row_h - ((m.row_h > 10) ? (m.row_h / 3) : 3)) / 2);
     track.h = (m.row_h > 10) ? (m.row_h / 3) : 3;
     return track;
 }

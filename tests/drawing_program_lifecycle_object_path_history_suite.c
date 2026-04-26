@@ -52,8 +52,8 @@ int drawing_program_lifecycle_run_object_path_history_suite(DrawingProgramAppCon
         path_seed.layer_id = workflow_ctx.document.layers[0].layer_id;
         path_seed.visible = 1u;
         path_seed.locked = 0u;
-        path_seed.stroke_color_index = 6u;
-        path_seed.fill_color_index = 6u;
+        path_seed.stroke_color_value = drawing_program_color_value_from_index(6u);
+        path_seed.fill_color_value = drawing_program_color_value_from_index(6u);
         path_seed.stroke_width = 2u;
         path_seed.style_mode = 0u;
         path_payload.point_count = 3u;
@@ -131,8 +131,8 @@ int drawing_program_lifecycle_run_object_path_history_suite(DrawingProgramAppCon
         path_seed.layer_id = workflow_ctx.document.layers[0].layer_id;
         path_seed.visible = 1u;
         path_seed.locked = 0u;
-        path_seed.stroke_color_index = 6u;
-        path_seed.fill_color_index = 6u;
+        path_seed.stroke_color_value = drawing_program_color_value_from_index(6u);
+        path_seed.fill_color_value = drawing_program_color_value_from_index(6u);
         path_seed.stroke_width = 2u;
         path_seed.style_mode = 0u;
         path_payload.point_count = 3u;
@@ -221,8 +221,8 @@ int drawing_program_lifecycle_run_object_path_history_suite(DrawingProgramAppCon
         path_seed.layer_id = workflow_ctx.document.layers[0].layer_id;
         path_seed.visible = 1u;
         path_seed.locked = 0u;
-        path_seed.stroke_color_index = 6u;
-        path_seed.fill_color_index = 6u;
+        path_seed.stroke_color_value = drawing_program_color_value_from_index(6u);
+        path_seed.fill_color_value = drawing_program_color_value_from_index(6u);
         path_seed.stroke_width = 2u;
         path_seed.style_mode = 0u;
         path_payload.point_count = 3u;
@@ -371,8 +371,8 @@ int drawing_program_lifecycle_run_object_path_history_suite(DrawingProgramAppCon
         path_seed.layer_id = workflow_ctx.document.layers[0].layer_id;
         path_seed.visible = 1u;
         path_seed.locked = 0u;
-        path_seed.stroke_color_index = 6u;
-        path_seed.fill_color_index = 6u;
+        path_seed.stroke_color_value = drawing_program_color_value_from_index(6u);
+        path_seed.fill_color_value = drawing_program_color_value_from_index(6u);
         path_seed.stroke_width = 2u;
         path_seed.style_mode = 0u;
         path_payload.point_count = 3u;
@@ -515,7 +515,8 @@ int drawing_program_lifecycle_run_object_path_history_suite(DrawingProgramAppCon
     {
         DrawingProgramObjectRecord raster_object;
         uint32_t object_id = 0u;
-        uint8_t sample_value = drawing_program_color_eraser_value();
+        uint8_t sample_value =
+            drawing_program_color_legacy_sample_from_sample(drawing_program_color_eraser_value());
         uint8_t expected_fill = drawing_program_color_value_from_index(3u);
         uint32_t units_before = 0u;
         uint32_t units_after = 0u;
@@ -527,8 +528,8 @@ int drawing_program_lifecycle_run_object_path_history_suite(DrawingProgramAppCon
         raster_object.type = (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_RECT;
         raster_object.visible = 1u;
         raster_object.locked = 0u;
-        raster_object.fill_color_index = 3u;
-        raster_object.stroke_color_index = 7u;
+        raster_object.fill_color_value = drawing_program_color_value_from_index(3u);
+        raster_object.stroke_color_value = drawing_program_color_value_from_index(7u);
         raster_object.stroke_width = 2u;
         raster_object.style_mode = 1u;
         raster_object.origin_x = 24;
@@ -581,7 +582,8 @@ int drawing_program_lifecycle_run_object_path_history_suite(DrawingProgramAppCon
         DrawingProgramObjectRecord path_seed;
         DrawingProgramPathPayload path_payload;
         uint32_t object_id = 0u;
-        uint8_t sample_value = drawing_program_color_eraser_value();
+        uint8_t sample_value =
+            drawing_program_color_legacy_sample_from_sample(drawing_program_color_eraser_value());
         uint8_t expected_fill = drawing_program_color_value_from_index(5u);
         uint32_t units_before = 0u;
         uint32_t units_after = 0u;
@@ -593,8 +595,8 @@ int drawing_program_lifecycle_run_object_path_history_suite(DrawingProgramAppCon
         path_seed.layer_id = workflow_ctx.document.layers[0].layer_id;
         path_seed.visible = 1u;
         path_seed.locked = 0u;
-        path_seed.fill_color_index = 5u;
-        path_seed.stroke_color_index = 7u;
+        path_seed.fill_color_value = drawing_program_color_value_from_index(5u);
+        path_seed.stroke_color_value = drawing_program_color_value_from_index(7u);
         path_seed.stroke_width = 2u;
         path_seed.style_mode = 2u;
         path_payload.point_count = 3u;
@@ -660,7 +662,8 @@ int drawing_program_lifecycle_run_object_path_history_suite(DrawingProgramAppCon
         uint16_t insert_index = 0u;
         int32_t insert_x = 0;
         int32_t insert_y = 0;
-        uint8_t sample_value = drawing_program_color_eraser_value();
+        uint8_t sample_value =
+            drawing_program_color_legacy_sample_from_sample(drawing_program_color_eraser_value());
         uint8_t expected_stroke = drawing_program_color_value_from_index(5u);
 
         drawing_program_object_store_reset(&workflow_ctx.object_store);
@@ -672,8 +675,8 @@ int drawing_program_lifecycle_run_object_path_history_suite(DrawingProgramAppCon
         path_seed.layer_id = workflow_ctx.document.layers[0].layer_id;
         path_seed.visible = 1u;
         path_seed.locked = 0u;
-        path_seed.fill_color_index = 3u;
-        path_seed.stroke_color_index = 5u;
+        path_seed.fill_color_value = drawing_program_color_value_from_index(3u);
+        path_seed.stroke_color_value = drawing_program_color_value_from_index(5u);
         path_seed.stroke_width = 3u;
         path_seed.style_mode = 0u;
         path_payload.point_count = 2u;

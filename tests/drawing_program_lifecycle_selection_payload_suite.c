@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
+#include "drawing_program/drawing_program_color_model.h"
 #include "drawing_program_lifecycle_selection_payload_suite.h"
 #include "drawing_program_lifecycle_test_support.h"
 
@@ -255,6 +256,147 @@ int drawing_program_lifecycle_run_selection_payload_suite(DrawingProgramAppConte
             fprintf(stderr, "lifecycle_test: subtractive final removal should reset selection state\n");
             return 1;
         }
+    }
+    {
+        uint32_t p1x = workflow_center_x + 12u;
+        uint32_t p1y = workflow_center_y + 12u;
+        uint32_t p2x = p1x + 3u;
+        uint32_t p2y = p1y + 1u;
+        uint32_t first_local_index;
+        uint32_t second_local_index;
+        DrawingProgramRasterSample color_a = drawing_program_color_value_from_rgba(17u, 89u, 203u, 255u);
+        DrawingProgramRasterSample color_b = drawing_program_color_value_from_rgba(231u, 41u, 77u, 255u);
+        DrawingProgramRasterSample selected_a = drawing_program_color_eraser_value();
+        DrawingProgramRasterSample selected_b = drawing_program_color_eraser_value();
+        DrawingProgramRasterSample remaining = drawing_program_color_eraser_value();
+        if (p2x >= workflow_ctx.document.raster_width || p2y >= workflow_ctx.document.raster_height) {
+            fprintf(stderr, "lifecycle_test: true-color selection regression coordinates out of bounds\n");
+            return 1;
+        }
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &workflow_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS),
+                       "selection_true_color_clear_canvas")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_history_apply_set_sample_value(&workflow_ctx.history,
+                                                                      &workflow_ctx.document,
+                                                                      &workflow_ctx.layer_rasters,
+                                                                      workflow_ctx.editor.active_layer_id,
+                                                                      p1x,
+                                                                      p1y,
+                                                                      color_a),
+                       "selection_true_color_seed_a")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_history_apply_set_sample_value(&workflow_ctx.history,
+                                                                      &workflow_ctx.document,
+                                                                      &workflow_ctx.layer_rasters,
+                                                                      workflow_ctx.editor.active_layer_id,
+                                                                      p2x,
+                                                                      p2y,
+                                                                      color_b),
+                       "selection_true_color_seed_b")) {
+            return 1;
+        }
+        drawing_program_selection_reset(&workflow_ctx.selection);
+        if (!drawing_program_selection_capture_from_rect(&workflow_ctx.document,
+                                                         &workflow_ctx.layer_rasters,
+                                                         workflow_ctx.editor.active_layer_id,
+                                                         &workflow_ctx.selection,
+                                                         (int32_t)p1x,
+                                                         (int32_t)p1y,
+                                                         1u,
+                                                         1u)) {
+            fprintf(stderr, "lifecycle_test: expected true-color base capture to succeed\n");
+            return 1;
+        }
+        if (!drawing_program_selection_add_from_rect(&workflow_ctx.document,
+                                                     &workflow_ctx.layer_rasters,
+                                                     workflow_ctx.editor.active_layer_id,
+                                                     &workflow_ctx.selection,
+                                                     (int32_t)p2x,
+                                                     (int32_t)p2y,
+                                                     1u,
+                                                     1u)) {
+            fprintf(stderr, "lifecycle_test: expected true-color additive capture to succeed\n");
+            return 1;
+        }
+        first_local_index = (p1y - workflow_ctx.selection.origin_y) * workflow_ctx.selection.width +
+                            (p1x - workflow_ctx.selection.origin_x);
+        second_local_index = (p2y - workflow_ctx.selection.origin_y) * workflow_ctx.selection.width +
+                             (p2x - workflow_ctx.selection.origin_x);
+        if (first_local_index >= DRAWING_PROGRAM_SELECTION_MAX_AREA ||
+            second_local_index >= DRAWING_PROGRAM_SELECTION_MAX_AREA) {
+            fprintf(stderr, "lifecycle_test: true-color additive indices out of bounds\n");
+            return 1;
+        }
+        selected_a = drawing_program_selection_value_at(&workflow_ctx.selection,
+                                                        p1x - workflow_ctx.selection.origin_x,
+                                                        p1y - workflow_ctx.selection.origin_y);
+        selected_b = drawing_program_selection_value_at(&workflow_ctx.selection,
+                                                        p2x - workflow_ctx.selection.origin_x,
+                                                        p2y - workflow_ctx.selection.origin_y);
+        if (selected_a != color_a || selected_b != color_b) {
+            fprintf(stderr,
+                    "lifecycle_test: expected true-color additive selection payload to preserve packed samples "
+                    "got a=%u b=%u expected_a=%u expected_b=%u\n",
+                    (unsigned)selected_a,
+                    (unsigned)selected_b,
+                    (unsigned)color_a,
+                    (unsigned)color_b);
+            return 1;
+        }
+        if (!drawing_program_selection_subtract_from_rect(&workflow_ctx.document,
+                                                          &workflow_ctx.layer_rasters,
+                                                          workflow_ctx.editor.active_layer_id,
+                                                          &workflow_ctx.selection,
+                                                          (int32_t)p1x,
+                                                          (int32_t)p1y,
+                                                          1u,
+                                                          1u)) {
+            fprintf(stderr, "lifecycle_test: expected true-color subtractive capture to preserve remaining payload\n");
+            return 1;
+        }
+        if (!workflow_ctx.selection.has_payload ||
+            workflow_ctx.selection.payload_count != 1u ||
+            workflow_ctx.selection.origin_x != p2x ||
+            workflow_ctx.selection.origin_y != p2y ||
+            workflow_ctx.selection.width != 1u ||
+            workflow_ctx.selection.height != 1u) {
+            fprintf(stderr,
+                    "lifecycle_test: expected true-color subtractive collapse to remaining payload origin=%u,%u size=%ux%u count=%u\n",
+                    (unsigned)workflow_ctx.selection.origin_x,
+                    (unsigned)workflow_ctx.selection.origin_y,
+                    (unsigned)workflow_ctx.selection.width,
+                    (unsigned)workflow_ctx.selection.height,
+                    (unsigned)workflow_ctx.selection.payload_count);
+            return 1;
+        }
+        remaining = drawing_program_selection_value_at(&workflow_ctx.selection, 0u, 0u);
+        if (remaining != color_b) {
+            fprintf(stderr,
+                    "lifecycle_test: expected true-color subtractive collapse to preserve remaining packed sample "
+                    "got=%u expected=%u\n",
+                    (unsigned)remaining,
+                    (unsigned)color_b);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &workflow_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS),
+                       "selection_true_color_restore_clear_canvas")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_history_apply_set_sample_value(&workflow_ctx.history,
+                                                                      &workflow_ctx.document,
+                                                                      &workflow_ctx.layer_rasters,
+                                                                      workflow_ctx.editor.active_layer_id,
+                                                                      workflow_center_x,
+                                                                      workflow_center_y,
+                                                                      expected_draw_value),
+                       "selection_true_color_restore_center_seed")) {
+            return 1;
+        }
+        drawing_program_selection_reset(&workflow_ctx.selection);
     }
     if (!drawing_program_selection_select_all(&workflow_ctx.document,
                                               &workflow_ctx.layer_rasters,

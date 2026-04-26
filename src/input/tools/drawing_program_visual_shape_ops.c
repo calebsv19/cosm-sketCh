@@ -4,6 +4,7 @@
 
 #include "drawing_program/drawing_program_color_model.h"
 #include "drawing_program/drawing_program_runtime_orchestration.h"
+#include "drawing_program/drawing_program_ui_color_state.h"
 #include "drawing_program/drawing_program_visual_canvas_stroke_ops.h"
 
 static int active_layer_query(const DrawingProgramAppContext *ctx,
@@ -106,18 +107,18 @@ static CoreResult create_shape_object(DrawingProgramAppContext *ctx,
                                       uint32_t stroke_width) {
     DrawingProgramObjectRecord seed;
     uint32_t object_id = 0u;
-    uint8_t color_index;
+    DrawingProgramRasterSample color_value;
     CoreResult add_result;
     memset(&seed, 0, sizeof(seed));
     if (!ctx || active_layer_id == 0u) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid object-shape commit request" };
     }
-    color_index = drawing_program_color_index_clamp(ctx->ui.active_color_index);
+    color_value = drawing_program_ui_color_active_paint_sample_value(ctx);
     seed.layer_id = active_layer_id;
     seed.visible = 1u;
     seed.locked = 0u;
-    seed.stroke_color_index = color_index;
-    seed.fill_color_index = color_index;
+    seed.stroke_color_value = color_value;
+    seed.fill_color_value = color_value;
     seed.stroke_width = drawing_program_visual_clamp_setting_u8((uint8_t)stroke_width, 1u, 16u);
     seed.style_mode = drawing_program_visual_clamp_setting_u8(mode, 0u, 2u);
     if (tool == DRAWING_PROGRAM_TOOL_RECT) {
@@ -155,11 +156,9 @@ uint8_t drawing_program_visual_clamp_setting_u8(uint8_t value, uint8_t min_v, ui
     return value;
 }
 
-uint8_t drawing_program_visual_sample_value_for_tool(const DrawingProgramAppContext *ctx, DrawingProgramToolKind tool) {
-    uint8_t color_index = drawing_program_color_default_index();
-    if (ctx) {
-        color_index = drawing_program_color_index_clamp(ctx->ui.active_color_index);
-    }
+DrawingProgramRasterSample drawing_program_visual_sample_value_for_tool(
+    const DrawingProgramAppContext *ctx,
+    DrawingProgramToolKind tool) {
     switch (tool) {
         case DRAWING_PROGRAM_TOOL_ERASER:
             return drawing_program_color_eraser_value();
@@ -173,7 +172,7 @@ uint8_t drawing_program_visual_sample_value_for_tool(const DrawingProgramAppCont
         case DRAWING_PROGRAM_TOOL_PICKER:
         case DRAWING_PROGRAM_TOOL_PATH:
         default:
-            return drawing_program_color_value_from_index(color_index);
+            return drawing_program_ui_color_active_paint_sample_value(ctx);
     }
 }
 
@@ -251,7 +250,9 @@ uint8_t drawing_program_visual_fill_tolerance_sample_delta(uint8_t tolerance_set
     return (uint8_t)delta;
 }
 
-int drawing_program_visual_fill_sample_matches_tolerance(uint8_t sample, uint8_t target, uint8_t tolerance_setting) {
+int drawing_program_visual_fill_sample_matches_tolerance(DrawingProgramRasterSample sample,
+                                                         DrawingProgramRasterSample target,
+                                                         uint8_t tolerance_setting) {
     uint8_t threshold = drawing_program_visual_fill_tolerance_sample_delta(tolerance_setting);
     return (drawing_program_color_sample_distance(sample, target) <= threshold) ? 1 : 0;
 }
@@ -282,13 +283,10 @@ int drawing_program_visual_shape_mode_includes_outline(DrawingProgramToolKind to
     return (drawing_program_visual_clamp_setting_u8(mode, 0u, 2u) == 1u) ? 0 : 1;
 }
 
-uint8_t drawing_program_visual_color_index_for_sample(uint8_t sample) {
-    return drawing_program_color_index_from_sample(sample);
-}
-
-uint8_t drawing_program_visual_seeded_background_sample_for_coord(const DrawingProgramDocument *document,
-                                                                  uint32_t x,
-                                                                  uint32_t y) {
+DrawingProgramRasterSample drawing_program_visual_seeded_background_sample_for_coord(
+    const DrawingProgramDocument *document,
+    uint32_t x,
+    uint32_t y) {
     (void)document;
     (void)x;
     (void)y;
@@ -301,7 +299,7 @@ CoreResult drawing_program_visual_apply_canvas_shape_commit(DrawingProgramAppCon
                                                             uint32_t start_y,
                                                             uint32_t end_x,
                                                             uint32_t end_y) {
-    uint8_t value;
+    DrawingProgramRasterSample value;
     uint8_t mode;
     uint32_t stroke_width;
     uint32_t active_layer_id = 0u;

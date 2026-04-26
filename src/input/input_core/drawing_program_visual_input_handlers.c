@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "drawing_program/drawing_program_object_geometry.h"
+#include "drawing_program/drawing_program_ui_color_state.h"
 #include "drawing_program/drawing_program_visual_input_core.h"
 #include "drawing_program/drawing_program_visual_input_keymap.h"
 #include "drawing_program/drawing_program_visual_input_panel_clicks.h"
@@ -185,7 +186,7 @@ CoreResult path_draft_commit(DrawingProgramAppContext *ctx,
     uint32_t object_id = 0u;
     uint8_t visible = 0u;
     uint8_t locked = 0u;
-    uint8_t color_index;
+    DrawingProgramRasterSample color_value;
     CoreResult result;
     if (!ctx || !interaction) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid path draft commit request" };
@@ -209,12 +210,12 @@ CoreResult path_draft_commit(DrawingProgramAppContext *ctx,
            interaction->path_draft_points,
            (size_t)payload.point_count * sizeof(payload.points[0]));
     memset(&style_seed, 0, sizeof(style_seed));
-    color_index = drawing_program_color_index_clamp(ctx->ui.active_color_index);
+    color_value = drawing_program_ui_color_active_paint_sample_value(ctx);
     style_seed.layer_id = active_layer_id;
     style_seed.visible = 1u;
     style_seed.locked = 0u;
-    style_seed.stroke_color_index = color_index;
-    style_seed.fill_color_index = color_index;
+    style_seed.stroke_color_value = color_value;
+    style_seed.fill_color_value = color_value;
     style_seed.stroke_width = ctx->ui.tool_shape_stroke_width;
     if (style_seed.stroke_width < 1u) {
         style_seed.stroke_width = 1u;

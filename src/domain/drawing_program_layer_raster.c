@@ -20,14 +20,16 @@ static int layer_raster_document_shape_valid(const DrawingProgramDocument *docum
            document->raster_sample_count <= DRAWING_PROGRAM_MAX_RASTER_SAMPLES;
 }
 
-static uint8_t *layer_raster_slot_ptr(DrawingProgramLayerRasterStore *store, uint32_t slot_index) {
+static DrawingProgramRasterSample *layer_raster_slot_ptr(DrawingProgramLayerRasterStore *store,
+                                                         uint32_t slot_index) {
     if (!store || !store->slot_samples || slot_index >= store->slot_capacity) {
         return 0;
     }
     return store->slot_samples + ((size_t)slot_index * (size_t)store->sample_count);
 }
 
-static const uint8_t *layer_raster_slot_ptr_const(const DrawingProgramLayerRasterStore *store, uint32_t slot_index) {
+static const DrawingProgramRasterSample *layer_raster_slot_ptr_const(const DrawingProgramLayerRasterStore *store,
+                                                                     uint32_t slot_index) {
     if (!store || !store->slot_samples || slot_index >= store->slot_capacity) {
         return 0;
     }
@@ -51,10 +53,10 @@ static CoreResult layer_raster_find_slot_index(const DrawingProgramLayerRasterSt
 }
 
 static CoreResult layer_raster_ensure_capacity(DrawingProgramLayerRasterStore *store, uint32_t required_capacity) {
-    uint8_t *next_samples = 0;
+    DrawingProgramRasterSample *next_samples = 0;
     uint64_t next_bytes_u64;
     size_t next_bytes;
-    uint8_t erase_value;
+    DrawingProgramRasterSample erase_value;
     uint32_t i;
     if (!store || required_capacity == 0u || required_capacity > DRAWING_PROGRAM_MAX_LAYERS) {
         return layer_raster_invalid("invalid raster capacity request");
@@ -65,27 +67,30 @@ static CoreResult layer_raster_ensure_capacity(DrawingProgramLayerRasterStore *s
     if (required_capacity <= store->slot_capacity && store->slot_samples) {
         return core_result_ok();
     }
-    next_bytes_u64 = (uint64_t)required_capacity * (uint64_t)store->sample_count;
+    next_bytes_u64 = (uint64_t)required_capacity * (uint64_t)store->sample_count *
+                     (uint64_t)sizeof(DrawingProgramRasterSample);
     if (next_bytes_u64 == 0u || next_bytes_u64 > (uint64_t)SIZE_MAX) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "raster capacity byte size invalid" };
     }
     next_bytes = (size_t)next_bytes_u64;
-    next_samples = (uint8_t *)malloc(next_bytes);
+    next_samples = (DrawingProgramRasterSample *)malloc(next_bytes);
     if (!next_samples) {
         return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "failed to allocate layer raster storage" };
     }
     erase_value = drawing_program_color_eraser_value();
-    memset(next_samples, (int)erase_value, next_bytes);
+    for (i = 0u; i < required_capacity * store->sample_count; ++i) {
+        next_samples[i] = erase_value;
+    }
     if (store->slot_samples && store->slot_capacity > 0u) {
         uint32_t copy_slots = store->slot_capacity;
         if (copy_slots > required_capacity) {
             copy_slots = required_capacity;
         }
         for (i = 0u; i < copy_slots; ++i) {
-            const uint8_t *src = layer_raster_slot_ptr_const(store, i);
-            uint8_t *dst = next_samples + ((size_t)i * (size_t)store->sample_count);
+            const DrawingProgramRasterSample *src = layer_raster_slot_ptr_const(store, i);
+            DrawingProgramRasterSample *dst = next_samples + ((size_t)i * (size_t)store->sample_count);
             if (src) {
-                memcpy(dst, src, (size_t)store->sample_count);
+                memcpy(dst, src, (size_t)store->sample_count * sizeof(*dst));
             }
         }
     }
@@ -191,13 +196,17 @@ CoreResult drawing_program_layer_raster_store_sync_document_layers(
     }
     for (i = 0u; i < store->slot_capacity; ++i) {
         if (store->slot_layer_ids[i] != 0u && !keep_slots[i]) {
-            uint8_t *slot_samples = layer_raster_slot_ptr(store, i);
+            DrawingProgramRasterSample *slot_samples = layer_raster_slot_ptr(store, i);
             store->slot_layer_ids[i] = 0u;
             if (store->slot_count > 0u) {
                 store->slot_count -= 1u;
             }
             if (slot_samples && store->sample_count > 0u) {
-                memset(slot_samples, (int)drawing_program_color_eraser_value(), (size_t)store->sample_count);
+                uint32_t sample_i;
+                DrawingProgramRasterSample empty_sample = drawing_program_color_eraser_value();
+                for (sample_i = 0u; sample_i < store->sample_count; ++sample_i) {
+                    slot_samples[sample_i] = empty_sample;
+                }
             }
         }
     }
@@ -208,7 +217,7 @@ CoreResult drawing_program_layer_raster_store_seed_from_legacy_surface(
     DrawingProgramLayerRasterStore *store,
     const DrawingProgramDocument *document) {
     uint32_t slot_index = 0u;
-    uint8_t *slot_samples = 0;
+    DrawingProgramRasterSample *slot_samples = 0;
     size_t copy_count = 0u;
     CoreResult result;
     if (!store || !layer_raster_document_shape_valid(document)) {
@@ -228,12 +237,18 @@ CoreResult drawing_program_layer_raster_store_seed_from_legacy_surface(
     if (!slot_samples) {
         return (CoreResult){ CORE_ERR_FORMAT, "failed to resolve base layer slot buffer" };
     }
-    memset(slot_samples, (int)drawing_program_color_eraser_value(), (size_t)store->sample_count);
+    {
+        uint32_t i;
+        DrawingProgramRasterSample empty_sample = drawing_program_color_eraser_value();
+        for (i = 0u; i < store->sample_count; ++i) {
+            slot_samples[i] = empty_sample;
+        }
+    }
     copy_count = (size_t)document->raster_sample_count;
     if (copy_count > (size_t)store->sample_count) {
         copy_count = (size_t)store->sample_count;
     }
-    memcpy(slot_samples, document->raster_samples, copy_count);
+    memcpy(slot_samples, document->raster_samples, copy_count * sizeof(*slot_samples));
     return core_result_ok();
 }
 
@@ -243,10 +258,29 @@ CoreResult drawing_program_layer_raster_store_sample_read(
     uint32_t sample_x,
     uint32_t sample_y,
     uint8_t *out_value) {
+    DrawingProgramRasterSample sample = drawing_program_color_eraser_value();
+    CoreResult result = drawing_program_layer_raster_store_raster_sample_read(store,
+                                                                              layer_id,
+                                                                              sample_x,
+                                                                              sample_y,
+                                                                              &sample);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    *out_value = drawing_program_color_legacy_sample_from_sample(sample);
+    return core_result_ok();
+}
+
+CoreResult drawing_program_layer_raster_store_raster_sample_read(
+    const DrawingProgramLayerRasterStore *store,
+    uint32_t layer_id,
+    uint32_t sample_x,
+    uint32_t sample_y,
+    DrawingProgramRasterSample *out_value) {
     CoreResult result;
     uint32_t slot_index = 0u;
     uint32_t sample_index = 0u;
-    const uint8_t *slot_samples = 0;
+    const DrawingProgramRasterSample *slot_samples = 0;
     if (!store || !out_value) {
         return layer_raster_invalid("invalid layer sample read request");
     }
@@ -274,12 +308,12 @@ CoreResult drawing_program_layer_raster_store_sample_write(
     uint32_t layer_id,
     uint32_t sample_x,
     uint32_t sample_y,
-    uint8_t value,
-    uint8_t *out_previous_value) {
+    DrawingProgramRasterSample value,
+    DrawingProgramRasterSample *out_previous_value) {
     CoreResult result;
     uint32_t slot_index = 0u;
     uint32_t sample_index = 0u;
-    uint8_t *slot_samples = 0;
+    DrawingProgramRasterSample *slot_samples = 0;
     if (!store) {
         return layer_raster_invalid("invalid layer sample write request");
     }
@@ -301,18 +335,18 @@ CoreResult drawing_program_layer_raster_store_sample_write(
     if (out_previous_value) {
         *out_previous_value = slot_samples[sample_index];
     }
-    slot_samples[sample_index] = value;
+    slot_samples[sample_index] = drawing_program_color_normalize_input_sample(value);
     return core_result_ok();
 }
 
 CoreResult drawing_program_layer_raster_store_export_layer(
     const DrawingProgramLayerRasterStore *store,
     uint32_t layer_id,
-    const uint8_t **out_samples,
+    const DrawingProgramRasterSample **out_samples,
     uint32_t *out_sample_count) {
     CoreResult result;
     uint32_t slot_index = 0u;
-    const uint8_t *slot_samples = 0;
+    const DrawingProgramRasterSample *slot_samples = 0;
     if (!store || !out_samples || !out_sample_count) {
         return layer_raster_invalid("invalid layer export request");
     }
@@ -329,14 +363,38 @@ CoreResult drawing_program_layer_raster_store_export_layer(
     return core_result_ok();
 }
 
+CoreResult drawing_program_layer_raster_store_export_layer_mutable(
+    DrawingProgramLayerRasterStore *store,
+    uint32_t layer_id,
+    DrawingProgramRasterSample **out_samples,
+    uint32_t *out_sample_count) {
+    CoreResult result;
+    uint32_t slot_index = 0u;
+    DrawingProgramRasterSample *slot_samples = 0;
+    if (!store || !out_samples || !out_sample_count) {
+        return layer_raster_invalid("invalid mutable layer export request");
+    }
+    result = layer_raster_find_slot_index(store, layer_id, &slot_index);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    slot_samples = layer_raster_slot_ptr(store, slot_index);
+    if (!slot_samples) {
+        return (CoreResult){ CORE_ERR_FORMAT, "failed to resolve mutable layer export slot" };
+    }
+    *out_samples = slot_samples;
+    *out_sample_count = store->sample_count;
+    return core_result_ok();
+}
+
 CoreResult drawing_program_layer_raster_store_import_layer(
     DrawingProgramLayerRasterStore *store,
     uint32_t layer_id,
-    const uint8_t *samples,
+    const DrawingProgramRasterSample *samples,
     uint32_t sample_count) {
     CoreResult result;
     uint32_t slot_index = 0u;
-    uint8_t *slot_samples = 0;
+    DrawingProgramRasterSample *slot_samples = 0;
     if (!store || !samples || layer_id == 0u) {
         return layer_raster_invalid("invalid layer import request");
     }
@@ -354,6 +412,11 @@ CoreResult drawing_program_layer_raster_store_import_layer(
     if (!slot_samples) {
         return (CoreResult){ CORE_ERR_FORMAT, "failed to resolve layer import slot" };
     }
-    memcpy(slot_samples, samples, (size_t)store->sample_count);
+    {
+        uint32_t i;
+        for (i = 0u; i < store->sample_count; ++i) {
+            slot_samples[i] = drawing_program_color_normalize_input_sample(samples[i]);
+        }
+    }
     return core_result_ok();
 }

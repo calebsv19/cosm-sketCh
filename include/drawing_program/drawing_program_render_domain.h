@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "core_base.h"
+#include "drawing_program/drawing_program_color_model.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -47,7 +48,7 @@ CoreResult drawing_program_render_project_frame(
 CoreResult drawing_program_render_compose_visible_samples(
     const struct DrawingProgramDocument *document,
     const struct DrawingProgramLayerRasterStore *layer_rasters,
-    uint8_t *out_samples,
+    DrawingProgramRasterSample *out_samples,
     uint32_t out_capacity);
 
 CoreResult drawing_program_render_compose_visible_samples_with_layer_opacity(
@@ -55,8 +56,24 @@ CoreResult drawing_program_render_compose_visible_samples_with_layer_opacity(
     const struct DrawingProgramLayerRasterStore *layer_rasters,
     const uint8_t *layer_opacity_percent,
     uint32_t layer_opacity_count,
-    uint8_t *out_samples,
+    DrawingProgramRasterSample *out_samples,
     uint32_t out_capacity);
+
+CoreResult drawing_program_render_compose_visible_sample_with_layer_opacity(
+    const struct DrawingProgramDocument *document,
+    const struct DrawingProgramLayerRasterStore *layer_rasters,
+    const uint8_t *layer_opacity_percent,
+    uint32_t layer_opacity_count,
+    uint32_t sample_x,
+    uint32_t sample_y,
+    DrawingProgramRasterSample *out_sample);
+
+CoreResult drawing_program_render_compose_visible_sample(
+    const struct DrawingProgramDocument *document,
+    const struct DrawingProgramLayerRasterStore *layer_rasters,
+    uint32_t sample_x,
+    uint32_t sample_y,
+    DrawingProgramRasterSample *out_sample);
 
 #ifdef __cplusplus
 }

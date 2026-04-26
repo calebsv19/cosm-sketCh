@@ -1,6 +1,7 @@
 #include "drawing_program/drawing_program_visual_input_keymap.h"
 
 #include "drawing_program/drawing_program_color_model.h"
+#include "drawing_program/drawing_program_ui_color_state.h"
 
 DrawingProgramWorkflowControl drawing_program_visual_input_control_for_key(SDL_Keycode key, SDL_Keymod mod) {
     switch (key) {
@@ -60,13 +61,13 @@ int drawing_program_visual_input_try_apply_palette_key(DrawingProgramAppContext 
         if (color >= (int)DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT) {
             color = 0;
         }
-        ctx->ui.active_color_index = (uint8_t)color;
+        drawing_program_ui_color_load_active_paint_from_swatch(ctx, (uint8_t)color);
         return 1;
     }
     if (key >= SDLK_1 && key <= SDLK_8) {
         selected = (uint8_t)(key - SDLK_1);
         if (selected < (uint8_t)DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT) {
-            ctx->ui.active_color_index = selected;
+            drawing_program_ui_color_load_active_paint_from_swatch(ctx, selected);
             return 1;
         }
     }

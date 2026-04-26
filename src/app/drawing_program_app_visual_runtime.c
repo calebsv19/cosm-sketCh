@@ -72,12 +72,12 @@ static int active_layer_allows_edits_visual(const DrawingProgramAppContext *ctx)
 static CoreResult active_layer_sample_read_visual(const DrawingProgramAppContext *ctx,
                                                   uint32_t sample_x,
                                                   uint32_t sample_y,
-                                                  uint8_t *out_value) {
+                                                  DrawingProgramRasterSample *out_value) {
     CoreResult result;
     if (!ctx || !out_value) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid active-layer sample read request" };
     }
-    result = drawing_program_layer_raster_store_sample_read(&ctx->layer_rasters,
+    result = drawing_program_layer_raster_store_raster_sample_read(&ctx->layer_rasters,
                                                             ctx->editor.active_layer_id,
                                                             sample_x,
                                                             sample_y,
@@ -85,7 +85,25 @@ static CoreResult active_layer_sample_read_visual(const DrawingProgramAppContext
     if (result.code == CORE_OK) {
         return core_result_ok();
     }
-    return drawing_program_document_sample_read(&ctx->document, sample_x, sample_y, out_value);
+    return drawing_program_document_raster_sample_read(&ctx->document, sample_x, sample_y, out_value);
+}
+
+static CoreResult visible_sample_read_visual(const DrawingProgramAppContext *ctx,
+                                             uint32_t sample_x,
+                                             uint32_t sample_y,
+                                             DrawingProgramRasterSample *out_value) {
+    uint8_t layer_opacity[DRAWING_PROGRAM_MAX_LAYERS] = { 0 };
+    if (!ctx || !out_value) {
+        return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid visible sample read request" };
+    }
+    drawing_program_visual_collect_layer_opacity_by_index(ctx, layer_opacity, DRAWING_PROGRAM_MAX_LAYERS);
+    return drawing_program_render_compose_visible_sample_with_layer_opacity(&ctx->document,
+                                                                            &ctx->layer_rasters,
+                                                                            layer_opacity,
+                                                                            DRAWING_PROGRAM_MAX_LAYERS,
+                                                                            sample_x,
+                                                                            sample_y,
+                                                                            out_value);
 }
 
 static VisualMarqueeCommitMode visual_marquee_commit_mode_from_mods(SDL_Keymod mods) {
@@ -292,8 +310,8 @@ static const DrawingProgramVisualCanvasActionOpsHooks *visual_canvas_action_ops_
         .sample_value_for_tool = drawing_program_visual_sample_value_for_tool,
         .tool_fill_tolerance_setting = drawing_program_visual_tool_fill_tolerance_setting,
         .fill_sample_matches_tolerance = drawing_program_visual_fill_sample_matches_tolerance,
-        .active_layer_sample_read_visual = active_layer_sample_read_visual,
-        .color_index_for_sample = drawing_program_visual_color_index_for_sample
+        .visible_sample_read_visual = visible_sample_read_visual,
+        .active_layer_sample_read_visual = active_layer_sample_read_visual
     };
     return &hooks;
 }

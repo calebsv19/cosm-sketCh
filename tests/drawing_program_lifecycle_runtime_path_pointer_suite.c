@@ -2,9 +2,12 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "drawing_program/drawing_program_runtime_orchestration.h"
+#include "drawing_program/drawing_program_visual_canvas_action_ops.h"
 #include "drawing_program/drawing_program_visual_input_handlers.h"
 #include "drawing_program/drawing_program_visual_input_selection_ops.h"
 #include "drawing_program/drawing_program_visual_input_support.h"
+#include "drawing_program/drawing_program_visual_shape_ops.h"
 #include "drawing_program/drawing_program_visual_transform_ops.h"
 #include "drawing_program_lifecycle_runtime_path_pointer_suite.h"
 #include "drawing_program_lifecycle_test_support.h"
@@ -32,6 +35,44 @@ static int lifecycle_test_screen_to_canvas_sample_clamped(const DrawingProgramAp
                                                           uint32_t *out_sample_x,
                                                           uint32_t *out_sample_y) {
     return lifecycle_test_screen_to_canvas_sample(ctx, pane_rect, sx, sy, out_sample_x, out_sample_y);
+}
+
+static int lifecycle_test_active_layer_query(const DrawingProgramAppContext *ctx,
+                                             uint32_t *out_layer_id,
+                                             uint32_t *out_index,
+                                             uint8_t *out_visible,
+                                             uint8_t *out_locked) {
+    CoreResult result = drawing_program_runtime_orchestration_resolve_active_layer(ctx,
+                                                                                   out_layer_id,
+                                                                                   out_index,
+                                                                                   out_visible,
+                                                                                   out_locked);
+    return (result.code == CORE_OK) ? 1 : 0;
+}
+
+static int lifecycle_test_active_layer_allows_edits_visual(const DrawingProgramAppContext *ctx) {
+    uint8_t visible = 0u;
+    uint8_t locked = 0u;
+    return lifecycle_test_active_layer_query(ctx, 0, 0, &visible, &locked) ? ((visible && !locked) ? 1 : 0) : 0;
+}
+
+static CoreResult lifecycle_test_active_layer_sample_read_visual(const DrawingProgramAppContext *ctx,
+                                                                 uint32_t sample_x,
+                                                                 uint32_t sample_y,
+                                                                 DrawingProgramRasterSample *out_value) {
+    CoreResult result;
+    if (!ctx || !out_value) {
+        return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid test active-layer sample read" };
+    }
+    result = drawing_program_layer_raster_store_raster_sample_read(&ctx->layer_rasters,
+                                                                   ctx->editor.active_layer_id,
+                                                                   sample_x,
+                                                                   sample_y,
+                                                                   out_value);
+    if (result.code == CORE_OK) {
+        return core_result_ok();
+    }
+    return drawing_program_document_raster_sample_read(&ctx->document, sample_x, sample_y, out_value);
 }
 
 static int lifecycle_test_object_path_point_hit_test_selected(const DrawingProgramAppContext *ctx,
@@ -116,11 +157,13 @@ static CoreResult lifecycle_test_commit_object_path_handle_move(DrawingProgramAp
 int drawing_program_lifecycle_run_runtime_path_pointer_suite(DrawingProgramAppContext *workflow_ctx_ptr) {
 #define workflow_ctx (*workflow_ctx_ptr)
     DrawingProgramVisualInputHandlersHooks hooks;
+    DrawingProgramVisualCanvasActionOpsHooks fill_hooks;
     VisualCanvasInteractionState interaction;
     VisualPanelUiState panel_ui;
     SDL_Event event;
 
     memset(&hooks, 0, sizeof(hooks));
+    memset(&fill_hooks, 0, sizeof(fill_hooks));
     hooks.cancel_canvas_draw_and_shape = lifecycle_test_cancel_canvas_draw_and_shape;
     hooks.cancel_selection_transient = lifecycle_test_cancel_selection_transient;
     hooks.cancel_all_transient_interactions = lifecycle_test_cancel_all_transient_interactions;
@@ -142,6 +185,14 @@ int drawing_program_lifecycle_run_runtime_path_pointer_suite(DrawingProgramAppCo
         drawing_program_visual_transform_session_begin_object_path_handle_move;
     hooks.path_draft_reset = path_draft_reset;
     hooks.path_draft_pop_point = path_draft_pop_point;
+    fill_hooks.screen_to_canvas_sample = lifecycle_test_screen_to_canvas_sample;
+    fill_hooks.active_layer_allows_edits_visual = lifecycle_test_active_layer_allows_edits_visual;
+    fill_hooks.active_layer_query = lifecycle_test_active_layer_query;
+    fill_hooks.sample_value_for_tool = drawing_program_visual_sample_value_for_tool;
+    fill_hooks.tool_fill_tolerance_setting = drawing_program_visual_tool_fill_tolerance_setting;
+    fill_hooks.fill_sample_matches_tolerance = drawing_program_visual_fill_sample_matches_tolerance;
+    fill_hooks.visible_sample_read_visual = lifecycle_test_active_layer_sample_read_visual;
+    fill_hooks.active_layer_sample_read_visual = lifecycle_test_active_layer_sample_read_visual;
     memset(&interaction, 0, sizeof(interaction));
     memset(&panel_ui, 0, sizeof(panel_ui));
 
@@ -302,6 +353,144 @@ int drawing_program_lifecycle_run_runtime_path_pointer_suite(DrawingProgramAppCo
                     path_object ? (unsigned)path_object->path_points[1].bezier_enabled : 0u,
                     path_object ? (unsigned)path_object->path_points[1].handle_linked : 0u,
                     path_object ? (unsigned)path_object->path_point_count : 0u);
+            return 1;
+        }
+    }
+    {
+        uint8_t fill_before_a = 0u;
+        uint8_t fill_before_b = 0u;
+        uint8_t fill_before_c = 0u;
+        uint8_t fill_after_a = 0u;
+        uint8_t fill_after_b = 0u;
+        uint8_t fill_after_c = 0u;
+        uint8_t fill_after_outside = 0u;
+        uint8_t replacement = 0u;
+        uint8_t base_a = 16u;
+        uint8_t base_b = 20u;
+        uint32_t history_units = 0u;
+        drawing_program_object_store_reset(&workflow_ctx.object_store);
+        drawing_program_object_selection_reset(&workflow_ctx.object_selection);
+        drawing_program_selection_reset(&workflow_ctx.selection);
+        drawing_program_history_clear(&workflow_ctx.history);
+        memset(&interaction, 0, sizeof(interaction));
+        workflow_ctx.editor.active_tool = DRAWING_PROGRAM_TOOL_FILL;
+        workflow_ctx.editor.active_layer_id = workflow_ctx.document.layers[0].layer_id;
+        workflow_ctx.document.layers[0].visible = 1u;
+        workflow_ctx.document.layers[0].locked = 0u;
+        workflow_ctx.ui.tool_fill_tolerance = 1u;
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &workflow_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS),
+                       "fill_tolerance_clear_canvas")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_layer_raster_store_sample_write(&workflow_ctx.layer_rasters,
+                                                                       workflow_ctx.editor.active_layer_id,
+                                                                       10u,
+                                                                       10u,
+                                                                       base_a,
+                                                                       0),
+                       "fill_tolerance_seed_layer_a")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_layer_raster_store_sample_write(&workflow_ctx.layer_rasters,
+                                                                       workflow_ctx.editor.active_layer_id,
+                                                                       11u,
+                                                                       10u,
+                                                                       base_b,
+                                                                       0),
+                       "fill_tolerance_seed_layer_b")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_layer_raster_store_sample_write(&workflow_ctx.layer_rasters,
+                                                                       workflow_ctx.editor.active_layer_id,
+                                                                       12u,
+                                                                       10u,
+                                                                       base_a,
+                                                                       0),
+                       "fill_tolerance_seed_layer_c")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_write(&workflow_ctx.document, 10u, 10u, base_a, 0),
+                       "fill_tolerance_seed_doc_a")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_write(&workflow_ctx.document, 11u, 10u, base_b, 0),
+                       "fill_tolerance_seed_doc_b")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_write(&workflow_ctx.document, 12u, 10u, base_a, 0),
+                       "fill_tolerance_seed_doc_c")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&workflow_ctx.document, 10u, 10u, &fill_before_a),
+                       "fill_tolerance_before_a")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&workflow_ctx.document, 11u, 10u, &fill_before_b),
+                       "fill_tolerance_before_b")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&workflow_ctx.document, 12u, 10u, &fill_before_c),
+                       "fill_tolerance_before_c")) {
+            return 1;
+        }
+        if (fill_before_a != base_a || fill_before_b != base_b || fill_before_c != base_a) {
+            fprintf(stderr,
+                    "lifecycle_test: expected mixed-value fill seed row %u,%u,%u got %u,%u,%u\n",
+                    (unsigned)base_a,
+                    (unsigned)base_b,
+                    (unsigned)base_a,
+                    (unsigned)fill_before_a,
+                    (unsigned)fill_before_b,
+                    (unsigned)fill_before_c);
+            return 1;
+        }
+        replacement = drawing_program_visual_sample_value_for_tool(&workflow_ctx, workflow_ctx.editor.active_tool);
+        if (!expect_ok(drawing_program_visual_apply_canvas_fill_at_screen(&workflow_ctx,
+                                                                          (SDL_Rect){ 0, 0, 128, 128 },
+                                                                          10,
+                                                                          10,
+                                                                          &fill_hooks),
+                       "fill_tolerance_mixed_span_apply")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&workflow_ctx.document, 10u, 10u, &fill_after_a),
+                       "fill_tolerance_after_a")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&workflow_ctx.document, 11u, 10u, &fill_after_b),
+                       "fill_tolerance_after_b")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&workflow_ctx.document, 12u, 10u, &fill_after_c),
+                       "fill_tolerance_after_c")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&workflow_ctx.document, 13u, 10u, &fill_after_outside),
+                       "fill_tolerance_after_outside")) {
+            return 1;
+        }
+        if (fill_after_a != replacement || fill_after_b != replacement || fill_after_c != replacement) {
+            fprintf(stderr,
+                    "lifecycle_test: expected mixed-value tolerance fill to replace row with %u got %u,%u,%u\n",
+                    (unsigned)replacement,
+                    (unsigned)fill_after_a,
+                    (unsigned)fill_after_b,
+                    (unsigned)fill_after_c);
+            return 1;
+        }
+        if (fill_after_outside !=
+            drawing_program_color_legacy_sample_from_sample(drawing_program_color_eraser_value())) {
+            fprintf(stderr,
+                    "lifecycle_test: expected tolerance fill to stop before outside sample got=%u\n",
+                    (unsigned)fill_after_outside);
+            return 1;
+        }
+        drawing_program_history_query_units(&workflow_ctx.history, &history_units, 0);
+        if (history_units != 3u) {
+            fprintf(stderr,
+                    "lifecycle_test: expected mixed-value tolerance fill to split into 3 history units got=%u\n",
+                    (unsigned)history_units);
             return 1;
         }
     }

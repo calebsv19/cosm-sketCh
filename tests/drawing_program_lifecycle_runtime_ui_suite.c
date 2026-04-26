@@ -2,19 +2,24 @@
 
 #include "drawing_program/drawing_program_color_model.h"
 #include "drawing_program/drawing_program_runtime_orchestration.h"
+#include "drawing_program/drawing_program_ui_color_state.h"
 #include "drawing_program_lifecycle_runtime_ui_suite.h"
 #include "drawing_program_lifecycle_test_support.h"
 
 int drawing_program_lifecycle_run_runtime_ui_suite(DrawingProgramAppContext *ctx_ptr,
                                                    uint32_t center_x,
                                                    uint32_t center_y,
-                                                   uint8_t center_before,
                                                    uint8_t expected_draw_value) {
     uint8_t center_after = 0u;
+    uint8_t center_before_runtime = 0u;
     uint8_t center_undo = 0u;
     uint8_t center_redo = 0u;
 #define ctx (*ctx_ptr)
 
+    if (!expect_ok(drawing_program_document_sample_read(&ctx.document, center_x, center_y, &center_before_runtime),
+                   "sample_read_center_before_runtime_ui")) {
+        return 1;
+    }
     if (!expect_ok(drawing_program_app_run_loop(&ctx), "run_loop")) {
         return 1;
     }
@@ -122,9 +127,9 @@ int drawing_program_lifecycle_run_runtime_ui_suite(DrawingProgramAppContext *ctx
                    "sample_read_center_after_undo")) {
         return 1;
     }
-    if (center_undo != center_before) {
-        fprintf(stderr, "lifecycle_test: expected center sample restore on undo before=%u after_undo=%u\n",
-                (unsigned)center_before,
+    if (center_undo != center_before_runtime) {
+        fprintf(stderr, "lifecycle_test: expected center sample restore on undo before_runtime=%u after_undo=%u\n",
+                (unsigned)center_before_runtime,
                 (unsigned)center_undo);
         return 1;
     }
@@ -163,8 +168,9 @@ int drawing_program_lifecycle_run_runtime_ui_suite(DrawingProgramAppContext *ctx
     }
     {
         uint8_t sample = 0u;
-        uint8_t bg = drawing_program_color_eraser_value();
-        ctx.ui.active_color_index = drawing_program_color_default_index();
+        uint8_t bg =
+            drawing_program_color_legacy_sample_from_sample(drawing_program_color_eraser_value());
+        drawing_program_ui_color_load_active_paint_from_swatch(&ctx, drawing_program_color_default_index());
         if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
                            &ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS),
                        "s3_shape_mode_clear_canvas_fill_rect")) {

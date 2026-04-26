@@ -20,6 +20,12 @@ typedef struct DrawingProgramVisualObjectOverlayCache {
 
 static DrawingProgramVisualObjectOverlayCache g_object_overlay_cache = {0};
 
+static SDL_Color drawing_program_visual_overlay_color_from_sample(DrawingProgramRasterSample sample) {
+    SDL_Color color = {0u, 0u, 0u, 0u};
+    drawing_program_color_rgba_from_sample(sample, &color.r, &color.g, &color.b, &color.a);
+    return color;
+}
+
 static void drawing_program_visual_object_overlay_cache_reset(void) {
     if (g_object_overlay_cache.texture) {
         SDL_DestroyTexture(g_object_overlay_cache.texture);
@@ -227,19 +233,13 @@ static void draw_object_rect(SDL_Renderer *renderer,
     uint32_t stroke_width = object->stroke_width == 0u ? 1u : (uint32_t)object->stroke_width;
     int has_fill = object_style_includes_fill(object->style_mode);
     int has_outline = object_style_includes_outline(object->style_mode);
-    SDL_Color stroke_color = { 0u, 0u, 0u, 255u };
-    SDL_Color fill_color = { 0u, 0u, 0u, 255u };
+    SDL_Color stroke_color;
+    SDL_Color fill_color;
     if (!renderer || !ctx || !metrics || !object || object->width == 0u || object->height == 0u) {
         return;
     }
-    (void)drawing_program_color_rgb_from_index(drawing_program_color_index_clamp(object->stroke_color_index),
-                                               &stroke_color.r,
-                                               &stroke_color.g,
-                                               &stroke_color.b);
-    (void)drawing_program_color_rgb_from_index(drawing_program_color_index_clamp(object->fill_color_index),
-                                               &fill_color.r,
-                                               &fill_color.g,
-                                               &fill_color.b);
+    stroke_color = drawing_program_visual_overlay_color_from_sample(object->stroke_color_value);
+    fill_color = drawing_program_visual_overlay_color_from_sample(object->fill_color_value);
     for (y = 0u; y < object->height; ++y) {
         for (x = 0u; x < object->width; ++x) {
             int32_t sample_x = origin_x + (int32_t)x;
@@ -281,8 +281,8 @@ static void draw_object_ellipse(SDL_Renderer *renderer,
     uint32_t stroke_width = object->stroke_width == 0u ? 1u : (uint32_t)object->stroke_width;
     int has_fill = object_style_includes_fill(object->style_mode);
     int has_outline = object_style_includes_outline(object->style_mode);
-    SDL_Color stroke_color = { 0u, 0u, 0u, 255u };
-    SDL_Color fill_color = { 0u, 0u, 0u, 255u };
+    SDL_Color stroke_color;
+    SDL_Color fill_color;
     double rx;
     double ry;
     double inner_rx;
@@ -292,14 +292,8 @@ static void draw_object_ellipse(SDL_Renderer *renderer,
     if (!renderer || !ctx || !metrics || !object || object->width == 0u || object->height == 0u) {
         return;
     }
-    (void)drawing_program_color_rgb_from_index(drawing_program_color_index_clamp(object->stroke_color_index),
-                                               &stroke_color.r,
-                                               &stroke_color.g,
-                                               &stroke_color.b);
-    (void)drawing_program_color_rgb_from_index(drawing_program_color_index_clamp(object->fill_color_index),
-                                               &fill_color.r,
-                                               &fill_color.g,
-                                               &fill_color.b);
+    stroke_color = drawing_program_visual_overlay_color_from_sample(object->stroke_color_value);
+    fill_color = drawing_program_visual_overlay_color_from_sample(object->fill_color_value);
     rx = ((double)object->width) * 0.5;
     ry = ((double)object->height) * 0.5;
     if (rx <= 0.0 || ry <= 0.0) {
@@ -502,14 +496,8 @@ static void draw_object_path(SDL_Renderer *renderer,
     min_y = preview_object.origin_y + move_delta_y;
     max_x = min_x + (int32_t)preview_object.width - 1;
     max_y = min_y + (int32_t)preview_object.height - 1;
-    (void)drawing_program_color_rgb_from_index(drawing_program_color_index_clamp(preview_object.stroke_color_index),
-                                               &stroke_color.r,
-                                               &stroke_color.g,
-                                               &stroke_color.b);
-    (void)drawing_program_color_rgb_from_index(drawing_program_color_index_clamp(preview_object.fill_color_index),
-                                               &fill_color.r,
-                                               &fill_color.g,
-                                               &fill_color.b);
+    stroke_color = drawing_program_visual_overlay_color_from_sample(preview_object.stroke_color_value);
+    fill_color = drawing_program_visual_overlay_color_from_sample(preview_object.fill_color_value);
     for (y = min_y; y <= max_y; ++y) {
         for (x = min_x; x <= max_x; ++x) {
             double px;

@@ -2,6 +2,8 @@
 #include <stdint.h>
 #include <unistd.h>
 
+#include "drawing_program/drawing_program_color_model.h"
+#include "drawing_program/drawing_program_visual_layer_actions.h"
 #include "drawing_program_lifecycle_selection_layer_suite.h"
 #include "drawing_program_lifecycle_selection_payload_suite.h"
 #include "drawing_program_lifecycle_test_support.h"
@@ -177,12 +179,76 @@ int drawing_program_lifecycle_run_selection_layer_suite(DrawingProgramAppContext
                     (unsigned)clear_after_value);
             return 1;
         }
+        {
+            uint32_t duplicate_layer_id;
+            DrawingProgramRasterSample duplicate_seed =
+                drawing_program_color_value_from_rgba(29u, 143u, 211u, 255u);
+            DrawingProgramRasterSample duplicate_probe = drawing_program_color_eraser_value();
+            uint32_t duplicate_seed_x = clear_seed_x + 6u;
+            uint32_t duplicate_seed_y = clear_seed_y;
+            if (duplicate_seed_x >= workflow_ctx.document.raster_width ||
+                duplicate_seed_y >= workflow_ctx.document.raster_height) {
+                fprintf(stderr, "lifecycle_test: duplicate-layer true-color seed coordinate out of bounds\n");
+                return 1;
+            }
+            if (!expect_ok(drawing_program_history_apply_set_sample_value(&workflow_ctx.history,
+                                                                          &workflow_ctx.document,
+                                                                          &workflow_ctx.layer_rasters,
+                                                                          new_layer_id,
+                                                                          duplicate_seed_x,
+                                                                          duplicate_seed_y,
+                                                                          duplicate_seed),
+                           "workflow_duplicate_layer_seed_true_color")) {
+                return 1;
+            }
+            drawing_program_visual_apply_layer_duplicate_active(&workflow_ctx);
+            duplicate_layer_id = workflow_ctx.editor.active_layer_id;
+            if (duplicate_layer_id == 0u || duplicate_layer_id == new_layer_id) {
+                fprintf(stderr,
+                        "lifecycle_test: expected duplicate layer action to activate a new layer id old=%u new=%u\n",
+                        (unsigned)new_layer_id,
+                        (unsigned)duplicate_layer_id);
+                return 1;
+            }
+            if (!expect_ok(drawing_program_layer_raster_store_raster_sample_read(&workflow_ctx.layer_rasters,
+                                                                                 duplicate_layer_id,
+                                                                                 duplicate_seed_x,
+                                                                                 duplicate_seed_y,
+                                                                                 &duplicate_probe),
+                           "workflow_duplicate_layer_probe_true_color")) {
+                return 1;
+            }
+            if (duplicate_probe != duplicate_seed) {
+                fprintf(stderr,
+                        "lifecycle_test: expected duplicate layer to preserve true-color packed sample got=%u expected=%u\n",
+                        (unsigned)duplicate_probe,
+                        (unsigned)duplicate_seed);
+                return 1;
+            }
+            if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                               &workflow_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_DELETE_ACTIVE_LAYER),
+                           "workflow_duplicate_layer_delete_probe_copy")) {
+                return 1;
+            }
+            if (!expect_ok(drawing_program_runtime_orchestration_set_active_layer_id(&workflow_ctx, new_layer_id),
+                           "workflow_duplicate_layer_restore_original_active")) {
+                return 1;
+            }
+        }
         if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
                            &workflow_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_TOGGLE_ACTIVE_LAYER_LOCK),
                        "workflow_toggle_layer_lock_on")) {
             return 1;
         }
-        if (workflow_ctx.document.layers[1].locked != 1u) {
+        if (!expect_ok(drawing_program_runtime_orchestration_resolve_active_layer(&workflow_ctx,
+                                                                                   &resolved_active_layer_id,
+                                                                                   &resolved_active_layer_index,
+                                                                                   &resolved_active_visible,
+                                                                                   &resolved_active_locked),
+                       "workflow_resolve_active_layer_after_lock_on")) {
+            return 1;
+        }
+        if (resolved_active_layer_id != new_layer_id || resolved_active_locked != 1u) {
             fprintf(stderr, "lifecycle_test: expected active layer lock on after toggle\n");
             return 1;
         }
@@ -217,7 +283,15 @@ int drawing_program_lifecycle_run_selection_layer_suite(DrawingProgramAppContext
                        "workflow_toggle_layer_lock_off")) {
             return 1;
         }
-        if (workflow_ctx.document.layers[1].locked != 0u) {
+        if (!expect_ok(drawing_program_runtime_orchestration_resolve_active_layer(&workflow_ctx,
+                                                                                   &resolved_active_layer_id,
+                                                                                   &resolved_active_layer_index,
+                                                                                   &resolved_active_visible,
+                                                                                   &resolved_active_locked),
+                       "workflow_resolve_active_layer_after_lock_off")) {
+            return 1;
+        }
+        if (resolved_active_layer_id != new_layer_id || resolved_active_locked != 0u) {
             fprintf(stderr, "lifecycle_test: expected active layer lock off after second toggle\n");
             return 1;
         }

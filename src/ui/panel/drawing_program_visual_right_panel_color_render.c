@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 #include "drawing_program/drawing_program_color_model.h"
+#include "drawing_program/drawing_program_visual_panel_render_common.h"
 
 static void draw_color_swatch(SDL_Renderer *renderer, SDL_Rect rect, uint8_t r, uint8_t g, uint8_t b) {
     if (!renderer) {
@@ -52,6 +53,7 @@ void drawing_program_visual_render_right_panel_color_tab(SDL_Renderer *renderer,
                                                          SDL_Rect rect,
                                                          int y,
                                                          const DrawingProgramAppContext *ctx,
+                                                         const VisualPanelUiState *ui,
                                                          VisualPaneLayoutMetrics m,
                                                          VisualThemePalette p,
                                                          const DrawingProgramVisualPanelRenderHooks *hooks) {
@@ -61,9 +63,13 @@ void drawing_program_visual_render_right_panel_color_tab(SDL_Renderer *renderer,
     uint8_t swatch_g = 0u;
     uint8_t swatch_b = 0u;
     SDL_Rect swatch_rect;
+    SDL_Rect save_button_rect;
     SDL_Rect hue_rect;
     SDL_Rect sv_rect;
     SDL_Rect marker_rect;
+    int recent_label_y;
+    int hsv_line_y;
+    int preset_label_y;
     uint8_t recent_i;
     uint8_t palette_i;
 
@@ -73,23 +79,61 @@ void drawing_program_visual_render_right_panel_color_tab(SDL_Renderer *renderer,
 
     active_color_index = hooks->color_index_clamp(ctx->ui.active_color_index);
     swatch_rect = right_color_active_swatch_rect(rect, m);
+    save_button_rect = right_color_save_preset_button_rect(rect, m);
     hue_rect = right_color_hue_slider_rect(rect, m);
     sv_rect = right_color_sv_grid_rect(rect, m);
 
     hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, "COLOR SYSTEM", p.text_primary, m.body_scale);
     y += m.line_h;
-    hooks->color_rgb_from_index(active_color_index, &swatch_r, &swatch_g, &swatch_b);
     (void)snprintf(line,
                    sizeof(line),
-                   "ACTIVE SLOT C%u RGB %u,%u,%u",
-                   (unsigned)active_color_index + 1u,
-                   (unsigned)swatch_r,
-                   (unsigned)swatch_g,
-                   (unsigned)swatch_b);
+                   "ACTIVE PAINT  TARGET PRESET C%u",
+                   (unsigned)active_color_index + 1u);
     hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
+    y += m.line_h;
+    (void)snprintf(line,
+                   sizeof(line),
+                   "RGB %u,%u,%u",
+                   (unsigned)ctx->ui.active_paint_r,
+                   (unsigned)ctx->ui.active_paint_g,
+                   (unsigned)ctx->ui.active_paint_b);
+    hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
+    swatch_r = ctx->ui.active_paint_r;
+    swatch_g = ctx->ui.active_paint_g;
+    swatch_b = ctx->ui.active_paint_b;
     draw_color_swatch(renderer, swatch_rect, swatch_r, swatch_g, swatch_b);
     SDL_SetRenderDrawColor(renderer, p.button_border.r, p.button_border.g, p.button_border.b, p.button_border.a);
     (void)SDL_RenderDrawRect(renderer, &swatch_rect);
+    preset_label_y = swatch_rect.y + swatch_rect.h + m.section_gap;
+    hooks->color_rgb_from_index(active_color_index, &swatch_r, &swatch_g, &swatch_b);
+    (void)snprintf(line,
+                   sizeof(line),
+                   "PRESET RGB %u,%u,%u",
+                   (unsigned)swatch_r,
+                   (unsigned)swatch_g,
+                   (unsigned)swatch_b);
+    hooks->draw_bitmap_text(renderer,
+                            rect,
+                            rect.x + m.pad_x,
+                            preset_label_y,
+                            line,
+                            p.text_muted,
+                            m.body_scale);
+    (void)snprintf(line, sizeof(line), "SAVE PAINT TO C%u", (unsigned)active_color_index + 1u);
+    drawing_program_visual_panel_draw_tab_button(renderer,
+                                                 rect,
+                                                 save_button_rect,
+                                                 line,
+                                                 p.button_fill,
+                                                 p.button_fill_hover,
+                                                 p.button_fill_active,
+                                                 p.button_border,
+                                                 p.text_primary,
+                                                 m.body_scale,
+                                                 0,
+                                                 drawing_program_visual_panel_ui_hovered(ui, save_button_rect, hooks),
+                                                 hooks);
+    hsv_line_y = save_button_rect.y + save_button_rect.h + m.section_gap;
     (void)snprintf(line,
                    sizeof(line),
                    "H:%u S:%u V:%u",
@@ -98,17 +142,18 @@ void drawing_program_visual_render_right_panel_color_tab(SDL_Renderer *renderer,
                    (unsigned)ctx->ui.color_value);
     hooks->draw_bitmap_text(renderer,
                             rect,
-                            swatch_rect.x + 6,
-                            swatch_rect.y + swatch_rect.h - m.row_text_y - m.body_glyph_h,
+                            rect.x + m.pad_x,
+                            hsv_line_y,
                             line,
                             p.text_primary,
                             m.body_scale);
 
+    recent_label_y = hsv_line_y + m.line_h + m.section_gap;
     hooks->draw_bitmap_text(renderer,
                             rect,
                             rect.x + m.pad_x,
-                            swatch_rect.y + swatch_rect.h + m.section_gap,
-                            "RECENT COLORS",
+                            recent_label_y,
+                            "PAINT SLOTS",
                             p.text_primary,
                             m.body_scale);
     for (recent_i = 0u; recent_i < (uint8_t)DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT; ++recent_i) {
@@ -116,14 +161,18 @@ void drawing_program_visual_render_right_panel_color_tab(SDL_Renderer *renderer,
         uint8_t rr = ctx->ui.recent_color_rgb[recent_i][0];
         uint8_t rg = ctx->ui.recent_color_rgb[recent_i][1];
         uint8_t rb = ctx->ui.recent_color_rgb[recent_i][2];
-        if (recent_i >= ctx->ui.recent_color_count) {
-            rr = p.button_fill.r;
-            rg = p.button_fill.g;
-            rb = p.button_fill.b;
-        }
         draw_color_swatch(renderer, recent_rect, rr, rg, rb);
         SDL_SetRenderDrawColor(renderer, p.button_border.r, p.button_border.g, p.button_border.b, p.button_border.a);
         (void)SDL_RenderDrawRect(renderer, &recent_rect);
+        if (recent_i == ctx->ui.selected_recent_color_index) {
+            SDL_Rect inner = { recent_rect.x + 1, recent_rect.y + 1, recent_rect.w - 2, recent_rect.h - 2 };
+            SDL_SetRenderDrawColor(renderer,
+                                   p.accent_primary.r,
+                                   p.accent_primary.g,
+                                   p.accent_primary.b,
+                                   p.accent_primary.a);
+            (void)SDL_RenderDrawRect(renderer, &inner);
+        }
     }
 
     hooks->draw_bitmap_text(renderer,
@@ -164,7 +213,7 @@ void drawing_program_visual_render_right_panel_color_tab(SDL_Renderer *renderer,
                             rect,
                             rect.x + m.pad_x,
                             sv_rect.y + sv_rect.h + m.section_gap,
-                            "PALETTE SLOTS",
+                            "PRESET SWATCHES",
                             p.text_primary,
                             m.body_scale);
     for (palette_i = 0u; palette_i < (uint8_t)DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT; ++palette_i) {
@@ -174,19 +223,20 @@ void drawing_program_visual_render_right_panel_color_tab(SDL_Renderer *renderer,
         SDL_SetRenderDrawColor(renderer, p.button_border.r, p.button_border.g, p.button_border.b, p.button_border.a);
         (void)SDL_RenderDrawRect(renderer, &palette_rect);
         if (palette_i == active_color_index) {
-            SDL_Rect inner = { palette_rect.x + 2, palette_rect.y + 2, palette_rect.w - 4, palette_rect.h - 4 };
             SDL_SetRenderDrawColor(renderer,
                                    p.accent_primary.r,
                                    p.accent_primary.g,
                                    p.accent_primary.b,
                                    p.accent_primary.a);
+            (void)SDL_RenderDrawRect(renderer, &palette_rect);
+            SDL_Rect inner = { palette_rect.x + 1, palette_rect.y + 1, palette_rect.w - 2, palette_rect.h - 2 };
             (void)SDL_RenderDrawRect(renderer, &inner);
         }
         (void)snprintf(line, sizeof(line), "C%u", (unsigned)palette_i + 1u);
         hooks->draw_bitmap_text(renderer,
                                 rect,
                                 palette_rect.x + 4,
-                                palette_rect.y + m.row_text_y,
+                                palette_rect.y + ((palette_rect.h - m.body_glyph_h) / 2),
                                 line,
                                 p.text_primary,
                                 m.body_scale);

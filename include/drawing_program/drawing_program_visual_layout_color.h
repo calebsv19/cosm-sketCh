@@ -12,6 +12,7 @@ extern "C" {
 
 int right_color_content_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m);
 SDL_Rect right_color_active_swatch_rect(SDL_Rect rect, VisualPaneLayoutMetrics m);
+SDL_Rect right_color_save_preset_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m);
 SDL_Rect right_color_recent_swatch_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, uint8_t recent_index);
 SDL_Rect right_color_hue_slider_rect(SDL_Rect rect, VisualPaneLayoutMetrics m);
 SDL_Rect right_color_sv_grid_rect(SDL_Rect rect, VisualPaneLayoutMetrics m);

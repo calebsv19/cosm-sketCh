@@ -47,8 +47,8 @@ void drawing_program_visual_apply_layer_duplicate_active(DrawingProgramAppContex
     uint32_t source_index = 0u;
     uint32_t source_layer_id = 0u;
     uint32_t source_opacity = 100u;
-    uint8_t *copied_samples = 0;
-    const uint8_t *source_samples = 0;
+    DrawingProgramRasterSample *copied_samples = 0;
+    const DrawingProgramRasterSample *source_samples = 0;
     uint32_t source_sample_count = 0u;
     char source_name[DRAWING_PROGRAM_LAYER_NAME_CAPACITY];
     CoreResult result;
@@ -77,9 +77,12 @@ void drawing_program_visual_apply_layer_duplicate_active(DrawingProgramAppContex
     if (source_samples &&
         source_sample_count == ctx->document.raster_sample_count &&
         source_sample_count > 0u) {
-        copied_samples = (uint8_t *)malloc((size_t)source_sample_count);
+        copied_samples =
+            (DrawingProgramRasterSample *)malloc((size_t)source_sample_count * sizeof(*copied_samples));
         if (copied_samples) {
-            memcpy(copied_samples, source_samples, (size_t)source_sample_count);
+            memcpy(copied_samples,
+                   source_samples,
+                   (size_t)source_sample_count * sizeof(*copied_samples));
         }
     }
     drawing_program_visual_apply_workflow_control_if_valid(ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_ADD_LAYER);

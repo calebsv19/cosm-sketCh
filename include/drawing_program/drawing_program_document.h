@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "core_base.h"
+#include "drawing_program/drawing_program_color_model.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -12,6 +13,8 @@ extern "C" {
 #define DRAWING_PROGRAM_MAX_LAYERS 16u
 #define DRAWING_PROGRAM_LAYER_NAME_CAPACITY 32u
 #define DRAWING_PROGRAM_MAX_RASTER_SAMPLES 1048576u
+#define DRAWING_PROGRAM_DEFAULT_LOGICAL_WIDTH 1024u
+#define DRAWING_PROGRAM_DEFAULT_LOGICAL_HEIGHT 1024u
 
 typedef struct DrawingProgramLayer {
     uint32_t layer_id;
@@ -31,7 +34,7 @@ typedef struct DrawingProgramDocument {
     uint32_t raster_height;
     uint32_t raster_sample_count;
     DrawingProgramLayer layers[DRAWING_PROGRAM_MAX_LAYERS];
-    uint8_t raster_samples[DRAWING_PROGRAM_MAX_RASTER_SAMPLES];
+    DrawingProgramRasterSample raster_samples[DRAWING_PROGRAM_MAX_RASTER_SAMPLES];
 } DrawingProgramDocument;
 
 CoreResult drawing_program_document_init_default(DrawingProgramDocument *document);
@@ -64,11 +67,15 @@ CoreResult drawing_program_document_sample_read(const DrawingProgramDocument *do
                                                 uint32_t sample_x,
                                                 uint32_t sample_y,
                                                 uint8_t *out_value);
+CoreResult drawing_program_document_raster_sample_read(const DrawingProgramDocument *document,
+                                                       uint32_t sample_x,
+                                                       uint32_t sample_y,
+                                                DrawingProgramRasterSample *out_value);
 CoreResult drawing_program_document_sample_write(DrawingProgramDocument *document,
                                                  uint32_t sample_x,
                                                  uint32_t sample_y,
-                                                 uint8_t value,
-                                                 uint8_t *out_previous_value);
+                                                 DrawingProgramRasterSample value,
+                                                 DrawingProgramRasterSample *out_previous_value);
 CoreResult drawing_program_document_upgrade_legacy_checker_seed(DrawingProgramDocument *document,
                                                                 uint8_t *out_upgraded);
 
