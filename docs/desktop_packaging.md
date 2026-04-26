@@ -53,6 +53,7 @@ Last updated: 2026-04-25
 
 - package step copies fonts into:
   - `Contents/Resources/shared/assets/fonts/`
+- package step now sources those shared fonts from vendored `third_party/codework_shared/assets/fonts/` by default, with workspace-linked shared assets used only when `SHARED_MODE=workspace-linked`
 - default local icon store:
   - `drawing_program/tools/packaging/macos/local_app_icon/AppIcon.icns`
   - `drawing_program/tools/packaging/macos/local_app_icon/AppIcon.iconset`

@@ -1,8 +1,13 @@
 # Current Truth
 
-Last updated: 2026-04-24
+Last updated: 2026-04-25
 
 - Canonical input map is documented in `docs/keybind_reference.md`.
+- Shared host + font baseline cleanup is now implemented:
+  - `drawing_program` now defaults to vendored `third_party/codework_shared` module and font-asset roots instead of live `../shared` paths
+  - `shared-subtree-prepare` now routes through `../bin/update_shared_subtrees.sh` rather than rsyncing from the workspace `shared/` tree
+  - the centralized SDL text lane keeps the shared `ide` font baseline
+  - runtime font-path fallback no longer prefers workspace-local `../shared/assets/fonts`
 - Phase 19 `S1` color-system scaffold is now implemented:
   - right panel now exposes top-level `CANVAS | LAYER | COLOR` slot tabs
   - `CANVAS` preserves the existing canvas/view/palette controls for now
@@ -1024,6 +1029,7 @@ Last updated: 2026-04-24
   - `make -C drawing_program shared-mode`
   - `make -C drawing_program shared-subtree-check`
   - `make -C drawing_program shared-subtree-prepare`
+    - now routes through `../bin/update_shared_subtrees.sh` instead of local rsync-from-`../shared`
 - True-color migration status:
   - retained-object storage now uses explicit packed stroke/fill samples instead of palette-slot ids
   - shape/path object creation and object color-targeting now apply the active paint sample directly

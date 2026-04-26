@@ -159,10 +159,8 @@ static int visual_resolve_font_role_path(const char *raw, char *out_path, size_t
     const char *base = 0;
     const char *runtime_dir = 0;
     char adjusted[PATH_MAX];
-    char shared_path[PATH_MAX];
     char third_party_path[PATH_MAX];
     char app_resource_path[PATH_MAX];
-    char parent_resource_path[PATH_MAX];
     char runtime_shared_path[PATH_MAX];
     if (!raw || raw[0] == '\0') {
         return 0;
@@ -179,20 +177,12 @@ static int visual_resolve_font_role_path(const char *raw, char *out_path, size_t
                 return 1;
             }
         }
-        snprintf(shared_path, sizeof(shared_path), "shared/assets/fonts/%s", base);
-        if (visual_resolve_font_path_candidate(shared_path, out_path, out_cap)) {
-            return 1;
-        }
         snprintf(third_party_path, sizeof(third_party_path), "third_party/codework_shared/assets/fonts/%s", base);
         if (visual_resolve_font_path_candidate(third_party_path, out_path, out_cap)) {
             return 1;
         }
         snprintf(app_resource_path, sizeof(app_resource_path), "shared/assets/fonts/%s", base);
         if (visual_resolve_font_path_candidate(app_resource_path, out_path, out_cap)) {
-            return 1;
-        }
-        snprintf(parent_resource_path, sizeof(parent_resource_path), "../shared/assets/fonts/%s", base);
-        if (visual_resolve_font_path_candidate(parent_resource_path, out_path, out_cap)) {
             return 1;
         }
         runtime_dir = getenv("DRAWING_PROGRAM_RUNTIME_DIR");

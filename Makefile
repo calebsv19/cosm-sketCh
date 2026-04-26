@@ -7,24 +7,26 @@ VERSION_FILE := VERSION
 
 CC := cc
 PKG_CONFIG ?= pkg-config
-CORE_BASE_DIR ?= ../shared/core/core_base
-CORE_THEME_DIR ?= ../shared/core/core_theme
-CORE_FONT_DIR ?= ../shared/core/core_font
-CORE_PACK_DIR ?= ../shared/core/core_pack
-CORE_PANE_DIR ?= ../shared/core/core_pane
-CORE_LAYOUT_DIR ?= ../shared/core/core_layout
-CORE_PANE_MODULE_DIR ?= ../shared/core/core_pane_module
 SHARED_VENDOR_DIR ?= third_party/codework_shared
-SHARED_MODE ?= workspace-linked
+SHARED_WORKSPACE_DIR ?= ../shared
+SHARED_MODE ?= vendored-subtree
 
-ifeq ($(SHARED_MODE),vendored-subtree)
-CORE_BASE_DIR := $(SHARED_VENDOR_DIR)/core/core_base
-CORE_THEME_DIR := $(SHARED_VENDOR_DIR)/core/core_theme
-CORE_FONT_DIR := $(SHARED_VENDOR_DIR)/core/core_font
-CORE_PACK_DIR := $(SHARED_VENDOR_DIR)/core/core_pack
-CORE_PANE_DIR := $(SHARED_VENDOR_DIR)/core/core_pane
-CORE_LAYOUT_DIR := $(SHARED_VENDOR_DIR)/core/core_layout
-CORE_PANE_MODULE_DIR := $(SHARED_VENDOR_DIR)/core/core_pane_module
+CORE_BASE_DIR ?= $(SHARED_VENDOR_DIR)/core/core_base
+CORE_THEME_DIR ?= $(SHARED_VENDOR_DIR)/core/core_theme
+CORE_FONT_DIR ?= $(SHARED_VENDOR_DIR)/core/core_font
+CORE_PACK_DIR ?= $(SHARED_VENDOR_DIR)/core/core_pack
+CORE_PANE_DIR ?= $(SHARED_VENDOR_DIR)/core/core_pane
+CORE_LAYOUT_DIR ?= $(SHARED_VENDOR_DIR)/core/core_layout
+CORE_PANE_MODULE_DIR ?= $(SHARED_VENDOR_DIR)/core/core_pane_module
+
+ifeq ($(SHARED_MODE),workspace-linked)
+CORE_BASE_DIR := $(SHARED_WORKSPACE_DIR)/core/core_base
+CORE_THEME_DIR := $(SHARED_WORKSPACE_DIR)/core/core_theme
+CORE_FONT_DIR := $(SHARED_WORKSPACE_DIR)/core/core_font
+CORE_PACK_DIR := $(SHARED_WORKSPACE_DIR)/core/core_pack
+CORE_PANE_DIR := $(SHARED_WORKSPACE_DIR)/core/core_pane
+CORE_LAYOUT_DIR := $(SHARED_WORKSPACE_DIR)/core/core_layout
+CORE_PANE_MODULE_DIR := $(SHARED_WORKSPACE_DIR)/core/core_pane_module
 endif
 
 SDL_CFLAGS := $(shell $(PKG_CONFIG) --cflags sdl2 2>/dev/null)
@@ -349,8 +351,8 @@ DESKTOP_APP_DIR ?= $(HOME)/Desktop/$(PACKAGE_APP_NAME)
 EXPORT_PRESET ?= data/last_session.pack
 EXPORT_JSON ?= /tmp/drawing_program_snapshot_debug.json
 WORKSPACE_PRESET ?= ../workspace_sandbox/data/presets/sketch_layout_v1.pack
-PACKAGE_FONTS_SRC_PRIMARY := ../shared/assets/fonts
-PACKAGE_FONTS_SRC_VENDOR := third_party/codework_shared/assets/fonts
+PACKAGE_FONTS_SRC_PRIMARY := $(SHARED_VENDOR_DIR)/assets/fonts
+PACKAGE_FONTS_SRC_WORKSPACE := $(SHARED_WORKSPACE_DIR)/assets/fonts
 
 .PHONY: all build clean run run-headless test visual-harness identity print-identity \
 	export-snapshot-json snapshot-bridge-check snapshot-bridge-import \
@@ -443,13 +445,9 @@ shared-subtree-check:
 	fi
 
 shared-subtree-prepare:
-	@mkdir -p "$(SHARED_VENDOR_DIR)"
-	@rsync -a --delete "../shared/" "$(SHARED_VENDOR_DIR)/"
-	@if [ -d "../shared/.git" ]; then \
-		git -C "../shared" rev-parse HEAD > "$(SHARED_VENDOR_DIR)/.codework_shared_source_commit"; \
-	fi
+	@../bin/update_shared_subtrees.sh --update --only drawing_program --targets ../bin/shared_subtree_targets.tsv
 	@echo "Prepared vendored shared snapshot at $(SHARED_VENDOR_DIR)"
-	@echo "To build against vendored shared: make SHARED_MODE=vendored-subtree"
+	@echo "Default host mode is vendored-subtree; use SHARED_MODE=workspace-linked only for bounded local debugging"
 
 clean:
 	rm -rf "$(BUILD_DIR)"
@@ -473,8 +471,8 @@ package-desktop: $(APP_TARGET)
 	@chmod +x "$(PACKAGE_MACOS_DIR)/$(APP_BIN)" "$(PACKAGE_MACOS_DIR)/$(LAUNCHER_BIN)"
 	@if [ -d "$(PACKAGE_FONTS_SRC_PRIMARY)" ]; then \
 		rsync -a "$(PACKAGE_FONTS_SRC_PRIMARY)"/ "$(PACKAGE_SHARED_FONTS_DIR)"/; \
-	elif [ -d "$(PACKAGE_FONTS_SRC_VENDOR)" ]; then \
-		rsync -a "$(PACKAGE_FONTS_SRC_VENDOR)"/ "$(PACKAGE_SHARED_FONTS_DIR)"/; \
+	elif [ -d "$(PACKAGE_FONTS_SRC_WORKSPACE)" ]; then \
+		rsync -a "$(PACKAGE_FONTS_SRC_WORKSPACE)"/ "$(PACKAGE_SHARED_FONTS_DIR)"/; \
 	else \
 		echo "warning: no font source dir found for packaging"; \
 	fi
