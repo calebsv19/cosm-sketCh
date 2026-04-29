@@ -1039,8 +1039,10 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
     CorePackChunkInfo object_chunk;
     DrawingProgramSnapshotV1 *payload = 0;
     CoreResult result;
+    CoreResult shell_result;
     uint8_t upgraded_legacy_palette_samples = 0u;
     uint8_t loaded_current_shell = 0u;
+    uint8_t current_shell_format_incompatible = 0u;
     uint8_t *layer_chunk_data = 0;
     uint8_t *object_chunk_data = 0;
     if (!ctx || !path) {
@@ -1066,15 +1068,23 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
         }
         return result;
     }
-    result = drawing_program_snapshot_shell_load_current(ctx, &reader, &loaded_current_shell);
-    if (result.code != CORE_OK) {
+    shell_result = drawing_program_snapshot_shell_load_current(ctx, &reader, &loaded_current_shell);
+    if (shell_result.code == CORE_ERR_FORMAT) {
+        current_shell_format_incompatible = 1u;
+        loaded_current_shell = 0u;
+    } else if (shell_result.code != CORE_OK) {
         free(payload);
         (void)core_pack_reader_close(&reader);
-        return result;
+        return shell_result;
     }
     if (!loaded_current_shell) {
         result = core_pack_reader_find_chunk(&reader, "DPS2", 0u, &chunk);
         if (result.code != CORE_OK) {
+            if (current_shell_format_incompatible) {
+                free(payload);
+                (void)core_pack_reader_close(&reader);
+                return shell_result;
+            }
             free(payload);
             (void)core_pack_reader_close(&reader);
             return result;

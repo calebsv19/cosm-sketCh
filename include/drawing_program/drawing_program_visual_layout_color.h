@@ -3,8 +3,7 @@
 
 #include <stdint.h>
 #include <SDL2/SDL.h>
-
-typedef struct VisualPaneLayoutMetrics VisualPaneLayoutMetrics;
+#include "drawing_program/drawing_program_visual_layout.h"
 
 #ifdef __cplusplus
 extern "C" {

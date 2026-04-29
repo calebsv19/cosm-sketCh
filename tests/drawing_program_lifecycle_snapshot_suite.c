@@ -427,6 +427,124 @@ int drawing_program_lifecycle_run_snapshot_suite(DrawingProgramAppContext *ctx) 
         (void)unlink(truncated_pack_path);
     }
     {
+        static DrawingProgramAppContext dps3_fallback_save_ctx;
+        static DrawingProgramAppContext dps3_fallback_load_ctx;
+        DrawingProgramObjectRecord seed_object;
+        const DrawingProgramObjectRecord *loaded_object = 0;
+        char arg0[] = "drawing_program_legacy_dps3_chunk_fallback";
+        char arg1[] = "--headless";
+        char arg2[] = "--smoke-frames";
+        char arg3[] = "1";
+        char arg4[] = "--preset";
+        char arg5[] = "/tmp/drawing_program_legacy_dps3_chunk_fallback.pack";
+        char *argv[] = { arg0, arg1, arg2, arg3, arg4, arg5, 0 };
+        const char *truncated_pack_path = "/tmp/drawing_program_legacy_dps3_chunk_fallback_truncated.pack";
+        uint32_t sample_x = 19u;
+        uint32_t sample_y = 11u;
+        uint8_t sample_value = 143u;
+        uint8_t loaded_sample = 0u;
+        uint32_t object_id = 0u;
+        (void)unlink(arg5);
+        (void)unlink(truncated_pack_path);
+        if (!expect_ok(drawing_program_app_bootstrap(&dps3_fallback_save_ctx, 6, argv),
+                       "legacy_dps3_fallback_bootstrap_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_config_load(&dps3_fallback_save_ctx), "legacy_dps3_fallback_config_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_state_seed(&dps3_fallback_save_ctx), "legacy_dps3_fallback_state_seed_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_subsystems_init(&dps3_fallback_save_ctx),
+                       "legacy_dps3_fallback_subsystems_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_runtime_start(&dps3_fallback_save_ctx), "legacy_dps3_fallback_runtime_start_save")) {
+            return 1;
+        }
+        dps3_fallback_save_ctx.ui.right_panel_slot = 3u;
+        dps3_fallback_save_ctx.ui.active_color_index = 4u;
+        dps3_fallback_save_ctx.editor.active_tool = DRAWING_PROGRAM_TOOL_BRUSH;
+        if (!expect_ok(drawing_program_document_sample_write(&dps3_fallback_save_ctx.document,
+                                                             sample_x,
+                                                             sample_y,
+                                                             sample_value,
+                                                             0),
+                       "legacy_dps3_fallback_seed_sample")) {
+            return 1;
+        }
+        memset(&seed_object, 0, sizeof(seed_object));
+        seed_object.type = (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_RECT;
+        seed_object.layer_id = dps3_fallback_save_ctx.editor.active_layer_id;
+        seed_object.origin_x = 7;
+        seed_object.origin_y = 9;
+        seed_object.width = 14u;
+        seed_object.height = 12u;
+        seed_object.visible = 1u;
+        seed_object.stroke_width = 1u;
+        seed_object.style_mode = 2u;
+        seed_object.stroke_color_value = drawing_program_color_value_from_rgb(0u, 0u, 255u);
+        seed_object.fill_color_value = drawing_program_color_value_from_rgb(255u, 255u, 0u);
+        if (!expect_ok(drawing_program_object_store_add(&dps3_fallback_save_ctx.object_store, &seed_object, &object_id),
+                       "legacy_dps3_fallback_seed_object")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_snapshot_save(&dps3_fallback_save_ctx, arg5), "legacy_dps3_fallback_snapshot_save")) {
+            return 1;
+        }
+        if (!write_snapshot_with_truncated_dps3_shell(arg5, truncated_pack_path)) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_bootstrap(&dps3_fallback_load_ctx, 6, argv),
+                       "legacy_dps3_fallback_bootstrap_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_config_load(&dps3_fallback_load_ctx), "legacy_dps3_fallback_config_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_state_seed(&dps3_fallback_load_ctx), "legacy_dps3_fallback_state_seed_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_snapshot_load(&dps3_fallback_load_ctx, truncated_pack_path),
+                       "legacy_dps3_fallback_snapshot_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&dps3_fallback_load_ctx.document,
+                                                            sample_x,
+                                                            sample_y,
+                                                            &loaded_sample),
+                       "legacy_dps3_fallback_loaded_sample")) {
+            return 1;
+        }
+        loaded_object = drawing_program_object_store_get_by_id(&dps3_fallback_load_ctx.object_store, object_id);
+        if (loaded_sample != sample_value ||
+            !loaded_object ||
+            dps3_fallback_load_ctx.ui.right_panel_slot != 3u ||
+            dps3_fallback_load_ctx.ui.active_color_index != 4u) {
+            fprintf(stderr,
+                    "lifecycle_test: expected truncated DPS3 fallback load to preserve sample=%u object=%u slot=%u color=%u got sample=%u object=%u slot=%u color=%u tool=%u\n",
+                    (unsigned)sample_value,
+                    1u,
+                    3u,
+                    4u,
+                    (unsigned)loaded_sample,
+                    loaded_object ? 1u : 0u,
+                    (unsigned)dps3_fallback_load_ctx.ui.right_panel_slot,
+                    (unsigned)dps3_fallback_load_ctx.ui.active_color_index,
+                    (unsigned)dps3_fallback_load_ctx.editor.active_tool);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_shutdown(&dps3_fallback_save_ctx), "legacy_dps3_fallback_shutdown_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_shutdown(&dps3_fallback_load_ctx), "legacy_dps3_fallback_shutdown_load")) {
+            return 1;
+        }
+        (void)unlink(arg5);
+        (void)unlink(truncated_pack_path);
+    }
+    {
         static DrawingProgramAppContext layer_save_ctx;
         static DrawingProgramAppContext layer_load_ctx;
         static DrawingProgramAppContext legacy_load_ctx;

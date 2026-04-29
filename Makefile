@@ -5,7 +5,11 @@ LAUNCHER_BIN := sketch-launcher
 APP_BIN := drawing-program-bin
 VERSION_FILE := VERSION
 
-CC := cc
+HOST_CC ?= cc
+FISICS_CC ?= /Users/calebsv/Desktop/CodeWork/fisiCs/fisics
+BUILD_TOOLCHAIN ?= clang
+PACKAGE_TOOLCHAIN ?= $(BUILD_TOOLCHAIN)
+TEST_TOOLCHAIN := clang
 PKG_CONFIG ?= pkg-config
 SHARED_VENDOR_DIR ?= third_party/codework_shared
 SHARED_WORKSPACE_DIR ?= ../shared
@@ -102,8 +106,27 @@ LDLIBS := -lm
 APP_LDLIBS := $(LDLIBS) $(SDL_LIBS) $(SDL_TTF_LIBS) $(PNG_LIBS)
 
 BUILD_DIR := build
-OBJ_DIR := $(BUILD_DIR)/obj
-BIN_DIR := $(BUILD_DIR)/bin
+HOST_TEST_DIR := $(BUILD_DIR)/host/tests
+TEST_OBJ_DIR := $(HOST_TEST_DIR)/obj
+TEST_BIN_DIR := $(HOST_TEST_DIR)/bin
+PROGRAM_BUILD_DIR := $(BUILD_DIR)/toolchains/$(BUILD_TOOLCHAIN)
+PROGRAM_OBJ_DIR := $(PROGRAM_BUILD_DIR)/obj
+PROGRAM_BIN_DIR := $(PROGRAM_BUILD_DIR)/bin
+PROGRAM_CC_STAMP := $(PROGRAM_BUILD_DIR)/compiler.stamp
+
+ifeq ($(BUILD_TOOLCHAIN),clang)
+PROGRAM_CC := $(HOST_CC)
+PROGRAM_CC_DEP :=
+else ifeq ($(BUILD_TOOLCHAIN),fisics)
+PROGRAM_CC := $(FISICS_CC)
+PROGRAM_CC_DEP := $(FISICS_CC)
+else
+$(error Unsupported BUILD_TOOLCHAIN '$(BUILD_TOOLCHAIN)'; expected clang or fisics)
+endif
+
+ifneq ($(filter $(PACKAGE_TOOLCHAIN),clang fisics),$(PACKAGE_TOOLCHAIN))
+$(error Unsupported PACKAGE_TOOLCHAIN '$(PACKAGE_TOOLCHAIN)'; expected clang or fisics)
+endif
 
 APP_LOCAL_SRCS := \
 	src/domain/drawing_program_color_model.c \
@@ -312,13 +335,18 @@ TEST_LOCAL_SRCS := \
 	tests/drawing_program_lifecycle_test_support.c \
 	tests/drawing_program_lifecycle_test.c
 
-APP_OBJS := $(APP_LOCAL_SRCS:%=$(OBJ_DIR)/%.o)
-HEADLESS_OBJS := $(HEADLESS_LOCAL_SRCS:%=$(OBJ_DIR)/%.o)
-TEST_OBJS := $(TEST_LOCAL_SRCS:%=$(OBJ_DIR)/%.o)
+APP_OBJS := $(APP_LOCAL_SRCS:%=$(PROGRAM_OBJ_DIR)/%.o)
+HEADLESS_OBJS := $(HEADLESS_LOCAL_SRCS:%=$(PROGRAM_OBJ_DIR)/%.o)
+TEST_OBJS := $(TEST_LOCAL_SRCS:%=$(TEST_OBJ_DIR)/%.o)
 
-APP_TARGET := $(BIN_DIR)/$(APP_BIN)
-HEADLESS_TARGET := $(BIN_DIR)/drawing-program-headless
-TEST_TARGET := $(BIN_DIR)/drawing-program-test
+define app_bin_for
+$(BUILD_DIR)/toolchains/$(1)/bin/$(APP_BIN)
+endef
+
+APP_TARGET := $(PROGRAM_BIN_DIR)/$(APP_BIN)
+HEADLESS_TARGET := $(PROGRAM_BIN_DIR)/drawing-program-headless
+TEST_TARGET := $(TEST_BIN_DIR)/drawing-program-test
+PACKAGE_SOURCE_BIN := $(call app_bin_for,$(PACKAGE_TOOLCHAIN))
 
 CORE_BASE_LIB := $(CORE_BASE_DIR)/build/libcore_base.a
 CORE_THEME_LIB := $(CORE_THEME_DIR)/build/libcore_theme.a
@@ -366,41 +394,55 @@ all: build
 build: $(APP_TARGET) $(HEADLESS_TARGET)
 
 $(CORE_BASE_LIB):
-	$(MAKE) -C $(CORE_BASE_DIR)
+	$(MAKE) -C $(CORE_BASE_DIR) CC="$(HOST_CC)"
 
 $(CORE_PACK_LIB): $(CORE_BASE_LIB)
-	$(MAKE) -C $(CORE_PACK_DIR)
+	$(MAKE) -C $(CORE_PACK_DIR) CC="$(HOST_CC)"
 
 $(CORE_THEME_LIB): $(CORE_BASE_LIB)
-	$(MAKE) -C $(CORE_THEME_DIR)
+	$(MAKE) -C $(CORE_THEME_DIR) CC="$(HOST_CC)"
 
 $(CORE_FONT_LIB): $(CORE_BASE_LIB)
-	$(MAKE) -C $(CORE_FONT_DIR)
+	$(MAKE) -C $(CORE_FONT_DIR) CC="$(HOST_CC)"
 
 $(CORE_PANE_LIB):
-	$(MAKE) -C $(CORE_PANE_DIR)
+	$(MAKE) -C $(CORE_PANE_DIR) CC="$(HOST_CC)"
 
 $(CORE_LAYOUT_LIB):
-	$(MAKE) -C $(CORE_LAYOUT_DIR)
+	$(MAKE) -C $(CORE_LAYOUT_DIR) CC="$(HOST_CC)"
 
 $(CORE_PANE_MODULE_LIB):
-	$(MAKE) -C $(CORE_PANE_MODULE_DIR)
+	$(MAKE) -C $(CORE_PANE_MODULE_DIR) CC="$(HOST_CC)"
 
-$(OBJ_DIR)/%.c.o: %.c
+$(PROGRAM_BUILD_DIR) $(PROGRAM_BIN_DIR) $(HOST_TEST_DIR) $(TEST_OBJ_DIR) $(TEST_BIN_DIR):
+	@mkdir -p "$@"
+
+$(PROGRAM_CC_STAMP): makefile $(PROGRAM_CC_DEP) | $(PROGRAM_BUILD_DIR)
+	@printf '%s\n' "$(PROGRAM_CC)" > "$@.tmp"
+	@cmp -s "$@.tmp" "$@" 2>/dev/null || mv "$@.tmp" "$@"
+	@rm -f "$@.tmp"
+
+$(APP_OBJS) $(HEADLESS_OBJS): $(PROGRAM_CC_STAMP)
+
+$(PROGRAM_OBJ_DIR)/%.c.o: %.c $(PROGRAM_CC_STAMP)
 	@mkdir -p "$(dir $@)"
-	$(CC) $(CFLAGS) -c "$<" -o "$@"
+	$(PROGRAM_CC) $(CFLAGS) -c "$<" -o "$@"
+
+$(TEST_OBJ_DIR)/%.c.o: %.c
+	@mkdir -p "$(dir $@)"
+	$(HOST_CC) $(CFLAGS) -c "$<" -o "$@"
 
 $(APP_TARGET): $(APP_OBJS) $(SHARED_LIBS)
-	@mkdir -p "$(BIN_DIR)"
-	$(CC) $(APP_OBJS) $(SHARED_LIBS) -o "$@" $(APP_LDLIBS)
+	@mkdir -p "$(dir $@)"
+	$(HOST_CC) $(APP_OBJS) $(SHARED_LIBS) -o "$@" $(APP_LDLIBS)
 
 $(HEADLESS_TARGET): $(HEADLESS_OBJS) $(SHARED_LIBS)
-	@mkdir -p "$(BIN_DIR)"
-	$(CC) $(HEADLESS_OBJS) $(SHARED_LIBS) -o "$@" $(LDLIBS) $(PNG_LIBS)
+	@mkdir -p "$(dir $@)"
+	$(HOST_CC) $(HEADLESS_OBJS) $(SHARED_LIBS) -o "$@" $(LDLIBS) $(PNG_LIBS)
 
 $(TEST_TARGET): $(TEST_OBJS) $(SHARED_LIBS)
-	@mkdir -p "$(BIN_DIR)"
-	$(CC) $(TEST_OBJS) $(SHARED_LIBS) -o "$@" $(APP_LDLIBS)
+	@mkdir -p "$(dir $@)"
+	$(HOST_CC) $(TEST_OBJS) $(SHARED_LIBS) -o "$@" $(APP_LDLIBS)
 
 run: $(APP_TARGET)
 	"$(APP_TARGET)"
@@ -462,11 +504,12 @@ print-identity:
 	@echo "APP_BIN=$(APP_BIN)"
 	@echo "VERSION=$$(cat $(VERSION_FILE))"
 
-package-desktop: $(APP_TARGET)
+package-desktop:
+	@$(MAKE) BUILD_TOOLCHAIN="$(PACKAGE_TOOLCHAIN)" "$(PACKAGE_SOURCE_BIN)"
 	@rm -rf "$(PACKAGE_APP_DIR)"
 	@mkdir -p "$(PACKAGE_MACOS_DIR)" "$(PACKAGE_RESOURCES_DIR)" "$(PACKAGE_FRAMEWORKS_DIR)" "$(PACKAGE_SHARED_FONTS_DIR)"
 	@cp "$(PACKAGE_INFO_PLIST_SRC)" "$(PACKAGE_CONTENTS_DIR)/Info.plist"
-	@cp "$(APP_TARGET)" "$(PACKAGE_MACOS_DIR)/$(APP_BIN)"
+	@cp "$(PACKAGE_SOURCE_BIN)" "$(PACKAGE_MACOS_DIR)/$(APP_BIN)"
 	@cp "$(PACKAGE_LAUNCHER_SRC)" "$(PACKAGE_MACOS_DIR)/$(LAUNCHER_BIN)"
 	@chmod +x "$(PACKAGE_MACOS_DIR)/$(APP_BIN)" "$(PACKAGE_MACOS_DIR)/$(LAUNCHER_BIN)"
 	@if [ -d "$(PACKAGE_FONTS_SRC_PRIMARY)" ]; then \
