@@ -25,6 +25,7 @@ Scope: current implemented runtime controls (`sdl-debug` lane)
 - `Cmd/Ctrl +`: increase UI font zoom step
 - `Cmd/Ctrl -`: decrease UI font zoom step
 - `Cmd/Ctrl 0`: reset UI font zoom step
+- `Cmd/Ctrl + Shift + 0`: fit canvas to viewport
 
 ## Selection + Clipboard
 - `Cmd/Ctrl+A`: select all non-background content
@@ -64,10 +65,10 @@ Scope: current implemented runtime controls (`sdl-debug` lane)
 - `Arrow` (`MOVE`, with active selection): nudge by 1 sample
 - `Shift+Arrow` (`MOVE`, with active selection): nudge by 10 samples
 - `Right drag` over canvas: pan viewport
-- `Mouse wheel` over canvas: zoom viewport
+- `Mouse wheel` over canvas: cursor-anchor zoom viewport
 
 ## Diagnostics / Debug Harness
-- `Cmd/Ctrl+Shift+1..4`: center-pane debug module swap probe
+- `Cmd/Ctrl+Alt/Option+Shift+1..4`: center-pane debug module swap probe
 - `Space`: stamp center sample (workflow seed action)
 
 ## Notes

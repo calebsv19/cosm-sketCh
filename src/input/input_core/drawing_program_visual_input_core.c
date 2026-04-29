@@ -1,7 +1,20 @@
 #include "drawing_program/drawing_program_visual_input_core.h"
 
+#include <math.h>
+
+#include "drawing_program/drawing_program_viewport.h"
+
 static int point_in_rect(SDL_Rect r, int x, int y) {
     return x >= r.x && y >= r.y && x < (r.x + r.w) && y < (r.y + r.h);
+}
+
+static DrawingProgramViewportFrame drawing_program_viewport_frame_from_rect(SDL_Rect rect) {
+    DrawingProgramViewportFrame frame;
+    frame.x = (float)rect.x;
+    frame.y = (float)rect.y;
+    frame.width = (float)rect.w;
+    frame.height = (float)rect.h;
+    return frame;
 }
 
 static void map_input_to_render_coords(SDL_Window *window,
@@ -98,7 +111,7 @@ void drawing_program_visual_input_apply_mouse_wheel_zoom(DrawingProgramAppContex
                                                          const SDL_Event *event) {
     int mx = 0;
     int my = 0;
-    float next_zoom;
+    float zoom_factor;
     if (!ctx || !event || event->type != SDL_MOUSEWHEEL || !has_canvas_pane) {
         return;
     }
@@ -107,14 +120,16 @@ void drawing_program_visual_input_apply_mouse_wheel_zoom(DrawingProgramAppContex
     if (!point_in_rect(canvas_pane, mx, my)) {
         return;
     }
-    next_zoom = ctx->editor.viewport.zoom + ((float)event->wheel.y * 0.1f);
-    if (next_zoom < 0.25f) {
-        next_zoom = 0.25f;
+    if (event->wheel.y == 0) {
+        return;
     }
-    if (next_zoom > 8.0f) {
-        next_zoom = 8.0f;
-    }
-    ctx->editor.viewport.zoom = next_zoom;
+    zoom_factor = powf(1.1f, (float)event->wheel.y);
+    (void)drawing_program_viewport_zoom_at_screen_anchor_in_frame(&ctx->editor.viewport,
+                                                                  &ctx->document,
+                                                                  drawing_program_viewport_frame_from_rect(canvas_pane),
+                                                                  (float)mx,
+                                                                  (float)my,
+                                                                  zoom_factor);
 }
 
 void drawing_program_visual_input_window_event_flags(const SDL_Event *event,
@@ -206,6 +221,7 @@ void drawing_program_visual_input_begin_pan(int click_x,
 
 int drawing_program_visual_input_apply_pan_motion(DrawingProgramAppContext *ctx,
                                                   uint8_t panning_active,
+                                                  SDL_Rect canvas_pane,
                                                   int mouse_x,
                                                   int mouse_y,
                                                   int *io_last_mouse_x,
@@ -217,8 +233,11 @@ int drawing_program_visual_input_apply_pan_motion(DrawingProgramAppContext *ctx,
     }
     dx = mouse_x - *io_last_mouse_x;
     dy = mouse_y - *io_last_mouse_y;
-    ctx->editor.viewport.pan_x += (float)dx;
-    ctx->editor.viewport.pan_y += (float)dy;
+    (void)drawing_program_viewport_pan_in_frame(&ctx->editor.viewport,
+                                                &ctx->document,
+                                                drawing_program_viewport_frame_from_rect(canvas_pane),
+                                                (float)dx,
+                                                (float)dy);
     *io_last_mouse_x = mouse_x;
     *io_last_mouse_y = mouse_y;
     return 1;

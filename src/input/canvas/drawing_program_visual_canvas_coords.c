@@ -1,43 +1,45 @@
 #include "drawing_program/drawing_program_visual_canvas_coords.h"
 
 #include "drawing_program/drawing_program_visual_pane_bindings.h"
+#include "drawing_program/drawing_program_viewport.h"
+
+static DrawingProgramViewportFrame drawing_program_viewport_frame_from_rect(SDL_Rect rect) {
+    DrawingProgramViewportFrame frame;
+    frame.x = (float)rect.x;
+    frame.y = (float)rect.y;
+    frame.width = (float)rect.w;
+    frame.height = (float)rect.h;
+    return frame;
+}
 
 void drawing_program_visual_compute_canvas_sheet_metrics(const DrawingProgramAppContext *ctx,
                                                          SDL_Rect pane_rect,
                                                          VisualCanvasSheetMetrics *out_metrics) {
-    float zoom;
-    float base_pixel = 0.75f;
-    float pixel_size;
-    int sheet_w;
-    int sheet_h;
-    int cx;
-    int cy;
+    float sheet_x = 0.0f;
+    float sheet_y = 0.0f;
+    float sheet_w = 0.0f;
+    float sheet_h = 0.0f;
+    float pixel_size = 0.0f;
     if (!ctx || !out_metrics) {
         return;
     }
-    zoom = ctx->editor.viewport.zoom;
-    if (zoom < 0.25f) {
-        zoom = 0.25f;
+    if (!drawing_program_viewport_measure_sheet_in_frame(&ctx->editor.viewport,
+                                                         &ctx->document,
+                                                         drawing_program_viewport_frame_from_rect(pane_rect),
+                                                         &sheet_x,
+                                                         &sheet_y,
+                                                         &sheet_w,
+                                                         &sheet_h,
+                                                         &pixel_size)) {
+        out_metrics->pixel_size = 0.0f;
+        out_metrics->sheet_rect = (SDL_Rect){0, 0, 0, 0};
+        return;
     }
-    if (zoom > 8.0f) {
-        zoom = 8.0f;
-    }
-    pixel_size = base_pixel * zoom;
-    if (pixel_size < 0.25f) {
-        pixel_size = 0.25f;
-    }
-    if (pixel_size > 16.0f) {
-        pixel_size = 16.0f;
-    }
-    sheet_w = (int)((float)ctx->document.raster_width * pixel_size);
-    sheet_h = (int)((float)ctx->document.raster_height * pixel_size);
-    cx = pane_rect.x + pane_rect.w / 2 + (int)ctx->editor.viewport.pan_x;
-    cy = pane_rect.y + pane_rect.h / 2 + (int)ctx->editor.viewport.pan_y;
     out_metrics->pixel_size = pixel_size;
-    out_metrics->sheet_rect.x = cx - sheet_w / 2;
-    out_metrics->sheet_rect.y = cy - sheet_h / 2;
-    out_metrics->sheet_rect.w = sheet_w;
-    out_metrics->sheet_rect.h = sheet_h;
+    out_metrics->sheet_rect.x = (int)sheet_x;
+    out_metrics->sheet_rect.y = (int)sheet_y;
+    out_metrics->sheet_rect.w = (int)sheet_w;
+    out_metrics->sheet_rect.h = (int)sheet_h;
 }
 
 int drawing_program_visual_screen_to_canvas_sample(const DrawingProgramAppContext *ctx,
@@ -46,26 +48,19 @@ int drawing_program_visual_screen_to_canvas_sample(const DrawingProgramAppContex
                                                    int sy,
                                                    uint32_t *out_sample_x,
                                                    uint32_t *out_sample_y) {
-    VisualCanvasSheetMetrics metrics;
-    int local_x;
-    int local_y;
+    DrawingProgramSamplePoint sample;
     if (!ctx || !out_sample_x || !out_sample_y) {
         return 0;
     }
-    drawing_program_visual_compute_canvas_sheet_metrics(ctx, pane_rect, &metrics);
-    if (!drawing_program_visual_point_in_rect(metrics.sheet_rect, sx, sy)) {
+    if (!drawing_program_viewport_screen_to_sample_in_frame(&ctx->editor.viewport,
+                                                            &ctx->document,
+                                                            drawing_program_viewport_frame_from_rect(pane_rect),
+                                                            (DrawingProgramScreenPoint){(float)sx, (float)sy},
+                                                            &sample)) {
         return 0;
     }
-    local_x = sx - metrics.sheet_rect.x;
-    local_y = sy - metrics.sheet_rect.y;
-    if (metrics.pixel_size <= 0.0f) {
-        return 0;
-    }
-    *out_sample_x = (uint32_t)((float)local_x / metrics.pixel_size);
-    *out_sample_y = (uint32_t)((float)local_y / metrics.pixel_size);
-    if (*out_sample_x >= ctx->document.raster_width || *out_sample_y >= ctx->document.raster_height) {
-        return 0;
-    }
+    *out_sample_x = sample.x;
+    *out_sample_y = sample.y;
     return 1;
 }
 
@@ -75,35 +70,18 @@ int drawing_program_visual_screen_to_canvas_sample_clamped(const DrawingProgramA
                                                            int sy,
                                                            uint32_t *out_sample_x,
                                                            uint32_t *out_sample_y) {
-    VisualCanvasSheetMetrics metrics;
-    int local_x;
-    int local_y;
-    int32_t sample_x;
-    int32_t sample_y;
+    DrawingProgramSamplePoint sample;
     if (!ctx || !out_sample_x || !out_sample_y || ctx->document.raster_width == 0u || ctx->document.raster_height == 0u) {
         return 0;
     }
-    drawing_program_visual_compute_canvas_sheet_metrics(ctx, pane_rect, &metrics);
-    if (metrics.pixel_size <= 0.0f) {
+    if (!drawing_program_viewport_screen_to_sample_clamped_in_frame(&ctx->editor.viewport,
+                                                                    &ctx->document,
+                                                                    drawing_program_viewport_frame_from_rect(pane_rect),
+                                                                    (DrawingProgramScreenPoint){(float)sx, (float)sy},
+                                                                    &sample)) {
         return 0;
     }
-    local_x = sx - metrics.sheet_rect.x;
-    local_y = sy - metrics.sheet_rect.y;
-    sample_x = (int32_t)((float)local_x / metrics.pixel_size);
-    sample_y = (int32_t)((float)local_y / metrics.pixel_size);
-    if (sample_x < 0) {
-        sample_x = 0;
-    }
-    if (sample_y < 0) {
-        sample_y = 0;
-    }
-    if ((uint32_t)sample_x >= ctx->document.raster_width) {
-        sample_x = (int32_t)ctx->document.raster_width - 1;
-    }
-    if ((uint32_t)sample_y >= ctx->document.raster_height) {
-        sample_y = (int32_t)ctx->document.raster_height - 1;
-    }
-    *out_sample_x = (uint32_t)sample_x;
-    *out_sample_y = (uint32_t)sample_y;
+    *out_sample_x = sample.x;
+    *out_sample_y = sample.y;
     return 1;
 }

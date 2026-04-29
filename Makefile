@@ -22,6 +22,7 @@ CORE_PACK_DIR ?= $(SHARED_VENDOR_DIR)/core/core_pack
 CORE_PANE_DIR ?= $(SHARED_VENDOR_DIR)/core/core_pane
 CORE_LAYOUT_DIR ?= $(SHARED_VENDOR_DIR)/core/core_layout
 CORE_PANE_MODULE_DIR ?= $(SHARED_VENDOR_DIR)/core/core_pane_module
+CORE_VIEWPORT2D_DIR ?= $(SHARED_VENDOR_DIR)/core/core_viewport2d
 
 ifeq ($(SHARED_MODE),workspace-linked)
 CORE_BASE_DIR := $(SHARED_WORKSPACE_DIR)/core/core_base
@@ -31,6 +32,7 @@ CORE_PACK_DIR := $(SHARED_WORKSPACE_DIR)/core/core_pack
 CORE_PANE_DIR := $(SHARED_WORKSPACE_DIR)/core/core_pane
 CORE_LAYOUT_DIR := $(SHARED_WORKSPACE_DIR)/core/core_layout
 CORE_PANE_MODULE_DIR := $(SHARED_WORKSPACE_DIR)/core/core_pane_module
+CORE_VIEWPORT2D_DIR := $(SHARED_WORKSPACE_DIR)/core/core_viewport2d
 endif
 
 SDL_CFLAGS := $(shell $(PKG_CONFIG) --cflags sdl2 2>/dev/null)
@@ -99,6 +101,7 @@ CFLAGS := -std=c11 -Wall -Wextra -pedantic \
 	-I$(CORE_PANE_DIR)/include \
 	-I$(CORE_LAYOUT_DIR)/include \
 	-I$(CORE_PANE_MODULE_DIR)/include \
+	-I$(CORE_VIEWPORT2D_DIR)/include \
 	$(SDL_CFLAGS) \
 	$(PNG_CFLAGS) \
 	$(SDL_TTF_CFLAGS)
@@ -355,7 +358,8 @@ CORE_PACK_LIB := $(CORE_PACK_DIR)/build/libcore_pack.a
 CORE_PANE_LIB := $(CORE_PANE_DIR)/build/libcore_pane.a
 CORE_LAYOUT_LIB := $(CORE_LAYOUT_DIR)/build/libcore_layout.a
 CORE_PANE_MODULE_LIB := $(CORE_PANE_MODULE_DIR)/build/libcore_pane_module.a
-SHARED_LIBS := $(CORE_PACK_LIB) $(CORE_PANE_LIB) $(CORE_LAYOUT_LIB) $(CORE_PANE_MODULE_LIB) $(CORE_THEME_LIB) $(CORE_FONT_LIB) $(CORE_BASE_LIB)
+CORE_VIEWPORT2D_LIB := $(CORE_VIEWPORT2D_DIR)/build/libcore_viewport2d.a
+SHARED_LIBS := $(CORE_PACK_LIB) $(CORE_PANE_LIB) $(CORE_LAYOUT_LIB) $(CORE_PANE_MODULE_LIB) $(CORE_THEME_LIB) $(CORE_FONT_LIB) $(CORE_VIEWPORT2D_LIB) $(CORE_BASE_LIB)
 
 DIST_DIR := dist
 PACKAGE_APP_NAME := sketCh.app
@@ -413,6 +417,9 @@ $(CORE_LAYOUT_LIB):
 
 $(CORE_PANE_MODULE_LIB):
 	$(MAKE) -C $(CORE_PANE_MODULE_DIR) CC="$(HOST_CC)"
+
+$(CORE_VIEWPORT2D_LIB): $(CORE_BASE_LIB)
+	$(MAKE) -C $(CORE_VIEWPORT2D_DIR) CC="$(HOST_CC)"
 
 $(PROGRAM_BUILD_DIR) $(PROGRAM_BIN_DIR) $(HOST_TEST_DIR) $(TEST_OBJ_DIR) $(TEST_BIN_DIR):
 	@mkdir -p "$@"

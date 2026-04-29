@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 
+#include "core_viewport2d.h"
 #include "drawing_program/drawing_program_document.h"
 
 #ifdef __cplusplus
@@ -22,11 +23,7 @@ typedef enum DrawingProgramToolKind {
     DRAWING_PROGRAM_TOOL_PATH = 9
 } DrawingProgramToolKind;
 
-typedef struct DrawingProgramViewportState {
-    float pan_x;
-    float pan_y;
-    float zoom;
-} DrawingProgramViewportState;
+typedef CoreViewport2D DrawingProgramViewportState;
 
 typedef struct DrawingProgramEditorState {
     DrawingProgramToolKind active_tool;

@@ -5,6 +5,7 @@
 
 #include "core_theme.h"
 #include "drawing_program/drawing_program_visual_input_handlers.h"
+#include "drawing_program/drawing_program_visual_pane_bindings.h"
 #include "drawing_program/drawing_program_visual_input_selection_ops.h"
 #include "drawing_program/drawing_program_visual_input_support.h"
 #include "drawing_program/drawing_program_visual_tool_options.h"
@@ -40,6 +41,7 @@ int drawing_program_lifecycle_run_runtime_render_suite(DrawingProgramAppContext 
         hooks.cancel_selection_transient = lifecycle_test_cancel_selection_transient;
         hooks.cancel_all_transient_interactions = lifecycle_test_cancel_all_transient_interactions;
         hooks.delete_active_selection_payload_or_objects = delete_active_selection_payload_or_objects;
+        hooks.set_module_type_for_pane = drawing_program_visual_set_module_type_for_pane;
         memset(&interaction, 0, sizeof(interaction));
         memset(&panel_ui, 0, sizeof(panel_ui));
 
@@ -273,6 +275,65 @@ int drawing_program_lifecycle_run_runtime_render_suite(DrawingProgramAppContext 
                     (unsigned)g_test_object_nudge_calls,
                     (unsigned)g_test_selection_nudge_calls);
             return 1;
+        }
+
+        workflow_ctx.ui.font_zoom_step = 3;
+        workflow_ctx.editor.viewport.pan_x = 120.0f;
+        workflow_ctx.editor.viewport.pan_y = -80.0f;
+        workflow_ctx.editor.viewport.zoom = 3.0f;
+        memset(&event, 0, sizeof(event));
+        event.type = SDL_KEYDOWN;
+        event.key.keysym.sym = SDLK_0;
+        event.key.keysym.mod = KMOD_CTRL | KMOD_SHIFT;
+        if (!drawing_program_visual_input_handle_keydown_payload(&event,
+                                                                 1,
+                                                                 (SDL_Rect){ 100, 100, 600, 400 },
+                                                                 &selected_theme,
+                                                                 &theme_preset,
+                                                                 &workflow_ctx,
+                                                                 &interaction,
+                                                                 &workflow_ctx.selection,
+                                                                 &panel_ui,
+                                                                 &hooks)) {
+            fprintf(stderr, "lifecycle_test: expected ctrl+shift+0 to be consumed for fit reset\n");
+            return 1;
+        }
+        if (workflow_ctx.ui.font_zoom_step != 3) {
+            fprintf(stderr,
+                    "lifecycle_test: ctrl+shift+0 should not reset font zoom step got=%d\n",
+                    (int)workflow_ctx.ui.font_zoom_step);
+            return 1;
+        }
+        if (workflow_ctx.editor.viewport.pan_x == 120.0f &&
+            workflow_ctx.editor.viewport.pan_y == -80.0f &&
+            workflow_ctx.editor.viewport.zoom == 3.0f) {
+            fprintf(stderr, "lifecycle_test: ctrl+shift+0 should change viewport state\n");
+            return 1;
+        }
+
+        {
+            uint32_t module_before = drawing_program_visual_module_type_for_pane(&workflow_ctx, 6u);
+            memset(&event, 0, sizeof(event));
+            event.type = SDL_KEYDOWN;
+            event.key.keysym.sym = SDLK_1;
+            event.key.keysym.mod = KMOD_CTRL | KMOD_SHIFT;
+            if (drawing_program_visual_input_handle_keydown_payload(&event,
+                                                                    1,
+                                                                    (SDL_Rect){ 100, 100, 600, 400 },
+                                                                    &selected_theme,
+                                                                    &theme_preset,
+                                                                    &workflow_ctx,
+                                                                    &interaction,
+                                                                    &workflow_ctx.selection,
+                                                                    &panel_ui,
+                                                                    &hooks)) {
+                fprintf(stderr, "lifecycle_test: ctrl+shift+1 should no longer trigger debug pane swap\n");
+                return 1;
+            }
+            if (drawing_program_visual_module_type_for_pane(&workflow_ctx, 6u) != module_before) {
+                fprintf(stderr, "lifecycle_test: ctrl+shift+1 should preserve pane module binding\n");
+                return 1;
+            }
         }
     }
     if (drawing_program_lifecycle_run_runtime_ui_suite(&ctx, center_x, center_y, expected_draw_value) != 0) {

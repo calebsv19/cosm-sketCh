@@ -4,6 +4,7 @@
 
 #include "drawing_program/drawing_program_visual_input_keymap.h"
 #include "drawing_program/drawing_program_visual_input_selection_ops.h"
+#include "drawing_program/drawing_program_viewport.h"
 
 int drawing_program_visual_input_handle_keydown_payload(const SDL_Event *event,
                                                         int has_canvas_pane,
@@ -18,6 +19,7 @@ int drawing_program_visual_input_handle_keydown_payload(const SDL_Event *event,
     DrawingProgramWorkflowControl control = DRAWING_PROGRAM_WORKFLOW_CONTROL_NONE;
     int ctrl_or_cmd;
     int shift;
+    int alt;
     uint32_t module_type_id = 0u;
     int zoom_step = 0;
     int theme_direction = 0;
@@ -30,6 +32,7 @@ int drawing_program_visual_input_handle_keydown_payload(const SDL_Event *event,
     }
     ctrl_or_cmd = (event->key.keysym.mod & (KMOD_CTRL | KMOD_GUI)) != 0;
     shift = (event->key.keysym.mod & KMOD_SHIFT) != 0;
+    alt = (event->key.keysym.mod & KMOD_ALT) != 0;
     if (!ctrl_or_cmd && event->key.keysym.sym == SDLK_b &&
         drawing_program_visual_input_toggle_selected_path_point_bezier(app)) {
         hooks->cancel_canvas_draw_and_shape(canvas_interaction);
@@ -49,8 +52,22 @@ int drawing_program_visual_input_handle_keydown_payload(const SDL_Event *event,
         panel_ui->object_color_target_object_id = 0u;
         return 1;
     }
+    if (ctrl_or_cmd && shift &&
+        (event->key.keysym.sym == SDLK_0 || event->key.keysym.sym == SDLK_KP_0) &&
+        has_canvas_pane) {
+        if (drawing_program_viewport_reset_to_fit_in_frame(
+                &app->editor.viewport,
+                &app->document,
+                (DrawingProgramViewportFrame){
+                    (float)canvas_pane.x, (float)canvas_pane.y, (float)canvas_pane.w, (float)canvas_pane.h })) {
+            hooks->cancel_canvas_draw_and_shape(canvas_interaction);
+            hooks->cancel_selection_transient(selection_state);
+        }
+        return 1;
+    }
     if (drawing_program_visual_input_try_module_slot_hotkey(ctrl_or_cmd,
                                                             shift,
+                                                            alt,
                                                             event->key.keysym.sym,
                                                             &module_type_id)) {
         (void)hooks->set_module_type_for_pane(app, 6u, module_type_id);
@@ -178,7 +195,7 @@ int drawing_program_visual_input_handle_keydown_payload(const SDL_Event *event,
             return 1;
         }
     }
-    if (event->key.keysym.sym >= SDLK_1 && event->key.keysym.sym <= SDLK_8) {
+    if (!ctrl_or_cmd && event->key.keysym.sym >= SDLK_1 && event->key.keysym.sym <= SDLK_8) {
         if (drawing_program_visual_input_try_apply_palette_key(app, event->key.keysym.sym)) {
             return 1;
         }

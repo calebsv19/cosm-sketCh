@@ -42,6 +42,10 @@ Last updated: 2026-04-27
 - Snapshot/runtime continuity:
   - snapshot shell lanes support modern true-color migration while preserving legacy compatibility fallback paths
   - workspace preset bridge-check/import flows are present
+- Viewport behavior:
+  - canvas viewport routing now bridges through shared `core_viewport2d`
+  - mouse-wheel zoom preserves the sample under the cursor; right-drag pan uses the same pane-aware viewport state
+  - viewport reset now fits the canvas back into the active canvas pane with a small padding margin
 
 ## Structure and Ownership
 - Required lanes: `docs/`, `src/`, `include/`, `tests/`, `build/`

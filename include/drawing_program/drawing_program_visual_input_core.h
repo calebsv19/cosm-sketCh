@@ -70,6 +70,7 @@ void drawing_program_visual_input_begin_pan(int click_x,
                                             int *io_last_mouse_y);
 int drawing_program_visual_input_apply_pan_motion(DrawingProgramAppContext *ctx,
                                                   uint8_t panning_active,
+                                                  SDL_Rect canvas_pane,
                                                   int mouse_x,
                                                   int mouse_y,
                                                   int *io_last_mouse_x,

@@ -10,6 +10,7 @@ DrawingProgramWorkflowControl drawing_program_visual_input_control_for_key(SDL_K
 int drawing_program_visual_input_try_apply_palette_key(DrawingProgramAppContext *ctx, SDL_Keycode key);
 int drawing_program_visual_input_try_module_slot_hotkey(int ctrl_or_cmd,
                                                         int shift,
+                                                        int alt,
                                                         SDL_Keycode key,
                                                         uint32_t *out_module_type_id);
 int drawing_program_visual_input_try_font_zoom_hotkey(int ctrl_or_cmd,

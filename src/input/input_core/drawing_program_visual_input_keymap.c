@@ -76,9 +76,10 @@ int drawing_program_visual_input_try_apply_palette_key(DrawingProgramAppContext 
 
 int drawing_program_visual_input_try_module_slot_hotkey(int ctrl_or_cmd,
                                                         int shift,
+                                                        int alt,
                                                         SDL_Keycode key,
                                                         uint32_t *out_module_type_id) {
-    if (!out_module_type_id || !ctrl_or_cmd || !shift) {
+    if (!out_module_type_id || !ctrl_or_cmd || !shift || !alt) {
         return 0;
     }
     if (key >= SDLK_1 && key <= SDLK_4) {

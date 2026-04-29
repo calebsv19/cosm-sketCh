@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -50,6 +51,124 @@ int drawing_program_lifecycle_run_baseline_history_suite(DrawingProgramAppContex
         if (canvas.x != 50.0f || canvas.y != 50.0f) {
             fprintf(stderr, "viewport_test: expected pan/zoom mapped canvas (50,50), got %.3f %.3f\n",
                     (double)canvas.x, (double)canvas.y);
+            return 1;
+        }
+    }
+    {
+        DrawingProgramDocument frame_doc;
+        DrawingProgramViewportState frame_viewport;
+        DrawingProgramViewportFrame frame = { 0.0f, 0.0f, 600.0f, 400.0f };
+        DrawingProgramSamplePoint sample_before;
+        DrawingProgramSamplePoint sample_after_zoom;
+        float sheet_x = 0.0f;
+        float sheet_y = 0.0f;
+        float sheet_w = 0.0f;
+        float sheet_h = 0.0f;
+        float pixel_size = 0.0f;
+        if (!expect_ok(drawing_program_document_init_with_shape(&frame_doc, 200u, 200u, 1u),
+                       "viewport_frame_doc_init")) {
+            return 1;
+        }
+        drawing_program_viewport_state_init(&frame_viewport);
+        if (!drawing_program_viewport_screen_to_sample_in_frame(&frame_viewport,
+                                                                &frame_doc,
+                                                                frame,
+                                                                (DrawingProgramScreenPoint){ 300.0f, 200.0f },
+                                                                &sample_before) ||
+            sample_before.x != 100u ||
+            sample_before.y != 100u) {
+            fprintf(stderr, "viewport_test: expected centered pane sample (100,100)\n");
+            return 1;
+        }
+        if (!drawing_program_viewport_zoom_at_screen_anchor_in_frame(&frame_viewport,
+                                                                     &frame_doc,
+                                                                     frame,
+                                                                     300.0f,
+                                                                     200.0f,
+                                                                     2.0f)) {
+            fprintf(stderr, "viewport_test: expected anchor zoom request to succeed\n");
+            return 1;
+        }
+        if (!drawing_program_viewport_screen_to_sample_in_frame(&frame_viewport,
+                                                                &frame_doc,
+                                                                frame,
+                                                                (DrawingProgramScreenPoint){ 300.0f, 200.0f },
+                                                                &sample_after_zoom) ||
+            sample_after_zoom.x != sample_before.x ||
+            sample_after_zoom.y != sample_before.y) {
+            fprintf(stderr, "viewport_test: anchor zoom should preserve sample under cursor\n");
+            return 1;
+        }
+        if (!drawing_program_viewport_measure_sheet_in_frame(&frame_viewport,
+                                                             &frame_doc,
+                                                             frame,
+                                                             &sheet_x,
+                                                             &sheet_y,
+                                                             &sheet_w,
+                                                             &sheet_h,
+                                                             &pixel_size)) {
+            fprintf(stderr, "viewport_test: expected pane-aware sheet metrics to resolve\n");
+            return 1;
+        }
+        if (!drawing_program_viewport_pan_in_frame(&frame_viewport, &frame_doc, frame, 24.0f, -18.0f)) {
+            fprintf(stderr, "viewport_test: expected pan request to succeed\n");
+            return 1;
+        }
+        {
+            float panned_sheet_x = 0.0f;
+            float panned_sheet_y = 0.0f;
+            if (!drawing_program_viewport_measure_sheet_in_frame(&frame_viewport,
+                                                                 &frame_doc,
+                                                                 frame,
+                                                                 &panned_sheet_x,
+                                                                 &panned_sheet_y,
+                                                                 0,
+                                                                 0,
+                                                                 0)) {
+                fprintf(stderr, "viewport_test: expected panned sheet metrics to resolve\n");
+                return 1;
+            }
+            if ((panned_sheet_x - sheet_x) != 24.0f || (panned_sheet_y - sheet_y) != -18.0f) {
+                fprintf(stderr,
+                        "viewport_test: expected pan delta 24,-18 got %.3f,%.3f\n",
+                        (double)(panned_sheet_x - sheet_x),
+                        (double)(panned_sheet_y - sheet_y));
+                return 1;
+            }
+        }
+        if (!drawing_program_viewport_reset_to_fit_in_frame(&frame_viewport, &frame_doc, frame)) {
+            fprintf(stderr, "viewport_test: expected fit reset to succeed\n");
+            return 1;
+        }
+        {
+            float fit_sheet_x = 0.0f;
+            float fit_sheet_y = 0.0f;
+            float fit_sheet_w = 0.0f;
+            float fit_sheet_h = 0.0f;
+            if (!drawing_program_viewport_measure_sheet_in_frame(&frame_viewport,
+                                                                 &frame_doc,
+                                                                 frame,
+                                                                 &fit_sheet_x,
+                                                                 &fit_sheet_y,
+                                                                 &fit_sheet_w,
+                                                                 &fit_sheet_h,
+                                                                 0)) {
+                fprintf(stderr, "viewport_test: expected fit metrics to resolve\n");
+                return 1;
+            }
+            if (fabsf(fit_sheet_y - 20.0f) > 0.01f ||
+                fabsf(fit_sheet_h - 360.0f) > 0.01f ||
+                fabsf(fit_sheet_w - 360.0f) > 0.01f) {
+                fprintf(stderr,
+                        "viewport_test: expected fit policy y=20 h=360 w=360 got %.3f %.3f %.3f\n",
+                        (double)fit_sheet_y,
+                        (double)fit_sheet_h,
+                        (double)fit_sheet_w);
+                return 1;
+            }
+        }
+        if (sheet_w <= 0.0f || sheet_h <= 0.0f || pixel_size <= 0.0f) {
+            fprintf(stderr, "viewport_test: expected positive pane-aware sheet metrics\n");
             return 1;
         }
     }

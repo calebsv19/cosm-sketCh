@@ -402,6 +402,7 @@ int drawing_program_visual_input_handle_mouse_motion_payload(const SDL_Event *ev
     panel_ui->mouse_y = event_has_position ? event_y : event->motion.y;
     if (drawing_program_visual_input_apply_pan_motion(app,
                                                       canvas_interaction->panning_active,
+                                                      canvas_pane,
                                                       panel_ui->mouse_x,
                                                       panel_ui->mouse_y,
                                                       &canvas_interaction->last_mouse_x,

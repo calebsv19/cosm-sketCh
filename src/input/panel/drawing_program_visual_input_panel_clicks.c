@@ -15,6 +15,8 @@
 #include "drawing_program/drawing_program_ui_color_state.h"
 #include "drawing_program/drawing_program_visual_layout.h"
 #include "drawing_program/drawing_program_visual_layer_opacity.h"
+#include "drawing_program/drawing_program_visual_pane_bindings.h"
+#include "drawing_program/drawing_program_viewport.h"
 
 enum {
     VISUAL_LEFT_PANEL_SLOT_TOOLS_VALUE = 0,
@@ -769,9 +771,15 @@ void drawing_program_visual_input_handle_right_panel_click_payload(
         SDL_Rect clear_history_button;
         reset_view_button = right_canvas_reset_view_button_rect(rect, m);
         if (hooks->point_in_rect(reset_view_button, x, y)) {
-            ctx->editor.viewport.pan_x = 0.0f;
-            ctx->editor.viewport.pan_y = 0.0f;
-            ctx->editor.viewport.zoom = 1.0f;
+            SDL_Rect canvas_rect = {0, 0, 0, 0};
+            if (!drawing_program_visual_pane_rect_for_module_type(ctx, 1u, &canvas_rect) ||
+                !drawing_program_viewport_reset_to_fit_in_frame(
+                    &ctx->editor.viewport,
+                    &ctx->document,
+                    (DrawingProgramViewportFrame){
+                        (float)canvas_rect.x, (float)canvas_rect.y, (float)canvas_rect.w, (float)canvas_rect.h })) {
+                drawing_program_viewport_reset(&ctx->editor.viewport);
+            }
             return;
         }
         clear_canvas_button = right_canvas_clear_canvas_button_rect(rect, m);
