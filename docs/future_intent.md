@@ -9,6 +9,7 @@ Near-term (active):
   - `WA1-S2` minimal authoring chrome is complete with visible pane/module readout
   - `WA1-S3` draft Apply/Cancel semantics are complete through baseline capture, draft pending state, Apply commit, and Cancel restore
   - `WA1-S4` accepted authoring persistence is complete; applied pane/module state survives save/load while active un-applied drafts serialize as their entry baseline
+  - the `WA1-S4` font/theme overlay correction is complete; `Tab` cycles into a takeover layer with font preset, font zoom, theme preset, and explicit custom-preset stub controls
   - next boundary is `WA1-S5` closeout only
   - module-content swapping, plugin loading, and `line_drawing` attach remain deferred
 - Phase 2 foundations are complete

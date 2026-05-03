@@ -87,6 +87,96 @@ static void drawing_program_visual_loop_update_wait_policy(
     policy_input->resize_pending = resize_pending ? 1u : 0u;
 }
 
+static void drawing_program_visual_loop_sync_theme_from_app(DrawingProgramVisualLoopEventContext *ctx) {
+    CoreThemePresetId selected_theme;
+    if (!ctx || !ctx->app || !ctx->selected_theme || !ctx->theme_preset) {
+        return;
+    }
+    selected_theme = clamp_theme_preset_id(ctx->app->ui.theme_preset_id);
+    ctx->app->ui.theme_preset_id = (uint32_t)selected_theme;
+    if (core_theme_get_preset(selected_theme, ctx->theme_preset).code != CORE_OK) {
+        selected_theme = CORE_THEME_PRESET_DARK_DEFAULT;
+        ctx->app->ui.theme_preset_id = (uint32_t)selected_theme;
+        (void)core_theme_get_preset(selected_theme, ctx->theme_preset);
+    }
+    *ctx->selected_theme = selected_theme;
+}
+
+static int drawing_program_visual_loop_apply_authoring_chrome_action(
+    DrawingProgramVisualLoopEventContext *ctx,
+    DrawingProgramAuthoringChromeAction action) {
+    if (!ctx || !ctx->app) {
+        return 0;
+    }
+    switch (action) {
+        case DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_APPLY:
+            (void)drawing_program_authoring_host_apply(ctx->app);
+            drawing_program_visual_loop_sync_theme_from_app(ctx);
+            return 1;
+        case DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_CANCEL:
+            (void)drawing_program_authoring_host_cancel(ctx->app);
+            drawing_program_visual_loop_sync_theme_from_app(ctx);
+            return 1;
+        case DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_CYCLE_OVERLAY:
+            (void)drawing_program_authoring_host_cycle_overlay(ctx->app);
+            return 1;
+        case DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_FONT_ZOOM_DEC:
+            (void)drawing_program_authoring_host_adjust_font_zoom(ctx->app, -1);
+            return 1;
+        case DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_FONT_ZOOM_INC:
+            (void)drawing_program_authoring_host_adjust_font_zoom(ctx->app, 1);
+            return 1;
+        case DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_FONT_ZOOM_RESET:
+            (void)drawing_program_authoring_host_reset_font_zoom(ctx->app);
+            return 1;
+        case DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_FONT_PRESET_DAW:
+            (void)drawing_program_authoring_host_set_font_preset(ctx->app, (uint32_t)CORE_FONT_PRESET_DAW_DEFAULT);
+            return 1;
+        case DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_FONT_PRESET_IDE:
+            (void)drawing_program_authoring_host_set_font_preset(ctx->app, (uint32_t)CORE_FONT_PRESET_IDE);
+            return 1;
+        case DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_FONT_PRESET_CUSTOM:
+            (void)drawing_program_authoring_host_note_custom_theme_stub(
+                ctx->app,
+                "Custom font slots are not implemented in Drawing Program yet.");
+            return 1;
+        case DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_THEME_PRESET_DAW:
+            (void)drawing_program_authoring_host_set_theme_preset(ctx->app, (uint32_t)CORE_THEME_PRESET_DAW_DEFAULT);
+            drawing_program_visual_loop_sync_theme_from_app(ctx);
+            return 1;
+        case DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_THEME_PRESET_STANDARD_GREY:
+            (void)drawing_program_authoring_host_set_theme_preset(ctx->app, (uint32_t)CORE_THEME_PRESET_IDE_GRAY);
+            drawing_program_visual_loop_sync_theme_from_app(ctx);
+            return 1;
+        case DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_THEME_PRESET_MIDNIGHT:
+            (void)drawing_program_authoring_host_set_theme_preset(ctx->app, (uint32_t)CORE_THEME_PRESET_DARK_DEFAULT);
+            drawing_program_visual_loop_sync_theme_from_app(ctx);
+            return 1;
+        case DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_THEME_PRESET_SOFT_LIGHT:
+            (void)drawing_program_authoring_host_set_theme_preset(ctx->app, (uint32_t)CORE_THEME_PRESET_LIGHT_DEFAULT);
+            drawing_program_visual_loop_sync_theme_from_app(ctx);
+            return 1;
+        case DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_THEME_PRESET_GREYSCALE:
+            (void)drawing_program_authoring_host_set_theme_preset(ctx->app, (uint32_t)CORE_THEME_PRESET_GREYSCALE);
+            drawing_program_visual_loop_sync_theme_from_app(ctx);
+            return 1;
+        case DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_CUSTOM_THEME_CREATE:
+            (void)drawing_program_authoring_host_note_custom_theme_stub(
+                ctx->app,
+                "Create custom theme requested. Drawing custom editor is still a stub.");
+            return 1;
+        case DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_CUSTOM_THEME_EDIT:
+            (void)drawing_program_authoring_host_note_custom_theme_stub(
+                ctx->app,
+                "Edit custom theme requested. Drawing custom editor is still a stub.");
+            return 1;
+        case DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_NONE:
+        default:
+            break;
+    }
+    return 0;
+}
+
 static void drawing_program_visual_loop_handle_event(DrawingProgramVisualLoopEventContext *ctx,
                                                      const SDL_Event *event) {
     int event_x = 0;
@@ -131,6 +221,7 @@ static void drawing_program_visual_loop_handle_event(DrawingProgramVisualLoopEve
         *(ctx->quit) = 1;
     }
     if (drawing_program_authoring_host_handle_sdl_event(ctx->app, event)) {
+        drawing_program_visual_loop_sync_theme_from_app(ctx);
         return;
     }
     if (drawing_program_authoring_host_active(ctx->app) &&
@@ -143,15 +234,14 @@ static void drawing_program_visual_loop_handle_event(DrawingProgramVisualLoopEve
         if (SDL_GetRendererOutputSize(ctx->renderer, &viewport_w, &viewport_h) == 0) {
             action = drawing_program_visual_authoring_chrome_hit_test(viewport_w,
                                                                       viewport_h,
+                                                                      ctx->app,
                                                                       event_x,
                                                                       event_y);
         }
-        if (action == DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_APPLY) {
-            (void)drawing_program_authoring_host_apply(ctx->app);
+        if (drawing_program_visual_loop_apply_authoring_chrome_action(ctx, action)) {
             return;
         }
-        if (action == DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_CANCEL) {
-            (void)drawing_program_authoring_host_cancel(ctx->app);
+        if (drawing_program_authoring_host_font_theme_overlay_active(ctx->app)) {
             return;
         }
     }

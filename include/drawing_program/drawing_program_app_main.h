@@ -37,6 +37,11 @@ typedef enum DrawingProgramUiSelectMode {
     DRAWING_PROGRAM_UI_SELECT_MODE_SUBTRACT = 2u
 } DrawingProgramUiSelectMode;
 
+typedef enum DrawingProgramAuthoringOverlayMode {
+    DRAWING_PROGRAM_AUTHORING_OVERLAY_PANE = 0u,
+    DRAWING_PROGRAM_AUTHORING_OVERLAY_FONT_THEME = 1u
+} DrawingProgramAuthoringOverlayMode;
+
 typedef struct DrawingProgramAppRuntimeState {
     uint64_t frame_counter;
     uint8_t state_seeded;
@@ -104,15 +109,25 @@ typedef struct DrawingProgramAuthoringHostState {
     uint8_t key_v_down;
     uint8_t entry_chord_armed_key;
     uint8_t draft_baseline_valid;
+    uint8_t overlay_mode;
+    uint8_t font_theme_pending_changes;
     uint8_t last_event_consumed;
     uint8_t last_event_entered;
     uint8_t last_event_exited;
+    uint8_t custom_theme_status_active;
     uint32_t enter_count;
     uint32_t exit_count;
     uint32_t apply_count;
     uint32_t cancel_count;
     uint32_t draft_change_count;
     uint32_t consumed_key_count;
+    uint32_t overlay_cycle_count;
+    uint32_t font_theme_change_count;
+    uint32_t custom_theme_stub_count;
+    uint32_t baseline_theme_preset_id;
+    uint32_t baseline_font_preset_id;
+    int8_t baseline_font_zoom_step;
+    char custom_theme_status[128];
     CorePaneNode baseline_nodes[DRAWING_PROGRAM_PANE_NODE_CAPACITY];
     uint32_t baseline_node_count;
     uint32_t baseline_root_index;

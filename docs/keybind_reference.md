@@ -74,6 +74,10 @@ Scope: current implemented runtime controls (`sdl-debug` lane)
 ## Workspace Authoring
 - `Alt/Option+C`, then `Alt/Option+V`: enter authoring mode; repeat while active to cancel authoring edits and return to runtime mode
 - `Alt/Option+C+V`: same authoring enter/cancel toggle while both letter keys are held
+- `Tab` while authoring is active: switch between pane/module authoring and the font/theme overlay
+- `Cmd/Ctrl +` while the font/theme overlay is active: increase draft UI font zoom step
+- `Cmd/Ctrl -` while the font/theme overlay is active: decrease draft UI font zoom step
+- `Cmd/Ctrl 0` while the font/theme overlay is active: reset draft UI font zoom step
 - `Enter` while authoring is active: apply valid authoring edits and return to runtime mode
 - `Esc` while authoring is active: cancel authoring edits and return to runtime mode
 

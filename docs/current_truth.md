@@ -11,7 +11,7 @@ Last updated: 2026-05-03
 ## Current Shipped State
 - The app is in a post-foundation feature-depth lane with retained-object editing, vector tooling, and color-system migration active.
 - Shared host/font baseline and shared-subtree workflow are normalized for this repo.
-- Workspace Authoring `WA1-S1` through `WA1-S4` are active as the first production host slices.
+- Workspace Authoring `WA1-S1` through `WA1-S4` plus the font/theme overlay correction are active as the first production host slices.
 
 ## Major Lane Summary (Compressed)
 - Foundations complete:
@@ -50,7 +50,10 @@ Last updated: 2026-05-03
   - `Enter` applies a valid authoring draft and exits authoring mode
   - the window title changes to `sketCh [Authoring]` while authoring mode is active
   - authoring mode renders a compact `AUTHORING` panel, functional `APPLY`/`CANCEL` controls, draft status, pane/module rows, and per-pane module labels
+  - `Tab` cycles authoring between the pane/module overlay and a font/theme takeover overlay that clears the drawing UI while active
+  - the font/theme overlay exposes font preset, font zoom, theme preset, and custom-preset stub controls
   - authoring entry captures a pane/module baseline; Cancel restores it and Apply commits through `core_layout_apply_authoring(...)`
+  - authoring entry also captures theme preset, font preset, and font zoom baseline state so font/theme changes stay draft-only until Apply
   - snapshot persistence writes accepted pane/module state only: applied authoring changes survive close/reopen, while active un-applied drafts save as their entry baseline
   - authoring-reserved trigger keys are consumed only while authoring mode is active
   - startup normalizes any saved draft/authoring layout state back to runtime mode

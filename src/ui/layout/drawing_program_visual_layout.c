@@ -387,6 +387,9 @@ SDL_Rect left_panel_objects_inspector_action_row_rect(SDL_Rect inspector_rect,
         total_h += (int)(action_count - 1u) * m.section_gap;
     }
     y = inspector_rect.y + inspector_rect.h - m.tab_gap - total_h;
+    if (y < inspector_rect.y + m.tab_gap) {
+        y = inspector_rect.y + m.tab_gap;
+    }
     y += (int)action_index * (m.row_h + m.section_gap);
     return (SDL_Rect){ inspector_rect.x + m.tab_gap, y, inspector_rect.w - m.tab_gap, m.row_h };
 }

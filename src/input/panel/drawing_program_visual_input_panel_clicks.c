@@ -443,6 +443,9 @@ void drawing_program_visual_input_handle_left_panel_click_payload(
             if (row.y + row.h > list_rect.y + list_rect.h) {
                 break;
             }
+            if (hooks->point_in_rect(inspector_rect, x, y)) {
+                break;
+            }
             if (hooks->point_in_rect(row, x, y)) {
                 drawing_program_selection_reset(selection);
                 drawing_program_object_selection_replace_single(

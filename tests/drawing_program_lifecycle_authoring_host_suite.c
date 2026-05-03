@@ -67,6 +67,7 @@ int drawing_program_lifecycle_run_authoring_host_suite(void) {
     float draft_ratio;
     float applied_ratio;
     float unsaved_draft_ratio;
+    int8_t original_font_zoom;
     uint64_t revision_before_apply;
     const char *applied_pack_path = "/tmp/drawing_program_authoring_applied.pack";
     const char *active_draft_pack_path = "/tmp/drawing_program_authoring_active_draft.pack";
@@ -143,10 +144,21 @@ int drawing_program_lifecycle_run_authoring_host_suite(void) {
         return 1;
     }
 
+    original_font_zoom = ctx.ui.font_zoom_step;
     authoring_key_event(&event, SDL_KEYDOWN, SDLK_TAB, KMOD_NONE);
     if (!drawing_program_authoring_host_handle_sdl_event(&ctx, &event) ||
-        !drawing_program_authoring_host_active(&ctx)) {
-        fprintf(stderr, "authoring_host_test: Tab should be consumed while authoring stays active\n");
+        !drawing_program_authoring_host_active(&ctx) ||
+        !drawing_program_authoring_host_font_theme_overlay_active(&ctx) ||
+        ctx.authoring_host.overlay_cycle_count != 1u) {
+        fprintf(stderr, "authoring_host_test: Tab should enter font/theme overlay while authoring stays active\n");
+        return 1;
+    }
+    authoring_key_event(&event, SDL_KEYDOWN, SDLK_EQUALS, KMOD_CTRL);
+    if (!drawing_program_authoring_host_handle_sdl_event(&ctx, &event) ||
+        ctx.ui.font_zoom_step != original_font_zoom + 1 ||
+        !ctx.authoring_host.font_theme_pending_changes ||
+        !ctx.pane_host.layout_state.has_pending_changes) {
+        fprintf(stderr, "authoring_host_test: font/theme overlay should consume Ctrl+= and mark draft\n");
         return 1;
     }
 
@@ -157,8 +169,9 @@ int drawing_program_lifecycle_run_authoring_host_suite(void) {
         ctx.authoring_host.draft_baseline_valid ||
         ctx.pane_host.layout_state.mode != CORE_LAYOUT_MODE_RUNTIME ||
         ctx.pane_host.layout_state.has_pending_changes ||
-        ctx.pane_host.nodes[split_node_index].ratio_01 != original_ratio) {
-        fprintf(stderr, "authoring_host_test: Esc should cancel draft authoring changes\n");
+        ctx.pane_host.nodes[split_node_index].ratio_01 != original_ratio ||
+        ctx.ui.font_zoom_step != original_font_zoom) {
+        fprintf(stderr, "authoring_host_test: Esc should cancel draft authoring and font/theme changes\n");
         return 1;
     }
 
@@ -189,11 +202,27 @@ int drawing_program_lifecycle_run_authoring_host_suite(void) {
         return 1;
     }
 
-    if (drawing_program_visual_authoring_chrome_hit_test(800, 600, 300, 22) !=
+    if (drawing_program_visual_authoring_chrome_hit_test(800, 600, &ctx, 300, 22) !=
             DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_APPLY ||
-        drawing_program_visual_authoring_chrome_hit_test(800, 600, 370, 22) !=
+        drawing_program_visual_authoring_chrome_hit_test(800, 600, &ctx, 370, 22) !=
             DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_CANCEL) {
         fprintf(stderr, "authoring_host_test: chrome Apply/Cancel hit test should resolve title-bar controls\n");
+        return 1;
+    }
+    authoring_key_event(&event, SDL_KEYDOWN, SDLK_TAB, KMOD_NONE);
+    if (!drawing_program_authoring_host_handle_sdl_event(&ctx, &event) ||
+        !drawing_program_authoring_host_font_theme_overlay_active(&ctx) ||
+        drawing_program_visual_authoring_chrome_hit_test(800, 600, &ctx, 60, 252) !=
+            DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_FONT_ZOOM_DEC ||
+        drawing_program_visual_authoring_chrome_hit_test(800, 600, &ctx, 340, 365) !=
+            DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_THEME_PRESET_MIDNIGHT) {
+        fprintf(stderr, "authoring_host_test: font/theme overlay hit tests should resolve controls\n");
+        return 1;
+    }
+    authoring_key_event(&event, SDL_KEYDOWN, SDLK_TAB, KMOD_NONE);
+    if (!drawing_program_authoring_host_handle_sdl_event(&ctx, &event) ||
+        !drawing_program_authoring_host_pane_overlay_active(&ctx)) {
+        fprintf(stderr, "authoring_host_test: second Tab should return to pane authoring overlay\n");
         return 1;
     }
 
