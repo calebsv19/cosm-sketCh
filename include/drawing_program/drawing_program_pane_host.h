@@ -17,6 +17,7 @@ struct DrawingProgramAppContext;
 
 #define DRAWING_PROGRAM_PANE_NODE_CAPACITY 32u
 #define DRAWING_PROGRAM_PANE_LEAF_CAPACITY 16u
+#define DRAWING_PROGRAM_PANE_SPLITTER_HIT_CAPACITY DRAWING_PROGRAM_PANE_NODE_CAPACITY
 #define DRAWING_PROGRAM_MODULE_REGISTRY_CAPACITY 16u
 #define DRAWING_PROGRAM_MODULE_BINDING_CAPACITY 16u
 
@@ -27,6 +28,8 @@ typedef struct DrawingProgramPaneHost {
     uint32_t root_index;
     CorePaneLeafRect leaves[DRAWING_PROGRAM_PANE_LEAF_CAPACITY];
     uint32_t leaf_count;
+    CorePaneSplitterHit splitter_hits[DRAWING_PROGRAM_PANE_SPLITTER_HIT_CAPACITY];
+    uint32_t splitter_hit_count;
     CorePaneModuleDescriptor module_entries[DRAWING_PROGRAM_MODULE_REGISTRY_CAPACITY];
     CorePaneModuleRegistry module_registry;
     CorePaneModuleBinding module_bindings[DRAWING_PROGRAM_MODULE_BINDING_CAPACITY];
@@ -36,6 +39,8 @@ typedef struct DrawingProgramPaneHost {
 
 CoreResult drawing_program_pane_host_init(struct DrawingProgramAppContext *ctx);
 CoreResult drawing_program_pane_host_rebuild(struct DrawingProgramAppContext *ctx);
+CoreResult drawing_program_pane_host_rebind_default_modules(struct DrawingProgramAppContext *ctx);
+int drawing_program_pane_host_default_modules_ready(const struct DrawingProgramAppContext *ctx);
 CoreResult drawing_program_pane_host_render(struct DrawingProgramAppContext *ctx);
 CoreResult drawing_program_pane_host_update_pointer(struct DrawingProgramAppContext *ctx,
                                                     float point_x,

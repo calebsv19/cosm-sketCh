@@ -4,6 +4,7 @@
 
 #include "core_theme.h"
 #include "drawing_program/drawing_program_color_model.h"
+#include "drawing_program/drawing_program_project_state.h"
 #include "drawing_program/drawing_program_runtime_orchestration.h"
 #include "drawing_program/drawing_program_ui_color_state.h"
 #include "drawing_program/drawing_program_visual_input_handlers.h"
@@ -356,6 +357,79 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
         }
         load_ctx.session.persist_enabled = 0u;
         if (!expect_ok(drawing_program_app_shutdown(&load_ctx), "persist_roundtrip_shutdown_load")) {
+            return 1;
+        }
+    }
+    {
+        static DrawingProgramAppContext project_ctx;
+        static DrawingProgramAppContext relaunch_ctx;
+        char runtime_root[] = "/tmp/drawing_program_session_ui_prefs";
+        char project_arg0[] = "drawing_program_session_ui_prefs";
+        char project_arg1[] = "--headless";
+        char project_arg2[] = "--smoke-frames";
+        char project_arg3[] = "1";
+        char project_arg4[] = "--runtime-root";
+        char *project_argv[] = { project_arg0, project_arg1, project_arg2, project_arg3, project_arg4, runtime_root, 0 };
+
+        (void)unlink("/tmp/drawing_program_session_ui_prefs/last_session.pack");
+        (void)unlink("/tmp/drawing_program_session_ui_prefs/session_prefs_v1.txt");
+        (void)unlink("/tmp/drawing_program_session_ui_prefs/input/icon_project_001.pack");
+
+        if (!expect_ok(drawing_program_app_bootstrap(&project_ctx, 6, project_argv), "session_ui_bootstrap_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_config_load(&project_ctx), "session_ui_config_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_state_seed(&project_ctx), "session_ui_state_seed_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_subsystems_init(&project_ctx), "session_ui_subsystems_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_runtime_start(&project_ctx), "session_ui_runtime_start_save")) {
+            return 1;
+        }
+        project_ctx.ui.theme_preset_id = (uint32_t)CORE_THEME_PRESET_DARK_DEFAULT;
+        project_ctx.ui.font_preset_id = (uint32_t)CORE_FONT_PRESET_IDE;
+        project_ctx.ui.font_zoom_step = -1;
+        if (!expect_ok(drawing_program_project_state_save_current(&project_ctx), "session_ui_save_project")) {
+            return 1;
+        }
+        project_ctx.ui.theme_preset_id = (uint32_t)CORE_THEME_PRESET_LIGHT_DEFAULT;
+        project_ctx.ui.font_preset_id = (uint32_t)CORE_FONT_PRESET_IDE;
+        project_ctx.ui.font_zoom_step = 4;
+        if (!expect_ok(drawing_program_app_shutdown(&project_ctx), "session_ui_shutdown_save")) {
+            return 1;
+        }
+
+        if (!expect_ok(drawing_program_app_bootstrap(&relaunch_ctx, 6, project_argv), "session_ui_bootstrap_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_config_load(&relaunch_ctx), "session_ui_config_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_state_seed(&relaunch_ctx), "session_ui_state_seed_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_subsystems_init(&relaunch_ctx), "session_ui_subsystems_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_runtime_start(&relaunch_ctx), "session_ui_runtime_start_load")) {
+            return 1;
+        }
+        if (relaunch_ctx.ui.theme_preset_id != (uint32_t)CORE_THEME_PRESET_LIGHT_DEFAULT ||
+            relaunch_ctx.ui.font_preset_id != (uint32_t)CORE_FONT_PRESET_IDE ||
+            relaunch_ctx.ui.font_zoom_step != 4) {
+            fprintf(stderr,
+                    "lifecycle_test: expected session ui prefs to override older project snapshot theme=%u font=%u zoom=%d\n",
+                    (unsigned)relaunch_ctx.ui.theme_preset_id,
+                    (unsigned)relaunch_ctx.ui.font_preset_id,
+                    (int)relaunch_ctx.ui.font_zoom_step);
+            return 1;
+        }
+        relaunch_ctx.session.persist_enabled = 0u;
+        if (!expect_ok(drawing_program_app_shutdown(&relaunch_ctx), "session_ui_shutdown_load")) {
             return 1;
         }
     }

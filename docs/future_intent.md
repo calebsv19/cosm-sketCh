@@ -1,8 +1,16 @@
 # Future Intent
 
-Last updated: 2026-04-16
+Last updated: 2026-05-03
 
 Near-term (active):
+- Workspace Authoring `WA1` first-host lane has started:
+  - `WA1-S0` host attach audit is complete
+  - `WA1-S1` entry/mode state is complete through `kit_workspace_authoring`, including physical-scancode authoring chord handling and a temporary title-bar active-mode signal
+  - `WA1-S2` minimal authoring chrome is complete with visible pane/module readout
+  - `WA1-S3` draft Apply/Cancel semantics are complete through baseline capture, draft pending state, Apply commit, and Cancel restore
+  - `WA1-S4` accepted authoring persistence is complete; applied pane/module state survives save/load while active un-applied drafts serialize as their entry baseline
+  - next boundary is `WA1-S5` closeout only
+  - module-content swapping, plugin loading, and `line_drawing` attach remain deferred
 - Phase 2 foundations are complete
 - Phase 3 complete:
   - `P3-S1` visible runtime baseline

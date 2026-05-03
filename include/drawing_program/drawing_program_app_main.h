@@ -99,6 +99,27 @@ typedef struct DrawingProgramAppUiState {
     uint8_t color_palette_rgb[DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT][3];
 } DrawingProgramAppUiState;
 
+typedef struct DrawingProgramAuthoringHostState {
+    uint8_t key_c_down;
+    uint8_t key_v_down;
+    uint8_t entry_chord_armed_key;
+    uint8_t draft_baseline_valid;
+    uint8_t last_event_consumed;
+    uint8_t last_event_entered;
+    uint8_t last_event_exited;
+    uint32_t enter_count;
+    uint32_t exit_count;
+    uint32_t apply_count;
+    uint32_t cancel_count;
+    uint32_t draft_change_count;
+    uint32_t consumed_key_count;
+    CorePaneNode baseline_nodes[DRAWING_PROGRAM_PANE_NODE_CAPACITY];
+    uint32_t baseline_node_count;
+    uint32_t baseline_root_index;
+    CorePaneModuleBinding baseline_module_bindings[DRAWING_PROGRAM_MODULE_BINDING_CAPACITY];
+    uint32_t baseline_module_binding_count;
+} DrawingProgramAuthoringHostState;
+
 typedef struct DrawingProgramAppSessionState {
     uint8_t headless;
     uint8_t print_lifecycle;
@@ -125,6 +146,13 @@ typedef struct DrawingProgramAppSessionState {
     uint32_t project_saved_history_cursor;
     uint8_t project_has_saved_state;
     uint8_t recent_project_count;
+    uint8_t ui_prefs_loaded;
+    uint8_t reserved0;
+    uint8_t reserved1;
+    uint8_t reserved2;
+    uint32_t ui_theme_preset_id;
+    uint32_t ui_font_preset_id;
+    int8_t ui_font_zoom_step;
     const char *preset_path;
     const char *project_path;
     const char *export_json_path;
@@ -140,6 +168,7 @@ typedef struct DrawingProgramAppContext {
     DrawingProgramLayerRasterStore layer_rasters;
     DrawingProgramObjectStore object_store;
     DrawingProgramObjectSelectionState object_selection;
+    DrawingProgramAuthoringHostState authoring_host;
     DrawingProgramPaneHost pane_host;
     DrawingProgramOverlayAdapterState overlay_adapter;
     float pane_host_bounds_width;

@@ -308,6 +308,17 @@ CoreResult drawing_program_app_config_load(DrawingProgramAppContext *ctx) {
     if (result.code != CORE_OK) {
         return result;
     }
+    if (getenv("DRAWING_PROGRAM_TRACE_UI_STATE")) {
+        fprintf(stderr,
+                "drawing_program trace config_load runtime_root=%s input_root=%s output_root=%s preset_path=%s project_path=%s preset_ptr=%p project_ptr=%p\n",
+                ctx->session.runtime_root_path,
+                ctx->session.input_root_path,
+                ctx->session.output_root_path,
+                ctx->session.preset_path ? ctx->session.preset_path : "(null)",
+                ctx->session.project_path ? ctx->session.project_path : "(null)",
+                (const void *)ctx->session.preset_path,
+                (const void *)ctx->session.project_path);
+    }
     if (ctx->session.export_json_path) {
         result = drawing_program_app_ensure_parent_dir(ctx->session.export_json_path);
         if (result.code != CORE_OK) {

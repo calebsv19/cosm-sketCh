@@ -43,6 +43,7 @@ CORE_PANE_MODULE_DIR ?= $(SHARED_VENDOR_DIR)/core/core_pane_module
 CORE_VIEWPORT2D_DIR ?= $(SHARED_VENDOR_DIR)/core/core_viewport2d
 KIT_RENDER_DIR ?= $(SHARED_VENDOR_DIR)/kit/kit_render
 KIT_PANE_DIR ?= $(SHARED_VENDOR_DIR)/kit/kit_pane
+KIT_WORKSPACE_AUTHORING_DIR ?= $(SHARED_VENDOR_DIR)/kit/kit_workspace_authoring
 
 ifeq ($(SHARED_MODE),workspace-linked)
 CORE_BASE_DIR := $(SHARED_WORKSPACE_DIR)/core/core_base
@@ -56,6 +57,7 @@ CORE_PANE_MODULE_DIR := $(SHARED_WORKSPACE_DIR)/core/core_pane_module
 CORE_VIEWPORT2D_DIR := $(SHARED_WORKSPACE_DIR)/core/core_viewport2d
 KIT_RENDER_DIR := $(SHARED_WORKSPACE_DIR)/kit/kit_render
 KIT_PANE_DIR := $(SHARED_WORKSPACE_DIR)/kit/kit_pane
+KIT_WORKSPACE_AUTHORING_DIR := $(SHARED_WORKSPACE_DIR)/kit/kit_workspace_authoring
 endif
 
 SDL_CFLAGS := $(shell env PKG_CONFIG_LIBDIR="$(TARGET_PKG_CONFIG_LIBDIR)" $(PKG_CONFIG) --cflags sdl2 2>/dev/null)
@@ -127,14 +129,18 @@ COMMON_CFLAGS := -std=c11 -Wall -Wextra -pedantic \
 	-I$(CORE_VIEWPORT2D_DIR)/include \
 	-I$(KIT_RENDER_DIR)/include \
 	-I$(KIT_PANE_DIR)/include \
+	-I$(KIT_WORKSPACE_AUTHORING_DIR)/include \
 	$(SDL_CFLAGS) \
 	$(PNG_CFLAGS) \
 	$(SDL_TTF_CFLAGS)
 PROGRAM_CFLAGS := $(COMMON_CFLAGS)
+PROGRAM_DEPFLAGS :=
 ifeq ($(BUILD_TOOLCHAIN),clang)
 PROGRAM_CFLAGS += $(ARCH_FLAGS)
+PROGRAM_DEPFLAGS := -MMD -MP
 endif
 HOST_CFLAGS := $(COMMON_CFLAGS) $(ARCH_FLAGS)
+HOST_DEPFLAGS := -MMD -MP
 LDLIBS := -lm
 APP_LDLIBS := $(LDLIBS) $(SDL_LIBS) $(SDL_TTF_LIBS) $(PNG_LIBS)
 
@@ -197,9 +203,11 @@ APP_LOCAL_SRCS := \
 	src/runtime/render/drawing_program_render_backend.c \
 	src/runtime/orchestration/drawing_program_runtime_orchestration.c \
 	src/runtime/canvas/drawing_program_visual_canvas_stroke_ops.c \
+	src/runtime/adapters/drawing_program_authoring_host.c \
 	src/runtime/adapters/drawing_program_pane_host.c \
 	src/runtime/adapters/drawing_program_overlay_adapter.c \
 	src/render/canvas/drawing_program_visual_canvas_world_render.c \
+	src/render/frame/drawing_program_visual_authoring_chrome.c \
 	src/render/frame/drawing_program_visual_frame_render.c \
 	src/render/overlay/drawing_program_visual_overlay_shared.c \
 	src/render/overlay/drawing_program_visual_object_overlay.c \
@@ -279,6 +287,7 @@ HEADLESS_LOCAL_SRCS := \
 	src/runtime/render/drawing_program_render_backend.c \
 	src/runtime/orchestration/drawing_program_runtime_orchestration.c \
 	src/runtime/canvas/drawing_program_visual_canvas_stroke_ops.c \
+	src/runtime/adapters/drawing_program_authoring_host.c \
 	src/runtime/adapters/drawing_program_pane_host.c \
 	src/runtime/adapters/drawing_program_overlay_adapter.c \
 	src/app/drawing_program_ui_color_state.c \
@@ -322,9 +331,11 @@ TEST_LOCAL_SRCS := \
 	src/runtime/render/drawing_program_render_backend.c \
 	src/runtime/orchestration/drawing_program_runtime_orchestration.c \
 	src/runtime/canvas/drawing_program_visual_canvas_stroke_ops.c \
+	src/runtime/adapters/drawing_program_authoring_host.c \
 	src/runtime/adapters/drawing_program_pane_host.c \
 	src/runtime/adapters/drawing_program_overlay_adapter.c \
 	src/render/canvas/drawing_program_visual_canvas_world_render.c \
+	src/render/frame/drawing_program_visual_authoring_chrome.c \
 	src/render/frame/drawing_program_visual_frame_render.c \
 	src/render/overlay/drawing_program_visual_overlay_shared.c \
 	src/render/overlay/drawing_program_visual_object_overlay.c \
@@ -377,6 +388,7 @@ TEST_LOCAL_SRCS := \
 	tests/drawing_program_lifecycle_snapshot_object_helpers.c \
 	tests/drawing_program_lifecycle_selection_layer_suite.c \
 	tests/drawing_program_lifecycle_selection_payload_suite.c \
+	tests/drawing_program_lifecycle_authoring_host_suite.c \
 	tests/drawing_program_lifecycle_baseline_history_suite.c \
 	tests/drawing_program_lifecycle_object_path_suite.c \
 	tests/drawing_program_lifecycle_object_path_history_suite.c \
@@ -392,6 +404,9 @@ TEST_LOCAL_SRCS := \
 APP_OBJS := $(APP_LOCAL_SRCS:%=$(PROGRAM_OBJ_DIR)/%.o)
 HEADLESS_OBJS := $(HEADLESS_LOCAL_SRCS:%=$(PROGRAM_OBJ_DIR)/%.o)
 TEST_OBJS := $(TEST_LOCAL_SRCS:%=$(TEST_OBJ_DIR)/%.o)
+APP_DEPS := $(APP_OBJS:.o=.d)
+HEADLESS_DEPS := $(HEADLESS_OBJS:.o=.d)
+TEST_DEPS := $(TEST_OBJS:.o=.d)
 
 define app_bin_for
 $(TARGET_BUILD_DIR)/toolchains/$(1)/bin/$(APP_BIN)
@@ -413,6 +428,7 @@ CORE_PANE_MODULE_LOCAL_SRCS := $(wildcard $(CORE_PANE_MODULE_DIR)/src/*.c) $(wil
 CORE_VIEWPORT2D_LOCAL_SRCS := $(wildcard $(CORE_VIEWPORT2D_DIR)/src/*.c) $(wildcard $(CORE_VIEWPORT2D_DIR)/include/*.h)
 KIT_RENDER_LOCAL_SRCS := $(wildcard $(KIT_RENDER_DIR)/src/*.c) $(wildcard $(KIT_RENDER_DIR)/include/*.h)
 KIT_PANE_LOCAL_SRCS := $(wildcard $(KIT_PANE_DIR)/src/*.c) $(wildcard $(KIT_PANE_DIR)/include/*.h)
+KIT_WORKSPACE_AUTHORING_LOCAL_SRCS := $(wildcard $(KIT_WORKSPACE_AUTHORING_DIR)/src/*.c) $(wildcard $(KIT_WORKSPACE_AUTHORING_DIR)/src/ui/*.c) $(wildcard $(KIT_WORKSPACE_AUTHORING_DIR)/include/*.h)
 
 CORE_BASE_LIB := $(SHARED_BUILD_DIR)/libcore_base.a
 CORE_THEME_LIB := $(SHARED_BUILD_DIR)/libcore_theme.a
@@ -424,7 +440,8 @@ CORE_PANE_MODULE_LIB := $(SHARED_BUILD_DIR)/libcore_pane_module.a
 CORE_VIEWPORT2D_LIB := $(SHARED_BUILD_DIR)/libcore_viewport2d.a
 KIT_RENDER_LIB := $(SHARED_BUILD_DIR)/libkit_render.a
 KIT_PANE_LIB := $(SHARED_BUILD_DIR)/libkit_pane.a
-SHARED_LIBS := $(KIT_PANE_LIB) $(KIT_RENDER_LIB) $(CORE_PACK_LIB) $(CORE_PANE_LIB) $(CORE_LAYOUT_LIB) $(CORE_PANE_MODULE_LIB) $(CORE_THEME_LIB) $(CORE_FONT_LIB) $(CORE_VIEWPORT2D_LIB) $(CORE_BASE_LIB)
+KIT_WORKSPACE_AUTHORING_LIB := $(SHARED_BUILD_DIR)/libkit_workspace_authoring.a
+SHARED_LIBS := $(KIT_WORKSPACE_AUTHORING_LIB) $(KIT_PANE_LIB) $(KIT_RENDER_LIB) $(CORE_PACK_LIB) $(CORE_PANE_LIB) $(CORE_LAYOUT_LIB) $(CORE_PANE_MODULE_LIB) $(CORE_THEME_LIB) $(CORE_FONT_LIB) $(CORE_VIEWPORT2D_LIB) $(CORE_BASE_LIB)
 
 DIST_DIR := dist
 PACKAGE_APP_NAME := sketCh.app
@@ -527,6 +544,11 @@ $(KIT_PANE_LIB): $(KIT_PANE_LOCAL_SRCS) $(KIT_RENDER_LOCAL_SRCS) $(CORE_PANE_LOC
 	@$(MAKE) -C "$(KIT_PANE_DIR)" CC="$(SHARED_CC)" KIT_RENDER_ENABLE_VK=0
 	@cp "$(KIT_PANE_DIR)/build/libkit_pane.a" "$@"
 
+$(KIT_WORKSPACE_AUTHORING_LIB): $(KIT_WORKSPACE_AUTHORING_LOCAL_SRCS) $(KIT_RENDER_LOCAL_SRCS) $(CORE_PANE_LOCAL_SRCS) $(CORE_THEME_LOCAL_SRCS) $(CORE_FONT_LOCAL_SRCS) $(CORE_BASE_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
+	@$(MAKE) -C "$(KIT_WORKSPACE_AUTHORING_DIR)" clean CC="$(SHARED_CC)" CORE_BASE_DIR="../../core/core_base" CORE_PANE_DIR="../../core/core_pane" CORE_THEME_DIR="../../core/core_theme" CORE_FONT_DIR="../../core/core_font" KIT_RENDER_DIR="../kit_render"
+	@$(MAKE) -C "$(KIT_WORKSPACE_AUTHORING_DIR)" CC="$(SHARED_CC)" CORE_BASE_DIR="../../core/core_base" CORE_PANE_DIR="../../core/core_pane" CORE_THEME_DIR="../../core/core_theme" CORE_FONT_DIR="../../core/core_font" KIT_RENDER_DIR="../kit_render"
+	@cp "$(KIT_WORKSPACE_AUTHORING_DIR)/build/libkit_workspace_authoring.a" "$@"
+
 $(TARGET_BUILD_DIR) $(PROGRAM_BUILD_DIR) $(PROGRAM_BIN_DIR) $(HOST_TEST_DIR) $(TEST_OBJ_DIR) $(TEST_BIN_DIR):
 	@mkdir -p "$@"
 
@@ -539,11 +561,11 @@ $(APP_OBJS) $(HEADLESS_OBJS): $(PROGRAM_CC_STAMP)
 
 $(PROGRAM_OBJ_DIR)/%.c.o: %.c $(PROGRAM_CC_STAMP)
 	@mkdir -p "$(dir $@)"
-	$(PROGRAM_CC) $(PROGRAM_CFLAGS) -c "$<" -o "$@"
+	$(PROGRAM_CC) $(PROGRAM_CFLAGS) $(PROGRAM_DEPFLAGS) -c "$<" -o "$@"
 
 $(TEST_OBJ_DIR)/%.c.o: %.c
 	@mkdir -p "$(dir $@)"
-	$(HOST_CC) $(HOST_CFLAGS) -c "$<" -o "$@"
+	$(HOST_CC) $(HOST_CFLAGS) $(HOST_DEPFLAGS) -c "$<" -o "$@"
 
 $(APP_TARGET): $(APP_OBJS) $(SHARED_LIBS)
 	@mkdir -p "$(dir $@)"
@@ -565,6 +587,8 @@ run-headless: $(HEADLESS_TARGET)
 
 test: $(TEST_TARGET)
 	"$(TEST_TARGET)"
+
+-include $(APP_DEPS) $(HEADLESS_DEPS) $(TEST_DEPS)
 
 visual-harness: $(APP_TARGET)
 	@echo "Built $(APP_TARGET)"

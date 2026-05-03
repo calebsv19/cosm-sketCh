@@ -1,0 +1,6 @@
+#ifndef DRAWING_PROGRAM_LIFECYCLE_AUTHORING_HOST_SUITE_H
+#define DRAWING_PROGRAM_LIFECYCLE_AUTHORING_HOST_SUITE_H
+
+int drawing_program_lifecycle_run_authoring_host_suite(void);
+
+#endif

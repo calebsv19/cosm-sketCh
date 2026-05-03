@@ -1,6 +1,18 @@
 #include "drawing_program/drawing_program_visual_frame_render.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "drawing_program/drawing_program_visual_authoring_chrome.h"
 #include "drawing_program/drawing_program_visual_theme.h"
+
+static int frame_trace_enabled(void) {
+    const char *value = getenv("DRAWING_PROGRAM_TRACE_UI_STATE");
+    if (!value || value[0] == '\0' || value[0] == '0') {
+        return 0;
+    }
+    return 1;
+}
 
 static void draw_splitter_overlay(SDL_Renderer *renderer,
                                   const DrawingProgramAppContext *ctx,
@@ -95,6 +107,17 @@ int drawing_program_visual_draw_frame(SDL_Window *window,
         SDL_Color fill;
         SDL_Color border;
         SDL_Rect rect;
+        if (frame_trace_enabled()) {
+            fprintf(stderr,
+                    "drawing_program trace frame leaf[%u] pane=%u module=%u rect=%.0f,%.0f %.0fx%.0f\n",
+                    (unsigned)i,
+                    (unsigned)leaf->id,
+                    (unsigned)module_type_id,
+                    (double)leaf->rect.x,
+                    (double)leaf->rect.y,
+                    (double)leaf->rect.width,
+                    (double)leaf->rect.height);
+        }
         module_color(module_type_id, theme, &fill, &border);
         rect.x = (int)(leaf->rect.x);
         rect.y = (int)(leaf->rect.y);
@@ -122,6 +145,7 @@ int drawing_program_visual_draw_frame(SDL_Window *window,
         (void)SDL_RenderDrawRect(renderer, &rect);
     }
     draw_splitter_overlay(renderer, ctx, theme);
+    drawing_program_visual_authoring_chrome_draw(renderer, width, height, ctx, theme);
 
     return 1;
 }

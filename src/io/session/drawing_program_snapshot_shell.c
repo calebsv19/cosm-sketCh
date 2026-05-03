@@ -4,6 +4,7 @@
 #include <stdlib.h>
 
 #include "drawing_program/drawing_program_app_main.h"
+#include "drawing_program/drawing_program_authoring_host.h"
 
 typedef struct DrawingProgramSnapshotShellHeaderV2 {
     uint32_t version;
@@ -51,6 +52,7 @@ CoreResult drawing_program_snapshot_shell_write_current(
     const struct DrawingProgramAppContext *ctx) {
     DrawingProgramSnapshotShellV2 *payload = 0;
     CoreResult result;
+    uint32_t accepted_root_index = 0u;
     if (!writer || !ctx) {
         return drawing_program_snapshot_shell_invalid("invalid snapshot shell write request");
     }
@@ -59,8 +61,6 @@ CoreResult drawing_program_snapshot_shell_write_current(
         return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "failed to allocate snapshot shell payload" };
     }
     payload->header.version = DRAWING_PROGRAM_SNAPSHOT_SHELL_VERSION_V2;
-    payload->header.node_count = ctx->pane_host.node_count;
-    payload->header.binding_count = ctx->pane_host.module_binding_count;
     payload->header.history_count = ctx->history.count;
     payload->header.history_cursor = ctx->history.cursor;
     payload->header.schema_version = ctx->document.schema_version;
@@ -74,9 +74,18 @@ CoreResult drawing_program_snapshot_shell_write_current(
     payload->header.raster_sample_count = ctx->document.raster_sample_count;
     memcpy(payload->layers, ctx->document.layers, sizeof(payload->layers));
     payload->editor = ctx->editor;
-    payload->layout_state = ctx->pane_host.layout_state;
-    memcpy(payload->nodes, ctx->pane_host.nodes, sizeof(payload->nodes));
-    memcpy(payload->bindings, ctx->pane_host.module_bindings, sizeof(payload->bindings));
+    result = drawing_program_authoring_host_export_accepted_pane_state(ctx,
+                                                                       &payload->layout_state,
+                                                                       payload->nodes,
+                                                                       &payload->header.node_count,
+                                                                       &accepted_root_index,
+                                                                       payload->bindings,
+                                                                       &payload->header.binding_count);
+    if (result.code != CORE_OK) {
+        free(payload);
+        return result;
+    }
+    (void)accepted_root_index;
     memcpy(payload->history_entries, ctx->history.entries, sizeof(payload->history_entries));
     result = core_pack_writer_add_chunk(writer,
                                         drawing_program_snapshot_shell_chunk_id_current(),

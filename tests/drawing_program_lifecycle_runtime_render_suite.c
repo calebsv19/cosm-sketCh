@@ -311,6 +311,42 @@ int drawing_program_lifecycle_run_runtime_render_suite(DrawingProgramAppContext 
             return 1;
         }
 
+        if (workflow_ctx.pane_host.splitter_hit_count == 0u) {
+            fprintf(stderr, "lifecycle_test: expected pane host splitter hits for runtime resize contract\n");
+            return 1;
+        }
+        {
+            const CorePaneSplitterHit *hit = &workflow_ctx.pane_host.splitter_hits[0];
+            float hit_x = hit->splitter_bounds.x + (hit->splitter_bounds.width * 0.5f);
+            float hit_y = hit->splitter_bounds.y + (hit->splitter_bounds.height * 0.5f);
+            float drag_x = hit_x;
+            float drag_y = hit_y;
+            workflow_ctx.ui.theme_preset_id = (uint32_t)CORE_THEME_PRESET_LIGHT_DEFAULT;
+            workflow_ctx.ui.font_preset_id = (uint32_t)CORE_FONT_PRESET_IDE;
+            workflow_ctx.ui.font_zoom_step = 4;
+            if (hit->axis == CORE_PANE_AXIS_HORIZONTAL) {
+                drag_x += 24.0f;
+            } else {
+                drag_y += 24.0f;
+            }
+            if (!drawing_program_pane_host_begin_splitter_drag(&workflow_ctx, hit_x, hit_y)) {
+                fprintf(stderr, "lifecycle_test: expected pane host splitter drag begin to succeed\n");
+                return 1;
+            }
+            (void)drawing_program_pane_host_update_splitter_drag(&workflow_ctx, drag_x, drag_y);
+            drawing_program_pane_host_end_splitter_drag(&workflow_ctx);
+            if (workflow_ctx.ui.theme_preset_id != (uint32_t)CORE_THEME_PRESET_LIGHT_DEFAULT ||
+                workflow_ctx.ui.font_preset_id != (uint32_t)CORE_FONT_PRESET_IDE ||
+                workflow_ctx.ui.font_zoom_step != 4) {
+                fprintf(stderr,
+                        "lifecycle_test: pane resize should preserve ui font/theme state theme=%u font=%u zoom=%d\n",
+                        (unsigned)workflow_ctx.ui.theme_preset_id,
+                        (unsigned)workflow_ctx.ui.font_preset_id,
+                        (int)workflow_ctx.ui.font_zoom_step);
+                return 1;
+            }
+        }
+
         {
             uint32_t module_before = drawing_program_visual_module_type_for_pane(&workflow_ctx, 6u);
             memset(&event, 0, sizeof(event));

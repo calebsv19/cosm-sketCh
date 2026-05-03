@@ -46,6 +46,46 @@ int drawing_program_lifecycle_run_snapshot_shell_suite(DrawingProgramAppContext 
         }
     }
     {
+        static DrawingProgramAppContext repaired_load_ctx;
+        char arg0[] = "drawing_program_module_binding_repair";
+        char arg1[] = "--headless";
+        char arg2[] = "--smoke-frames";
+        char arg3[] = "1";
+        char arg4[] = "--no-persist";
+        char *argv[] = { arg0, arg1, arg2, arg3, arg4, 0 };
+        const char *pack_path = "/tmp/drawing_program_module_binding_repair.pack";
+        (void)unlink(pack_path);
+        ctx->pane_host.module_binding_count = 0u;
+        if (!expect_ok(drawing_program_snapshot_save(ctx, pack_path), "binding_repair_snapshot_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_pane_host_rebind_default_modules(ctx), "binding_repair_restore_default_modules") ||
+            !expect_ok(drawing_program_pane_host_rebuild(ctx), "binding_repair_restore_rebuild")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_bootstrap(&repaired_load_ctx, 5, argv), "binding_repair_bootstrap_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_config_load(&repaired_load_ctx), "binding_repair_config_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_state_seed(&repaired_load_ctx), "binding_repair_state_seed_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_snapshot_load(&repaired_load_ctx, pack_path), "binding_repair_snapshot_load")) {
+            return 1;
+        }
+        if (!drawing_program_pane_host_default_modules_ready(&repaired_load_ctx)) {
+            fprintf(stderr,
+                    "lifecycle_test: expected snapshot load to repair default pane module bindings after stale shell load\n");
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_shutdown(&repaired_load_ctx), "binding_repair_shutdown_load")) {
+            return 1;
+        }
+        (void)unlink(pack_path);
+    }
+    {
         static DrawingProgramAppContext save_ctx;
         static DrawingProgramAppContext load_ctx;
         char arg0[] = "drawing_program_post_load_edit_visibility";

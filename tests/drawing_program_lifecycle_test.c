@@ -16,6 +16,7 @@
 
 #include "drawing_program_lifecycle_snapshot_suite.h"
 #include "drawing_program_lifecycle_selection_layer_suite.h"
+#include "drawing_program_lifecycle_authoring_host_suite.h"
 #include "drawing_program_lifecycle_baseline_history_suite.h"
 #include "drawing_program_lifecycle_export_suite.h"
 #include "drawing_program_lifecycle_object_path_suite.h"
@@ -196,6 +197,9 @@ int main(void) {
                                                            center_y,
                                                            expected_draw_value,
                                                            expected_eraser_value) != 0) {
+        return 1;
+    }
+    if (drawing_program_lifecycle_run_authoring_host_suite() != 0) {
         return 1;
     }
     return 0;

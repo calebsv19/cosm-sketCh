@@ -1,5 +1,6 @@
 #include "drawing_program/drawing_program_session_prefs.h"
 
+#include <stdlib.h>
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
@@ -42,11 +43,48 @@ static CoreResult drawing_program_session_prefs_path(const struct DrawingProgram
     return core_result_ok();
 }
 
+static int drawing_program_session_prefs_parse_u32(const char *text, uint32_t *out_value) {
+    char *end = 0;
+    unsigned long parsed = 0ul;
+    if (!text || !text[0] || !out_value) {
+        return 0;
+    }
+    parsed = strtoul(text, &end, 10);
+    if (!end || *end != '\0' || parsed > 0xfffffffful) {
+        return 0;
+    }
+    *out_value = (uint32_t)parsed;
+    return 1;
+}
+
+static int drawing_program_session_prefs_parse_i32(const char *text, int32_t *out_value) {
+    char *end = 0;
+    long parsed = 0l;
+    if (!text || !text[0] || !out_value) {
+        return 0;
+    }
+    parsed = strtol(text, &end, 10);
+    if (!end || *end != '\0') {
+        return 0;
+    }
+    if (parsed < -2147483647l - 1l || parsed > 2147483647l) {
+        return 0;
+    }
+    *out_value = (int32_t)parsed;
+    return 1;
+}
+
 CoreResult drawing_program_session_prefs_load(struct DrawingProgramAppContext *ctx) {
     char prefs_path[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
     char input_root[sizeof(ctx->session.input_root_path)];
     char output_root[sizeof(ctx->session.output_root_path)];
     char project_path[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    uint32_t ui_theme_preset_id = 0u;
+    uint32_t ui_font_preset_id = 0u;
+    int32_t ui_font_zoom_step = 0;
+    uint8_t ui_theme_loaded = 0u;
+    uint8_t ui_font_loaded = 0u;
+    uint8_t ui_zoom_loaded = 0u;
     FILE *prefs = 0;
     char line[1024];
     CoreResult result;
@@ -75,6 +113,15 @@ CoreResult drawing_program_session_prefs_load(struct DrawingProgramAppContext *c
             (void)snprintf(output_root, sizeof(output_root), "%s", line + 12);
         } else if (strncmp(line, "project_path=", 13u) == 0u) {
             (void)snprintf(project_path, sizeof(project_path), "%s", line + 13);
+        } else if (strncmp(line, "ui_theme_preset_id=", 19u) == 0u) {
+            ui_theme_loaded =
+                drawing_program_session_prefs_parse_u32(line + 19, &ui_theme_preset_id) ? 1u : 0u;
+        } else if (strncmp(line, "ui_font_preset_id=", 18u) == 0u) {
+            ui_font_loaded =
+                drawing_program_session_prefs_parse_u32(line + 18, &ui_font_preset_id) ? 1u : 0u;
+        } else if (strncmp(line, "ui_font_zoom_step=", 18u) == 0u) {
+            ui_zoom_loaded =
+                drawing_program_session_prefs_parse_i32(line + 18, &ui_font_zoom_step) ? 1u : 0u;
         }
     }
     (void)fclose(prefs);
@@ -90,6 +137,16 @@ CoreResult drawing_program_session_prefs_load(struct DrawingProgramAppContext *c
             return result;
         }
     }
+    if (ui_theme_loaded) {
+        ctx->session.ui_theme_preset_id = ui_theme_preset_id;
+    }
+    if (ui_font_loaded) {
+        ctx->session.ui_font_preset_id = ui_font_preset_id;
+    }
+    if (ui_zoom_loaded) {
+        ctx->session.ui_font_zoom_step = (int8_t)ui_font_zoom_step;
+    }
+    ctx->session.ui_prefs_loaded = (ui_theme_loaded || ui_font_loaded || ui_zoom_loaded) ? 1u : 0u;
     return core_result_ok();
 }
 
@@ -112,6 +169,9 @@ CoreResult drawing_program_session_prefs_save(const struct DrawingProgramAppCont
     (void)fprintf(prefs, "input_root=%s\n", ctx->session.input_root_path);
     (void)fprintf(prefs, "output_root=%s\n", ctx->session.output_root_path);
     (void)fprintf(prefs, "project_path=%s\n", ctx->session.project_path ? ctx->session.project_path : "");
+    (void)fprintf(prefs, "ui_theme_preset_id=%u\n", (unsigned)ctx->ui.theme_preset_id);
+    (void)fprintf(prefs, "ui_font_preset_id=%u\n", (unsigned)ctx->ui.font_preset_id);
+    (void)fprintf(prefs, "ui_font_zoom_step=%d\n", (int)ctx->ui.font_zoom_step);
     if (fclose(prefs) != 0) {
         return (CoreResult){ CORE_ERR_IO, "failed to finalize session prefs file" };
     }

@@ -1,11 +1,16 @@
 #include "drawing_program/drawing_program_pane_host.h"
 
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "drawing_program/drawing_program_app_main.h"
+#include "drawing_program/drawing_program_authoring_host.h"
 
 enum {
-    DRAWING_PROGRAM_PANE_SPLITTER_HANDLE_THICKNESS = 8
+    DRAWING_PROGRAM_PANE_SPLITTER_HANDLE_THICKNESS = 8,
+    DRAWING_PROGRAM_PANE_HOST_DEFAULT_BOUNDS_WIDTH = 1200,
+    DRAWING_PROGRAM_PANE_HOST_DEFAULT_BOUNDS_HEIGHT = 800
 };
 
 static CoreResult pane_host_invalid(const char *message) {
@@ -13,11 +18,61 @@ static CoreResult pane_host_invalid(const char *message) {
     return r;
 }
 
+static CoreResult pane_host_validation_failure(const CorePaneValidationReport *report, CorePaneRect bounds) {
+    static char message[160];
+    const char *code_string = "validation_failed";
+    if (report) {
+        code_string = core_pane_validation_code_string(report->code);
+        (void)snprintf(message,
+                       sizeof(message),
+                       "%s node=%u related=%u bounds=%.2fx%.2f",
+                       code_string,
+                       (unsigned)report->node_index,
+                       (unsigned)report->related_index,
+                       (double)bounds.width,
+                       (double)bounds.height);
+    } else {
+        (void)snprintf(message,
+                       sizeof(message),
+                       "validation_failed bounds=%.2fx%.2f",
+                       (double)bounds.width,
+                       (double)bounds.height);
+    }
+    return (CoreResult){ CORE_ERR_FORMAT, message };
+}
+
 static CorePaneRect drawing_program_pane_host_bounds(const struct DrawingProgramAppContext *ctx) {
+    float width = 0.0f;
+    float height = 0.0f;
     if (!ctx) {
         return (CorePaneRect){ 0.0f, 0.0f, 0.0f, 0.0f };
     }
-    return (CorePaneRect){ 0.0f, 0.0f, ctx->pane_host_bounds_width, ctx->pane_host_bounds_height };
+    width = ctx->pane_host_bounds_width;
+    height = ctx->pane_host_bounds_height;
+    if (width < 64.0f || height < 64.0f) {
+        width = (float)DRAWING_PROGRAM_PANE_HOST_DEFAULT_BOUNDS_WIDTH;
+        height = (float)DRAWING_PROGRAM_PANE_HOST_DEFAULT_BOUNDS_HEIGHT;
+    }
+    return (CorePaneRect){ 0.0f, 0.0f, width, height };
+}
+
+static CoreResult drawing_program_pane_host_refresh_splitter_hits(struct DrawingProgramAppContext *ctx,
+                                                                  CorePaneRect bounds) {
+    if (!ctx) {
+        return pane_host_invalid("null app context");
+    }
+    if (!core_pane_collect_splitter_hits(ctx->pane_host.nodes,
+                                         ctx->pane_host.node_count,
+                                         ctx->pane_host.root_index,
+                                         bounds,
+                                         (float)DRAWING_PROGRAM_PANE_SPLITTER_HANDLE_THICKNESS,
+                                         ctx->pane_host.splitter_hits,
+                                         DRAWING_PROGRAM_PANE_SPLITTER_HIT_CAPACITY,
+                                         &ctx->pane_host.splitter_hit_count)) {
+        CoreResult r = { CORE_ERR_FORMAT, "core_pane_collect_splitter_hits failed" };
+        return r;
+    }
+    return core_result_ok();
 }
 
 static void drawing_program_module_render_canvas(void *host_context,
@@ -60,58 +115,23 @@ static void drawing_program_module_render_stub(void *host_context,
     ctx->runtime.render_module_calls_total += 1u;
 }
 
-CoreResult drawing_program_pane_host_rebuild(struct DrawingProgramAppContext *ctx) {
-    CorePaneRect bounds;
-    uint32_t leaf_pane_ids[DRAWING_PROGRAM_PANE_LEAF_CAPACITY];
+static int drawing_program_pane_host_has_module_binding(const struct DrawingProgramAppContext *ctx,
+                                                        uint32_t pane_node_id,
+                                                        uint32_t module_type_id) {
     uint32_t i;
-    CorePaneValidationReport report;
-    CorePaneModuleResult module_result;
     if (!ctx) {
-        return pane_host_invalid("null app context");
+        return 0;
     }
-
-    bounds = drawing_program_pane_host_bounds(ctx);
-    memset(&report, 0, sizeof(report));
-    if (!core_pane_validate_graph(ctx->pane_host.nodes,
-                                  ctx->pane_host.node_count,
-                                  ctx->pane_host.root_index,
-                                  bounds,
-                                  &report)) {
-        CoreResult r = { CORE_ERR_FORMAT, core_pane_validation_code_string(report.code) };
-        return r;
+    for (i = 0u; i < ctx->pane_host.module_binding_count; ++i) {
+        const CorePaneModuleBinding *binding = &ctx->pane_host.module_bindings[i];
+        if (binding->pane_node_id == pane_node_id && binding->module_type_id == module_type_id) {
+            return 1;
+        }
     }
-    if (!core_pane_solve(ctx->pane_host.nodes,
-                         ctx->pane_host.node_count,
-                         ctx->pane_host.root_index,
-                         bounds,
-                         ctx->pane_host.leaves,
-                         DRAWING_PROGRAM_PANE_LEAF_CAPACITY,
-                         &ctx->pane_host.leaf_count)) {
-        CoreResult r = { CORE_ERR_FORMAT, "core_pane_solve failed" };
-        return r;
-    }
-    if (ctx->pane_host.leaf_count == 0u) {
-        CoreResult r = { CORE_ERR_FORMAT, "no pane leaves" };
-        return r;
-    }
-
-    for (i = 0u; i < ctx->pane_host.leaf_count; ++i) {
-        leaf_pane_ids[i] = (uint32_t)ctx->pane_host.leaves[i].id;
-    }
-    module_result = core_pane_module_validate_bindings(&ctx->pane_host.module_registry,
-                                                       ctx->pane_host.module_bindings,
-                                                       ctx->pane_host.module_binding_count,
-                                                       leaf_pane_ids,
-                                                       ctx->pane_host.leaf_count);
-    if (module_result != CORE_PANE_MODULE_OK) {
-        CoreResult r = { CORE_ERR_FORMAT, "core_pane_module_validate_bindings failed" };
-        return r;
-    }
-
-    return core_result_ok();
+    return 0;
 }
 
-CoreResult drawing_program_pane_host_init(struct DrawingProgramAppContext *ctx) {
+static CoreResult drawing_program_pane_host_register_modules(struct DrawingProgramAppContext *ctx) {
     CorePaneModuleDescriptor canvas_descriptor;
     CorePaneModuleDescriptor palette_descriptor;
     CorePaneModuleDescriptor menu_descriptor;
@@ -120,57 +140,6 @@ CoreResult drawing_program_pane_host_init(struct DrawingProgramAppContext *ctx) 
     if (!ctx) {
         return pane_host_invalid("null app context");
     }
-
-    memset(&ctx->pane_host, 0, sizeof(ctx->pane_host));
-    core_layout_state_init(&ctx->pane_host.layout_state);
-    kit_pane_splitter_interaction_init(&ctx->pane_host.splitter_interaction,
-                                       (float)DRAWING_PROGRAM_PANE_SPLITTER_HANDLE_THICKNESS);
-
-    ctx->pane_host.node_count = 7u;
-    ctx->pane_host.root_index = 0u;
-    ctx->pane_host.nodes[0] = (CorePaneNode){
-        .type = CORE_PANE_NODE_SPLIT,
-        .id = 1u,
-        .axis = CORE_PANE_AXIS_VERTICAL,
-        .ratio_01 = 0.08f,
-        .child_a = 1u,
-        .child_b = 2u,
-        .constraints = { 48.0f, 220.0f }
-    };
-    ctx->pane_host.nodes[1] = (CorePaneNode){
-        .type = CORE_PANE_NODE_LEAF,
-        .id = 2u
-    };
-    ctx->pane_host.nodes[2] = (CorePaneNode){
-        .type = CORE_PANE_NODE_SPLIT,
-        .id = 3u,
-        .axis = CORE_PANE_AXIS_HORIZONTAL,
-        .ratio_01 = 0.18f,
-        .child_a = 3u,
-        .child_b = 4u,
-        .constraints = { 180.0f, 280.0f }
-    };
-    ctx->pane_host.nodes[3] = (CorePaneNode){
-        .type = CORE_PANE_NODE_LEAF,
-        .id = 4u
-    };
-    ctx->pane_host.nodes[4] = (CorePaneNode){
-        .type = CORE_PANE_NODE_SPLIT,
-        .id = 5u,
-        .axis = CORE_PANE_AXIS_HORIZONTAL,
-        .ratio_01 = 0.72f,
-        .child_a = 5u,
-        .child_b = 6u,
-        .constraints = { 280.0f, 200.0f }
-    };
-    ctx->pane_host.nodes[5] = (CorePaneNode){
-        .type = CORE_PANE_NODE_LEAF,
-        .id = 6u
-    };
-    ctx->pane_host.nodes[6] = (CorePaneNode){
-        .type = CORE_PANE_NODE_LEAF,
-        .id = 7u
-    };
 
     module_result = core_pane_module_registry_init(&ctx->pane_host.module_registry,
                                                    ctx->pane_host.module_entries,
@@ -240,6 +209,334 @@ CoreResult drawing_program_pane_host_init(struct DrawingProgramAppContext *ctx) 
         return r;
     }
 
+    return core_result_ok();
+}
+
+CoreResult drawing_program_pane_host_rebuild(struct DrawingProgramAppContext *ctx) {
+    CorePaneRect bounds;
+    uint32_t leaf_pane_ids[DRAWING_PROGRAM_PANE_LEAF_CAPACITY];
+    uint32_t i;
+    CorePaneValidationReport report;
+    CorePaneModuleResult module_result;
+    DrawingProgramAppUiState preserved_ui;
+    CoreResult final_result = core_result_ok();
+    if (!ctx) {
+        return pane_host_invalid("null app context");
+    }
+
+    preserved_ui = ctx->ui;
+    bounds = drawing_program_pane_host_bounds(ctx);
+    memset(&report, 0, sizeof(report));
+    if (!core_pane_validate_graph(ctx->pane_host.nodes,
+                                  ctx->pane_host.node_count,
+                                  ctx->pane_host.root_index,
+                                  bounds,
+                                  &report)) {
+        final_result = pane_host_validation_failure(&report, bounds);
+        goto restore_ui;
+    }
+    if (!core_pane_solve(ctx->pane_host.nodes,
+                         ctx->pane_host.node_count,
+                         ctx->pane_host.root_index,
+                         bounds,
+                         ctx->pane_host.leaves,
+                         DRAWING_PROGRAM_PANE_LEAF_CAPACITY,
+                         &ctx->pane_host.leaf_count)) {
+        final_result = (CoreResult){ CORE_ERR_FORMAT, "core_pane_solve failed" };
+        goto restore_ui;
+    }
+    if (ctx->pane_host.leaf_count == 0u) {
+        final_result = (CoreResult){ CORE_ERR_FORMAT, "no pane leaves" };
+        goto restore_ui;
+    }
+    if (drawing_program_pane_host_refresh_splitter_hits(ctx, bounds).code != CORE_OK) {
+        final_result = (CoreResult){ CORE_ERR_FORMAT, "splitter hit refresh failed" };
+        goto restore_ui;
+    }
+    if (drawing_program_pane_host_register_modules(ctx).code != CORE_OK) {
+        final_result = (CoreResult){ CORE_ERR_FORMAT, "pane host module registry rebuild failed" };
+        goto restore_ui;
+    }
+
+    for (i = 0u; i < ctx->pane_host.leaf_count; ++i) {
+        leaf_pane_ids[i] = (uint32_t)ctx->pane_host.leaves[i].id;
+    }
+    module_result = core_pane_module_validate_bindings(&ctx->pane_host.module_registry,
+                                                       ctx->pane_host.module_bindings,
+                                                       ctx->pane_host.module_binding_count,
+                                                       leaf_pane_ids,
+                                                       ctx->pane_host.leaf_count);
+    if (module_result != CORE_PANE_MODULE_OK) {
+        static char module_message[160];
+        (void)snprintf(module_message,
+                       sizeof(module_message),
+                       "core_pane_module_validate_bindings failed code=%u leaves=%u bindings=%u",
+                       (unsigned)module_result,
+                       (unsigned)ctx->pane_host.leaf_count,
+                       (unsigned)ctx->pane_host.module_binding_count);
+        final_result = (CoreResult){ CORE_ERR_FORMAT, module_message };
+        goto restore_ui;
+    }
+
+restore_ui:
+    ctx->ui = preserved_ui;
+    return final_result;
+}
+
+int drawing_program_pane_host_default_modules_ready(const struct DrawingProgramAppContext *ctx) {
+    uint32_t menu_idx = 0u;
+    uint32_t i;
+    uint32_t candidate_indices[DRAWING_PROGRAM_PANE_LEAF_CAPACITY];
+    uint32_t candidate_count = 0u;
+    uint32_t left_idx;
+    uint32_t right_idx;
+    uint32_t center_idx = 0u;
+    float min_x = 0.0f;
+    float max_x = 0.0f;
+    float target_mid = 0.0f;
+    float best_distance = 0.0f;
+    int center_set = 0;
+    if (!ctx || ctx->pane_host.leaf_count < 4u || ctx->pane_host.module_binding_count < 4u) {
+        return 0;
+    }
+
+    for (i = 1u; i < ctx->pane_host.leaf_count; ++i) {
+        const CorePaneLeafRect *candidate = &ctx->pane_host.leaves[i];
+        const CorePaneLeafRect *best = &ctx->pane_host.leaves[menu_idx];
+        if (candidate->rect.y < best->rect.y ||
+            (candidate->rect.y == best->rect.y && candidate->rect.width > best->rect.width)) {
+            menu_idx = i;
+        }
+    }
+    for (i = 0u; i < ctx->pane_host.leaf_count; ++i) {
+        if (i == menu_idx) {
+            continue;
+        }
+        candidate_indices[candidate_count++] = i;
+    }
+    if (candidate_count < 3u) {
+        return 0;
+    }
+
+    left_idx = candidate_indices[0];
+    right_idx = candidate_indices[0];
+    min_x = ctx->pane_host.leaves[left_idx].rect.x;
+    max_x = min_x;
+    for (i = 1u; i < candidate_count; ++i) {
+        uint32_t idx = candidate_indices[i];
+        float x = ctx->pane_host.leaves[idx].rect.x;
+        if (x < min_x) {
+            min_x = x;
+            left_idx = idx;
+        }
+        if (x > max_x) {
+            max_x = x;
+            right_idx = idx;
+        }
+    }
+
+    target_mid = (min_x + max_x) * 0.5f;
+    for (i = 0u; i < candidate_count; ++i) {
+        uint32_t idx = candidate_indices[i];
+        float center_x;
+        float distance;
+        if (idx == left_idx || idx == right_idx) {
+            continue;
+        }
+        center_x = ctx->pane_host.leaves[idx].rect.x + (ctx->pane_host.leaves[idx].rect.width * 0.5f);
+        distance = fabsf(center_x - target_mid);
+        if (!center_set || distance < best_distance) {
+            center_set = 1;
+            best_distance = distance;
+            center_idx = idx;
+        }
+    }
+    if (!center_set) {
+        return 0;
+    }
+
+    return drawing_program_pane_host_has_module_binding(ctx, (uint32_t)ctx->pane_host.leaves[menu_idx].id, 3u) &&
+           drawing_program_pane_host_has_module_binding(ctx, (uint32_t)ctx->pane_host.leaves[left_idx].id, 2u) &&
+           drawing_program_pane_host_has_module_binding(ctx, (uint32_t)ctx->pane_host.leaves[center_idx].id, 1u) &&
+           drawing_program_pane_host_has_module_binding(ctx, (uint32_t)ctx->pane_host.leaves[right_idx].id, 4u);
+}
+
+CoreResult drawing_program_pane_host_rebind_default_modules(struct DrawingProgramAppContext *ctx) {
+    uint32_t menu_idx = 0u;
+    uint32_t i;
+    uint32_t candidate_indices[DRAWING_PROGRAM_PANE_LEAF_CAPACITY];
+    uint32_t candidate_count = 0u;
+    uint32_t left_idx;
+    uint32_t right_idx;
+    uint32_t center_idx = 0u;
+    float min_x = 0.0f;
+    float max_x = 0.0f;
+    float target_mid = 0.0f;
+    float best_distance = 0.0f;
+    int center_set = 0;
+    if (!ctx) {
+        return pane_host_invalid("invalid module rebind request");
+    }
+    if (ctx->pane_host.leaf_count < 4u) {
+        CoreResult r = { CORE_ERR_FORMAT, "pane host requires at least 4 pane leaves for module rebind" };
+        return r;
+    }
+
+    for (i = 1u; i < ctx->pane_host.leaf_count; ++i) {
+        const CorePaneLeafRect *candidate = &ctx->pane_host.leaves[i];
+        const CorePaneLeafRect *best = &ctx->pane_host.leaves[menu_idx];
+        if (candidate->rect.y < best->rect.y ||
+            (candidate->rect.y == best->rect.y && candidate->rect.width > best->rect.width)) {
+            menu_idx = i;
+        }
+    }
+    for (i = 0u; i < ctx->pane_host.leaf_count; ++i) {
+        if (i == menu_idx) {
+            continue;
+        }
+        candidate_indices[candidate_count++] = i;
+    }
+    if (candidate_count < 3u) {
+        CoreResult r = { CORE_ERR_FORMAT, "pane host missing side/canvas panes for module rebind" };
+        return r;
+    }
+
+    left_idx = candidate_indices[0];
+    right_idx = candidate_indices[0];
+    min_x = ctx->pane_host.leaves[left_idx].rect.x;
+    max_x = min_x;
+    for (i = 1u; i < candidate_count; ++i) {
+        uint32_t idx = candidate_indices[i];
+        float x = ctx->pane_host.leaves[idx].rect.x;
+        if (x < min_x) {
+            min_x = x;
+            left_idx = idx;
+        }
+        if (x > max_x) {
+            max_x = x;
+            right_idx = idx;
+        }
+    }
+
+    target_mid = (min_x + max_x) * 0.5f;
+    for (i = 0u; i < candidate_count; ++i) {
+        uint32_t idx = candidate_indices[i];
+        float center_x;
+        float distance;
+        if (idx == left_idx || idx == right_idx) {
+            continue;
+        }
+        center_x = ctx->pane_host.leaves[idx].rect.x + (ctx->pane_host.leaves[idx].rect.width * 0.5f);
+        distance = fabsf(center_x - target_mid);
+        if (!center_set || distance < best_distance) {
+            center_set = 1;
+            best_distance = distance;
+            center_idx = idx;
+        }
+    }
+    if (!center_set) {
+        for (i = 0u; i < candidate_count; ++i) {
+            uint32_t idx = candidate_indices[i];
+            if (idx != left_idx && idx != right_idx) {
+                center_idx = idx;
+                center_set = 1;
+                break;
+            }
+        }
+    }
+    if (!center_set || left_idx == right_idx || center_idx == left_idx || center_idx == right_idx) {
+        CoreResult r = { CORE_ERR_FORMAT, "pane host failed to resolve default pane roles for module rebind" };
+        return r;
+    }
+
+    ctx->pane_host.module_binding_count = 4u;
+    ctx->pane_host.module_bindings[0] = (CorePaneModuleBinding){
+        .instance_id = 1u,
+        .pane_node_id = (uint32_t)ctx->pane_host.leaves[menu_idx].id,
+        .module_type_id = 3u,
+        .config_variant = 0u,
+        .runtime_flags = 0u
+    };
+    ctx->pane_host.module_bindings[1] = (CorePaneModuleBinding){
+        .instance_id = 2u,
+        .pane_node_id = (uint32_t)ctx->pane_host.leaves[left_idx].id,
+        .module_type_id = 2u,
+        .config_variant = 0u,
+        .runtime_flags = 0u
+    };
+    ctx->pane_host.module_bindings[2] = (CorePaneModuleBinding){
+        .instance_id = 3u,
+        .pane_node_id = (uint32_t)ctx->pane_host.leaves[center_idx].id,
+        .module_type_id = 1u,
+        .config_variant = 0u,
+        .runtime_flags = 0u
+    };
+    ctx->pane_host.module_bindings[3] = (CorePaneModuleBinding){
+        .instance_id = 4u,
+        .pane_node_id = (uint32_t)ctx->pane_host.leaves[right_idx].id,
+        .module_type_id = 4u,
+        .config_variant = 0u,
+        .runtime_flags = 0u
+    };
+    return core_result_ok();
+}
+
+CoreResult drawing_program_pane_host_init(struct DrawingProgramAppContext *ctx) {
+    if (!ctx) {
+        return pane_host_invalid("null app context");
+    }
+
+    memset(&ctx->pane_host, 0, sizeof(ctx->pane_host));
+    core_layout_state_init(&ctx->pane_host.layout_state);
+    kit_pane_splitter_interaction_init(&ctx->pane_host.splitter_interaction,
+                                       (float)DRAWING_PROGRAM_PANE_SPLITTER_HANDLE_THICKNESS);
+
+    ctx->pane_host.node_count = 7u;
+    ctx->pane_host.root_index = 0u;
+    ctx->pane_host.nodes[0] = (CorePaneNode){
+        .type = CORE_PANE_NODE_SPLIT,
+        .id = 1u,
+        .axis = CORE_PANE_AXIS_VERTICAL,
+        .ratio_01 = 0.08f,
+        .child_a = 1u,
+        .child_b = 2u,
+        .constraints = { 48.0f, 220.0f }
+    };
+    ctx->pane_host.nodes[1] = (CorePaneNode){
+        .type = CORE_PANE_NODE_LEAF,
+        .id = 2u
+    };
+    ctx->pane_host.nodes[2] = (CorePaneNode){
+        .type = CORE_PANE_NODE_SPLIT,
+        .id = 3u,
+        .axis = CORE_PANE_AXIS_HORIZONTAL,
+        .ratio_01 = 0.18f,
+        .child_a = 3u,
+        .child_b = 4u,
+        .constraints = { 180.0f, 280.0f }
+    };
+    ctx->pane_host.nodes[3] = (CorePaneNode){
+        .type = CORE_PANE_NODE_LEAF,
+        .id = 4u
+    };
+    ctx->pane_host.nodes[4] = (CorePaneNode){
+        .type = CORE_PANE_NODE_SPLIT,
+        .id = 5u,
+        .axis = CORE_PANE_AXIS_HORIZONTAL,
+        .ratio_01 = 0.72f,
+        .child_a = 5u,
+        .child_b = 6u,
+        .constraints = { 280.0f, 200.0f }
+    };
+    ctx->pane_host.nodes[5] = (CorePaneNode){
+        .type = CORE_PANE_NODE_LEAF,
+        .id = 6u
+    };
+    ctx->pane_host.nodes[6] = (CorePaneNode){
+        .type = CORE_PANE_NODE_LEAF,
+        .id = 7u
+    };
+
     ctx->pane_host.module_binding_count = 4u;
     ctx->pane_host.module_bindings[0] = (CorePaneModuleBinding){
         .instance_id = 1u,
@@ -300,13 +597,11 @@ CoreResult drawing_program_pane_host_update_pointer(struct DrawingProgramAppCont
     if (!ctx) {
         return pane_host_invalid("null app context");
     }
-    result = kit_pane_splitter_interaction_set_hover(&ctx->pane_host.splitter_interaction,
-                                                     ctx->pane_host.nodes,
-                                                     ctx->pane_host.node_count,
-                                                     ctx->pane_host.root_index,
-                                                     drawing_program_pane_host_bounds(ctx),
-                                                     point_x,
-                                                     point_y);
+    result = kit_pane_splitter_interaction_set_hover_from_hits(&ctx->pane_host.splitter_interaction,
+                                                               ctx->pane_host.splitter_hits,
+                                                               ctx->pane_host.splitter_hit_count,
+                                                               point_x,
+                                                               point_y);
     if (result.code == CORE_ERR_NOT_FOUND) {
         return core_result_ok();
     }
@@ -324,13 +619,11 @@ int drawing_program_pane_host_begin_splitter_drag(struct DrawingProgramAppContex
         ctx->overlay_adapter.runtime_paused) {
         return 0;
     }
-    result = kit_pane_splitter_interaction_begin_drag(&ctx->pane_host.splitter_interaction,
-                                                      ctx->pane_host.nodes,
-                                                      ctx->pane_host.node_count,
-                                                      ctx->pane_host.root_index,
-                                                      drawing_program_pane_host_bounds(ctx),
-                                                      point_x,
-                                                      point_y);
+    result = kit_pane_splitter_interaction_begin_drag_from_hits(&ctx->pane_host.splitter_interaction,
+                                                                ctx->pane_host.splitter_hits,
+                                                                ctx->pane_host.splitter_hit_count,
+                                                                point_x,
+                                                                point_y);
     return result.code == CORE_OK ? 1 : 0;
 }
 
@@ -353,6 +646,9 @@ int drawing_program_pane_host_update_splitter_drag(struct DrawingProgramAppConte
     }
     if (changed) {
         if (drawing_program_pane_host_rebuild(ctx).code != CORE_OK) {
+            return 0;
+        }
+        if (drawing_program_authoring_host_mark_draft_changed(ctx).code != CORE_OK) {
             return 0;
         }
     }

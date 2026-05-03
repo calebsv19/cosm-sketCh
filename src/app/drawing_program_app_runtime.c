@@ -8,6 +8,7 @@
 #include "drawing_program_app_main_internal.h"
 #include "core_font.h"
 #include "core_theme.h"
+#include "drawing_program/drawing_program_authoring_host.h"
 #include "drawing_program/drawing_program_project_state.h"
 #include "drawing_program/drawing_program_runtime_orchestration.h"
 #include "drawing_program/drawing_program_session_prefs.h"
@@ -17,6 +18,14 @@
 static CoreResult drawing_program_invalid(const char *message) {
     CoreResult r = { CORE_ERR_INVALID_ARG, message };
     return r;
+}
+
+static int drawing_program_runtime_overlay_runtime_available(const DrawingProgramAppContext *ctx) {
+    if (!ctx) {
+        return 0;
+    }
+    return ctx->overlay_adapter.lifecycle_state == DRAWING_PROGRAM_OVERLAY_STATE_RUNTIME_ACTIVE &&
+           !ctx->overlay_adapter.runtime_paused;
 }
 
 static int drawing_program_trace_ui_state_enabled(void) {
@@ -171,6 +180,15 @@ static void drawing_program_input_intake(uint64_t frame_index,
     }
 }
 
+static void drawing_program_apply_session_ui_preferences(DrawingProgramAppContext *ctx) {
+    if (!ctx || !ctx->session.ui_prefs_loaded) {
+        return;
+    }
+    ctx->ui.theme_preset_id = ctx->session.ui_theme_preset_id;
+    ctx->ui.font_preset_id = ctx->session.ui_font_preset_id;
+    ctx->ui.font_zoom_step = ctx->session.ui_font_zoom_step;
+}
+
 static CoreResult drawing_program_render_project_and_update_counters(
     DrawingProgramAppContext *ctx,
     const DrawingProgramInputInvalidationResult *invalidation) {
@@ -220,13 +238,34 @@ static CoreResult drawing_program_frame_update(DrawingProgramAppContext *ctx,
     if (!ctx || !raw_out || !normalized_out || !route_out || !invalidation_out) {
         return drawing_program_invalid("null RS1 update argument");
     }
+    if (!drawing_program_runtime_overlay_runtime_available(ctx)) {
+        memset(raw_out, 0, sizeof(*raw_out));
+        memset(normalized_out, 0, sizeof(*normalized_out));
+        memset(route_out, 0, sizeof(*route_out));
+        memset(invalidation_out, 0, sizeof(*invalidation_out));
+        return core_result_ok();
+    }
     adapter_result = drawing_program_adapter_runtime_tick(ctx);
     if (!adapter_result.ok) {
+        if (adapter_result.error_code == DRAWING_PROGRAM_OVERLAY_ADAPTER_INVALID_STATE) {
+            memset(raw_out, 0, sizeof(*raw_out));
+            memset(normalized_out, 0, sizeof(*normalized_out));
+            memset(route_out, 0, sizeof(*route_out));
+            memset(invalidation_out, 0, sizeof(*invalidation_out));
+            return core_result_ok();
+        }
         CoreResult err = { CORE_ERR_FORMAT, adapter_result.reason };
         return err;
     }
     adapter_result = drawing_program_adapter_input_route_runtime(ctx);
     if (!adapter_result.ok) {
+        if (adapter_result.error_code == DRAWING_PROGRAM_OVERLAY_ADAPTER_INVALID_STATE) {
+            memset(raw_out, 0, sizeof(*raw_out));
+            memset(normalized_out, 0, sizeof(*normalized_out));
+            memset(route_out, 0, sizeof(*route_out));
+            memset(invalidation_out, 0, sizeof(*invalidation_out));
+            return core_result_ok();
+        }
         CoreResult err = { CORE_ERR_FORMAT, adapter_result.reason };
         return err;
     }
@@ -276,8 +315,14 @@ static CoreResult drawing_program_frame_render_submit(DrawingProgramAppContext *
     if (!ctx) {
         return drawing_program_invalid("null RS1 render_submit argument");
     }
+    if (!drawing_program_runtime_overlay_runtime_available(ctx)) {
+        return core_result_ok();
+    }
     adapter_result = drawing_program_adapter_render_runtime_base(ctx);
     if (!adapter_result.ok) {
+        if (adapter_result.error_code == DRAWING_PROGRAM_OVERLAY_ADAPTER_INVALID_STATE) {
+            return core_result_ok();
+        }
         CoreResult err = { CORE_ERR_FORMAT, adapter_result.reason };
         return err;
     }
@@ -341,6 +386,16 @@ CoreResult drawing_program_runtime_start(DrawingProgramAppContext *ctx) {
     if (!ctx->runtime.subsystems_ready) {
         return drawing_program_invalid("subsystems must be initialized before runtime start");
     }
+    if (drawing_program_trace_ui_state_enabled()) {
+        fprintf(stderr,
+                "drawing_program trace runtime_start begin preset_path=%s project_path=%s preset_ptr=%p project_ptr=%p leafs=%u bindings=%u\n",
+                ctx->session.preset_path ? ctx->session.preset_path : "(null)",
+                ctx->session.project_path ? ctx->session.project_path : "(null)",
+                (const void *)ctx->session.preset_path,
+                (const void *)ctx->session.project_path,
+                (unsigned)ctx->pane_host.leaf_count,
+                (unsigned)ctx->pane_host.module_binding_count);
+    }
 
     if (ctx->session.canvas_size_cli_override) {
         load_result = (CoreResult){ CORE_ERR_NOT_FOUND, "snapshot load bypassed by explicit canvas-size override" };
@@ -361,8 +416,13 @@ CoreResult drawing_program_runtime_start(DrawingProgramAppContext *ctx) {
     result = load_result;
     if (drawing_program_trace_ui_state_enabled()) {
         fprintf(stderr,
-                "drawing_program trace runtime_start after_load code=%d tool=%u theme=%u font=%u zoom=%d slot_l=%u slot_r=%u color=%u leafs=%u\n",
+                "drawing_program trace runtime_start after_load code=%d message=%s preset_path=%s project_path=%s preset_ptr=%p project_ptr=%p tool=%u theme=%u font=%u zoom=%d slot_l=%u slot_r=%u color=%u leafs=%u\n",
                 (int)result.code,
+                result.message ? result.message : "(null)",
+                ctx->session.preset_path ? ctx->session.preset_path : "(null)",
+                ctx->session.project_path ? ctx->session.project_path : "(null)",
+                (const void *)ctx->session.preset_path,
+                (const void *)ctx->session.project_path,
                 (unsigned)ctx->editor.active_tool,
                 (unsigned)ctx->ui.theme_preset_id,
                 (unsigned)ctx->ui.font_preset_id,
@@ -381,9 +441,11 @@ CoreResult drawing_program_runtime_start(DrawingProgramAppContext *ctx) {
             result = drawing_program_snapshot_save(ctx, ctx->session.preset_path);
             if (drawing_program_trace_ui_state_enabled()) {
                 fprintf(stderr,
-                        "drawing_program trace runtime_start fallback_save code=%d path=%s\n",
+                        "drawing_program trace runtime_start fallback_save code=%d message=%s path=%s ptr=%p\n",
                         (int)result.code,
-                        ctx->session.preset_path ? ctx->session.preset_path : "(null)");
+                        result.message ? result.message : "(null)",
+                        ctx->session.preset_path ? ctx->session.preset_path : "(null)",
+                        (const void *)ctx->session.preset_path);
             }
         }
     }
@@ -394,7 +456,12 @@ CoreResult drawing_program_runtime_start(DrawingProgramAppContext *ctx) {
     if (upgraded_legacy_checker_seed && ctx->session.persist_enabled) {
         (void)drawing_program_snapshot_save(ctx, ctx->session.preset_path);
     }
+    drawing_program_authoring_host_reset(ctx);
+    if (!drawing_program_overlay_adapter_init(ctx).ok) {
+        return (CoreResult){ CORE_ERR_FORMAT, "failed to normalize overlay adapter after load" };
+    }
     drawing_program_selection_cancel_transient(&ctx->selection);
+    drawing_program_apply_session_ui_preferences(ctx);
     drawing_program_normalize_ui_state(ctx);
     if (drawing_program_trace_ui_state_enabled()) {
         fprintf(stderr,

@@ -1,6 +1,6 @@
 # sketCh Keybind Reference
 
-Last updated: 2026-04-16
+Last updated: 2026-05-03
 Scope: current implemented runtime controls (`sdl-debug` lane)
 
 ## Tool Selection
@@ -70,6 +70,12 @@ Scope: current implemented runtime controls (`sdl-debug` lane)
 ## Diagnostics / Debug Harness
 - `Cmd/Ctrl+Alt/Option+Shift+1..4`: center-pane debug module swap probe
 - `Space`: stamp center sample (workflow seed action)
+
+## Workspace Authoring
+- `Alt/Option+C`, then `Alt/Option+V`: enter authoring mode; repeat while active to cancel authoring edits and return to runtime mode
+- `Alt/Option+C+V`: same authoring enter/cancel toggle while both letter keys are held
+- `Enter` while authoring is active: apply valid authoring edits and return to runtime mode
+- `Esc` while authoring is active: cancel authoring edits and return to runtime mode
 
 ## Notes
 - Layer visibility/lock currently gates mutation routes for the active layer.

@@ -1,6 +1,6 @@
 # drawing_program Current Truth
 
-Last updated: 2026-04-27
+Last updated: 2026-05-03
 
 ## Program Identity
 - Repository directory: `drawing_program/`
@@ -11,6 +11,7 @@ Last updated: 2026-04-27
 ## Current Shipped State
 - The app is in a post-foundation feature-depth lane with retained-object editing, vector tooling, and color-system migration active.
 - Shared host/font baseline and shared-subtree workflow are normalized for this repo.
+- Workspace Authoring `WA1-S1` through `WA1-S4` are active as the first production host slices.
 
 ## Major Lane Summary (Compressed)
 - Foundations complete:
@@ -26,7 +27,7 @@ Last updated: 2026-04-27
   - Phase 18 curve editing depth
 - Color lane:
   - Phase 19 `S1` complete (`CANVAS | LAYER | COLOR` right-panel scaffold)
-  - Phase 19 `S2` complete (palette-index sample contract migration)
+  - true-color migration is structurally complete through the current active-paint, raster/object sample, snapshot, color-panel, picker, render, and export lanes
 
 ## Current Implemented Behavior (Condensed)
 - Editing and composition:
@@ -37,11 +38,23 @@ Last updated: 2026-04-27
   - path authoring/editing supports point insert/remove/append semantics
   - bezier point toggles, handle drag/edit states, and curved segment rendering are active
 - Color contract:
-  - raster/document sample storage uses palette-index semantics (with legacy grayscale normalization on load)
-  - retained object stroke/fill and raster-tool flows share the color sample contract
+  - raster/document sample storage uses explicit packed true-color `RGBA8` samples, with legacy indexed payloads normalized on load
+  - retained object stroke/fill, raster-tool flows, picker sampling, and export composition share the packed-sample color contract
 - Snapshot/runtime continuity:
   - snapshot shell lanes support modern true-color migration while preserving legacy compatibility fallback paths
   - workspace preset bridge-check/import flows are present
+- Workspace authoring:
+  - `Alt+C+V` enters authoring mode and toggles back to runtime mode when already active
+  - sequential `Alt+C`, release, `Alt+V` also enters/toggles authoring mode, with physical scancode detection for macOS Option-modified keys
+  - `Esc` cancels authoring edits and exits authoring mode
+  - `Enter` applies a valid authoring draft and exits authoring mode
+  - the window title changes to `sketCh [Authoring]` while authoring mode is active
+  - authoring mode renders a compact `AUTHORING` panel, functional `APPLY`/`CANCEL` controls, draft status, pane/module rows, and per-pane module labels
+  - authoring entry captures a pane/module baseline; Cancel restores it and Apply commits through `core_layout_apply_authoring(...)`
+  - snapshot persistence writes accepted pane/module state only: applied authoring changes survive close/reopen, while active un-applied drafts save as their entry baseline
+  - authoring-reserved trigger keys are consumed only while authoring mode is active
+  - startup normalizes any saved draft/authoring layout state back to runtime mode
+  - module-content swapping is not implemented yet
 - Viewport behavior:
   - canvas viewport routing now bridges through shared `core_viewport2d`
   - mouse-wheel zoom preserves the sample under the cursor; right-drag pan uses the same pane-aware viewport state
@@ -81,10 +94,8 @@ Last updated: 2026-04-27
 - Shared subtree prepare now routes through `../bin/update_shared_subtrees.sh` (not direct rsync-from-workspace shared tree).
 
 ## Current Boundary
-- Active next slice: Phase 19 `S3` (color panel controls and deeper color-system interaction policy).
-- Boundary guardrail:
-  - keep current color contract deterministic while expanding color controls;
-  - do not regress retained-object/vector history guarantees during color-lane expansion.
+- Active Workspace Authoring next slice: `WA1-S5` closeout only.
+- Existing color/runtime lanes remain active context, but WA1 should not begin module-content swapping, plugin loading, or `line_drawing` attach inside S5.
 
 ## History and Deep Lane References
 - Full per-slice historical ledgers and archived plan docs are intentionally kept in private docs:

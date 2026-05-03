@@ -6,6 +6,7 @@
 
 #include "drawing_program_snapshot_internal.h"
 #include "drawing_program/drawing_program_app_post_load.h"
+#include "drawing_program/drawing_program_authoring_host.h"
 #include "drawing_program/drawing_program_snapshot_shell.h"
 #include "drawing_program/drawing_program_snapshot_ui_settings.h"
 
@@ -45,6 +46,7 @@ CoreResult drawing_program_snapshot_save(const struct DrawingProgramAppContext *
     CorePackWriter writer;
     DrawingProgramSnapshotV1 *legacy_payload = 0;
     CoreResult result;
+    uint32_t accepted_root_index = 0u;
     if (!ctx || !path) {
         return drawing_program_snapshot_invalid("invalid snapshot save request");
     }
@@ -53,15 +55,22 @@ CoreResult drawing_program_snapshot_save(const struct DrawingProgramAppContext *
         return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "failed to allocate legacy snapshot payload" };
     }
     legacy_payload->header.version = 1u;
-    legacy_payload->header.node_count = ctx->pane_host.node_count;
-    legacy_payload->header.binding_count = ctx->pane_host.module_binding_count;
     legacy_payload->header.history_count = ctx->history.count;
     legacy_payload->header.history_cursor = ctx->history.cursor;
     legacy_payload->document = ctx->document;
     legacy_payload->editor = ctx->editor;
-    legacy_payload->layout_state = ctx->pane_host.layout_state;
-    memcpy(legacy_payload->nodes, ctx->pane_host.nodes, sizeof(legacy_payload->nodes));
-    memcpy(legacy_payload->bindings, ctx->pane_host.module_bindings, sizeof(legacy_payload->bindings));
+    result = drawing_program_authoring_host_export_accepted_pane_state(ctx,
+                                                                       &legacy_payload->layout_state,
+                                                                       legacy_payload->nodes,
+                                                                       &legacy_payload->header.node_count,
+                                                                       &accepted_root_index,
+                                                                       legacy_payload->bindings,
+                                                                       &legacy_payload->header.binding_count);
+    if (result.code != CORE_OK) {
+        free(legacy_payload);
+        return result;
+    }
+    (void)accepted_root_index;
     memcpy(legacy_payload->history_entries, ctx->history.entries, sizeof(legacy_payload->history_entries));
     if (snapshot_trace_enabled()) {
         fprintf(stderr,
@@ -168,6 +177,13 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
         return result;
     }
     shell_result = drawing_program_snapshot_shell_load_current(ctx, &reader, &loaded_current_shell);
+    if (snapshot_trace_enabled()) {
+        fprintf(stderr,
+                "drawing_program trace snapshot_load shell_result code=%d message=%s found=%u\n",
+                (int)shell_result.code,
+                shell_result.message ? shell_result.message : "(null)",
+                (unsigned)loaded_current_shell);
+    }
     if (shell_result.code == CORE_ERR_FORMAT) {
         current_shell_format_incompatible = 1u;
         loaded_current_shell = 0u;
@@ -182,10 +198,24 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
             if (current_shell_format_incompatible) {
                 free(payload);
                 (void)core_pack_reader_close(&reader);
+                if (snapshot_trace_enabled()) {
+                    fprintf(stderr,
+                            "drawing_program trace snapshot_load fail path=%s code=%d message=%s\n",
+                            path ? path : "(null)",
+                            (int)shell_result.code,
+                            shell_result.message ? shell_result.message : "(null)");
+                }
                 return shell_result;
             }
             free(payload);
             (void)core_pack_reader_close(&reader);
+            if (snapshot_trace_enabled()) {
+                fprintf(stderr,
+                        "drawing_program trace snapshot_load fail path=%s code=%d message=%s\n",
+                        path ? path : "(null)",
+                        (int)result.code,
+                        result.message ? result.message : "(null)");
+            }
             return result;
         }
         if (chunk.size != (uint64_t)sizeof(*payload)) {
@@ -230,10 +260,36 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
         }
     }
     drawing_program_object_store_reset(&ctx->object_store);
+    if (snapshot_trace_enabled()) {
+        fprintf(stderr,
+                "drawing_program trace snapshot_load pre_raster_init logical=%ux%u density=%u layer_count=%u raster=%ux%u samples=%u next_layer=%u schema=%u\n",
+                (unsigned)ctx->document.logical_width,
+                (unsigned)ctx->document.logical_height,
+                (unsigned)ctx->document.sample_density,
+                (unsigned)ctx->document.layer_count,
+                (unsigned)ctx->document.raster_width,
+                (unsigned)ctx->document.raster_height,
+                (unsigned)ctx->document.raster_sample_count,
+                (unsigned)ctx->document.next_layer_id,
+                (unsigned)ctx->document.schema_version);
+    }
     result = drawing_program_layer_raster_store_init_from_document(&ctx->layer_rasters, &ctx->document);
     if (result.code != CORE_OK) {
         free(payload);
         (void)core_pack_reader_close(&reader);
+        if (snapshot_trace_enabled()) {
+            fprintf(stderr,
+                    "drawing_program trace snapshot_load layer_raster_init_fail code=%d message=%s logical=%ux%u density=%u layer_count=%u raster=%ux%u samples=%u\n",
+                    (int)result.code,
+                    result.message ? result.message : "(null)",
+                    (unsigned)ctx->document.logical_width,
+                    (unsigned)ctx->document.logical_height,
+                    (unsigned)ctx->document.sample_density,
+                    (unsigned)ctx->document.layer_count,
+                    (unsigned)ctx->document.raster_width,
+                    (unsigned)ctx->document.raster_height,
+                    (unsigned)ctx->document.raster_sample_count);
+        }
         return result;
     }
     memset(&layer_chunk, 0, sizeof(layer_chunk));
@@ -301,8 +357,21 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
     (void)core_pack_reader_close(&reader);
     free(payload);
     result = drawing_program_pane_host_rebuild(ctx);
+    if (result.code == CORE_OK && !drawing_program_pane_host_default_modules_ready(ctx)) {
+        result = drawing_program_pane_host_rebind_default_modules(ctx);
+        if (result.code == CORE_OK) {
+            result = drawing_program_pane_host_rebuild(ctx);
+        }
+    }
     if (result.code == CORE_OK) {
         drawing_program_app_rearm_after_document_swap(ctx);
+    }
+    if (snapshot_trace_enabled() && result.code != CORE_OK) {
+        fprintf(stderr,
+                "drawing_program trace snapshot_load fail path=%s code=%d message=%s\n",
+                path ? path : "(null)",
+                (int)result.code,
+                result.message ? result.message : "(null)");
     }
     if (snapshot_trace_enabled()) {
         fprintf(stderr,

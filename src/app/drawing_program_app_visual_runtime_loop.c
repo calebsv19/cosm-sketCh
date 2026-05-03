@@ -7,7 +7,9 @@
 #include "core_font.h"
 #include "core_theme.h"
 #include "drawing_program/drawing_program_app_main.h"
+#include "drawing_program/drawing_program_authoring_host.h"
 #include "drawing_program/drawing_program_render_backend.h"
+#include "drawing_program/drawing_program_visual_authoring_chrome.h"
 #include "drawing_program/drawing_program_visual_canvas_world_render.h"
 #include "drawing_program/drawing_program_visual_input_core.h"
 #include "drawing_program/drawing_program_visual_input_handlers.h"
@@ -127,6 +129,31 @@ static void drawing_program_visual_loop_handle_event(DrawingProgramVisualLoopEve
     }
     if (event->type == SDL_QUIT) {
         *(ctx->quit) = 1;
+    }
+    if (drawing_program_authoring_host_handle_sdl_event(ctx->app, event)) {
+        return;
+    }
+    if (drawing_program_authoring_host_active(ctx->app) &&
+        event->type == SDL_MOUSEBUTTONDOWN &&
+        event->button.button == SDL_BUTTON_LEFT &&
+        event_has_position) {
+        int viewport_w = 0;
+        int viewport_h = 0;
+        DrawingProgramAuthoringChromeAction action = DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_NONE;
+        if (SDL_GetRendererOutputSize(ctx->renderer, &viewport_w, &viewport_h) == 0) {
+            action = drawing_program_visual_authoring_chrome_hit_test(viewport_w,
+                                                                      viewport_h,
+                                                                      event_x,
+                                                                      event_y);
+        }
+        if (action == DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_APPLY) {
+            (void)drawing_program_authoring_host_apply(ctx->app);
+            return;
+        }
+        if (action == DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_CANCEL) {
+            (void)drawing_program_authoring_host_cancel(ctx->app);
+            return;
+        }
     }
     if (event->type == SDL_KEYDOWN && event->key.keysym.sym == SDLK_ESCAPE) {
         *(ctx->quit) = 1;

@@ -252,6 +252,12 @@ int drawing_program_lifecycle_run_baseline_history_suite(DrawingProgramAppContex
         uint32_t i;
         int hovered = 0;
         int active = 0;
+        if (ctx.pane_host.splitter_hit_count != 3u) {
+            fprintf(stderr,
+                    "lifecycle_test: expected cached splitter hit registry to contain 3 hits, found %u\n",
+                    ctx.pane_host.splitter_hit_count);
+            return 1;
+        }
         for (i = 0u; i < ctx.pane_host.leaf_count; ++i) {
             if (ctx.pane_host.leaves[i].id == 4u) {
                 left_leaf = &ctx.pane_host.leaves[i];
