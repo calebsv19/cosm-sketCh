@@ -1,0 +1,10 @@
+#ifndef DRAWING_PROGRAM_LIFECYCLE_SNAPSHOT_SUITE_INTERNAL_H
+#define DRAWING_PROGRAM_LIFECYCLE_SNAPSHOT_SUITE_INTERNAL_H
+
+#include "drawing_program/drawing_program_app_main.h"
+
+int drawing_program_lifecycle_run_snapshot_shell_suite(DrawingProgramAppContext *ctx);
+int drawing_program_lifecycle_run_snapshot_layer_suite(void);
+int drawing_program_lifecycle_run_snapshot_object_suite(void);
+
+#endif

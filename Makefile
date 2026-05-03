@@ -4,6 +4,7 @@ RELEASE_BUNDLE_ID := com.cosm.sketch
 LAUNCHER_BIN := sketch-launcher
 APP_BIN := drawing-program-bin
 VERSION_FILE := VERSION
+RELEASE_CHANNEL ?= stable
 
 HOST_CC ?= cc
 FISICS_CC ?= /Users/calebsv/Desktop/CodeWork/fisiCs/fisics
@@ -11,11 +12,28 @@ BUILD_TOOLCHAIN ?= clang
 PACKAGE_TOOLCHAIN ?= $(BUILD_TOOLCHAIN)
 TEST_TOOLCHAIN := clang
 PKG_CONFIG ?= pkg-config
+TARGET_CONTRACT_HELPER ?= ../bin/desktop_release_target_contract.sh
+HOST_ARCH := $(strip $(shell "$(TARGET_CONTRACT_HELPER)" get host_arch))
+TARGET_OS_INPUT := $(TARGET_OS)
+TARGET_ARCH_INPUT := $(TARGET_ARCH)
+TARGET_VARIANT_INPUT := $(TARGET_VARIANT)
+TARGET_OS ?= $(strip $(shell TARGET_OS="$(TARGET_OS_INPUT)" TARGET_ARCH="$(TARGET_ARCH_INPUT)" TARGET_VARIANT="$(TARGET_VARIANT_INPUT)" "$(TARGET_CONTRACT_HELPER)" get target_os))
+TARGET_ARCH ?= $(strip $(shell TARGET_OS="$(TARGET_OS_INPUT)" TARGET_ARCH="$(TARGET_ARCH_INPUT)" TARGET_VARIANT="$(TARGET_VARIANT_INPUT)" "$(TARGET_CONTRACT_HELPER)" get target_arch))
+TARGET_VARIANT ?= $(strip $(shell TARGET_OS="$(TARGET_OS_INPUT)" TARGET_ARCH="$(TARGET_ARCH_INPUT)" TARGET_VARIANT="$(TARGET_VARIANT_INPUT)" "$(TARGET_CONTRACT_HELPER)" get target_variant))
+TARGET_TRIPLE := $(strip $(shell TARGET_OS="$(TARGET_OS)" TARGET_ARCH="$(TARGET_ARCH)" TARGET_VARIANT="$(TARGET_VARIANT)" "$(TARGET_CONTRACT_HELPER)" get target_triple))
+RELEASE_PLATFORM := $(strip $(shell TARGET_OS="$(TARGET_OS)" TARGET_ARCH="$(TARGET_ARCH)" TARGET_VARIANT="$(TARGET_VARIANT)" "$(TARGET_CONTRACT_HELPER)" get release_platform))
+RELEASE_ARCH := $(strip $(shell TARGET_OS="$(TARGET_OS)" TARGET_ARCH="$(TARGET_ARCH)" TARGET_VARIANT="$(TARGET_VARIANT)" "$(TARGET_CONTRACT_HELPER)" get release_arch))
+TARGET_HOMEBREW_PREFIX ?= $(strip $(shell TARGET_OS="$(TARGET_OS)" TARGET_ARCH="$(TARGET_ARCH)" TARGET_VARIANT="$(TARGET_VARIANT)" "$(TARGET_CONTRACT_HELPER)" get homebrew_prefix))
+TARGET_ALT_HOMEBREW_PREFIX ?= $(strip $(shell TARGET_OS="$(TARGET_OS)" TARGET_ARCH="$(TARGET_ARCH)" TARGET_VARIANT="$(TARGET_VARIANT)" "$(TARGET_CONTRACT_HELPER)" get alt_homebrew_prefix))
+TARGET_PKG_CONFIG_LIBDIR ?= $(TARGET_HOMEBREW_PREFIX)/lib/pkgconfig:$(TARGET_HOMEBREW_PREFIX)/share/pkgconfig
+TARGET_DEP_SEARCH_ROOTS ?= $(TARGET_HOMEBREW_PREFIX):$(TARGET_ALT_HOMEBREW_PREFIX)
+ARCH_FLAGS := -arch $(TARGET_ARCH)
 SHARED_VENDOR_DIR ?= third_party/codework_shared
 SHARED_WORKSPACE_DIR ?= ../shared
 SHARED_MODE ?= vendored-subtree
 
 CORE_BASE_DIR ?= $(SHARED_VENDOR_DIR)/core/core_base
+CORE_IO_DIR ?= $(SHARED_VENDOR_DIR)/core/core_io
 CORE_THEME_DIR ?= $(SHARED_VENDOR_DIR)/core/core_theme
 CORE_FONT_DIR ?= $(SHARED_VENDOR_DIR)/core/core_font
 CORE_PACK_DIR ?= $(SHARED_VENDOR_DIR)/core/core_pack
@@ -23,9 +41,12 @@ CORE_PANE_DIR ?= $(SHARED_VENDOR_DIR)/core/core_pane
 CORE_LAYOUT_DIR ?= $(SHARED_VENDOR_DIR)/core/core_layout
 CORE_PANE_MODULE_DIR ?= $(SHARED_VENDOR_DIR)/core/core_pane_module
 CORE_VIEWPORT2D_DIR ?= $(SHARED_VENDOR_DIR)/core/core_viewport2d
+KIT_RENDER_DIR ?= $(SHARED_VENDOR_DIR)/kit/kit_render
+KIT_PANE_DIR ?= $(SHARED_VENDOR_DIR)/kit/kit_pane
 
 ifeq ($(SHARED_MODE),workspace-linked)
 CORE_BASE_DIR := $(SHARED_WORKSPACE_DIR)/core/core_base
+CORE_IO_DIR := $(SHARED_WORKSPACE_DIR)/core/core_io
 CORE_THEME_DIR := $(SHARED_WORKSPACE_DIR)/core/core_theme
 CORE_FONT_DIR := $(SHARED_WORKSPACE_DIR)/core/core_font
 CORE_PACK_DIR := $(SHARED_WORKSPACE_DIR)/core/core_pack
@@ -33,66 +54,68 @@ CORE_PANE_DIR := $(SHARED_WORKSPACE_DIR)/core/core_pane
 CORE_LAYOUT_DIR := $(SHARED_WORKSPACE_DIR)/core/core_layout
 CORE_PANE_MODULE_DIR := $(SHARED_WORKSPACE_DIR)/core/core_pane_module
 CORE_VIEWPORT2D_DIR := $(SHARED_WORKSPACE_DIR)/core/core_viewport2d
+KIT_RENDER_DIR := $(SHARED_WORKSPACE_DIR)/kit/kit_render
+KIT_PANE_DIR := $(SHARED_WORKSPACE_DIR)/kit/kit_pane
 endif
 
-SDL_CFLAGS := $(shell $(PKG_CONFIG) --cflags sdl2 2>/dev/null)
-SDL_LIBS := $(shell $(PKG_CONFIG) --libs sdl2 2>/dev/null)
-SDL_TTF_CFLAGS := $(shell $(PKG_CONFIG) --cflags sdl2_ttf 2>/dev/null)
-SDL_TTF_LIBS := $(shell $(PKG_CONFIG) --libs sdl2_ttf 2>/dev/null)
-PNG_CFLAGS := $(shell $(PKG_CONFIG) --cflags libpng 2>/dev/null)
-PNG_LIBS := $(shell $(PKG_CONFIG) --libs libpng 2>/dev/null)
+SDL_CFLAGS := $(shell env PKG_CONFIG_LIBDIR="$(TARGET_PKG_CONFIG_LIBDIR)" $(PKG_CONFIG) --cflags sdl2 2>/dev/null)
+SDL_LIBS := $(shell env PKG_CONFIG_LIBDIR="$(TARGET_PKG_CONFIG_LIBDIR)" $(PKG_CONFIG) --libs sdl2 2>/dev/null)
+SDL_TTF_CFLAGS := $(shell env PKG_CONFIG_LIBDIR="$(TARGET_PKG_CONFIG_LIBDIR)" $(PKG_CONFIG) --cflags sdl2_ttf 2>/dev/null)
+SDL_TTF_LIBS := $(shell env PKG_CONFIG_LIBDIR="$(TARGET_PKG_CONFIG_LIBDIR)" $(PKG_CONFIG) --libs sdl2_ttf 2>/dev/null)
+PNG_CFLAGS := $(shell env PKG_CONFIG_LIBDIR="$(TARGET_PKG_CONFIG_LIBDIR)" $(PKG_CONFIG) --cflags libpng 2>/dev/null)
+PNG_LIBS := $(shell env PKG_CONFIG_LIBDIR="$(TARGET_PKG_CONFIG_LIBDIR)" $(PKG_CONFIG) --libs libpng 2>/dev/null)
 ifeq ($(strip $(SDL_CFLAGS)),)
-  ifneq ($(wildcard /opt/homebrew/include/SDL2/SDL.h),)
-    SDL_CFLAGS := -I/opt/homebrew/include -D_THREAD_SAFE
-  else ifneq ($(wildcard /usr/local/include/SDL2/SDL.h),)
-    SDL_CFLAGS := -I/usr/local/include -D_THREAD_SAFE
+  ifneq ($(wildcard $(TARGET_HOMEBREW_PREFIX)/include/SDL2/SDL.h),)
+    SDL_CFLAGS := -I$(TARGET_HOMEBREW_PREFIX)/include -D_THREAD_SAFE
+  else ifneq ($(wildcard $(TARGET_ALT_HOMEBREW_PREFIX)/include/SDL2/SDL.h),)
+    SDL_CFLAGS := -I$(TARGET_ALT_HOMEBREW_PREFIX)/include -D_THREAD_SAFE
   endif
 endif
 ifeq ($(strip $(SDL_LIBS)),)
-  ifneq ($(wildcard /opt/homebrew/lib/libSDL2.dylib),)
-    SDL_LIBS := -L/opt/homebrew/lib -lSDL2
-  else ifneq ($(wildcard /usr/local/lib/libSDL2.dylib),)
-    SDL_LIBS := -L/usr/local/lib -lSDL2
+  ifneq ($(wildcard $(TARGET_HOMEBREW_PREFIX)/lib/libSDL2.dylib),)
+    SDL_LIBS := -L$(TARGET_HOMEBREW_PREFIX)/lib -lSDL2
+  else ifneq ($(wildcard $(TARGET_ALT_HOMEBREW_PREFIX)/lib/libSDL2.dylib),)
+    SDL_LIBS := -L$(TARGET_ALT_HOMEBREW_PREFIX)/lib -lSDL2
   else
     SDL_LIBS := -framework SDL2
   endif
 endif
 ifeq ($(strip $(SDL_TTF_CFLAGS)),)
-  ifneq ($(wildcard /opt/homebrew/include/SDL2/SDL_ttf.h),)
-    SDL_TTF_CFLAGS := -I/opt/homebrew/include -D_THREAD_SAFE
-  else ifneq ($(wildcard /usr/local/include/SDL2/SDL_ttf.h),)
-    SDL_TTF_CFLAGS := -I/usr/local/include -D_THREAD_SAFE
+  ifneq ($(wildcard $(TARGET_HOMEBREW_PREFIX)/include/SDL2/SDL_ttf.h),)
+    SDL_TTF_CFLAGS := -I$(TARGET_HOMEBREW_PREFIX)/include -D_THREAD_SAFE
+  else ifneq ($(wildcard $(TARGET_ALT_HOMEBREW_PREFIX)/include/SDL2/SDL_ttf.h),)
+    SDL_TTF_CFLAGS := -I$(TARGET_ALT_HOMEBREW_PREFIX)/include -D_THREAD_SAFE
   endif
 endif
 ifeq ($(strip $(SDL_TTF_LIBS)),)
-  ifneq ($(wildcard /opt/homebrew/lib/libSDL2_ttf.dylib),)
-    SDL_TTF_LIBS := -L/opt/homebrew/lib -lSDL2_ttf
-  else ifneq ($(wildcard /usr/local/lib/libSDL2_ttf.dylib),)
-    SDL_TTF_LIBS := -L/usr/local/lib -lSDL2_ttf
+  ifneq ($(wildcard $(TARGET_HOMEBREW_PREFIX)/lib/libSDL2_ttf.dylib),)
+    SDL_TTF_LIBS := -L$(TARGET_HOMEBREW_PREFIX)/lib -lSDL2_ttf
+  else ifneq ($(wildcard $(TARGET_ALT_HOMEBREW_PREFIX)/lib/libSDL2_ttf.dylib),)
+    SDL_TTF_LIBS := -L$(TARGET_ALT_HOMEBREW_PREFIX)/lib -lSDL2_ttf
   else
     SDL_TTF_LIBS :=
   endif
 endif
 ifeq ($(strip $(PNG_CFLAGS)),)
-  ifneq ($(wildcard /opt/homebrew/include/png.h),)
-    PNG_CFLAGS := -I/opt/homebrew/include
-  else ifneq ($(wildcard /usr/local/include/png.h),)
-    PNG_CFLAGS := -I/usr/local/include
+  ifneq ($(wildcard $(TARGET_HOMEBREW_PREFIX)/include/png.h),)
+    PNG_CFLAGS := -I$(TARGET_HOMEBREW_PREFIX)/include
+  else ifneq ($(wildcard $(TARGET_ALT_HOMEBREW_PREFIX)/include/png.h),)
+    PNG_CFLAGS := -I$(TARGET_ALT_HOMEBREW_PREFIX)/include
   endif
 endif
 ifeq ($(strip $(PNG_LIBS)),)
-  ifneq ($(wildcard /opt/homebrew/lib/libpng.dylib),)
-    PNG_LIBS := -L/opt/homebrew/lib -lpng
-  else ifneq ($(wildcard /opt/homebrew/lib/libpng16.dylib),)
-    PNG_LIBS := -L/opt/homebrew/lib -lpng16
-  else ifneq ($(wildcard /usr/local/lib/libpng.dylib),)
-    PNG_LIBS := -L/usr/local/lib -lpng
-  else ifneq ($(wildcard /usr/local/lib/libpng16.dylib),)
-    PNG_LIBS := -L/usr/local/lib -lpng16
+  ifneq ($(wildcard $(TARGET_HOMEBREW_PREFIX)/lib/libpng.dylib),)
+    PNG_LIBS := -L$(TARGET_HOMEBREW_PREFIX)/lib -lpng
+  else ifneq ($(wildcard $(TARGET_HOMEBREW_PREFIX)/lib/libpng16.dylib),)
+    PNG_LIBS := -L$(TARGET_HOMEBREW_PREFIX)/lib -lpng16
+  else ifneq ($(wildcard $(TARGET_ALT_HOMEBREW_PREFIX)/lib/libpng.dylib),)
+    PNG_LIBS := -L$(TARGET_ALT_HOMEBREW_PREFIX)/lib -lpng
+  else ifneq ($(wildcard $(TARGET_ALT_HOMEBREW_PREFIX)/lib/libpng16.dylib),)
+    PNG_LIBS := -L$(TARGET_ALT_HOMEBREW_PREFIX)/lib -lpng16
   endif
 endif
 
-CFLAGS := -std=c11 -Wall -Wextra -pedantic \
+COMMON_CFLAGS := -std=c11 -Wall -Wextra -pedantic \
 	-Iinclude \
 	-I$(CORE_BASE_DIR)/include \
 	-I$(CORE_THEME_DIR)/include \
@@ -102,20 +125,29 @@ CFLAGS := -std=c11 -Wall -Wextra -pedantic \
 	-I$(CORE_LAYOUT_DIR)/include \
 	-I$(CORE_PANE_MODULE_DIR)/include \
 	-I$(CORE_VIEWPORT2D_DIR)/include \
+	-I$(KIT_RENDER_DIR)/include \
+	-I$(KIT_PANE_DIR)/include \
 	$(SDL_CFLAGS) \
 	$(PNG_CFLAGS) \
 	$(SDL_TTF_CFLAGS)
+PROGRAM_CFLAGS := $(COMMON_CFLAGS)
+ifeq ($(BUILD_TOOLCHAIN),clang)
+PROGRAM_CFLAGS += $(ARCH_FLAGS)
+endif
+HOST_CFLAGS := $(COMMON_CFLAGS) $(ARCH_FLAGS)
 LDLIBS := -lm
 APP_LDLIBS := $(LDLIBS) $(SDL_LIBS) $(SDL_TTF_LIBS) $(PNG_LIBS)
 
 BUILD_DIR := build
-HOST_TEST_DIR := $(BUILD_DIR)/host/tests
+TARGET_BUILD_DIR := $(BUILD_DIR)/targets/$(TARGET_TRIPLE)
+HOST_TEST_DIR := $(TARGET_BUILD_DIR)/host/tests
 TEST_OBJ_DIR := $(HOST_TEST_DIR)/obj
 TEST_BIN_DIR := $(HOST_TEST_DIR)/bin
-PROGRAM_BUILD_DIR := $(BUILD_DIR)/toolchains/$(BUILD_TOOLCHAIN)
+PROGRAM_BUILD_DIR := $(TARGET_BUILD_DIR)/toolchains/$(BUILD_TOOLCHAIN)
 PROGRAM_OBJ_DIR := $(PROGRAM_BUILD_DIR)/obj
 PROGRAM_BIN_DIR := $(PROGRAM_BUILD_DIR)/bin
 PROGRAM_CC_STAMP := $(PROGRAM_BUILD_DIR)/compiler.stamp
+SHARED_BUILD_DIR := $(TARGET_BUILD_DIR)/shared
 
 ifeq ($(BUILD_TOOLCHAIN),clang)
 PROGRAM_CC := $(HOST_CC)
@@ -154,6 +186,8 @@ APP_LOCAL_SRCS := \
 	src/io/session/drawing_program_session_prefs.c \
 	src/io/session/drawing_program_native_dialogs.c \
 	src/io/session/drawing_program_snapshot.c \
+	src/io/session/drawing_program_snapshot_layer_chunk.c \
+	src/io/session/drawing_program_snapshot_object_chunk.c \
 	src/io/session/drawing_program_snapshot_shell.c \
 	src/io/session/drawing_program_snapshot_export_json.c \
 	src/io/session/drawing_program_snapshot_ui_settings.c \
@@ -169,6 +203,8 @@ APP_LOCAL_SRCS := \
 	src/render/frame/drawing_program_visual_frame_render.c \
 	src/render/overlay/drawing_program_visual_overlay_shared.c \
 	src/render/overlay/drawing_program_visual_object_overlay.c \
+	src/render/overlay/drawing_program_visual_object_overlay_shapes.c \
+	src/render/overlay/drawing_program_visual_object_overlay_path_controls.c \
 	src/render/overlay/drawing_program_visual_selection_overlay.c \
 	src/render/overlay/drawing_program_visual_overlay_render.c \
 	src/input/canvas/drawing_program_visual_canvas_action_ops.c \
@@ -198,6 +234,8 @@ APP_LOCAL_SRCS := \
 	src/app/drawing_program_visual_loop_diag.c \
 	src/app/drawing_program_visual_loop_policy.c \
 	src/app/drawing_program_app_post_load.c \
+	src/app/drawing_program_app_session.c \
+	src/app/drawing_program_app_runtime.c \
 	src/ui/tools/drawing_program_visual_tool_options.c \
 	src/ui/text/drawing_program_visual_text_render.c \
 	src/app/drawing_program_ui_color_state.c \
@@ -230,6 +268,8 @@ HEADLESS_LOCAL_SRCS := \
 	src/io/session/drawing_program_session_prefs.c \
 	src/io/session/drawing_program_native_dialogs.c \
 	src/io/session/drawing_program_snapshot.c \
+	src/io/session/drawing_program_snapshot_layer_chunk.c \
+	src/io/session/drawing_program_snapshot_object_chunk.c \
 	src/io/session/drawing_program_snapshot_shell.c \
 	src/io/session/drawing_program_snapshot_export_json.c \
 	src/io/session/drawing_program_snapshot_ui_settings.c \
@@ -243,6 +283,8 @@ HEADLESS_LOCAL_SRCS := \
 	src/runtime/adapters/drawing_program_overlay_adapter.c \
 	src/app/drawing_program_ui_color_state.c \
 	src/app/drawing_program_app_post_load.c \
+	src/app/drawing_program_app_session.c \
+	src/app/drawing_program_app_runtime.c \
 	src/app/drawing_program_app_main.c \
 	src/app/drawing_program_app_headless_main.c
 
@@ -269,6 +311,8 @@ TEST_LOCAL_SRCS := \
 	src/io/session/drawing_program_session_prefs.c \
 	src/io/session/drawing_program_native_dialogs.c \
 	src/io/session/drawing_program_snapshot.c \
+	src/io/session/drawing_program_snapshot_layer_chunk.c \
+	src/io/session/drawing_program_snapshot_object_chunk.c \
 	src/io/session/drawing_program_snapshot_shell.c \
 	src/io/session/drawing_program_snapshot_export_json.c \
 	src/io/session/drawing_program_snapshot_ui_settings.c \
@@ -284,6 +328,8 @@ TEST_LOCAL_SRCS := \
 	src/render/frame/drawing_program_visual_frame_render.c \
 	src/render/overlay/drawing_program_visual_overlay_shared.c \
 	src/render/overlay/drawing_program_visual_object_overlay.c \
+	src/render/overlay/drawing_program_visual_object_overlay_shapes.c \
+	src/render/overlay/drawing_program_visual_object_overlay_path_controls.c \
 	src/render/overlay/drawing_program_visual_selection_overlay.c \
 	src/render/overlay/drawing_program_visual_overlay_render.c \
 	src/input/canvas/drawing_program_visual_canvas_action_ops.c \
@@ -313,6 +359,8 @@ TEST_LOCAL_SRCS := \
 	src/app/drawing_program_visual_loop_diag.c \
 	src/app/drawing_program_visual_loop_policy.c \
 	src/app/drawing_program_app_post_load.c \
+	src/app/drawing_program_app_session.c \
+	src/app/drawing_program_app_runtime.c \
 	src/ui/tools/drawing_program_visual_tool_options.c \
 	src/ui/text/drawing_program_visual_text_render.c \
 	src/app/drawing_program_ui_color_state.c \
@@ -321,6 +369,9 @@ TEST_LOCAL_SRCS := \
 	src/app/drawing_program_app_visual_runtime_loop.c \
 	src/app/drawing_program_app_visual_main.c \
 	tests/drawing_program_lifecycle_snapshot_suite.c \
+	tests/drawing_program_lifecycle_snapshot_shell_suite.c \
+	tests/drawing_program_lifecycle_snapshot_layer_suite.c \
+	tests/drawing_program_lifecycle_snapshot_object_suite.c \
 	tests/drawing_program_lifecycle_export_suite.c \
 	tests/drawing_program_lifecycle_snapshot_helpers.c \
 	tests/drawing_program_lifecycle_snapshot_object_helpers.c \
@@ -343,23 +394,37 @@ HEADLESS_OBJS := $(HEADLESS_LOCAL_SRCS:%=$(PROGRAM_OBJ_DIR)/%.o)
 TEST_OBJS := $(TEST_LOCAL_SRCS:%=$(TEST_OBJ_DIR)/%.o)
 
 define app_bin_for
-$(BUILD_DIR)/toolchains/$(1)/bin/$(APP_BIN)
+$(TARGET_BUILD_DIR)/toolchains/$(1)/bin/$(APP_BIN)
 endef
 
 APP_TARGET := $(PROGRAM_BIN_DIR)/$(APP_BIN)
 HEADLESS_TARGET := $(PROGRAM_BIN_DIR)/drawing-program-headless
 TEST_TARGET := $(TEST_BIN_DIR)/drawing-program-test
 PACKAGE_SOURCE_BIN := $(call app_bin_for,$(PACKAGE_TOOLCHAIN))
+SHARED_CC := $(HOST_CC) $(ARCH_FLAGS)
 
-CORE_BASE_LIB := $(CORE_BASE_DIR)/build/libcore_base.a
-CORE_THEME_LIB := $(CORE_THEME_DIR)/build/libcore_theme.a
-CORE_FONT_LIB := $(CORE_FONT_DIR)/build/libcore_font.a
-CORE_PACK_LIB := $(CORE_PACK_DIR)/build/libcore_pack.a
-CORE_PANE_LIB := $(CORE_PANE_DIR)/build/libcore_pane.a
-CORE_LAYOUT_LIB := $(CORE_LAYOUT_DIR)/build/libcore_layout.a
-CORE_PANE_MODULE_LIB := $(CORE_PANE_MODULE_DIR)/build/libcore_pane_module.a
-CORE_VIEWPORT2D_LIB := $(CORE_VIEWPORT2D_DIR)/build/libcore_viewport2d.a
-SHARED_LIBS := $(CORE_PACK_LIB) $(CORE_PANE_LIB) $(CORE_LAYOUT_LIB) $(CORE_PANE_MODULE_LIB) $(CORE_THEME_LIB) $(CORE_FONT_LIB) $(CORE_VIEWPORT2D_LIB) $(CORE_BASE_LIB)
+CORE_BASE_LOCAL_SRCS := $(wildcard $(CORE_BASE_DIR)/src/*.c) $(wildcard $(CORE_BASE_DIR)/include/*.h)
+CORE_THEME_LOCAL_SRCS := $(wildcard $(CORE_THEME_DIR)/src/*.c) $(wildcard $(CORE_THEME_DIR)/include/*.h)
+CORE_FONT_LOCAL_SRCS := $(wildcard $(CORE_FONT_DIR)/src/*.c) $(wildcard $(CORE_FONT_DIR)/include/*.h)
+CORE_PACK_LOCAL_SRCS := $(wildcard $(CORE_PACK_DIR)/src/*.c) $(wildcard $(CORE_PACK_DIR)/include/*.h)
+CORE_PANE_LOCAL_SRCS := $(wildcard $(CORE_PANE_DIR)/src/*.c) $(wildcard $(CORE_PANE_DIR)/include/*.h)
+CORE_LAYOUT_LOCAL_SRCS := $(wildcard $(CORE_LAYOUT_DIR)/src/*.c) $(wildcard $(CORE_LAYOUT_DIR)/include/*.h)
+CORE_PANE_MODULE_LOCAL_SRCS := $(wildcard $(CORE_PANE_MODULE_DIR)/src/*.c) $(wildcard $(CORE_PANE_MODULE_DIR)/include/*.h)
+CORE_VIEWPORT2D_LOCAL_SRCS := $(wildcard $(CORE_VIEWPORT2D_DIR)/src/*.c) $(wildcard $(CORE_VIEWPORT2D_DIR)/include/*.h)
+KIT_RENDER_LOCAL_SRCS := $(wildcard $(KIT_RENDER_DIR)/src/*.c) $(wildcard $(KIT_RENDER_DIR)/include/*.h)
+KIT_PANE_LOCAL_SRCS := $(wildcard $(KIT_PANE_DIR)/src/*.c) $(wildcard $(KIT_PANE_DIR)/include/*.h)
+
+CORE_BASE_LIB := $(SHARED_BUILD_DIR)/libcore_base.a
+CORE_THEME_LIB := $(SHARED_BUILD_DIR)/libcore_theme.a
+CORE_FONT_LIB := $(SHARED_BUILD_DIR)/libcore_font.a
+CORE_PACK_LIB := $(SHARED_BUILD_DIR)/libcore_pack.a
+CORE_PANE_LIB := $(SHARED_BUILD_DIR)/libcore_pane.a
+CORE_LAYOUT_LIB := $(SHARED_BUILD_DIR)/libcore_layout.a
+CORE_PANE_MODULE_LIB := $(SHARED_BUILD_DIR)/libcore_pane_module.a
+CORE_VIEWPORT2D_LIB := $(SHARED_BUILD_DIR)/libcore_viewport2d.a
+KIT_RENDER_LIB := $(SHARED_BUILD_DIR)/libkit_render.a
+KIT_PANE_LIB := $(SHARED_BUILD_DIR)/libkit_pane.a
+SHARED_LIBS := $(KIT_PANE_LIB) $(KIT_RENDER_LIB) $(CORE_PACK_LIB) $(CORE_PANE_LIB) $(CORE_LAYOUT_LIB) $(CORE_PANE_MODULE_LIB) $(CORE_THEME_LIB) $(CORE_FONT_LIB) $(CORE_VIEWPORT2D_LIB) $(CORE_BASE_LIB)
 
 DIST_DIR := dist
 PACKAGE_APP_NAME := sketCh.app
@@ -385,43 +450,84 @@ EXPORT_JSON ?= /tmp/drawing_program_snapshot_debug.json
 WORKSPACE_PRESET ?= ../workspace_sandbox/data/presets/sketch_layout_v1.pack
 PACKAGE_FONTS_SRC_PRIMARY := $(SHARED_VENDOR_DIR)/assets/fonts
 PACKAGE_FONTS_SRC_WORKSPACE := $(SHARED_WORKSPACE_DIR)/assets/fonts
+RELEASE_VERSION := $(strip $(shell cat "$(VERSION_FILE)" 2>/dev/null))
+ifeq ($(RELEASE_VERSION),)
+$(error Missing or empty VERSION file '$(VERSION_FILE)')
+endif
+RELEASE_DIR := build/release
+RELEASE_BASENAME := $(RELEASE_PRODUCT_NAME)-$(RELEASE_VERSION)-$(RELEASE_PLATFORM)-$(RELEASE_ARCH)-$(RELEASE_CHANNEL)
+RELEASE_APP_ZIP := $(RELEASE_DIR)/$(RELEASE_BASENAME).zip
+RELEASE_APP_ZIP_SHA256 := $(RELEASE_APP_ZIP).sha256
+RELEASE_MANIFEST := $(RELEASE_DIR)/$(RELEASE_BASENAME).manifest.txt
 
 .PHONY: all build clean run run-headless test visual-harness identity print-identity \
 	export-snapshot-json snapshot-bridge-check snapshot-bridge-import \
 	shared-mode shared-subtree-check shared-subtree-prepare \
 	package-desktop package-desktop-smoke package-desktop-self-test \
 	package-desktop-copy-desktop package-desktop-sync package-desktop-open \
-	package-desktop-remove package-desktop-refresh
+	package-desktop-remove package-desktop-refresh \
+	release-contract release-clean release-build release-bundle-audit release-sign \
+	release-verify release-verify-signed release-notarize release-staple \
+	release-verify-notarized release-artifact release-distribute
 
 all: build
 
 build: $(APP_TARGET) $(HEADLESS_TARGET)
 
-$(CORE_BASE_LIB):
-	$(MAKE) -C $(CORE_BASE_DIR) CC="$(HOST_CC)"
+$(SHARED_BUILD_DIR):
+	@mkdir -p "$@"
 
-$(CORE_PACK_LIB): $(CORE_BASE_LIB)
-	$(MAKE) -C $(CORE_PACK_DIR) CC="$(HOST_CC)"
+$(CORE_BASE_LIB): $(CORE_BASE_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
+	@$(MAKE) -C "$(CORE_BASE_DIR)" clean CC="$(SHARED_CC)"
+	@$(MAKE) -C "$(CORE_BASE_DIR)" CC="$(SHARED_CC)"
+	@cp "$(CORE_BASE_DIR)/build/libcore_base.a" "$@"
 
-$(CORE_THEME_LIB): $(CORE_BASE_LIB)
-	$(MAKE) -C $(CORE_THEME_DIR) CC="$(HOST_CC)"
+$(CORE_PACK_LIB): $(CORE_PACK_LOCAL_SRCS) $(CORE_BASE_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
+	@$(MAKE) -C "$(CORE_PACK_DIR)" clean CC="$(SHARED_CC)"
+	@$(MAKE) -C "$(CORE_PACK_DIR)" CC="$(SHARED_CC)"
+	@cp "$(CORE_PACK_DIR)/build/libcore_pack.a" "$@"
 
-$(CORE_FONT_LIB): $(CORE_BASE_LIB)
-	$(MAKE) -C $(CORE_FONT_DIR) CC="$(HOST_CC)"
+$(CORE_THEME_LIB): $(CORE_THEME_LOCAL_SRCS) $(CORE_BASE_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
+	@$(MAKE) -C "$(CORE_THEME_DIR)" clean CC="$(SHARED_CC)"
+	@$(MAKE) -C "$(CORE_THEME_DIR)" CC="$(SHARED_CC)"
+	@cp "$(CORE_THEME_DIR)/build/libcore_theme.a" "$@"
 
-$(CORE_PANE_LIB):
-	$(MAKE) -C $(CORE_PANE_DIR) CC="$(HOST_CC)"
+$(CORE_FONT_LIB): $(CORE_FONT_LOCAL_SRCS) $(CORE_BASE_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
+	@$(MAKE) -C "$(CORE_FONT_DIR)" clean CC="$(SHARED_CC)"
+	@$(MAKE) -C "$(CORE_FONT_DIR)" CC="$(SHARED_CC)"
+	@cp "$(CORE_FONT_DIR)/build/libcore_font.a" "$@"
 
-$(CORE_LAYOUT_LIB):
-	$(MAKE) -C $(CORE_LAYOUT_DIR) CC="$(HOST_CC)"
+$(CORE_PANE_LIB): $(CORE_PANE_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
+	@$(MAKE) -C "$(CORE_PANE_DIR)" clean CC="$(SHARED_CC)"
+	@$(MAKE) -C "$(CORE_PANE_DIR)" CC="$(SHARED_CC)"
+	@cp "$(CORE_PANE_DIR)/build/libcore_pane.a" "$@"
 
-$(CORE_PANE_MODULE_LIB):
-	$(MAKE) -C $(CORE_PANE_MODULE_DIR) CC="$(HOST_CC)"
+$(CORE_LAYOUT_LIB): $(CORE_LAYOUT_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
+	@$(MAKE) -C "$(CORE_LAYOUT_DIR)" clean CC="$(SHARED_CC)"
+	@$(MAKE) -C "$(CORE_LAYOUT_DIR)" CC="$(SHARED_CC)"
+	@cp "$(CORE_LAYOUT_DIR)/build/libcore_layout.a" "$@"
 
-$(CORE_VIEWPORT2D_LIB): $(CORE_BASE_LIB)
-	$(MAKE) -C $(CORE_VIEWPORT2D_DIR) CC="$(HOST_CC)"
+$(CORE_PANE_MODULE_LIB): $(CORE_PANE_MODULE_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
+	@$(MAKE) -C "$(CORE_PANE_MODULE_DIR)" clean CC="$(SHARED_CC)"
+	@$(MAKE) -C "$(CORE_PANE_MODULE_DIR)" CC="$(SHARED_CC)"
+	@cp "$(CORE_PANE_MODULE_DIR)/build/libcore_pane_module.a" "$@"
 
-$(PROGRAM_BUILD_DIR) $(PROGRAM_BIN_DIR) $(HOST_TEST_DIR) $(TEST_OBJ_DIR) $(TEST_BIN_DIR):
+$(CORE_VIEWPORT2D_LIB): $(CORE_VIEWPORT2D_LOCAL_SRCS) $(CORE_BASE_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
+	@$(MAKE) -C "$(CORE_VIEWPORT2D_DIR)" clean CC="$(SHARED_CC)"
+	@$(MAKE) -C "$(CORE_VIEWPORT2D_DIR)" CC="$(SHARED_CC)"
+	@cp "$(CORE_VIEWPORT2D_DIR)/build/libcore_viewport2d.a" "$@"
+
+$(KIT_RENDER_LIB): $(KIT_RENDER_LOCAL_SRCS) $(CORE_THEME_LOCAL_SRCS) $(CORE_FONT_LOCAL_SRCS) $(CORE_BASE_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
+	@$(MAKE) -C "$(KIT_RENDER_DIR)" clean CC="$(SHARED_CC)" KIT_RENDER_ENABLE_VK=0
+	@$(MAKE) -C "$(KIT_RENDER_DIR)" CC="$(SHARED_CC)" KIT_RENDER_ENABLE_VK=0
+	@cp "$(KIT_RENDER_DIR)/build/default/libkit_render.a" "$@"
+
+$(KIT_PANE_LIB): $(KIT_PANE_LOCAL_SRCS) $(KIT_RENDER_LOCAL_SRCS) $(CORE_PANE_LOCAL_SRCS) $(CORE_THEME_LOCAL_SRCS) $(CORE_FONT_LOCAL_SRCS) $(CORE_BASE_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
+	@$(MAKE) -C "$(KIT_PANE_DIR)" clean CC="$(SHARED_CC)" KIT_RENDER_ENABLE_VK=0
+	@$(MAKE) -C "$(KIT_PANE_DIR)" CC="$(SHARED_CC)" KIT_RENDER_ENABLE_VK=0
+	@cp "$(KIT_PANE_DIR)/build/libkit_pane.a" "$@"
+
+$(TARGET_BUILD_DIR) $(PROGRAM_BUILD_DIR) $(PROGRAM_BIN_DIR) $(HOST_TEST_DIR) $(TEST_OBJ_DIR) $(TEST_BIN_DIR):
 	@mkdir -p "$@"
 
 $(PROGRAM_CC_STAMP): makefile $(PROGRAM_CC_DEP) | $(PROGRAM_BUILD_DIR)
@@ -433,23 +539,23 @@ $(APP_OBJS) $(HEADLESS_OBJS): $(PROGRAM_CC_STAMP)
 
 $(PROGRAM_OBJ_DIR)/%.c.o: %.c $(PROGRAM_CC_STAMP)
 	@mkdir -p "$(dir $@)"
-	$(PROGRAM_CC) $(CFLAGS) -c "$<" -o "$@"
+	$(PROGRAM_CC) $(PROGRAM_CFLAGS) -c "$<" -o "$@"
 
 $(TEST_OBJ_DIR)/%.c.o: %.c
 	@mkdir -p "$(dir $@)"
-	$(HOST_CC) $(CFLAGS) -c "$<" -o "$@"
+	$(HOST_CC) $(HOST_CFLAGS) -c "$<" -o "$@"
 
 $(APP_TARGET): $(APP_OBJS) $(SHARED_LIBS)
 	@mkdir -p "$(dir $@)"
-	$(HOST_CC) $(APP_OBJS) $(SHARED_LIBS) -o "$@" $(APP_LDLIBS)
+	$(HOST_CC) $(ARCH_FLAGS) $(APP_OBJS) $(SHARED_LIBS) -o "$@" $(APP_LDLIBS)
 
 $(HEADLESS_TARGET): $(HEADLESS_OBJS) $(SHARED_LIBS)
 	@mkdir -p "$(dir $@)"
-	$(HOST_CC) $(HEADLESS_OBJS) $(SHARED_LIBS) -o "$@" $(LDLIBS) $(PNG_LIBS)
+	$(HOST_CC) $(ARCH_FLAGS) $(HEADLESS_OBJS) $(SHARED_LIBS) -o "$@" $(LDLIBS) $(PNG_LIBS)
 
 $(TEST_TARGET): $(TEST_OBJS) $(SHARED_LIBS)
 	@mkdir -p "$(dir $@)"
-	$(HOST_CC) $(TEST_OBJS) $(SHARED_LIBS) -o "$@" $(APP_LDLIBS)
+	$(HOST_CC) $(ARCH_FLAGS) $(TEST_OBJS) $(SHARED_LIBS) -o "$@" $(APP_LDLIBS)
 
 run: $(APP_TARGET)
 	"$(APP_TARGET)"
@@ -477,6 +583,12 @@ snapshot-bridge-import: $(HEADLESS_TARGET)
 
 shared-mode:
 	@echo "SHARED_MODE=$(SHARED_MODE)"
+	@echo "TARGET_OS=$(TARGET_OS)"
+	@echo "TARGET_ARCH=$(TARGET_ARCH)"
+	@echo "TARGET_VARIANT=$(TARGET_VARIANT)"
+	@echo "TARGET_TRIPLE=$(TARGET_TRIPLE)"
+	@echo "TARGET_HOMEBREW_PREFIX=$(TARGET_HOMEBREW_PREFIX)"
+	@echo "TARGET_PKG_CONFIG_LIBDIR=$(TARGET_PKG_CONFIG_LIBDIR)"
 	@echo "CORE_BASE_DIR=$(CORE_BASE_DIR)"
 	@echo "CORE_THEME_DIR=$(CORE_THEME_DIR)"
 	@echo "CORE_PACK_DIR=$(CORE_PACK_DIR)"
@@ -535,7 +647,8 @@ package-desktop:
 	else \
 		echo "warning: no app icon source found at $(PACKAGE_APP_ICON_SRC) or $(PACKAGE_APP_ICONSET_SRC)"; \
 	fi
-	@"$(PACKAGE_DYLIB_BUNDLER)" "$(PACKAGE_MACOS_DIR)/$(APP_BIN)" "$(PACKAGE_FRAMEWORKS_DIR)"
+	@PACKAGE_DEP_SEARCH_ROOTS="$(TARGET_DEP_SEARCH_ROOTS)" \
+		"$(PACKAGE_DYLIB_BUNDLER)" "$(PACKAGE_MACOS_DIR)/$(APP_BIN)" "$(PACKAGE_FRAMEWORKS_DIR)"
 	@for dylib in "$(PACKAGE_FRAMEWORKS_DIR)"/*.dylib; do \
 		[ -f "$$dylib" ] || continue; \
 		codesign --force --sign "$(PACKAGE_ADHOC_SIGN_IDENTITY)" "$$dylib"; \
@@ -549,6 +662,21 @@ package-desktop-smoke: package-desktop
 	@test -x "$(PACKAGE_MACOS_DIR)/$(LAUNCHER_BIN)" || (echo "Missing launcher"; exit 1)
 	@test -x "$(PACKAGE_MACOS_DIR)/$(APP_BIN)" || (echo "Missing app binary"; exit 1)
 	@test -f "$(PACKAGE_CONTENTS_DIR)/Info.plist" || (echo "Missing Info.plist"; exit 1)
+	@if command -v lipo >/dev/null 2>&1; then \
+		actual_archs="$$(lipo -archs "$(PACKAGE_MACOS_DIR)/$(APP_BIN)" 2>/dev/null || true)"; \
+		case "$$actual_archs" in \
+			*"$(TARGET_ARCH)"*) ;; \
+			*) echo "App binary arch mismatch: expected $(TARGET_ARCH), got '$$actual_archs'"; exit 1 ;; \
+		esac; \
+		for dylib in "$(PACKAGE_FRAMEWORKS_DIR)"/*.dylib; do \
+			[ -f "$$dylib" ] || continue; \
+			dylib_archs="$$(lipo -archs "$$dylib" 2>/dev/null || true)"; \
+			case "$$dylib_archs" in \
+				*"$(TARGET_ARCH)"*) ;; \
+				*) echo "Bundled dylib arch mismatch: $$dylib -> '$$dylib_archs'"; exit 1 ;; \
+			esac; \
+		done; \
+	fi
 	@if [ -f "$(PACKAGE_APP_ICON_SRC)" ] || [ -d "$(PACKAGE_APP_ICONSET_SRC)" ]; then \
 		test -f "$(PACKAGE_BUNDLED_ICON_PATH)" || (echo "Missing bundled AppIcon.icns"; exit 1); \
 	fi
@@ -579,3 +707,78 @@ package-desktop-refresh: package-desktop
 	@rm -rf "$(DESKTOP_APP_DIR)"
 	@ditto "$(PACKAGE_APP_DIR)" "$(DESKTOP_APP_DIR)"
 	@echo "Refreshed $(PACKAGE_APP_NAME) at $(DESKTOP_APP_DIR)"
+
+release-contract:
+	@echo "PROGRAM_KEY=$(PROGRAM_KEY)"
+	@echo "RELEASE_PRODUCT_NAME=$(RELEASE_PRODUCT_NAME)"
+	@echo "RELEASE_BUNDLE_ID=$(RELEASE_BUNDLE_ID)"
+	@echo "HOST_ARCH=$(HOST_ARCH)"
+	@echo "TARGET_OS=$(TARGET_OS)"
+	@echo "TARGET_ARCH=$(TARGET_ARCH)"
+	@echo "TARGET_VARIANT=$(TARGET_VARIANT)"
+	@echo "TARGET_TRIPLE=$(TARGET_TRIPLE)"
+	@echo "RELEASE_PLATFORM=$(RELEASE_PLATFORM)"
+	@echo "RELEASE_ARCH=$(RELEASE_ARCH)"
+	@echo "TARGET_HOMEBREW_PREFIX=$(TARGET_HOMEBREW_PREFIX)"
+	@echo "TARGET_PKG_CONFIG_LIBDIR=$(TARGET_PKG_CONFIG_LIBDIR)"
+	@echo "RELEASE_VERSION=$(RELEASE_VERSION)"
+	@echo "RELEASE_CHANNEL=$(RELEASE_CHANNEL)"
+	@echo "RELEASE_APP_ZIP=$(RELEASE_APP_ZIP)"
+	@echo "RELEASE_MANIFEST=$(RELEASE_MANIFEST)"
+
+release-clean:
+	@rm -rf "$(RELEASE_DIR)"
+
+release-build:
+	@$(MAKE) BUILD_TOOLCHAIN="$(PACKAGE_TOOLCHAIN)" PACKAGE_TOOLCHAIN="$(PACKAGE_TOOLCHAIN)" package-desktop
+	@mkdir -p "$(RELEASE_DIR)"
+	@echo "Release build prepared at $(PACKAGE_APP_DIR)"
+
+release-bundle-audit: release-build
+	@$(MAKE) BUILD_TOOLCHAIN="$(PACKAGE_TOOLCHAIN)" PACKAGE_TOOLCHAIN="$(PACKAGE_TOOLCHAIN)" package-desktop-smoke
+	@echo "release-bundle-audit passed."
+
+release-sign: release-build
+	@echo "release-sign scaffold: using ad-hoc signed package output from package-desktop."
+
+release-verify: release-bundle-audit
+	@$(MAKE) BUILD_TOOLCHAIN="$(PACKAGE_TOOLCHAIN)" PACKAGE_TOOLCHAIN="$(PACKAGE_TOOLCHAIN)" package-desktop-self-test
+	@echo "release-verify passed."
+
+release-verify-signed: release-verify
+	@echo "release-verify-signed scaffold passed."
+
+release-notarize: release-sign
+	@echo "release-notarize scaffold placeholder."
+
+release-staple: release-notarize
+	@echo "release-staple scaffold placeholder."
+
+release-verify-notarized: release-verify
+	@echo "release-verify-notarized scaffold placeholder."
+
+release-artifact: release-verify
+	@mkdir -p "$(RELEASE_DIR)"
+	@rm -f "$(RELEASE_APP_ZIP)" "$(RELEASE_APP_ZIP_SHA256)" "$(RELEASE_MANIFEST)"
+	@cd "$(DIST_DIR)" && zip -qr "../$(RELEASE_APP_ZIP)" "$(PACKAGE_APP_NAME)"
+	@shasum -a 256 "$(RELEASE_APP_ZIP)" > "$(RELEASE_APP_ZIP_SHA256)"
+	@{ \
+		echo "product=$(RELEASE_PRODUCT_NAME)"; \
+		echo "program=$(PROGRAM_KEY)"; \
+		echo "host_arch=$(HOST_ARCH)"; \
+		echo "target_os=$(TARGET_OS)"; \
+		echo "target_arch=$(TARGET_ARCH)"; \
+		echo "target_variant=$(TARGET_VARIANT)"; \
+		echo "target_triple=$(TARGET_TRIPLE)"; \
+		echo "release_platform=$(RELEASE_PLATFORM)"; \
+		echo "release_arch=$(RELEASE_ARCH)"; \
+		echo "version=$(RELEASE_VERSION)"; \
+		echo "channel=$(RELEASE_CHANNEL)"; \
+		echo "bundle_id=$(RELEASE_BUNDLE_ID)"; \
+		echo "zip=$(RELEASE_APP_ZIP)"; \
+		echo "sha256=$$(cut -d' ' -f1 "$(RELEASE_APP_ZIP_SHA256)")"; \
+	} > "$(RELEASE_MANIFEST)"
+	@echo "release-artifact complete: $(RELEASE_APP_ZIP)"
+
+release-distribute: release-artifact
+	@echo "release-distribute scaffold passed."

@@ -4,9 +4,20 @@
 
 #include "drawing_program/drawing_program_app_main.h"
 
+enum {
+    DRAWING_PROGRAM_PANE_SPLITTER_HANDLE_THICKNESS = 8
+};
+
 static CoreResult pane_host_invalid(const char *message) {
     CoreResult r = { CORE_ERR_INVALID_ARG, message };
     return r;
+}
+
+static CorePaneRect drawing_program_pane_host_bounds(const struct DrawingProgramAppContext *ctx) {
+    if (!ctx) {
+        return (CorePaneRect){ 0.0f, 0.0f, 0.0f, 0.0f };
+    }
+    return (CorePaneRect){ 0.0f, 0.0f, ctx->pane_host_bounds_width, ctx->pane_host_bounds_height };
 }
 
 static void drawing_program_module_render_canvas(void *host_context,
@@ -59,7 +70,7 @@ CoreResult drawing_program_pane_host_rebuild(struct DrawingProgramAppContext *ct
         return pane_host_invalid("null app context");
     }
 
-    bounds = (CorePaneRect){ 0.0f, 0.0f, ctx->pane_host_bounds_width, ctx->pane_host_bounds_height };
+    bounds = drawing_program_pane_host_bounds(ctx);
     memset(&report, 0, sizeof(report));
     if (!core_pane_validate_graph(ctx->pane_host.nodes,
                                   ctx->pane_host.node_count,
@@ -112,6 +123,8 @@ CoreResult drawing_program_pane_host_init(struct DrawingProgramAppContext *ctx) 
 
     memset(&ctx->pane_host, 0, sizeof(ctx->pane_host));
     core_layout_state_init(&ctx->pane_host.layout_state);
+    kit_pane_splitter_interaction_init(&ctx->pane_host.splitter_interaction,
+                                       (float)DRAWING_PROGRAM_PANE_SPLITTER_HANDLE_THICKNESS);
 
     ctx->pane_host.node_count = 7u;
     ctx->pane_host.root_index = 0u;
@@ -278,4 +291,97 @@ CoreResult drawing_program_pane_host_render(struct DrawingProgramAppContext *ctx
         descriptor->render(ctx, binding->pane_node_id, binding->instance_id);
     }
     return core_result_ok();
+}
+
+CoreResult drawing_program_pane_host_update_pointer(struct DrawingProgramAppContext *ctx,
+                                                    float point_x,
+                                                    float point_y) {
+    CoreResult result;
+    if (!ctx) {
+        return pane_host_invalid("null app context");
+    }
+    result = kit_pane_splitter_interaction_set_hover(&ctx->pane_host.splitter_interaction,
+                                                     ctx->pane_host.nodes,
+                                                     ctx->pane_host.node_count,
+                                                     ctx->pane_host.root_index,
+                                                     drawing_program_pane_host_bounds(ctx),
+                                                     point_x,
+                                                     point_y);
+    if (result.code == CORE_ERR_NOT_FOUND) {
+        return core_result_ok();
+    }
+    return result;
+}
+
+int drawing_program_pane_host_begin_splitter_drag(struct DrawingProgramAppContext *ctx,
+                                                  float point_x,
+                                                  float point_y) {
+    CoreResult result;
+    if (!ctx) {
+        return 0;
+    }
+    if (ctx->overlay_adapter.lifecycle_state != DRAWING_PROGRAM_OVERLAY_STATE_RUNTIME_ACTIVE ||
+        ctx->overlay_adapter.runtime_paused) {
+        return 0;
+    }
+    result = kit_pane_splitter_interaction_begin_drag(&ctx->pane_host.splitter_interaction,
+                                                      ctx->pane_host.nodes,
+                                                      ctx->pane_host.node_count,
+                                                      ctx->pane_host.root_index,
+                                                      drawing_program_pane_host_bounds(ctx),
+                                                      point_x,
+                                                      point_y);
+    return result.code == CORE_OK ? 1 : 0;
+}
+
+int drawing_program_pane_host_update_splitter_drag(struct DrawingProgramAppContext *ctx,
+                                                   float point_x,
+                                                   float point_y) {
+    CoreResult result;
+    int changed = 0;
+    if (!ctx) {
+        return 0;
+    }
+    result = kit_pane_splitter_interaction_update_drag(&ctx->pane_host.splitter_interaction,
+                                                       ctx->pane_host.nodes,
+                                                       ctx->pane_host.node_count,
+                                                       point_x,
+                                                       point_y,
+                                                       &changed);
+    if (result.code != CORE_OK) {
+        return 0;
+    }
+    if (changed) {
+        if (drawing_program_pane_host_rebuild(ctx).code != CORE_OK) {
+            return 0;
+        }
+    }
+    return changed;
+}
+
+void drawing_program_pane_host_end_splitter_drag(struct DrawingProgramAppContext *ctx) {
+    if (!ctx) {
+        return;
+    }
+    kit_pane_splitter_interaction_end_drag(&ctx->pane_host.splitter_interaction);
+}
+
+int drawing_program_pane_host_splitter_drag_active(const struct DrawingProgramAppContext *ctx) {
+    if (!ctx) {
+        return 0;
+    }
+    return ctx->pane_host.splitter_interaction.drag_active ? 1 : 0;
+}
+
+int drawing_program_pane_host_visible_splitter(const struct DrawingProgramAppContext *ctx,
+                                               CorePaneRect *out_bounds,
+                                               int *out_hovered,
+                                               int *out_active) {
+    if (!ctx) {
+        return 0;
+    }
+    return kit_pane_splitter_interaction_current(&ctx->pane_host.splitter_interaction,
+                                                 out_bounds,
+                                                 out_hovered,
+                                                 out_active);
 }

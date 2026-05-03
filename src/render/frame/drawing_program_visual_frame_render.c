@@ -2,6 +2,51 @@
 
 #include "drawing_program/drawing_program_visual_theme.h"
 
+static void draw_splitter_overlay(SDL_Renderer *renderer,
+                                  const DrawingProgramAppContext *ctx,
+                                  const CoreThemePreset *theme) {
+    CorePaneRect splitter_bounds;
+    SDL_Color accent = { 120u, 160u, 220u, 255u };
+    SDL_Color border = { 180u, 196u, 228u, 255u };
+    SDL_Rect rect;
+    int hovered = 0;
+    int active = 0;
+    uint8_t fill_alpha = 96u;
+    uint8_t border_alpha = 180u;
+
+    if (!renderer || !ctx) {
+        return;
+    }
+    if (!drawing_program_pane_host_visible_splitter(ctx, &splitter_bounds, &hovered, &active)) {
+        return;
+    }
+    if (!hovered && !active) {
+        return;
+    }
+    if (theme) {
+        (void)resolve_theme_color(theme, CORE_THEME_COLOR_ACCENT_PRIMARY, &accent);
+        border = sdl_color_ensure_contrast(accent, accent);
+    }
+    if (active) {
+        fill_alpha = 156u;
+        border_alpha = 255u;
+    }
+    rect.x = (int)splitter_bounds.x;
+    rect.y = (int)splitter_bounds.y;
+    rect.w = (int)splitter_bounds.width;
+    rect.h = (int)splitter_bounds.height;
+    if (rect.w < 1) {
+        rect.w = 1;
+    }
+    if (rect.h < 1) {
+        rect.h = 1;
+    }
+    SDL_SetRenderDrawColor(renderer, accent.r, accent.g, accent.b, fill_alpha);
+    (void)SDL_RenderFillRect(renderer, &rect);
+    SDL_SetRenderDrawColor(renderer, border.r, border.g, border.b, border_alpha);
+    (void)SDL_RenderDrawRect(renderer, &rect);
+}
+
 int drawing_program_visual_draw_frame(SDL_Window *window,
                                       SDL_Renderer *renderer,
                                       const DrawingProgramAppContext *ctx,
@@ -76,6 +121,7 @@ int drawing_program_visual_draw_frame(SDL_Window *window,
         SDL_SetRenderDrawColor(renderer, border.r, border.g, border.b, border.a);
         (void)SDL_RenderDrawRect(renderer, &rect);
     }
+    draw_splitter_overlay(renderer, ctx, theme);
 
     return 1;
 }

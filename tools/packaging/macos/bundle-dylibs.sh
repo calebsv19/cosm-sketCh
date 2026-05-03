@@ -16,6 +16,7 @@ BASENAME_BIN="/usr/bin/basename"
 OTOOL_BIN="/usr/bin/otool"
 INSTALL_NAME_TOOL_BIN="/usr/bin/install_name_tool"
 MKDIR_BIN="/bin/mkdir"
+SEARCH_ROOTS_LIST="${PACKAGE_DEP_SEARCH_ROOTS:-/opt/homebrew:/usr/local}"
 
 "$MKDIR_BIN" -p "$FRAMEWORKS_DIR"
 
@@ -24,6 +25,28 @@ WORK_TMP_DIR="${TMPDIR:-/tmp}/drawing_program_bundle_dylibs.$$"
 QUEUE_FILE="$WORK_TMP_DIR/queue.txt"
 SEEN_FILE="$WORK_TMP_DIR/seen.txt"
 touch "$QUEUE_FILE" "$SEEN_FILE"
+
+resolve_rpath_dep() {
+    dep_base="$1"
+    if [ -f "$FRAMEWORKS_DIR/$dep_base" ]; then
+        printf '%s\n' "$FRAMEWORKS_DIR/$dep_base"
+        return 0
+    fi
+
+    old_ifs="${IFS}"
+    IFS=":"
+    for search_root in $SEARCH_ROOTS_LIST; do
+        [ -n "$search_root" ] || continue
+        if [ -f "$search_root/lib/$dep_base" ]; then
+            IFS="${old_ifs}"
+            printf '%s\n' "$search_root/lib/$dep_base"
+            return 0
+        fi
+    done
+    IFS="${old_ifs}"
+
+    return 1
+}
 
 cleanup() {
     rm -rf "$WORK_TMP_DIR" >/dev/null 2>&1 || true
@@ -52,13 +75,7 @@ while IFS= read -r current_file; do
 
         case "$dep" in
             @rpath/*)
-                if [ -f "$FRAMEWORKS_DIR/$dep_base" ]; then
-                    dep_src="$FRAMEWORKS_DIR/$dep_base"
-                elif [ -f "/opt/homebrew/lib/$dep_base" ]; then
-                    dep_src="/opt/homebrew/lib/$dep_base"
-                elif [ -f "/usr/local/lib/$dep_base" ]; then
-                    dep_src="/usr/local/lib/$dep_base"
-                else
+                if ! dep_src="$(resolve_rpath_dep "$dep_base")"; then
                     echo "warning: unable to resolve $dep for $current_file" >&2
                     continue
                 fi

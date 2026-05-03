@@ -98,6 +98,8 @@ static void drawing_program_visual_loop_handle_event(DrawingProgramVisualLoopEve
     int has_right_pane = 0;
     uint8_t clear_mouse_known = 0u;
     uint8_t cancel_transients = 0u;
+    int pointer_x = 0;
+    int pointer_y = 0;
 
     if (!ctx || !event) {
         return;
@@ -117,6 +119,12 @@ static void drawing_program_visual_loop_handle_event(DrawingProgramVisualLoopEve
         ctx->panel_ui->mouse_x = event_x;
         ctx->panel_ui->mouse_y = event_y;
     }
+    pointer_x = event_has_position ? event_x : 0;
+    pointer_y = event_has_position ? event_y : 0;
+    if (event->type == SDL_MOUSEMOTION) {
+        pointer_x = event_has_position ? event_x : event->motion.x;
+        pointer_y = event_has_position ? event_y : event->motion.y;
+    }
     if (event->type == SDL_QUIT) {
         *(ctx->quit) = 1;
     }
@@ -129,6 +137,7 @@ static void drawing_program_visual_loop_handle_event(DrawingProgramVisualLoopEve
                                                         &cancel_transients);
         if (clear_mouse_known) {
             ctx->panel_ui->mouse_known = 0u;
+            drawing_program_pane_host_end_splitter_drag(ctx->app);
         }
         if (cancel_transients && ctx->input_handlers &&
             ctx->input_handlers->cancel_all_transient_interactions) {
@@ -143,6 +152,30 @@ static void drawing_program_visual_loop_handle_event(DrawingProgramVisualLoopEve
                                                          has_canvas_pane,
                                                          canvas_pane,
                                                          event);
+    if (event->type == SDL_MOUSEBUTTONDOWN &&
+        event->button.button == SDL_BUTTON_LEFT &&
+        event_has_position &&
+        drawing_program_pane_host_begin_splitter_drag(ctx->app, (float)event_x, (float)event_y)) {
+        return;
+    }
+    if (event->type == SDL_MOUSEBUTTONUP &&
+        event->button.button == SDL_BUTTON_LEFT &&
+        drawing_program_pane_host_splitter_drag_active(ctx->app)) {
+        drawing_program_pane_host_end_splitter_drag(ctx->app);
+        if (event_has_position) {
+            (void)drawing_program_pane_host_update_pointer(ctx->app, (float)event_x, (float)event_y);
+        }
+        return;
+    }
+    if (event->type == SDL_MOUSEMOTION) {
+        if (drawing_program_pane_host_splitter_drag_active(ctx->app)) {
+            (void)drawing_program_pane_host_update_splitter_drag(ctx->app,
+                                                                 (float)pointer_x,
+                                                                 (float)pointer_y);
+            return;
+        }
+        (void)drawing_program_pane_host_update_pointer(ctx->app, (float)pointer_x, (float)pointer_y);
+    }
     if (drawing_program_visual_input_handle_mouse_button_down_payload(event,
                                                                       event_has_position,
                                                                       event_x,

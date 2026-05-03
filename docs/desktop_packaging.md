@@ -1,6 +1,6 @@
 # sketCh Desktop Packaging
 
-Last updated: 2026-04-25
+Last updated: 2026-04-30
 
 ## Bundle Contract
 
@@ -11,7 +11,7 @@ Last updated: 2026-04-25
 - app bundle metadata:
   - bundle id: `com.cosm.sketch`
   - product name: `sketCh`
-  - version: `0.1.0`
+  - version: `0.2.0`
   - icon file: `Contents/Resources/AppIcon.icns` via `CFBundleIconFile=AppIcon`
 - bundled frameworks live under `Contents/Frameworks/`
 - bundled resources currently include:
@@ -29,6 +29,47 @@ Last updated: 2026-04-25
   - `make -C drawing_program package-desktop-open`
   - `make -C drawing_program package-desktop-remove`
   - `make -C drawing_program package-desktop-refresh`
+- release/export prep:
+  - `make -C drawing_program release-contract`
+  - `make -C drawing_program release-build`
+  - `make -C drawing_program release-bundle-audit`
+  - `make -C drawing_program release-verify`
+  - `make -C drawing_program release-artifact TARGET_ARCH=arm64`
+  - `make -C drawing_program release-artifact TARGET_ARCH=x86_64`
+  - `make -C drawing_program release-distribute`
+
+Current release-artifact output now matches the unified export lane:
+- `build/release/sketCh-<version>-macOS-arm64-stable.zip`
+- `build/release/sketCh-<version>-macOS-arm64-stable.zip.sha256`
+- `build/release/sketCh-<version>-macOS-arm64-stable.manifest.txt`
+- `build/release/sketCh-<version>-macOS-x86_64-stable.zip`
+- `build/release/sketCh-<version>-macOS-x86_64-stable.zip.sha256`
+- `build/release/sketCh-<version>-macOS-x86_64-stable.manifest.txt`
+
+## Release Target Contract
+
+- shared helper: `/Users/calebsv/Desktop/CodeWork/bin/desktop_release_target_contract.sh`
+- target vars:
+  - `TARGET_OS=macOS`
+  - `TARGET_ARCH=arm64 | x86_64`
+  - `TARGET_VARIANT=desktop-app`
+  - `TARGET_TRIPLE=macOS-<arch>`
+  - `RELEASE_PLATFORM=macOS`
+  - `RELEASE_ARCH=<arch>`
+- arch-specific intermediates now live under:
+  - `build/targets/macOS-<arch>/...`
+- `dist/sketCh.app` remains the active local bundle path; release artifact coexistence comes from the explicit arch token in `build/release/`
+
+## Builder Constraints
+
+- `TARGET_ARCH=arm64` is the default on Apple Silicon builders and prefers `/opt/homebrew` for pkg-config and dylib discovery.
+- `TARGET_ARCH=x86_64` is intended for an Intel macOS builder first.
+- `TARGET_ARCH=x86_64` can also work on an Apple Silicon builder only if the host has a usable x86_64 macOS SDK/toolchain path plus matching x86_64 Homebrew dependencies under `/usr/local`.
+- mixed-builder overrides are supported through:
+  - `TARGET_HOMEBREW_PREFIX=<prefix>`
+  - `TARGET_PKG_CONFIG_LIBDIR=<prefix>/lib/pkgconfig:<prefix>/share/pkgconfig`
+- package assembly now passes ordered dependency roots to the dylib bundler so `@rpath` resolution prefers the requested target architecture instead of whichever Homebrew prefix appears first.
+- vendored shared static libraries are rebuilt into arch-specific copies under `build/targets/macOS-<arch>/shared/` before link/package work so arm64 and x86_64 release passes do not reuse stale archives across target switches.
 
 ## Launcher Runtime Contract
 
@@ -85,9 +126,11 @@ Last updated: 2026-04-25
 6. `make -C drawing_program package-desktop-refresh PACKAGE_APP_ICON_SRC=<path-to-AppIcon.icns>`
 7. `/Users/<user>/Desktop/sketCh.app/Contents/MacOS/sketch-launcher --print-config`
 8. `open /Users/<user>/Desktop/sketCh.app`
+9. `make -C drawing_program release-contract TARGET_ARCH=x86_64`
+10. `make -C drawing_program release-bundle-audit TARGET_ARCH=x86_64`
 
 ## Current Limits
 
 - This doc describes the current local packaged-app workflow only.
-- It does not document a public release-sign, notarize, staple, or release-distribute lane for `drawing_program`.
+- It documents a scaffold release lane sufficient for local export/upload prep, not a final notarized public-release lane.
 - It does not prove a fresh packaging rerun on its own; use current verification records and release docs for bounded milestone context.

@@ -240,6 +240,81 @@ int drawing_program_lifecycle_run_baseline_history_suite(DrawingProgramAppContex
         return 1;
     }
     {
+        const CorePaneLeafRect *left_leaf = 0;
+        const CorePaneLeafRect *center_leaf = 0;
+        CorePaneRect splitter_bounds;
+        float splitter_x = 0.0f;
+        float splitter_y = 0.0f;
+        float left_width_before = 0.0f;
+        float center_width_before = 0.0f;
+        float left_width_after = 0.0f;
+        float center_width_after = 0.0f;
+        uint32_t i;
+        int hovered = 0;
+        int active = 0;
+        for (i = 0u; i < ctx.pane_host.leaf_count; ++i) {
+            if (ctx.pane_host.leaves[i].id == 4u) {
+                left_leaf = &ctx.pane_host.leaves[i];
+            } else if (ctx.pane_host.leaves[i].id == 6u) {
+                center_leaf = &ctx.pane_host.leaves[i];
+            }
+        }
+        if (!left_leaf || !center_leaf) {
+            fprintf(stderr, "lifecycle_test: expected left and center pane leaves for splitter drag test\n");
+            return 1;
+        }
+        splitter_x = left_leaf->rect.x + left_leaf->rect.width;
+        splitter_y = left_leaf->rect.y + (left_leaf->rect.height * 0.5f);
+        left_width_before = left_leaf->rect.width;
+        center_width_before = center_leaf->rect.width;
+        if (!expect_ok(drawing_program_pane_host_update_pointer(&ctx, splitter_x, splitter_y),
+                       "pane_host_update_pointer")) {
+            return 1;
+        }
+        if (!drawing_program_pane_host_begin_splitter_drag(&ctx, splitter_x, splitter_y)) {
+            fprintf(stderr, "lifecycle_test: expected pane splitter drag begin to succeed\n");
+            return 1;
+        }
+        if (!drawing_program_pane_host_update_splitter_drag(&ctx, splitter_x + 40.0f, splitter_y)) {
+            fprintf(stderr, "lifecycle_test: expected pane splitter drag update to change layout\n");
+            return 1;
+        }
+        if (!drawing_program_pane_host_visible_splitter(&ctx, &splitter_bounds, &hovered, &active) ||
+            !hovered || !active) {
+            fprintf(stderr, "lifecycle_test: expected active splitter feedback during drag\n");
+            return 1;
+        }
+        drawing_program_pane_host_end_splitter_drag(&ctx);
+        if (drawing_program_pane_host_splitter_drag_active(&ctx)) {
+            fprintf(stderr, "lifecycle_test: expected splitter drag to end cleanly\n");
+            return 1;
+        }
+        left_leaf = 0;
+        center_leaf = 0;
+        for (i = 0u; i < ctx.pane_host.leaf_count; ++i) {
+            if (ctx.pane_host.leaves[i].id == 4u) {
+                left_leaf = &ctx.pane_host.leaves[i];
+            } else if (ctx.pane_host.leaves[i].id == 6u) {
+                center_leaf = &ctx.pane_host.leaves[i];
+            }
+        }
+        if (!left_leaf || !center_leaf) {
+            fprintf(stderr, "lifecycle_test: expected pane leaves after splitter drag rebuild\n");
+            return 1;
+        }
+        left_width_after = left_leaf->rect.width;
+        center_width_after = center_leaf->rect.width;
+        if (left_width_after <= left_width_before || center_width_after >= center_width_before) {
+            fprintf(stderr,
+                    "lifecycle_test: expected splitter drag to grow left pane and shrink center pane (before %.2f/%.2f after %.2f/%.2f)\n",
+                    (double)left_width_before,
+                    (double)center_width_before,
+                    (double)left_width_after,
+                    (double)center_width_after);
+            return 1;
+        }
+    }
+    {
         DrawingProgramDocument legacy_doc;
         DrawingProgramDocument legacy_doc_v2;
         uint8_t upgraded = 0u;
