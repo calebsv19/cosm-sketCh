@@ -12,6 +12,7 @@
 #include "drawing_program/drawing_program_snapshot.h"
 #include "drawing_program/drawing_program_visual_authoring_chrome.h"
 #include "drawing_program_lifecycle_test_support.h"
+#include "kit_workspace_authoring_ui.h"
 
 static void authoring_key_event(SDL_Event *event, uint32_t type, SDL_Keycode key, uint16_t mod) {
     if (!event) {
@@ -54,6 +55,14 @@ static uint32_t authoring_first_split_node(const DrawingProgramAppContext *ctx) 
     return ctx->pane_host.node_count;
 }
 
+static int authoring_hit_center_x(KitRenderRect rect) {
+    return (int)(rect.x + (rect.width * 0.5f));
+}
+
+static int authoring_hit_center_y(KitRenderRect rect) {
+    return (int)(rect.y + (rect.height * 0.5f));
+}
+
 int drawing_program_lifecycle_run_authoring_host_suite(void) {
     static DrawingProgramAppContext ctx;
     static DrawingProgramAppContext applied_load_ctx;
@@ -69,6 +78,7 @@ int drawing_program_lifecycle_run_authoring_host_suite(void) {
     float unsaved_draft_ratio;
     int8_t original_font_zoom;
     uint64_t revision_before_apply;
+    KitWorkspaceAuthoringFontThemeLayout font_theme_layout;
     const char *applied_pack_path = "/tmp/drawing_program_authoring_applied.pack";
     const char *active_draft_pack_path = "/tmp/drawing_program_authoring_active_draft.pack";
     char arg0[] = "drawing_program_authoring_host_test";
@@ -210,11 +220,20 @@ int drawing_program_lifecycle_run_authoring_host_suite(void) {
         return 1;
     }
     authoring_key_event(&event, SDL_KEYDOWN, SDLK_TAB, KMOD_NONE);
-    if (!drawing_program_authoring_host_handle_sdl_event(&ctx, &event) ||
+    if (!kit_workspace_authoring_ui_font_theme_build_layout(NULL, 800, 600, &font_theme_layout) ||
+        !drawing_program_authoring_host_handle_sdl_event(&ctx, &event) ||
         !drawing_program_authoring_host_font_theme_overlay_active(&ctx) ||
-        drawing_program_visual_authoring_chrome_hit_test(800, 600, &ctx, 60, 252) !=
+        drawing_program_visual_authoring_chrome_hit_test(800,
+                                                        600,
+                                                        &ctx,
+                                                        authoring_hit_center_x(font_theme_layout.text_size_dec_button),
+                                                        authoring_hit_center_y(font_theme_layout.text_size_dec_button)) !=
             DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_FONT_ZOOM_DEC ||
-        drawing_program_visual_authoring_chrome_hit_test(800, 600, &ctx, 340, 365) !=
+        drawing_program_visual_authoring_chrome_hit_test(800,
+                                                        600,
+                                                        &ctx,
+                                                        authoring_hit_center_x(font_theme_layout.theme_preset_buttons[2]),
+                                                        authoring_hit_center_y(font_theme_layout.theme_preset_buttons[2])) !=
             DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_THEME_PRESET_MIDNIGHT) {
         fprintf(stderr, "authoring_host_test: font/theme overlay hit tests should resolve controls\n");
         return 1;

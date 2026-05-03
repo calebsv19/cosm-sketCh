@@ -43,6 +43,7 @@ Last updated: 2026-05-03
 - Snapshot/runtime continuity:
   - snapshot shell lanes support modern true-color migration while preserving legacy compatibility fallback paths
   - workspace preset bridge-check/import flows are present
+  - file-panel target queue discovery supports up to 512 `.pack` targets from the active input root and renders them in a clipped scrollable sub-pane
 - Workspace authoring:
   - `Alt+C+V` enters authoring mode and toggles back to runtime mode when already active
   - sequential `Alt+C`, release, `Alt+V` also enters/toggles authoring mode, with physical scancode detection for macOS Option-modified keys

@@ -88,6 +88,16 @@ void drawing_program_visual_input_map_event_position(SDL_Window *window,
     }
 }
 
+void drawing_program_visual_input_map_mouse_state(SDL_Window *window,
+                                                  SDL_Renderer *renderer,
+                                                  int *out_x,
+                                                  int *out_y) {
+    int mouse_x = 0;
+    int mouse_y = 0;
+    SDL_GetMouseState(&mouse_x, &mouse_y);
+    map_input_to_render_coords(window, renderer, mouse_x, mouse_y, out_x, out_y);
+}
+
 DrawingProgramVisualPaneHitState drawing_program_visual_input_classify_hit(int x,
                                                                            int y,
                                                                            int has_left_pane,

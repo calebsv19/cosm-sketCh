@@ -24,7 +24,7 @@ extern "C" {
 #define DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX 32u
 #define DRAWING_PROGRAM_UI_FILL_TOLERANCE_SAMPLE_SCALE 8u
 #define DRAWING_PROGRAM_PROJECT_PATH_CAPACITY 512u
-#define DRAWING_PROGRAM_RECENT_PROJECT_CAPACITY 8u
+#define DRAWING_PROGRAM_RECENT_PROJECT_CAPACITY 512u
 
 typedef enum DrawingProgramUiShapeTargetMode {
     DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_PIXEL = 0u,
@@ -160,7 +160,7 @@ typedef struct DrawingProgramAppSessionState {
     uint32_t project_saved_history_count;
     uint32_t project_saved_history_cursor;
     uint8_t project_has_saved_state;
-    uint8_t recent_project_count;
+    uint16_t recent_project_count;
     uint8_t ui_prefs_loaded;
     uint8_t reserved0;
     uint8_t reserved1;

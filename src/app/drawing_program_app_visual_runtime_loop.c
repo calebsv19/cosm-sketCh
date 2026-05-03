@@ -14,6 +14,7 @@
 #include "drawing_program/drawing_program_visual_input_core.h"
 #include "drawing_program/drawing_program_visual_input_handlers.h"
 #include "drawing_program/drawing_program_visual_input_keymap.h"
+#include "drawing_program/drawing_program_visual_input_panel_clicks.h"
 #include "drawing_program/drawing_program_visual_input_support.h"
 #include "drawing_program/drawing_program_visual_layer_opacity.h"
 #include "drawing_program/drawing_program_visual_layout.h"
@@ -269,6 +270,20 @@ static void drawing_program_visual_loop_handle_event(DrawingProgramVisualLoopEve
                                                          has_canvas_pane,
                                                          canvas_pane,
                                                          event);
+    if (event->type == SDL_MOUSEWHEEL && has_right_pane) {
+        int wheel_x = 0;
+        int wheel_y = 0;
+        drawing_program_visual_input_map_mouse_state(ctx->window, ctx->renderer, &wheel_x, &wheel_y);
+        if (drawing_program_visual_input_handle_right_panel_wheel_payload(ctx->app,
+                                                                          right_pane,
+                                                                          wheel_x,
+                                                                          wheel_y,
+                                                                          event->wheel.y,
+                                                                          ctx->panel_ui,
+                                                                          ctx->input_handlers)) {
+            return;
+        }
+    }
     if (event->type == SDL_MOUSEBUTTONDOWN &&
         event->button.button == SDL_BUTTON_LEFT &&
         event_has_position &&

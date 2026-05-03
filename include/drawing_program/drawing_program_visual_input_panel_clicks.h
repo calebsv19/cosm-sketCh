@@ -24,6 +24,13 @@ void drawing_program_visual_input_handle_right_panel_click_payload(DrawingProgra
                                                                    DrawingProgramSelectionState *selection,
                                                                    VisualPanelUiState *ui,
                                                                    const DrawingProgramVisualInputHandlersHooks *hooks);
+int drawing_program_visual_input_handle_right_panel_wheel_payload(DrawingProgramAppContext *ctx,
+                                                                  SDL_Rect rect,
+                                                                  int x,
+                                                                  int y,
+                                                                  int wheel_y,
+                                                                  VisualPanelUiState *ui,
+                                                                  const DrawingProgramVisualInputHandlersHooks *hooks);
 
 #ifdef __cplusplus
 }

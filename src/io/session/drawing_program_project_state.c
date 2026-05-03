@@ -319,7 +319,7 @@ CoreResult drawing_program_project_state_refresh_recent(struct DrawingProgramApp
                        "%s",
                        recent[i].path);
     }
-    ctx->session.recent_project_count = (uint8_t)recent_count;
+    ctx->session.recent_project_count = (uint16_t)recent_count;
     return core_result_ok();
 }
 

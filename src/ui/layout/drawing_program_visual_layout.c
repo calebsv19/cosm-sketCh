@@ -133,7 +133,7 @@ int right_file_content_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m) {
 }
 
 int right_file_actions_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m) {
-    return right_file_content_start_y(rect, m);
+    return right_file_content_start_y(rect, m) + m.line_h;
 }
 
 int right_file_recent_projects_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m, uint32_t action_count) {
@@ -173,10 +173,81 @@ int right_file_route_actions_start_y(SDL_Rect rect,
     return y;
 }
 
+uint32_t right_file_target_queue_slot_count(const DrawingProgramAppContext *ctx) {
+    uint32_t count = 1u;
+    if (ctx && ctx->session.recent_project_count > 0u) {
+        count = (uint32_t)ctx->session.recent_project_count;
+    }
+    if (count > DRAWING_PROGRAM_RECENT_PROJECT_CAPACITY) {
+        count = DRAWING_PROGRAM_RECENT_PROJECT_CAPACITY;
+    }
+    return count;
+}
+
+int right_file_target_queue_label_y(SDL_Rect rect, VisualPaneLayoutMetrics m, uint32_t action_count) {
+    int y = right_file_actions_start_y(rect, m);
+    if (action_count == 0u) {
+        action_count = 1u;
+    }
+    y += (int)action_count * m.row_h;
+    y += (int)(action_count - 1u) * m.section_gap;
+    y += m.section_gap;
+    return y;
+}
+
+SDL_Rect right_file_target_queue_rect(SDL_Rect rect,
+                                      VisualPaneLayoutMetrics m,
+                                      uint32_t state_line_count,
+                                      uint32_t route_action_count) {
+    int y = right_file_target_queue_label_y(rect, m, 7u) + m.line_h;
+    int bottom = right_file_route_actions_start_y(rect, m, state_line_count, route_action_count) - m.section_gap;
+    int h = bottom - y;
+    if (h < m.row_h) {
+        h = m.row_h;
+    }
+    return (SDL_Rect){ rect.x + m.pad_x, y, rect.w - (2 * m.pad_x), h };
+}
+
+int right_file_target_queue_scroll_max(SDL_Rect queue_rect,
+                                       VisualPaneLayoutMetrics m,
+                                       uint32_t slot_count) {
+    int row_stride = m.row_h + m.section_gap;
+    (void)queue_rect;
+    if (slot_count <= 1u || row_stride <= 0) {
+        return 0;
+    }
+    return (int)(slot_count - 1u) * row_stride;
+}
+
+int right_file_target_queue_clamp_scroll(SDL_Rect queue_rect,
+                                         VisualPaneLayoutMetrics m,
+                                         uint32_t slot_count,
+                                         int scroll_y) {
+    int max_scroll = right_file_target_queue_scroll_max(queue_rect, m, slot_count);
+    if (scroll_y < 0) {
+        return 0;
+    }
+    if (scroll_y > max_scroll) {
+        return max_scroll;
+    }
+    return scroll_y;
+}
+
 SDL_Rect right_file_recent_project_row_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, uint32_t row_index) {
-    int y = right_file_recent_projects_start_y(rect, m, 7u);
-    y += (int)row_index * (m.row_h + m.section_gap);
-    return (SDL_Rect){ rect.x + m.pad_x, y, rect.w - (2 * m.pad_x), m.row_h };
+    SDL_Rect queue_rect = right_file_target_queue_rect(rect, m, 10u, 5u);
+    return right_file_target_queue_row_rect(queue_rect, m, row_index, 0);
+}
+
+SDL_Rect right_file_target_queue_row_rect(SDL_Rect queue_rect,
+                                          VisualPaneLayoutMetrics m,
+                                          uint32_t row_index,
+                                          int scroll_y) {
+    int y = queue_rect.y + (int)row_index * (m.row_h + m.section_gap) - scroll_y;
+    int row_w = queue_rect.w;
+    if (row_w > 10) {
+        row_w -= 10;
+    }
+    return (SDL_Rect){ queue_rect.x, y, row_w, m.row_h };
 }
 
 SDL_Rect right_file_action_button_rect(SDL_Rect rect,

@@ -61,7 +61,24 @@ int right_file_route_actions_start_y(SDL_Rect rect,
                                      VisualPaneLayoutMetrics m,
                                      uint32_t state_line_count,
                                      uint32_t action_count);
+uint32_t right_file_target_queue_slot_count(const DrawingProgramAppContext *ctx);
+int right_file_target_queue_label_y(SDL_Rect rect, VisualPaneLayoutMetrics m, uint32_t action_count);
+SDL_Rect right_file_target_queue_rect(SDL_Rect rect,
+                                      VisualPaneLayoutMetrics m,
+                                      uint32_t state_line_count,
+                                      uint32_t route_action_count);
+int right_file_target_queue_scroll_max(SDL_Rect queue_rect,
+                                       VisualPaneLayoutMetrics m,
+                                       uint32_t slot_count);
+int right_file_target_queue_clamp_scroll(SDL_Rect queue_rect,
+                                         VisualPaneLayoutMetrics m,
+                                         uint32_t slot_count,
+                                         int scroll_y);
 SDL_Rect right_file_recent_project_row_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, uint32_t row_index);
+SDL_Rect right_file_target_queue_row_rect(SDL_Rect queue_rect,
+                                          VisualPaneLayoutMetrics m,
+                                          uint32_t row_index,
+                                          int scroll_y);
 SDL_Rect right_file_action_button_rect(SDL_Rect rect,
                                        VisualPaneLayoutMetrics m,
                                        uint32_t action_index,

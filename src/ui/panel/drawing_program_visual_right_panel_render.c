@@ -97,6 +97,50 @@ static void visual_right_panel_format_recent_project_line(char *out_line,
                    name);
 }
 
+static void visual_right_panel_draw_scrollbar(SDL_Renderer *renderer,
+                                              SDL_Rect viewport,
+                                              int offset_y,
+                                              int max_offset_y,
+                                              SDL_Color track_color,
+                                              SDL_Color thumb_color) {
+    SDL_Rect track;
+    SDL_Rect thumb;
+    float ratio;
+    if (!renderer || viewport.h <= 0 || max_offset_y <= 0) {
+        return;
+    }
+    track.x = viewport.x + viewport.w - 8;
+    track.y = viewport.y;
+    track.w = 6;
+    track.h = viewport.h;
+    if (track.w < 1 || track.h < 1) {
+        return;
+    }
+    if (offset_y < 0) {
+        offset_y = 0;
+    }
+    if (offset_y > max_offset_y) {
+        offset_y = max_offset_y;
+    }
+    ratio = (float)viewport.h / (float)(viewport.h + max_offset_y);
+    if (ratio < 0.1f) {
+        ratio = 0.1f;
+    }
+    thumb = track;
+    thumb.h = (int)((float)track.h * ratio);
+    if (thumb.h < 6) {
+        thumb.h = 6;
+    }
+    if (thumb.h > track.h) {
+        thumb.h = track.h;
+    }
+    thumb.y = track.y + (int)((float)(track.h - thumb.h) * ((float)offset_y / (float)max_offset_y));
+    SDL_SetRenderDrawColor(renderer, track_color.r, track_color.g, track_color.b, track_color.a);
+    (void)SDL_RenderFillRect(renderer, &track);
+    SDL_SetRenderDrawColor(renderer, thumb_color.r, thumb_color.g, thumb_color.b, thumb_color.a);
+    (void)SDL_RenderFillRect(renderer, &thumb);
+}
+
 void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                                                       SDL_Rect rect,
                                                       const DrawingProgramAppContext *ctx,
@@ -595,6 +639,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                                                      hooks);
     } else if (right_slot == VISUAL_RIGHT_PANEL_SLOT_FILE_VALUE) {
         uint32_t state_line_count = 10u;
+        uint32_t target_slot_count = right_file_target_queue_slot_count(ctx);
         SDL_Rect new_project_button = right_file_action_button_rect(rect, m, VISUAL_RIGHT_FILE_ACTION_NEW_PROJECT,
                                                                     VISUAL_RIGHT_FILE_ACTION_COUNT);
         SDL_Rect open_project_button = right_file_action_button_rect(rect, m, VISUAL_RIGHT_FILE_ACTION_OPEN_PROJECT,
@@ -632,6 +677,17 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                                                                           state_line_count,
                                                                           VISUAL_RIGHT_FILE_ROUTE_ACTION_EXPORT_ICNS,
                                                                           VISUAL_RIGHT_FILE_ROUTE_ACTION_COUNT);
+        SDL_Rect target_queue_rect = right_file_target_queue_rect(rect,
+                                                                  m,
+                                                                  state_line_count,
+                                                                  VISUAL_RIGHT_FILE_ROUTE_ACTION_COUNT);
+        int target_scroll_y =
+            ui ? right_file_target_queue_clamp_scroll(target_queue_rect,
+                                                      m,
+                                                      target_slot_count,
+                                                      ui->right_file_target_queue_scroll_y)
+               : 0;
+        int target_scroll_max = right_file_target_queue_scroll_max(target_queue_rect, m, target_slot_count);
         uint8_t project_dirty = drawing_program_project_state_current_is_dirty(ctx);
         char export_path[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
         char iconset_path[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
@@ -650,15 +706,33 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
         hooks->draw_bitmap_text(renderer,
                                 rect,
                                 rect.x + m.pad_x,
-                                right_file_recent_projects_start_y(rect, m, VISUAL_RIGHT_FILE_ACTION_COUNT) - m.line_h,
+                                right_file_target_queue_label_y(rect, m, VISUAL_RIGHT_FILE_ACTION_COUNT),
                                 "TARGET QUEUE  S=LOAD  N=SAVE",
                                 p.text_primary,
                                 m.body_scale);
-        for (i = 0u; i < DRAWING_PROGRAM_RECENT_PROJECT_CAPACITY; ++i) {
-            SDL_Rect project_row = right_file_recent_project_row_rect(rect, m, i);
+        SDL_SetRenderDrawColor(renderer,
+                               p.pane_background_alt.r,
+                               p.pane_background_alt.g,
+                               p.pane_background_alt.b,
+                               p.pane_background_alt.a);
+        (void)SDL_RenderFillRect(renderer, &target_queue_rect);
+        SDL_SetRenderDrawColor(renderer,
+                               p.button_border.r,
+                               p.button_border.g,
+                               p.button_border.b,
+                               p.button_border.a);
+        (void)SDL_RenderDrawRect(renderer, &target_queue_rect);
+        for (i = 0u; i < target_slot_count; ++i) {
+            SDL_Rect project_row = right_file_target_queue_row_rect(target_queue_rect, m, i, target_scroll_y);
+            SDL_Rect clipped_row;
             char slot_path[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
             uint8_t existing = 0u;
             int selected = 0;
+            int hovered = 0;
+            SDL_Color fill = p.button_fill;
+            if (!SDL_IntersectRect(&project_row, &target_queue_rect, &clipped_row)) {
+                continue;
+            }
             if (drawing_program_project_state_slot_path(ctx, i, slot_path, sizeof(slot_path), &existing).code != CORE_OK) {
                 slot_path[0] = '\0';
                 existing = 0u;
@@ -668,21 +742,33 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                         strcmp(slot_path, ctx->session.project_path) == 0)
                            ? 1
                            : 0;
+            hovered = drawing_program_visual_panel_ui_hovered(ui, project_row, hooks);
+            fill = selected ? p.button_fill_active : (hovered ? p.button_fill_hover : p.button_fill);
             visual_right_panel_format_recent_project_line(line, sizeof(line), i, slot_path, existing);
-            drawing_program_visual_panel_draw_tab_button(renderer,
-                                                         rect,
-                                                         project_row,
-                                                         line,
-                                                         p.button_fill,
-                                                         p.button_fill_hover,
-                                                         p.button_fill_active,
-                                                         p.button_border,
-                                                         selected ? p.text_primary : p.text_muted,
-                                                         m.body_scale,
-                                                         selected,
-                                                         drawing_program_visual_panel_ui_hovered(ui, project_row, hooks),
-                                                         hooks);
+            (void)SDL_RenderSetClipRect(renderer, &target_queue_rect);
+            SDL_SetRenderDrawColor(renderer, fill.r, fill.g, fill.b, fill.a);
+            (void)SDL_RenderFillRect(renderer, &project_row);
+            SDL_SetRenderDrawColor(renderer,
+                                   selected ? p.accent_primary.r : p.button_border.r,
+                                   selected ? p.accent_primary.g : p.button_border.g,
+                                   selected ? p.accent_primary.b : p.button_border.b,
+                                   selected ? p.accent_primary.a : p.button_border.a);
+            (void)SDL_RenderDrawRect(renderer, &project_row);
+            hooks->draw_bitmap_text(renderer,
+                                    target_queue_rect,
+                                    project_row.x + 6,
+                                    project_row.y + m.row_text_y,
+                                    line,
+                                    selected ? p.text_primary : p.text_muted,
+                                    m.body_scale);
         }
+        (void)SDL_RenderSetClipRect(renderer, 0);
+        visual_right_panel_draw_scrollbar(renderer,
+                                          target_queue_rect,
+                                          target_scroll_y,
+                                          target_scroll_max,
+                                          p.button_fill,
+                                          p.button_border);
         drawing_program_visual_panel_draw_tab_button(renderer,
                                                      rect,
                                                      new_project_button,

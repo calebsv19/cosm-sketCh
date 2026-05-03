@@ -12,6 +12,7 @@
 #include "drawing_program/drawing_program_project_state.h"
 #include "drawing_program/drawing_program_runtime_orchestration.h"
 #include "drawing_program/drawing_program_ui_color_state.h"
+#include "drawing_program/drawing_program_visual_layout.h"
 #include "drawing_program_lifecycle_export_suite.h"
 #include "drawing_program_lifecycle_test_support.h"
 
@@ -132,7 +133,12 @@ int drawing_program_lifecycle_run_export_suite(void) {
         "/tmp/drawing_program_export_suite/input/icon_project_006.pack",
         "/tmp/drawing_program_export_suite/input/icon_project_007.pack",
         "/tmp/drawing_program_export_suite/input/icon_project_008.pack",
-        "/tmp/drawing_program_export_suite/input/icon_project_009.pack"
+        "/tmp/drawing_program_export_suite/input/icon_project_009.pack",
+        "/tmp/drawing_program_export_suite/input/icon_project_010.pack",
+        "/tmp/drawing_program_export_suite/input/icon_project_011.pack",
+        "/tmp/drawing_program_export_suite/input/icon_project_012.pack",
+        "/tmp/drawing_program_export_suite/input/icon_project_013.pack",
+        "/tmp/drawing_program_export_suite/input/icon_project_014.pack"
     };
     char resolved_png_path[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
     char resolved_iconset_path[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
@@ -153,6 +159,12 @@ int drawing_program_lifecycle_run_export_suite(void) {
     uint8_t expected_fill_b = 0u;
     uint8_t queue_existing = 0u;
     char queue_slot_path[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    SDL_Rect right_rect = {960, 0, 320, 800};
+    SDL_Rect queue_rect;
+    SDL_Rect last_queue_row;
+    VisualPaneLayoutMetrics metrics;
+    uint32_t queue_slot_count = 0u;
+    int queue_scroll_max = 0;
     char arg0[] = "drawing_program_export_suite";
     char arg1[] = "--headless";
     char arg2[] = "--smoke-frames";
@@ -274,17 +286,41 @@ int drawing_program_lifecycle_run_export_suite(void) {
     if (!expect_ok(drawing_program_project_state_refresh_recent(&ctx), "export_suite_refresh_recent_queue")) {
         return 1;
     }
-    if (ctx.session.recent_project_count < 6u) {
-        fprintf(stderr, "lifecycle_test: expected expanded target queue count >= 6 got=%u\n",
+    if (ctx.session.recent_project_count <= 8u) {
+        fprintf(stderr, "lifecycle_test: expected expanded target queue count > 8 got=%u\n",
                 (unsigned)ctx.session.recent_project_count);
         return 1;
     }
-    if (!expect_ok(drawing_program_project_state_slot_path(&ctx, 5u, queue_slot_path, sizeof(queue_slot_path), &queue_existing),
+    if (!expect_ok(drawing_program_project_state_slot_path(&ctx, 8u, queue_slot_path, sizeof(queue_slot_path), &queue_existing),
                    "export_suite_recent_queue_slot")) {
         return 1;
     }
     if (!queue_existing || queue_slot_path[0] == '\0') {
-        fprintf(stderr, "lifecycle_test: expected slot 6 to resolve to an existing saved project in expanded queue\n");
+        fprintf(stderr, "lifecycle_test: expected slot 9 to resolve to an existing saved project in expanded queue\n");
+        return 1;
+    }
+    metrics = make_pane_layout_metrics(&ctx);
+    queue_rect = right_file_target_queue_rect(right_rect, metrics, 10u, 5u);
+    queue_slot_count = right_file_target_queue_slot_count(&ctx);
+    queue_scroll_max = right_file_target_queue_scroll_max(queue_rect, metrics, queue_slot_count);
+    if (queue_slot_count <= 8u || queue_scroll_max <= 0) {
+        fprintf(stderr,
+                "lifecycle_test: expected target queue layout to scroll beyond 8 slots count=%u max=%d\n",
+                (unsigned)queue_slot_count,
+                queue_scroll_max);
+        return 1;
+    }
+    last_queue_row = right_file_target_queue_row_rect(queue_rect, metrics, queue_slot_count - 1u, queue_scroll_max);
+    if (last_queue_row.y != queue_rect.y) {
+        fprintf(stderr,
+                "lifecycle_test: expected bottom target queue scroll to align last row at top got row_y=%d queue_y=%d\n",
+                last_queue_row.y,
+                queue_rect.y);
+        return 1;
+    }
+    if (right_file_target_queue_clamp_scroll(queue_rect, metrics, queue_slot_count, queue_scroll_max + 1000) !=
+        queue_scroll_max) {
+        fprintf(stderr, "lifecycle_test: expected target queue scroll clamp at max\n");
         return 1;
     }
     if (access(expected_project_path, F_OK) != 0) {

@@ -220,9 +220,39 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
         char persist_arg3[] = "1";
         char persist_arg4[] = "--preset";
         char persist_arg5[] = "/tmp/drawing_program_persist_roundtrip.pack";
-        char *persist_argv[] = { persist_arg0, persist_arg1, persist_arg2, persist_arg3, persist_arg4, persist_arg5, 0 };
+        char persist_arg6[] = "--runtime-root";
+        char persist_arg7[128];
+        char persist_arg8[] = "--input-root";
+        char persist_arg9[128];
+        char persist_arg10[] = "--output-root";
+        char persist_arg11[128];
+        char *persist_argv[] = { persist_arg0,
+                                 persist_arg1,
+                                 persist_arg2,
+                                 persist_arg3,
+                                 persist_arg4,
+                                 persist_arg5,
+                                 persist_arg6,
+                                 persist_arg7,
+                                 persist_arg8,
+                                 persist_arg9,
+                                 persist_arg10,
+                                 persist_arg11,
+                                 0 };
+        (void)snprintf(persist_arg7,
+                       sizeof(persist_arg7),
+                       "/tmp/drawing_program_persist_roundtrip_runtime_%ld",
+                       (long)getpid());
+        (void)snprintf(persist_arg9,
+                       sizeof(persist_arg9),
+                       "/tmp/drawing_program_persist_roundtrip_input_%ld",
+                       (long)getpid());
+        (void)snprintf(persist_arg11,
+                       sizeof(persist_arg11),
+                       "/tmp/drawing_program_persist_roundtrip_output_%ld",
+                       (long)getpid());
         (void)unlink(persist_arg5);
-        if (!expect_ok(drawing_program_app_bootstrap(&save_ctx, 6, persist_argv), "persist_roundtrip_bootstrap_save")) {
+        if (!expect_ok(drawing_program_app_bootstrap(&save_ctx, 12, persist_argv), "persist_roundtrip_bootstrap_save")) {
             return 1;
         }
         if (!expect_ok(drawing_program_app_config_load(&save_ctx), "persist_roundtrip_config_save")) {
@@ -277,7 +307,7 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
         if (!expect_ok(drawing_program_app_shutdown(&save_ctx), "persist_roundtrip_shutdown_save")) {
             return 1;
         }
-        if (!expect_ok(drawing_program_app_bootstrap(&load_ctx, 6, persist_argv), "persist_roundtrip_bootstrap_load")) {
+        if (!expect_ok(drawing_program_app_bootstrap(&load_ctx, 12, persist_argv), "persist_roundtrip_bootstrap_load")) {
             return 1;
         }
         if (!expect_ok(drawing_program_app_config_load(&load_ctx), "persist_roundtrip_config_load")) {

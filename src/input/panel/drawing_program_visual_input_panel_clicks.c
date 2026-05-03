@@ -270,8 +270,8 @@ static int visual_right_panel_load_project(DrawingProgramAppContext *ctx,
 
 static int visual_right_panel_select_project_slot(DrawingProgramAppContext *ctx,
                                                   uint32_t slot_index,
-                                                    VisualPanelUiState *ui,
-                                                    const DrawingProgramVisualInputHandlersHooks *hooks) {
+                                                  VisualPanelUiState *ui,
+                                                  const DrawingProgramVisualInputHandlersHooks *hooks) {
     CoreResult result;
     char slot_path[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
     uint8_t existing = 0u;
@@ -291,6 +291,42 @@ static int visual_right_panel_select_project_slot(DrawingProgramAppContext *ctx,
     visual_right_panel_set_file_status(ctx, existing ? "TARGET READY TO LOAD" : "TARGET READY TO SAVE");
     hooks->sync_panel_ui_from_app(ctx, ui);
     return 1;
+}
+
+static int visual_right_panel_file_queue_hit_slot(DrawingProgramAppContext *ctx,
+                                                  SDL_Rect rect,
+                                                  int x,
+                                                  int y,
+                                                  VisualPanelUiState *ui,
+                                                  const DrawingProgramVisualInputHandlersHooks *hooks,
+                                                  uint32_t *out_slot_index) {
+    VisualPaneLayoutMetrics m;
+    SDL_Rect queue_rect;
+    uint32_t slot_count;
+    int scroll_y;
+    uint32_t i;
+    if (!ctx || !ui || !hooks || !hooks->point_in_rect || !out_slot_index) {
+        return 0;
+    }
+    m = make_pane_layout_metrics(ctx);
+    queue_rect = right_file_target_queue_rect(rect, m, 10u, VISUAL_RIGHT_FILE_ROUTE_ACTION_COUNT);
+    if (!hooks->point_in_rect(queue_rect, x, y)) {
+        return 0;
+    }
+    slot_count = right_file_target_queue_slot_count(ctx);
+    scroll_y = right_file_target_queue_clamp_scroll(queue_rect,
+                                                    m,
+                                                    slot_count,
+                                                    ui->right_file_target_queue_scroll_y);
+    ui->right_file_target_queue_scroll_y = scroll_y;
+    for (i = 0u; i < slot_count; ++i) {
+        SDL_Rect row = right_file_target_queue_row_rect(queue_rect, m, i, scroll_y);
+        if (hooks->point_in_rect(row, x, y)) {
+            *out_slot_index = i;
+            return 1;
+        }
+    }
+    return 0;
 }
 
 static int visual_right_panel_pick_input_root(DrawingProgramAppContext *ctx,
@@ -813,7 +849,7 @@ void drawing_program_visual_input_handle_right_panel_click_payload(
             return;
         }
     } else if (hooks->clamp_right_slot(ctx->ui.right_panel_slot) == (uint8_t)VISUAL_RIGHT_PANEL_SLOT_FILE_VALUE) {
-        uint32_t i;
+        uint32_t slot_index = 0u;
         SDL_Rect new_project_button =
             right_file_action_button_rect(rect, m, VISUAL_RIGHT_FILE_ACTION_NEW_PROJECT, VISUAL_RIGHT_FILE_ACTION_COUNT);
         SDL_Rect open_project_button =
@@ -828,17 +864,17 @@ void drawing_program_visual_input_handle_right_panel_click_payload(
         SDL_Rect reload_session_button = right_file_reload_session_button_rect(rect, m);
         SDL_Rect pick_input_root_button = right_file_route_action_button_rect(rect,
                                                                               m,
-                                                                              9u,
+                                                                              10u,
                                                                               VISUAL_RIGHT_FILE_ROUTE_ACTION_PICK_INPUT,
                                                                               VISUAL_RIGHT_FILE_ROUTE_ACTION_COUNT);
         SDL_Rect pick_output_root_button = right_file_route_action_button_rect(rect,
                                                                                m,
-                                                                               9u,
+                                                                               10u,
                                                                                VISUAL_RIGHT_FILE_ROUTE_ACTION_PICK_OUTPUT,
                                                                                VISUAL_RIGHT_FILE_ROUTE_ACTION_COUNT);
         SDL_Rect export_png_button = right_file_route_action_button_rect(rect,
                                                                          m,
-                                                                         9u,
+                                                                         10u,
                                                                          VISUAL_RIGHT_FILE_ROUTE_ACTION_EXPORT_PNG,
                                                                          VISUAL_RIGHT_FILE_ROUTE_ACTION_COUNT);
         SDL_Rect export_iconset_button = right_file_route_action_button_rect(rect,
@@ -851,12 +887,9 @@ void drawing_program_visual_input_handle_right_panel_click_payload(
                                                                           10u,
                                                                           VISUAL_RIGHT_FILE_ROUTE_ACTION_EXPORT_ICNS,
                                                                           VISUAL_RIGHT_FILE_ROUTE_ACTION_COUNT);
-        for (i = 0u; i < DRAWING_PROGRAM_RECENT_PROJECT_CAPACITY; ++i) {
-            SDL_Rect row = right_file_recent_project_row_rect(rect, m, i);
-            if (hooks->point_in_rect(row, x, y)) {
-                (void)visual_right_panel_select_project_slot(ctx, i, ui, hooks);
-                return;
-            }
+        if (visual_right_panel_file_queue_hit_slot(ctx, rect, x, y, ui, hooks, &slot_index)) {
+            (void)visual_right_panel_select_project_slot(ctx, slot_index, ui, hooks);
+            return;
         }
         if (hooks->point_in_rect(new_project_button, x, y)) {
             (void)visual_right_panel_new_project(ctx, ui, hooks);
@@ -907,4 +940,38 @@ void drawing_program_visual_input_handle_right_panel_click_payload(
             return;
         }
     }
+}
+
+int drawing_program_visual_input_handle_right_panel_wheel_payload(DrawingProgramAppContext *ctx,
+                                                                  SDL_Rect rect,
+                                                                  int x,
+                                                                  int y,
+                                                                  int wheel_y,
+                                                                  VisualPanelUiState *ui,
+                                                                  const DrawingProgramVisualInputHandlersHooks *hooks) {
+    VisualPaneLayoutMetrics m;
+    SDL_Rect queue_rect;
+    uint32_t slot_count;
+    int scroll_y;
+    int row_stride;
+    if (!ctx || !ui || !hooks || !hooks->point_in_rect || wheel_y == 0) {
+        return 0;
+    }
+    if (hooks->clamp_right_slot(ctx->ui.right_panel_slot) != (uint8_t)VISUAL_RIGHT_PANEL_SLOT_FILE_VALUE) {
+        return 0;
+    }
+    m = make_pane_layout_metrics(ctx);
+    queue_rect = right_file_target_queue_rect(rect, m, 10u, VISUAL_RIGHT_FILE_ROUTE_ACTION_COUNT);
+    if (!hooks->point_in_rect(queue_rect, x, y)) {
+        return 0;
+    }
+    row_stride = m.row_h + m.section_gap;
+    if (row_stride < 1) {
+        row_stride = 1;
+    }
+    slot_count = right_file_target_queue_slot_count(ctx);
+    scroll_y = ui->right_file_target_queue_scroll_y - (wheel_y * row_stride);
+    ui->right_file_target_queue_scroll_y =
+        right_file_target_queue_clamp_scroll(queue_rect, m, slot_count, scroll_y);
+    return 1;
 }

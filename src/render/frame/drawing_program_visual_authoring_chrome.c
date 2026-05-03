@@ -8,7 +8,9 @@
 #include "core_pane_module.h"
 #include "drawing_program/drawing_program_authoring_host.h"
 #include "drawing_program/drawing_program_visual_text_render.h"
+#include "drawing_program/drawing_program_visual_layout.h"
 #include "drawing_program/drawing_program_visual_theme.h"
+#include "kit_workspace_authoring_ui.h"
 
 static const CorePaneModuleBinding *authoring_binding_for_pane(const DrawingProgramAppContext *ctx,
                                                                uint32_t pane_node_id) {
@@ -70,73 +72,156 @@ static SDL_Rect authoring_mode_rect(SDL_Rect panel_rect) {
     return (SDL_Rect){panel_rect.x + panel_rect.w - 242, panel_rect.y + 7, 82, 22};
 }
 
-static SDL_Rect authoring_font_panel_rect(int viewport_width, int viewport_height) {
-    int margin = 20;
-    int panel_width = viewport_width - (margin * 2);
-    int panel_height = viewport_height - 84;
-    if (panel_width < 300) {
-        panel_width = viewport_width - 16;
-        margin = 8;
-    }
-    if (panel_width > 920) {
-        panel_width = 920;
-    }
-    if (panel_height < 300) {
-        panel_height = viewport_height - 48;
-    }
-    if (panel_height > 620) {
-        panel_height = 620;
-    }
-    return (SDL_Rect){(viewport_width - panel_width) / 2, 54, panel_width, panel_height};
-}
-
-static SDL_Rect authoring_font_section_rect(SDL_Rect panel_rect, uint32_t section_index) {
-    int pad = 18;
-    int gap = 14;
-    int section_h = 98;
-    return (SDL_Rect){
-        panel_rect.x + pad,
-        panel_rect.y + pad + (int)section_index * (section_h + gap),
-        panel_rect.w - (pad * 2),
-        section_h
-    };
-}
-
-static SDL_Rect authoring_font_button_rect(SDL_Rect section_rect, uint32_t index, uint32_t count) {
-    int pad = 14;
-    int gap = 8;
-    int button_h = 24;
-    int button_w;
-    if (count == 0u) {
-        count = 1u;
-    }
-    button_w = (section_rect.w - (pad * 2) - (gap * ((int)count - 1))) / (int)count;
-    if (button_w < 42) {
-        button_w = 42;
-    }
-    return (SDL_Rect){
-        section_rect.x + pad + (int)index * (button_w + gap),
-        section_rect.y + section_rect.h - button_h - 12,
-        button_w,
-        button_h
-    };
-}
-
-static SDL_Rect authoring_font_value_rect(SDL_Rect section_rect) {
-    SDL_Rect inc = authoring_font_button_rect(section_rect, 1u, 4u);
-    return (SDL_Rect){inc.x + inc.w + 8, inc.y, 86, inc.h};
-}
-
-static SDL_Rect authoring_font_reset_rect(SDL_Rect section_rect) {
-    SDL_Rect value = authoring_font_value_rect(section_rect);
-    return (SDL_Rect){value.x + value.w + 8, value.y, 74, value.h};
-}
-
 static int authoring_point_in_rect(SDL_Rect rect, int point_x, int point_y) {
     return point_x >= rect.x &&
            point_y >= rect.y &&
            point_x < rect.x + rect.w &&
            point_y < rect.y + rect.h;
+}
+
+static SDL_Rect authoring_rect_from_kit(KitRenderRect rect) {
+    SDL_Rect out = {
+        (int)(rect.x + 0.5f),
+        (int)(rect.y + 0.5f),
+        (int)(rect.width + 0.5f),
+        (int)(rect.height + 0.5f)
+    };
+    if (out.w < 0) {
+        out.w = 0;
+    }
+    if (out.h < 0) {
+        out.h = 0;
+    }
+    return out;
+}
+
+static SDL_Rect authoring_rect_from_core(CorePaneRect rect) {
+    SDL_Rect out = {
+        (int)(rect.x + 0.5f),
+        (int)(rect.y + 0.5f),
+        (int)(rect.width + 0.5f),
+        (int)(rect.height + 0.5f)
+    };
+    if (out.w < 0) {
+        out.w = 0;
+    }
+    if (out.h < 0) {
+        out.h = 0;
+    }
+    return out;
+}
+
+static int authoring_font_theme_preview_text_scale(const DrawingProgramAppContext *ctx) {
+    int scale = ui_scale_for_text(ctx, 1);
+    if (scale < 1) {
+        scale = 1;
+    }
+    if (scale > 4) {
+        scale = 4;
+    }
+    return scale;
+}
+
+static int authoring_font_theme_control_text_scale(const DrawingProgramAppContext *ctx) {
+    int scale = authoring_font_theme_preview_text_scale(ctx);
+    if (scale > 2) {
+        scale = 2;
+    }
+    return scale;
+}
+
+static KitWorkspaceAuthoringFontThemeButtonId authoring_shared_font_button_id_at(uint32_t index) {
+    switch (index) {
+        case 0u:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_FONT_PRESET_DAW_DEFAULT;
+        case 1u:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_FONT_PRESET_IDE;
+        case 2u:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_FONT_PRESET_CUSTOM_STUB;
+        default:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_NONE;
+    }
+}
+
+static KitWorkspaceAuthoringFontThemeButtonId authoring_shared_theme_button_id_at(uint32_t index) {
+    switch (index) {
+        case 0u:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_THEME_PRESET_DAW_DEFAULT;
+        case 1u:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_THEME_PRESET_STANDARD_GREY;
+        case 2u:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_THEME_PRESET_MIDNIGHT_CONTRAST;
+        case 3u:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_THEME_PRESET_SOFT_LIGHT;
+        case 4u:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_THEME_PRESET_GREYSCALE;
+        default:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_NONE;
+    }
+}
+
+static DrawingProgramAuthoringChromeAction authoring_action_from_overlay_button(
+    KitWorkspaceAuthoringOverlayButtonId button_id) {
+    switch (button_id) {
+        case KIT_WORKSPACE_AUTHORING_OVERLAY_BUTTON_MODE:
+            return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_CYCLE_OVERLAY;
+        case KIT_WORKSPACE_AUTHORING_OVERLAY_BUTTON_APPLY:
+            return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_APPLY;
+        case KIT_WORKSPACE_AUTHORING_OVERLAY_BUTTON_CANCEL:
+            return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_CANCEL;
+        case KIT_WORKSPACE_AUTHORING_OVERLAY_BUTTON_ADD:
+        case KIT_WORKSPACE_AUTHORING_OVERLAY_BUTTON_NONE:
+        default:
+            return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_NONE;
+    }
+}
+
+static DrawingProgramAuthoringChromeAction authoring_action_from_shared_font_button(
+    KitWorkspaceAuthoringFontThemeButtonId button_id) {
+    KitWorkspaceAuthoringFontThemeAction action =
+        kit_workspace_authoring_ui_font_theme_action_for_button(button_id);
+    switch (action.type) {
+        case KIT_WORKSPACE_AUTHORING_FONT_THEME_ACTION_TEXT_SIZE_DEC:
+            return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_FONT_ZOOM_DEC;
+        case KIT_WORKSPACE_AUTHORING_FONT_THEME_ACTION_TEXT_SIZE_INC:
+            return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_FONT_ZOOM_INC;
+        case KIT_WORKSPACE_AUTHORING_FONT_THEME_ACTION_TEXT_SIZE_RESET:
+            return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_FONT_ZOOM_RESET;
+        case KIT_WORKSPACE_AUTHORING_FONT_THEME_ACTION_SET_FONT_PRESET:
+            if (action.font_preset_id == CORE_FONT_PRESET_DAW_DEFAULT) {
+                return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_FONT_PRESET_DAW;
+            }
+            if (action.font_preset_id == CORE_FONT_PRESET_IDE) {
+                return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_FONT_PRESET_IDE;
+            }
+            return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_NONE;
+        case KIT_WORKSPACE_AUTHORING_FONT_THEME_ACTION_SET_THEME_PRESET:
+            switch (action.theme_preset_id) {
+                case CORE_THEME_PRESET_DAW_DEFAULT:
+                    return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_THEME_PRESET_DAW;
+                case CORE_THEME_PRESET_IDE_GRAY:
+                    return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_THEME_PRESET_STANDARD_GREY;
+                case CORE_THEME_PRESET_DARK_DEFAULT:
+                    return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_THEME_PRESET_MIDNIGHT;
+                case CORE_THEME_PRESET_LIGHT_DEFAULT:
+                    return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_THEME_PRESET_SOFT_LIGHT;
+                case CORE_THEME_PRESET_GREYSCALE:
+                    return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_THEME_PRESET_GREYSCALE;
+                default:
+                    return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_NONE;
+            }
+        case KIT_WORKSPACE_AUTHORING_FONT_THEME_ACTION_CUSTOM_THEME_STATUS:
+            if (button_id == KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_CUSTOM_THEME_CREATE_STUB) {
+                return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_CUSTOM_THEME_CREATE;
+            }
+            if (button_id == KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_CUSTOM_THEME_EDIT_STUB) {
+                return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_CUSTOM_THEME_EDIT;
+            }
+            return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_NONE;
+        case KIT_WORKSPACE_AUTHORING_FONT_THEME_ACTION_NONE:
+        default:
+            return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_NONE;
+    }
 }
 
 uint32_t drawing_program_visual_authoring_chrome_build_pane_rows(
@@ -169,69 +254,39 @@ DrawingProgramAuthoringChromeAction drawing_program_visual_authoring_chrome_hit_
     int point_x,
     int point_y) {
     SDL_Rect panel_rect;
-    SDL_Rect section_rect;
     if (viewport_width <= 0 || viewport_height <= 0) {
         return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_NONE;
     }
     if (ctx && drawing_program_authoring_host_font_theme_overlay_active(ctx)) {
-        panel_rect = authoring_font_panel_rect(viewport_width, viewport_height);
-        if (authoring_point_in_rect(authoring_mode_rect(panel_rect), point_x, point_y)) {
-            return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_CYCLE_OVERLAY;
+        KitWorkspaceAuthoringOverlayButton top_buttons[4];
+        KitWorkspaceAuthoringOverlayButtonId top_hit = KIT_WORKSPACE_AUTHORING_OVERLAY_BUTTON_NONE;
+        KitWorkspaceAuthoringFontThemeLayout layout = {0};
+        KitWorkspaceAuthoringFontThemeButtonId shared_hit = KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_NONE;
+        uint32_t top_button_count = kit_workspace_authoring_ui_build_overlay_buttons(
+            viewport_width,
+            1,
+            0,
+            top_buttons,
+            (uint32_t)(sizeof(top_buttons) / sizeof(top_buttons[0])));
+        top_hit = kit_workspace_authoring_ui_overlay_hit_test(top_buttons,
+                                                             top_button_count,
+                                                             (float)point_x,
+                                                             (float)point_y);
+        if (top_hit != KIT_WORKSPACE_AUTHORING_OVERLAY_BUTTON_NONE) {
+            return authoring_action_from_overlay_button(top_hit);
         }
-        if (authoring_point_in_rect(authoring_apply_rect(panel_rect), point_x, point_y)) {
-            return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_APPLY;
+        if (!kit_workspace_authoring_ui_font_theme_build_layout(NULL,
+                                                                viewport_width,
+                                                                viewport_height,
+                                                                &layout)) {
+            return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_NONE;
         }
-        if (authoring_point_in_rect(authoring_cancel_rect(panel_rect), point_x, point_y)) {
-            return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_CANCEL;
+        shared_hit = kit_workspace_authoring_ui_font_theme_hit_button(&layout, (float)point_x, (float)point_y);
+        if (shared_hit != KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_NONE &&
+            !kit_workspace_authoring_ui_font_theme_button_enabled(shared_hit)) {
+            return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_NONE;
         }
-
-        section_rect = authoring_font_section_rect(panel_rect, 1u);
-        if (authoring_point_in_rect(authoring_font_button_rect(section_rect, 0u, 4u), point_x, point_y)) {
-            return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_FONT_ZOOM_DEC;
-        }
-        if (authoring_point_in_rect(authoring_font_button_rect(section_rect, 1u, 4u), point_x, point_y)) {
-            return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_FONT_ZOOM_INC;
-        }
-        if (authoring_point_in_rect(authoring_font_reset_rect(section_rect), point_x, point_y)) {
-            return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_FONT_ZOOM_RESET;
-        }
-
-        section_rect = authoring_font_section_rect(panel_rect, 0u);
-        if (authoring_point_in_rect(authoring_font_button_rect(section_rect, 0u, 3u), point_x, point_y)) {
-            return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_FONT_PRESET_DAW;
-        }
-        if (authoring_point_in_rect(authoring_font_button_rect(section_rect, 1u, 3u), point_x, point_y)) {
-            return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_FONT_PRESET_IDE;
-        }
-        if (authoring_point_in_rect(authoring_font_button_rect(section_rect, 2u, 3u), point_x, point_y)) {
-            return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_FONT_PRESET_CUSTOM;
-        }
-
-        section_rect = authoring_font_section_rect(panel_rect, 2u);
-        if (authoring_point_in_rect(authoring_font_button_rect(section_rect, 0u, 5u), point_x, point_y)) {
-            return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_THEME_PRESET_DAW;
-        }
-        if (authoring_point_in_rect(authoring_font_button_rect(section_rect, 1u, 5u), point_x, point_y)) {
-            return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_THEME_PRESET_STANDARD_GREY;
-        }
-        if (authoring_point_in_rect(authoring_font_button_rect(section_rect, 2u, 5u), point_x, point_y)) {
-            return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_THEME_PRESET_MIDNIGHT;
-        }
-        if (authoring_point_in_rect(authoring_font_button_rect(section_rect, 3u, 5u), point_x, point_y)) {
-            return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_THEME_PRESET_SOFT_LIGHT;
-        }
-        if (authoring_point_in_rect(authoring_font_button_rect(section_rect, 4u, 5u), point_x, point_y)) {
-            return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_THEME_PRESET_GREYSCALE;
-        }
-
-        section_rect = authoring_font_section_rect(panel_rect, 3u);
-        if (authoring_point_in_rect(authoring_font_button_rect(section_rect, 0u, 2u), point_x, point_y)) {
-            return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_CUSTOM_THEME_CREATE;
-        }
-        if (authoring_point_in_rect(authoring_font_button_rect(section_rect, 1u, 2u), point_x, point_y)) {
-            return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_CUSTOM_THEME_EDIT;
-        }
-        return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_NONE;
+        return authoring_action_from_shared_font_button(shared_hit);
     }
     panel_rect = authoring_panel_rect(viewport_width, viewport_height, 4u);
     if (authoring_point_in_rect(authoring_mode_rect(panel_rect), point_x, point_y)) {
@@ -279,29 +334,39 @@ static void authoring_draw_section(SDL_Renderer *renderer,
                                    SDL_Rect rect,
                                    const char *title,
                                    const char *detail,
+                                   int title_scale,
+                                   int detail_scale,
                                    SDL_Color fill,
                                    SDL_Color border,
                                    SDL_Color text,
                                    SDL_Color muted) {
+    int detail_y;
     SDL_SetRenderDrawColor(renderer, fill.r, fill.g, fill.b, 224u);
     (void)SDL_RenderFillRect(renderer, &rect);
     SDL_SetRenderDrawColor(renderer, border.r, border.g, border.b, 230u);
     (void)SDL_RenderDrawRect(renderer, &rect);
+    if (title_scale < 1) {
+        title_scale = 1;
+    }
+    if (detail_scale < 1) {
+        detail_scale = 1;
+    }
     (void)drawing_program_visual_draw_bitmap_text(renderer,
                                                   rect,
                                                   rect.x + 14,
                                                   rect.y + 12,
                                                   title,
                                                   text,
-                                                  2);
+                                                  title_scale);
     if (detail) {
+        detail_y = rect.y + 16 + (9 * title_scale);
         (void)drawing_program_visual_draw_bitmap_text(renderer,
                                                       rect,
                                                       rect.x + 14,
-                                                      rect.y + 38,
+                                                      detail_y,
                                                       detail,
                                                       muted,
-                                                      1);
+                                                      detail_scale);
     }
 }
 
@@ -310,6 +375,7 @@ static void authoring_draw_font_theme_button(SDL_Renderer *renderer,
                                              const char *label,
                                              int active,
                                              int enabled,
+                                             int text_scale,
                                              SDL_Color fill,
                                              SDL_Color active_fill,
                                              SDL_Color border,
@@ -317,6 +383,14 @@ static void authoring_draw_font_theme_button(SDL_Renderer *renderer,
                                              SDL_Color muted) {
     SDL_Color button_fill = active ? active_fill : fill;
     SDL_Color button_text = enabled ? text : muted;
+    int text_y;
+    if (text_scale < 1) {
+        text_scale = 1;
+    }
+    text_y = rect.y + ((rect.h - (7 * text_scale)) / 2);
+    if (text_y < rect.y + 2) {
+        text_y = rect.y + 2;
+    }
     SDL_SetRenderDrawColor(renderer, button_fill.r, button_fill.g, button_fill.b, enabled ? 235u : 130u);
     (void)SDL_RenderFillRect(renderer, &rect);
     SDL_SetRenderDrawColor(renderer, border.r, border.g, border.b, enabled ? 238u : 120u);
@@ -324,10 +398,10 @@ static void authoring_draw_font_theme_button(SDL_Renderer *renderer,
     (void)drawing_program_visual_draw_bitmap_text(renderer,
                                                   rect,
                                                   rect.x + 8,
-                                                  rect.y + 6,
+                                                  text_y,
                                                   label,
                                                   button_text,
-                                                  1);
+                                                  text_scale);
 }
 
 static void authoring_draw_font_theme_overlay(SDL_Renderer *renderer,
@@ -337,39 +411,40 @@ static void authoring_draw_font_theme_overlay(SDL_Renderer *renderer,
                                               const CoreThemePreset *theme,
                                               const VisualThemePalette *palette) {
     SDL_Rect screen_clip = {0, 0, viewport_width, viewport_height};
-    SDL_Rect panel_rect = authoring_font_panel_rect(viewport_width, viewport_height);
-    SDL_Rect title_band = {panel_rect.x, panel_rect.y, panel_rect.w, 30};
+    SDL_Rect panel_rect = {0, 0, 0, 0};
     SDL_Rect section_rect;
     SDL_Rect value_rect;
+    SDL_Rect button_rect;
     char line[160];
     const char *font_name = "unknown";
     const char *theme_name = "unknown";
     uint32_t i;
-    static const struct {
-        DrawingProgramAuthoringChromeAction action;
-        CoreFontPresetId preset_id;
-        const char *label;
-        int enabled;
-    } k_font_buttons[] = {
-        { DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_FONT_PRESET_DAW, CORE_FONT_PRESET_DAW_DEFAULT, "daw_default", 1 },
-        { DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_FONT_PRESET_IDE, CORE_FONT_PRESET_IDE, "ide", 1 },
-        { DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_FONT_PRESET_CUSTOM, CORE_FONT_PRESET_IDE, "custom slot", 0 }
-    };
-    static const struct {
-        DrawingProgramAuthoringChromeAction action;
-        CoreThemePresetId preset_id;
-        const char *label;
-    } k_theme_buttons[] = {
-        { DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_THEME_PRESET_DAW, CORE_THEME_PRESET_DAW_DEFAULT, "daw" },
-        { DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_THEME_PRESET_STANDARD_GREY, CORE_THEME_PRESET_IDE_GRAY, "grey" },
-        { DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_THEME_PRESET_MIDNIGHT, CORE_THEME_PRESET_DARK_DEFAULT, "midnight" },
-        { DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_THEME_PRESET_SOFT_LIGHT, CORE_THEME_PRESET_LIGHT_DEFAULT, "light" },
-        { DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_THEME_PRESET_GREYSCALE, CORE_THEME_PRESET_GREYSCALE, "mono" }
-    };
+    KitWorkspaceAuthoringFontThemeLayout layout = {0};
+    KitWorkspaceAuthoringOverlayButton top_buttons[4];
+    uint32_t top_button_count = 0u;
+    int preview_text_scale = 1;
+    int control_text_scale = 1;
+    int title_text_scale = 2;
     (void)theme;
     if (!renderer || !ctx || !palette) {
         return;
     }
+    preview_text_scale = authoring_font_theme_preview_text_scale(ctx);
+    control_text_scale = authoring_font_theme_control_text_scale(ctx);
+    title_text_scale = preview_text_scale > 2 ? 3 : 2;
+    if (!kit_workspace_authoring_ui_font_theme_build_layout(NULL,
+                                                            viewport_width,
+                                                            viewport_height,
+                                                            &layout)) {
+        return;
+    }
+    panel_rect = authoring_rect_from_kit(layout.panel);
+    top_button_count = kit_workspace_authoring_ui_build_overlay_buttons(
+        viewport_width,
+        1,
+        0,
+        top_buttons,
+        (uint32_t)(sizeof(top_buttons) / sizeof(top_buttons[0])));
     font_name = core_font_preset_name((CoreFontPresetId)ctx->ui.font_preset_id);
     if (!font_name) {
         font_name = "unknown";
@@ -386,54 +461,58 @@ static void authoring_draw_font_theme_overlay(SDL_Renderer *renderer,
                            255u);
     (void)SDL_RenderClear(renderer);
     authoring_draw_panel(renderer, panel_rect, palette->pane_background_alt, palette->accent_primary);
-    SDL_SetRenderDrawColor(renderer,
-                           palette->accent_primary.r,
-                           palette->accent_primary.g,
-                           palette->accent_primary.b,
-                           238u);
-    (void)SDL_RenderFillRect(renderer, &title_band);
     (void)drawing_program_visual_draw_bitmap_text(renderer,
                                                   screen_clip,
                                                   panel_rect.x + 12,
-                                                  panel_rect.y + 7,
-                                                  "AUTHORING: FONT + THEME",
-                                                  palette->app_background,
-                                                  1);
-    authoring_draw_button(renderer,
-                          authoring_mode_rect(panel_rect),
-                          "PANE",
-                          palette->pane_background,
-                          palette->text_primary,
-                          palette->text_primary);
-    authoring_draw_button(renderer,
-                          authoring_apply_rect(panel_rect),
-                          "APPLY",
-                          palette->status_ok,
-                          palette->text_primary,
-                          palette->app_background);
-    authoring_draw_button(renderer,
-                          authoring_cancel_rect(panel_rect),
-                          "CANCEL",
-                          palette->status_warn,
-                          palette->text_primary,
-                          palette->app_background);
+                                                  panel_rect.y + 12,
+                                                  "Font/Theme Overlay",
+                                                  palette->text_primary,
+                                                  title_text_scale);
+    for (i = 0u; i < top_button_count; ++i) {
+        SDL_Color fill = palette->pane_background;
+        SDL_Color text = palette->text_primary;
+        if (top_buttons[i].id == KIT_WORKSPACE_AUTHORING_OVERLAY_BUTTON_APPLY) {
+            fill = palette->status_ok;
+            text = palette->app_background;
+        } else if (top_buttons[i].id == KIT_WORKSPACE_AUTHORING_OVERLAY_BUTTON_CANCEL) {
+            fill = palette->status_warn;
+            text = palette->app_background;
+        }
+        authoring_draw_button(renderer,
+                              authoring_rect_from_core(top_buttons[i].rect),
+                              top_buttons[i].label,
+                              fill,
+                              palette->text_primary,
+                              text);
+    }
 
-    section_rect = authoring_font_section_rect(panel_rect, 0u);
-    (void)snprintf(line, sizeof(line), "Current font preset: %s", font_name);
+    section_rect = authoring_rect_from_kit(layout.font_preset_section);
+    (void)snprintf(line, sizeof(line), "Font Preset: %s", font_name);
     authoring_draw_section(renderer,
                            section_rect,
-                           "Font Preset",
                            line,
+                           NULL,
+                           title_text_scale,
+                           control_text_scale,
                            palette->pane_background,
                            palette->accent_primary,
                            palette->text_primary,
                            palette->text_muted);
-    for (i = 0u; i < 3u; ++i) {
+    for (i = 0u; i < layout.font_preset_button_count &&
+                i < KIT_WORKSPACE_AUTHORING_FONT_THEME_FONT_PRESET_BUTTON_COUNT; ++i) {
+        CoreFontPresetId preset_id = CORE_FONT_PRESET_IDE;
+        KitWorkspaceAuthoringFontThemeButtonId button_id = authoring_shared_font_button_id_at(i);
+        int enabled = (int)kit_workspace_authoring_ui_font_theme_button_enabled(button_id);
+        int active = 0;
+        if (kit_workspace_authoring_ui_font_theme_button_font_preset_id(button_id, &preset_id)) {
+            active = ctx->ui.font_preset_id == (uint32_t)preset_id;
+        }
         authoring_draw_font_theme_button(renderer,
-                                         authoring_font_button_rect(section_rect, i, 3u),
-                                         k_font_buttons[i].label,
-                                         ctx->ui.font_preset_id == (uint32_t)k_font_buttons[i].preset_id,
-                                         k_font_buttons[i].enabled,
+                                         authoring_rect_from_kit(layout.font_preset_buttons[i]),
+                                         kit_workspace_authoring_ui_font_theme_button_label(button_id),
+                                         active,
+                                         enabled,
+                                         control_text_scale,
                                          palette->pane_background_alt,
                                          palette->accent_primary,
                                          palette->text_muted,
@@ -441,76 +520,102 @@ static void authoring_draw_font_theme_overlay(SDL_Renderer *renderer,
                                          palette->text_muted);
     }
 
-    section_rect = authoring_font_section_rect(panel_rect, 1u);
-    (void)snprintf(line, sizeof(line), "Current size step: %+d  (%d%%)", (int)ctx->ui.font_zoom_step,
+    section_rect = authoring_rect_from_kit(layout.text_size_section);
+    (void)snprintf(line, sizeof(line), "Text Size step:%+d (%d%%)", (int)ctx->ui.font_zoom_step,
                    100 + ((int)ctx->ui.font_zoom_step * 12));
     authoring_draw_section(renderer,
                            section_rect,
-                           "Font Size",
                            line,
+                           NULL,
+                           title_text_scale,
+                           control_text_scale,
                            palette->pane_background,
                            palette->accent_primary,
                            palette->text_primary,
                            palette->text_muted);
+    (void)drawing_program_visual_draw_bitmap_text(renderer,
+                                                  section_rect,
+                                                  section_rect.x + 14,
+                                                  section_rect.y + 28 + (10 * title_text_scale),
+                                                  "Sample UI text 123",
+                                                  palette->text_primary,
+                                                  preview_text_scale);
     authoring_draw_font_theme_button(renderer,
-                                     authoring_font_button_rect(section_rect, 0u, 4u),
-                                     "-",
+                                     authoring_rect_from_kit(layout.text_size_dec_button),
+                                     kit_workspace_authoring_ui_font_theme_button_label(
+                                         KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_TEXT_SIZE_DEC),
                                      0,
                                      1,
+                                     control_text_scale,
                                      palette->pane_background_alt,
                                      palette->accent_primary,
                                      palette->text_muted,
                                      palette->text_primary,
                                      palette->text_muted);
     authoring_draw_font_theme_button(renderer,
-                                     authoring_font_button_rect(section_rect, 1u, 4u),
-                                     "+",
+                                     authoring_rect_from_kit(layout.text_size_inc_button),
+                                     kit_workspace_authoring_ui_font_theme_button_label(
+                                         KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_TEXT_SIZE_INC),
                                      0,
                                      1,
+                                     control_text_scale,
                                      palette->pane_background_alt,
                                      palette->accent_primary,
                                      palette->text_muted,
                                      palette->text_primary,
                                      palette->text_muted);
-    value_rect = authoring_font_value_rect(section_rect);
+    value_rect = authoring_rect_from_kit(layout.text_size_value_chip);
     (void)snprintf(line, sizeof(line), "%+d", (int)ctx->ui.font_zoom_step);
     authoring_draw_font_theme_button(renderer,
                                      value_rect,
                                      line,
                                      1,
                                      1,
+                                     control_text_scale,
                                      palette->pane_background_alt,
                                      palette->accent_primary,
                                      palette->text_muted,
                                      palette->text_primary,
                                      palette->text_muted);
     authoring_draw_font_theme_button(renderer,
-                                     authoring_font_reset_rect(section_rect),
-                                     "reset",
+                                     authoring_rect_from_kit(layout.text_size_reset_button),
+                                     kit_workspace_authoring_ui_font_theme_button_label(
+                                         KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_TEXT_SIZE_RESET),
                                      ctx->ui.font_zoom_step == 0,
                                      1,
+                                     control_text_scale,
                                      palette->pane_background_alt,
                                      palette->accent_primary,
                                      palette->text_muted,
                                      palette->text_primary,
                                      palette->text_muted);
 
-    section_rect = authoring_font_section_rect(panel_rect, 2u);
-    (void)snprintf(line, sizeof(line), "Current theme preset: %s", theme_name);
+    section_rect = authoring_rect_from_kit(layout.theme_preset_section);
+    (void)snprintf(line, sizeof(line), "Theme Preset: %s", theme_name);
     authoring_draw_section(renderer,
                            section_rect,
-                           "Theme Preset",
                            line,
+                           NULL,
+                           title_text_scale,
+                           control_text_scale,
                            palette->pane_background,
                            palette->accent_primary,
                            palette->text_primary,
                            palette->text_muted);
-    for (i = 0u; i < 5u; ++i) {
+    for (i = 0u; i < layout.theme_preset_button_count &&
+                i < KIT_WORKSPACE_AUTHORING_FONT_THEME_THEME_PRESET_BUTTON_COUNT; ++i) {
+        CoreThemePresetId preset_id = CORE_THEME_PRESET_DARK_DEFAULT;
+        KitWorkspaceAuthoringFontThemeButtonId button_id = authoring_shared_theme_button_id_at(i);
+        int active = 0;
+        if (kit_workspace_authoring_ui_font_theme_button_theme_preset_id(button_id, &preset_id)) {
+            active = ctx->ui.theme_preset_id == (uint32_t)preset_id;
+        }
         authoring_draw_font_theme_button(renderer,
-                                         authoring_font_button_rect(section_rect, i, 5u),
-                                         k_theme_buttons[i].label,
-                                         ctx->ui.theme_preset_id == (uint32_t)k_theme_buttons[i].preset_id,
+                                         authoring_rect_from_kit(layout.theme_preset_buttons[i]),
+                                         kit_workspace_authoring_ui_font_theme_button_label(button_id),
+                                         active,
                                          1,
+                                         control_text_scale,
                                          palette->pane_background_alt,
                                          palette->accent_primary,
                                          palette->text_muted,
@@ -518,45 +623,45 @@ static void authoring_draw_font_theme_overlay(SDL_Renderer *renderer,
                                          palette->text_muted);
     }
 
-    section_rect = authoring_font_section_rect(panel_rect, 3u);
+    section_rect = authoring_rect_from_kit(layout.custom_theme_section);
     authoring_draw_section(renderer,
                            section_rect,
                            "Custom Presets",
                            ctx->authoring_host.custom_theme_status_active
                                ? ctx->authoring_host.custom_theme_status
                                : "Drawing host exposes the custom-preset lane as a stub until the theme editor is promoted.",
+                           title_text_scale,
+                           1,
                            palette->pane_background,
                            palette->accent_primary,
                            palette->text_primary,
                            palette->text_muted);
-    authoring_draw_font_theme_button(renderer,
-                                     authoring_font_button_rect(section_rect, 0u, 2u),
-                                     "create slot",
-                                     0,
-                                     1,
-                                     palette->pane_background_alt,
-                                     palette->accent_primary,
-                                     palette->text_muted,
-                                     palette->text_primary,
-                                     palette->text_muted);
-    authoring_draw_font_theme_button(renderer,
-                                     authoring_font_button_rect(section_rect, 1u, 2u),
-                                     "edit slot",
-                                     0,
-                                     1,
-                                     palette->pane_background_alt,
-                                     palette->accent_primary,
-                                     palette->text_muted,
-                                     palette->text_primary,
-                                     palette->text_muted);
+    for (i = 0u; i < layout.custom_theme_button_count &&
+                i < KIT_WORKSPACE_AUTHORING_FONT_THEME_CUSTOM_THEME_BUTTON_COUNT; ++i) {
+        KitWorkspaceAuthoringFontThemeButtonId button_id =
+            (i == 0u) ? KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_CUSTOM_THEME_CREATE_STUB
+                      : KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_CUSTOM_THEME_EDIT_STUB;
+        button_rect = authoring_rect_from_kit(layout.custom_theme_buttons[i]);
+        authoring_draw_font_theme_button(renderer,
+                                         button_rect,
+                                         kit_workspace_authoring_ui_font_theme_button_label(button_id),
+                                         0,
+                                         (int)kit_workspace_authoring_ui_font_theme_button_enabled(button_id),
+                                         control_text_scale,
+                                         palette->pane_background_alt,
+                                         palette->accent_primary,
+                                         palette->text_muted,
+                                         palette->text_primary,
+                                         palette->text_muted);
+    }
 
     (void)drawing_program_visual_draw_bitmap_text(renderer,
                                                   screen_clip,
-                                                  panel_rect.x + 18,
+                                                  panel_rect.x + 16,
                                                   panel_rect.y + panel_rect.h - 26,
                                                   "Tab returns to pane authoring  Ctrl/Cmd +/- changes size  Enter applies  Esc cancels",
                                                   palette->text_muted,
-                                                  1);
+                                                  control_text_scale);
 }
 
 static void authoring_draw_leaf_labels(SDL_Renderer *renderer,

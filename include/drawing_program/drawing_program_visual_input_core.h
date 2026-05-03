@@ -32,6 +32,10 @@ void drawing_program_visual_input_map_event_position(SDL_Window *window,
                                                      int *out_x,
                                                      int *out_y,
                                                      int *out_has_position);
+void drawing_program_visual_input_map_mouse_state(SDL_Window *window,
+                                                  SDL_Renderer *renderer,
+                                                  int *out_x,
+                                                  int *out_y);
 
 DrawingProgramVisualPaneHitState drawing_program_visual_input_classify_hit(int x,
                                                                            int y,

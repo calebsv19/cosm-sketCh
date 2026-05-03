@@ -72,6 +72,7 @@ typedef struct VisualPanelUiState {
     uint8_t object_color_target_kind;
     int mouse_x;
     int mouse_y;
+    int right_file_target_queue_scroll_y;
     uint32_t object_color_target_object_id;
 } VisualPanelUiState;
 
