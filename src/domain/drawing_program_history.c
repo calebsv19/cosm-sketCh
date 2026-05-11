@@ -5,6 +5,10 @@
 
 #include "drawing_program/drawing_program_color_model.h"
 
+enum {
+    DRAWING_PROGRAM_HISTORY_EVICT_HEADROOM = 256u
+};
+
 static CoreResult drawing_program_history_invalid(const char *message) {
     CoreResult r = { CORE_ERR_INVALID_ARG, message };
     return r;
@@ -177,7 +181,8 @@ static CoreResult history_sample_write_index(DrawingProgramDocument *document,
     return history_sample_write(document, layer_rasters, layer_id, x, y, value);
 }
 
-static CoreResult history_apply_undo_command(const DrawingProgramCommand *command,
+static CoreResult history_apply_undo_command(const DrawingProgramHistory *history,
+                                             const DrawingProgramCommand *command,
                                              DrawingProgramDocument *document,
                                              DrawingProgramLayerRasterStore *layer_rasters,
                                              DrawingProgramObjectStore *object_store) {
@@ -213,6 +218,10 @@ static CoreResult history_apply_undo_command(const DrawingProgramCommand *comman
             }
         }
         return core_result_ok();
+    }
+    if (drawing_program_history_command_uses_raster_delta(command)) {
+        return drawing_program_history_apply_raster_delta_command(
+            history, command, document, layer_rasters, 1);
     }
     if (command->type == DRAWING_PROGRAM_COMMAND_SET_OBJECT_ORIGIN) {
         if (!object_store) {
@@ -317,7 +326,8 @@ static CoreResult history_apply_undo_command(const DrawingProgramCommand *comman
     return core_result_ok();
 }
 
-static CoreResult history_apply_redo_command(const DrawingProgramCommand *command,
+static CoreResult history_apply_redo_command(const DrawingProgramHistory *history,
+                                             const DrawingProgramCommand *command,
                                              DrawingProgramDocument *document,
                                              DrawingProgramLayerRasterStore *layer_rasters,
                                              DrawingProgramObjectStore *object_store) {
@@ -353,6 +363,10 @@ static CoreResult history_apply_redo_command(const DrawingProgramCommand *comman
             }
         }
         return core_result_ok();
+    }
+    if (drawing_program_history_command_uses_raster_delta(command)) {
+        return drawing_program_history_apply_raster_delta_command(
+            history, command, document, layer_rasters, 0);
     }
     if (command->type == DRAWING_PROGRAM_COMMAND_SET_OBJECT_ORIGIN) {
         if (!object_store) {
@@ -494,6 +508,70 @@ static uint32_t history_count_units_upto(const DrawingProgramHistory *history, u
     return units;
 }
 
+static uint32_t history_oldest_unit_end(const DrawingProgramHistory *history, uint32_t start_index) {
+    uint32_t index = start_index;
+    if (!history || index >= history->count) {
+        return start_index;
+    }
+    if (history->entries[index].type == DRAWING_PROGRAM_COMMAND_GROUP_BEGIN) {
+        index += 1u;
+        while (index < history->count) {
+            if (history->entries[index].type == DRAWING_PROGRAM_COMMAND_GROUP_END) {
+                return index + 1u;
+            }
+            index += 1u;
+        }
+        return history->count;
+    }
+    return index + 1u;
+}
+
+static void history_drop_prefix(DrawingProgramHistory *history, uint32_t drop_count) {
+    uint32_t keep_count;
+    if (!history || drop_count == 0u) {
+        return;
+    }
+    if (drop_count >= history->count) {
+        history->count = 0u;
+        history->cursor = 0u;
+        history->raster_delta_count = 0u;
+        return;
+    }
+    keep_count = history->count - drop_count;
+    memmove(history->entries, history->entries + drop_count, keep_count * sizeof(history->entries[0]));
+    history->count = keep_count;
+    if (history->cursor <= drop_count) {
+        history->cursor = 0u;
+    } else {
+        history->cursor -= drop_count;
+    }
+    drawing_program_history_raster_delta_drop_prefix(history, drop_count);
+}
+
+static void history_ensure_push_headroom(DrawingProgramHistory *history) {
+    uint32_t reserve_slots = DRAWING_PROGRAM_HISTORY_EVICT_HEADROOM;
+    uint32_t target_count;
+    uint32_t drop_count = 0u;
+    if (!history || history->count < DRAWING_PROGRAM_HISTORY_CAPACITY) {
+        return;
+    }
+    if (reserve_slots >= DRAWING_PROGRAM_HISTORY_CAPACITY) {
+        reserve_slots = DRAWING_PROGRAM_HISTORY_CAPACITY - 1u;
+    }
+    target_count = DRAWING_PROGRAM_HISTORY_CAPACITY - reserve_slots;
+    while (history->count > drop_count && (history->count - drop_count) > target_count) {
+        uint32_t next_drop = history_oldest_unit_end(history, drop_count);
+        if (next_drop <= drop_count) {
+            next_drop = drop_count + 1u;
+        }
+        drop_count = next_drop;
+    }
+    if (drop_count == 0u) {
+        drop_count = 1u;
+    }
+    history_drop_prefix(history, drop_count);
+}
+
 void drawing_program_history_init(DrawingProgramHistory *history) {
     if (!history) {
         return;
@@ -514,7 +592,7 @@ CoreResult drawing_program_history_begin_group(DrawingProgramHistory *history) {
         return drawing_program_history_invalid("invalid begin group request");
     }
     if (history->cursor < history->count) {
-        history->count = history->cursor;
+        drawing_program_history_raster_delta_trim_to_count(history, history->cursor);
     }
     memset(&marker, 0, sizeof(marker));
     marker.type = DRAWING_PROGRAM_COMMAND_GROUP_BEGIN;
@@ -528,7 +606,7 @@ CoreResult drawing_program_history_end_group(DrawingProgramHistory *history) {
         return drawing_program_history_invalid("invalid end group request");
     }
     if (history->cursor < history->count) {
-        history->count = history->cursor;
+        drawing_program_history_raster_delta_trim_to_count(history, history->cursor);
     }
     if (history->count > 0u &&
         history->cursor == history->count &&
@@ -555,23 +633,16 @@ void drawing_program_history_query_units(const DrawingProgramHistory *history,
 }
 
 void drawing_program_history_push(DrawingProgramHistory *history, const DrawingProgramCommand *command) {
-    uint32_t i;
     if (!history || !command) {
         return;
     }
 
     if (history->cursor < history->count) {
-        history->count = history->cursor;
+        drawing_program_history_raster_delta_trim_to_count(history, history->cursor);
     }
 
     if (history->count >= DRAWING_PROGRAM_HISTORY_CAPACITY) {
-        for (i = 1u; i < history->count; ++i) {
-            history->entries[i - 1u] = history->entries[i];
-        }
-        history->count = DRAWING_PROGRAM_HISTORY_CAPACITY - 1u;
-        if (history->cursor > 0u) {
-            history->cursor -= 1u;
-        }
+        history_ensure_push_headroom(history);
     }
 
     history->entries[history->count] = *command;
@@ -723,6 +794,7 @@ CoreResult drawing_program_history_apply_set_sample_span_value(DrawingProgramHis
                     }
                     document->raster_samples[sample_index] = composed;
                 }
+                drawing_program_document_mark_content_changed(document);
                 memset(&command, 0, sizeof(command));
                 command.type = DRAWING_PROGRAM_COMMAND_SET_SAMPLE_SPAN_VALUE;
                 command.layer_id = layer_id;
@@ -791,7 +863,7 @@ CoreResult drawing_program_history_undo(DrawingProgramHistory *history,
             if (command->type == DRAWING_PROGRAM_COMMAND_GROUP_BEGIN) {
                 return core_result_ok();
             }
-            result = history_apply_undo_command(command, document, layer_rasters, object_store);
+            result = history_apply_undo_command(history, command, document, layer_rasters, object_store);
             if (result.code != CORE_OK) {
                 return result;
             }
@@ -803,7 +875,7 @@ CoreResult drawing_program_history_undo(DrawingProgramHistory *history,
         return core_result_ok();
     }
     history->cursor -= 1u;
-    return history_apply_undo_command(command, document, layer_rasters, object_store);
+    return history_apply_undo_command(history, command, document, layer_rasters, object_store);
 }
 
 CoreResult drawing_program_history_redo(DrawingProgramHistory *history,
@@ -827,7 +899,7 @@ CoreResult drawing_program_history_redo(DrawingProgramHistory *history,
                 history->cursor += 1u;
                 return core_result_ok();
             }
-            result = history_apply_redo_command(command, document, layer_rasters, object_store);
+            result = history_apply_redo_command(history, command, document, layer_rasters, object_store);
             if (result.code != CORE_OK) {
                 return result;
             }
@@ -839,7 +911,7 @@ CoreResult drawing_program_history_redo(DrawingProgramHistory *history,
         history->cursor += 1u;
         return core_result_ok();
     }
-    result = history_apply_redo_command(command, document, layer_rasters, object_store);
+    result = history_apply_redo_command(history, command, document, layer_rasters, object_store);
     if (result.code != CORE_OK) {
         return result;
     }

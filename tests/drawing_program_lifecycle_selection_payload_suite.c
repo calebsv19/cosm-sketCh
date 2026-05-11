@@ -686,6 +686,295 @@ int drawing_program_lifecycle_run_selection_payload_suite(DrawingProgramAppConte
     }
     {
         uint32_t layer_id = workflow_ctx.editor.active_layer_id;
+        uint32_t block_w = 256u;
+        uint32_t block_h = 160u;
+        uint32_t origin_x = 24u;
+        uint32_t origin_y = 24u;
+        uint32_t x = 0u;
+        uint32_t y = 0u;
+        uint32_t unit_cursor_before = 0u;
+        uint32_t unit_cursor_after = 0u;
+        uint32_t unit_count_after = 0u;
+        uint32_t undo_steps = 0u;
+        uint8_t seeded_value = drawing_program_color_value_from_index(6u);
+        uint8_t probe = 0u;
+        if (workflow_ctx.document.raster_width <= block_w + origin_x + 2u ||
+            workflow_ctx.document.raster_height <= block_h + origin_y + 1u) {
+            fprintf(stderr,
+                    "lifecycle_test: raster too small for large selection move regression raster=%ux%u need>%ux%u\n",
+                    (unsigned)workflow_ctx.document.raster_width,
+                    (unsigned)workflow_ctx.document.raster_height,
+                    (unsigned)(block_w + origin_x + 2u),
+                    (unsigned)(block_h + origin_y + 1u));
+            return 1;
+        }
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &workflow_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS),
+                       "selection_large_move_clear_canvas")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &workflow_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_HISTORY),
+                       "selection_large_move_clear_history")) {
+            return 1;
+        }
+        drawing_program_selection_reset(&workflow_ctx.selection);
+        for (y = 0u; y < block_h; ++y) {
+            for (x = 0u; x < block_w; ++x) {
+                if (!expect_ok(drawing_program_layer_raster_store_sample_write(&workflow_ctx.layer_rasters,
+                                                                               layer_id,
+                                                                               origin_x + x,
+                                                                               origin_y + y,
+                                                                               seeded_value,
+                                                                               0),
+                               "selection_large_move_seed_layer")) {
+                    return 1;
+                }
+                if (!expect_ok(drawing_program_document_sample_write(&workflow_ctx.document,
+                                                                     origin_x + x,
+                                                                     origin_y + y,
+                                                                     seeded_value,
+                                                                     0),
+                               "selection_large_move_seed_document")) {
+                    return 1;
+                }
+            }
+        }
+        if (!drawing_program_selection_capture_from_rect(&workflow_ctx.document,
+                                                         &workflow_ctx.layer_rasters,
+                                                         layer_id,
+                                                         &workflow_ctx.selection,
+                                                         (int32_t)origin_x,
+                                                         (int32_t)origin_y,
+                                                         block_w,
+                                                         block_h)) {
+            fprintf(stderr, "lifecycle_test: expected large selection capture for move regression\n");
+            return 1;
+        }
+        drawing_program_history_query_units(&workflow_ctx.history, &unit_cursor_before, 0);
+        workflow_ctx.selection.offset_x = 1;
+        workflow_ctx.selection.offset_y = 0;
+        if (!expect_ok(drawing_program_selection_commit_move(&workflow_ctx.document,
+                                                             &workflow_ctx.layer_rasters,
+                                                             layer_id,
+                                                             &workflow_ctx.history,
+                                                             &workflow_ctx.selection),
+                       "selection_large_move_commit")) {
+            return 1;
+        }
+        drawing_program_history_query_units(&workflow_ctx.history, &unit_cursor_after, &unit_count_after);
+        if (unit_cursor_after <= unit_cursor_before + 1u) {
+            fprintf(stderr,
+                    "lifecycle_test: expected large selection move to split undo units before=%u after=%u total=%u\n",
+                    (unsigned)unit_cursor_before,
+                    (unsigned)unit_cursor_after,
+                    (unsigned)unit_count_after);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&workflow_ctx.document, origin_x, origin_y, &probe),
+                       "selection_large_move_probe_source")) {
+            return 1;
+        }
+        if (probe != expected_eraser_value) {
+            fprintf(stderr,
+                    "lifecycle_test: expected large move to clear left edge expected=%u got=%u\n",
+                    (unsigned)expected_eraser_value,
+                    (unsigned)probe);
+            return 1;
+        }
+        while (unit_cursor_after > unit_cursor_before) {
+            if (!expect_ok(drawing_program_history_undo(&workflow_ctx.history,
+                                                        &workflow_ctx.document,
+                                                        &workflow_ctx.layer_rasters,
+                                                        &workflow_ctx.object_store),
+                           "selection_large_move_undo")) {
+                return 1;
+            }
+            undo_steps += 1u;
+            drawing_program_history_query_units(&workflow_ctx.history, &unit_cursor_after, 0);
+        }
+        if (undo_steps < 2u) {
+            fprintf(stderr,
+                    "lifecycle_test: expected large move undo to require multiple units got=%u\n",
+                    (unsigned)undo_steps);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&workflow_ctx.document, origin_x, origin_y, &probe),
+                       "selection_large_move_probe_restored_source")) {
+            return 1;
+        }
+        if (probe != seeded_value) {
+            fprintf(stderr,
+                    "lifecycle_test: expected large move undo to restore source expected=%u got=%u\n",
+                    (unsigned)seeded_value,
+                    (unsigned)probe);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&workflow_ctx.document,
+                                                            origin_x + block_w,
+                                                            origin_y,
+                                                            &probe),
+                       "selection_large_move_probe_restored_dest")) {
+            return 1;
+        }
+        if (probe != expected_eraser_value) {
+            fprintf(stderr,
+                    "lifecycle_test: expected large move undo to clear extra destination column expected=%u got=%u\n",
+                    (unsigned)expected_eraser_value,
+                    (unsigned)probe);
+            return 1;
+        }
+    }
+    {
+        uint32_t layer_id = workflow_ctx.editor.active_layer_id;
+        uint32_t block_w = 256u;
+        uint32_t block_h = 160u;
+        uint32_t seed_x = 20u;
+        uint32_t seed_y = 40u;
+        uint32_t paste_x = 48u;
+        uint32_t paste_y = 68u;
+        uint32_t x = 0u;
+        uint32_t y = 0u;
+        uint32_t unit_cursor_before = 0u;
+        uint32_t unit_cursor_after = 0u;
+        uint32_t unit_count_after = 0u;
+        uint32_t undo_steps = 0u;
+        uint8_t seeded_value = drawing_program_color_value_from_index(7u);
+        uint8_t probe = 0u;
+        if (workflow_ctx.document.raster_width <= paste_x + block_w + 1u ||
+            workflow_ctx.document.raster_height <= paste_y + block_h + 1u ||
+            workflow_ctx.document.raster_width <= seed_x + block_w + 1u ||
+            workflow_ctx.document.raster_height <= seed_y + block_h + 1u) {
+            fprintf(stderr,
+                    "lifecycle_test: raster too small for large selection paste regression raster=%ux%u\n",
+                    (unsigned)workflow_ctx.document.raster_width,
+                    (unsigned)workflow_ctx.document.raster_height);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &workflow_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS),
+                       "selection_large_paste_seed_clear_canvas")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &workflow_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_HISTORY),
+                       "selection_large_paste_seed_clear_history")) {
+            return 1;
+        }
+        drawing_program_selection_reset(&workflow_ctx.selection);
+        drawing_program_clipboard_reset(&workflow_clipboard);
+        for (y = 0u; y < block_h; ++y) {
+            for (x = 0u; x < block_w; ++x) {
+                if (!expect_ok(drawing_program_layer_raster_store_sample_write(&workflow_ctx.layer_rasters,
+                                                                               layer_id,
+                                                                               seed_x + x,
+                                                                               seed_y + y,
+                                                                               seeded_value,
+                                                                               0),
+                               "selection_large_paste_seed_layer")) {
+                    return 1;
+                }
+                if (!expect_ok(drawing_program_document_sample_write(&workflow_ctx.document,
+                                                                     seed_x + x,
+                                                                     seed_y + y,
+                                                                     seeded_value,
+                                                                     0),
+                               "selection_large_paste_seed_document")) {
+                    return 1;
+                }
+            }
+        }
+        if (!drawing_program_selection_capture_from_rect(&workflow_ctx.document,
+                                                         &workflow_ctx.layer_rasters,
+                                                         layer_id,
+                                                         &workflow_ctx.selection,
+                                                         (int32_t)seed_x,
+                                                         (int32_t)seed_y,
+                                                         block_w,
+                                                         block_h)) {
+            fprintf(stderr, "lifecycle_test: expected large selection capture for paste regression\n");
+            return 1;
+        }
+        if (!drawing_program_selection_copy_payload(&workflow_ctx.selection, &workflow_clipboard) ||
+            !workflow_clipboard.has_payload ||
+            workflow_clipboard.payload_count == 0u) {
+            fprintf(stderr, "lifecycle_test: expected large selection clipboard seed\n");
+            return 1;
+        }
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &workflow_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS),
+                       "selection_large_paste_apply_clear_canvas")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &workflow_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_HISTORY),
+                       "selection_large_paste_apply_clear_history")) {
+            return 1;
+        }
+        drawing_program_selection_reset(&workflow_ctx.selection);
+        drawing_program_history_query_units(&workflow_ctx.history, &unit_cursor_before, 0);
+        if (!expect_ok(drawing_program_selection_paste_from_clipboard(&workflow_ctx.document,
+                                                                      &workflow_ctx.layer_rasters,
+                                                                      layer_id,
+                                                                      &workflow_ctx.history,
+                                                                      &workflow_ctx.selection,
+                                                                      &workflow_clipboard,
+                                                                      (int32_t)paste_x,
+                                                                      (int32_t)paste_y),
+                       "selection_large_paste_commit")) {
+            return 1;
+        }
+        drawing_program_history_query_units(&workflow_ctx.history, &unit_cursor_after, &unit_count_after);
+        if (unit_cursor_after <= unit_cursor_before + 1u) {
+            fprintf(stderr,
+                    "lifecycle_test: expected large selection paste to split undo units before=%u after=%u total=%u\n",
+                    (unsigned)unit_cursor_before,
+                    (unsigned)unit_cursor_after,
+                    (unsigned)unit_count_after);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&workflow_ctx.document, paste_x, paste_y, &probe),
+                       "selection_large_paste_probe_written")) {
+            return 1;
+        }
+        if (probe != seeded_value) {
+            fprintf(stderr,
+                    "lifecycle_test: expected large paste to write payload expected=%u got=%u\n",
+                    (unsigned)seeded_value,
+                    (unsigned)probe);
+            return 1;
+        }
+        while (unit_cursor_after > unit_cursor_before) {
+            if (!expect_ok(drawing_program_history_undo(&workflow_ctx.history,
+                                                        &workflow_ctx.document,
+                                                        &workflow_ctx.layer_rasters,
+                                                        &workflow_ctx.object_store),
+                           "selection_large_paste_undo")) {
+                return 1;
+            }
+            undo_steps += 1u;
+            drawing_program_history_query_units(&workflow_ctx.history, &unit_cursor_after, 0);
+        }
+        if (undo_steps < 2u) {
+            fprintf(stderr,
+                    "lifecycle_test: expected large paste undo to require multiple units got=%u\n",
+                    (unsigned)undo_steps);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&workflow_ctx.document, paste_x, paste_y, &probe),
+                       "selection_large_paste_probe_cleared")) {
+            return 1;
+        }
+        if (probe != expected_eraser_value) {
+            fprintf(stderr,
+                    "lifecycle_test: expected large paste undo to clear payload expected=%u got=%u\n",
+                    (unsigned)expected_eraser_value,
+                    (unsigned)probe);
+            return 1;
+        }
+    }
+    {
+        uint32_t layer_id = workflow_ctx.editor.active_layer_id;
         uint8_t value_left = drawing_program_color_value_from_index(0u);
         uint8_t value_right = drawing_program_color_value_from_index(2u);
         uint8_t value_hole = drawing_program_color_value_from_index(5u);

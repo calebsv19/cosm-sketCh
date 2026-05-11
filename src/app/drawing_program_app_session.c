@@ -74,6 +74,29 @@ static int drawing_program_parse_canvas_size(const char *text,
     return 1;
 }
 
+static int drawing_program_parse_texture_quality_preset(const char *text, uint32_t *out_quality_preset) {
+    if (!text || !out_quality_preset) {
+        return 0;
+    }
+    if (strcmp(text, "standard") == 0) {
+        *out_quality_preset = DRAWING_PROGRAM_TEXTURE_QUALITY_PRESET_STANDARD;
+        return 1;
+    }
+    if (strcmp(text, "high") == 0) {
+        *out_quality_preset = DRAWING_PROGRAM_TEXTURE_QUALITY_PRESET_HIGH;
+        return 1;
+    }
+    if (strcmp(text, "ultra") == 0) {
+        *out_quality_preset = DRAWING_PROGRAM_TEXTURE_QUALITY_PRESET_ULTRA;
+        return 1;
+    }
+    if (strcmp(text, "custom") == 0) {
+        *out_quality_preset = DRAWING_PROGRAM_TEXTURE_QUALITY_PRESET_CUSTOM;
+        return 1;
+    }
+    return 0;
+}
+
 static void drawing_program_seed_data_roots(DrawingProgramAppContext *ctx) {
     const char *runtime_env;
     if (!ctx) {
@@ -91,6 +114,12 @@ static void drawing_program_seed_data_roots(DrawingProgramAppContext *ctx) {
         if (!ctx->session.output_root_cli_override) {
             (void)snprintf(
                 ctx->session.output_root_path, sizeof(ctx->session.output_root_path), "%s/output", ctx->session.runtime_root_path);
+        }
+        if (!ctx->session.scene_authored_root_path[0]) {
+            (void)snprintf(ctx->session.scene_authored_root_path,
+                           sizeof(ctx->session.scene_authored_root_path),
+                           "%s/scene_authored",
+                           ctx->session.runtime_root_path);
         }
     }
 }
@@ -161,6 +190,7 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
     ctx->session.project_path = 0;
     ctx->session.export_json_path = 0;
     ctx->session.bridge_workspace_preset_path = "workspace_sandbox/data/presets/sketch_layout_v1.pack";
+    ctx->session.texture_scene_import_quality_preset = DRAWING_PROGRAM_TEXTURE_QUALITY_PRESET_HIGH;
     ctx->pane_host_bounds_width = 1200.0f;
     ctx->pane_host_bounds_height = 800.0f;
     ctx->ui.theme_preset_id = (uint32_t)CORE_THEME_PRESET_DARK_DEFAULT;
@@ -177,6 +207,7 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
     ctx->ui.tool_shape_target_mode = (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_PIXEL;
     ctx->ui.tool_fill_tolerance = 0u;
     ctx->ui.tool_select_mode = (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_REPLACE;
+    ctx->ui.canvas_guide_mode = (uint8_t)DRAWING_PROGRAM_UI_CANVAS_GUIDE_MODE_OFF;
     ctx->ui.font_zoom_step = 0;
     drawing_program_ui_color_seed_defaults(ctx);
     (void)snprintf(
@@ -184,6 +215,7 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
     (void)snprintf(ctx->session.runtime_root_path, sizeof(ctx->session.runtime_root_path), "data/runtime");
     (void)snprintf(ctx->session.input_root_path, sizeof(ctx->session.input_root_path), "data/input");
     (void)snprintf(ctx->session.output_root_path, sizeof(ctx->session.output_root_path), "data/output");
+    ctx->session.scene_authored_root_path[0] = '\0';
 
     for (i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--headless") == 0) {
@@ -251,6 +283,41 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
             ctx->session.bridge_workspace_import_requested = 1u;
             continue;
         }
+        if (strcmp(argv[i], "--texture-scene-import") == 0 && i + 1 < argc) {
+            (void)snprintf(ctx->session.texture_scene_import_path,
+                           sizeof(ctx->session.texture_scene_import_path),
+                           "%s",
+                           argv[++i]);
+            ctx->session.texture_scene_import_requested = 1u;
+            continue;
+        }
+        if (strcmp(argv[i], "--texture-scene-object") == 0 && i + 1 < argc) {
+            (void)snprintf(ctx->session.texture_scene_import_object_id,
+                           sizeof(ctx->session.texture_scene_import_object_id),
+                           "%s",
+                           argv[++i]);
+            continue;
+        }
+        if (strcmp(argv[i], "--texture-scene-quality") == 0 && i + 1 < argc) {
+            uint32_t quality_preset = 0u;
+            if (!drawing_program_parse_texture_quality_preset(argv[++i], &quality_preset)) {
+                return drawing_program_invalid("invalid --texture-scene-quality");
+            }
+            ctx->session.texture_scene_import_quality_preset = quality_preset;
+            continue;
+        }
+        if (strcmp(argv[i], "--texture-export") == 0) {
+            ctx->session.texture_export_requested = 1u;
+            continue;
+        }
+        if (strcmp(argv[i], "--texture-export-dir") == 0 && i + 1 < argc) {
+            (void)snprintf(ctx->session.texture_export_dir_path,
+                           sizeof(ctx->session.texture_export_dir_path),
+                           "%s",
+                           argv[++i]);
+            ctx->session.texture_export_requested = 1u;
+            continue;
+        }
         if (strcmp(argv[i], "--runtime-root") == 0 && i + 1 < argc) {
             (void)snprintf(ctx->session.runtime_root_path, sizeof(ctx->session.runtime_root_path), "%s", argv[++i]);
             ctx->session.runtime_root_cli_override = 1u;
@@ -266,6 +333,11 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
             ctx->session.output_root_cli_override = 1u;
             continue;
         }
+    }
+
+    if (ctx->session.texture_scene_import_requested &&
+        ctx->session.texture_scene_import_object_id[0] == '\0') {
+        return drawing_program_invalid("texture scene import requires --texture-scene-object");
     }
 
     return core_result_ok();
@@ -287,11 +359,21 @@ CoreResult drawing_program_app_config_load(DrawingProgramAppContext *ctx) {
             return result;
         }
     }
+    if (!ctx->session.scene_authored_root_path[0]) {
+        (void)snprintf(ctx->session.scene_authored_root_path,
+                       sizeof(ctx->session.scene_authored_root_path),
+                       "%s/scene_authored",
+                       ctx->session.runtime_root_path);
+    }
     result = drawing_program_mkdirs_if_needed(ctx->session.input_root_path);
     if (result.code != CORE_OK) {
         return result;
     }
     result = drawing_program_mkdirs_if_needed(ctx->session.output_root_path);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    result = drawing_program_mkdirs_if_needed(ctx->session.scene_authored_root_path);
     if (result.code != CORE_OK) {
         return result;
     }

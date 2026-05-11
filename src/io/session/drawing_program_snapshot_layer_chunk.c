@@ -131,7 +131,7 @@ static CoreResult drawing_program_snapshot_seed_document_from_legacy_layer_chunk
             (void)snprintf(ctx->document.layers[i].name,
                            sizeof(ctx->document.layers[i].name),
                            "%s",
-                           "Base Layer");
+                           "Base");
         } else {
             (void)snprintf(ctx->document.layers[i].name,
                            sizeof(ctx->document.layers[i].name),

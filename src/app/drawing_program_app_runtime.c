@@ -10,10 +10,14 @@
 #include "core_theme.h"
 #include "drawing_program/drawing_program_authoring_host.h"
 #include "drawing_program/drawing_program_project_state.h"
+#include "drawing_program/drawing_program_render_revision.h"
 #include "drawing_program/drawing_program_runtime_orchestration.h"
 #include "drawing_program/drawing_program_session_prefs.h"
 #include "drawing_program/drawing_program_snapshot.h"
+#include "drawing_program/drawing_program_texture_export.h"
+#include "drawing_program/drawing_program_texture_project_session.h"
 #include "drawing_program/drawing_program_ui_color_state.h"
+#include "drawing_program/drawing_program_visual_right_panel_defs.h"
 
 static CoreResult drawing_program_invalid(const char *message) {
     CoreResult r = { CORE_ERR_INVALID_ARG, message };
@@ -104,7 +108,7 @@ static void drawing_program_normalize_ui_state(DrawingProgramAppContext *ctx) {
     if (ctx->ui.left_panel_slot > 1u) {
         ctx->ui.left_panel_slot = 0u;
     }
-    if (ctx->ui.right_panel_slot > 3u) {
+    if (ctx->ui.right_panel_slot >= (uint8_t)VISUAL_RIGHT_PANEL_SLOT_COUNT) {
         ctx->ui.right_panel_slot = 0u;
     }
     drawing_program_ui_color_normalize_state(ctx);
@@ -143,6 +147,9 @@ static void drawing_program_normalize_ui_state(DrawingProgramAppContext *ctx) {
     }
     if (ctx->ui.tool_shape_target_mode > (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_OBJECT) {
         ctx->ui.tool_shape_target_mode = (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_PIXEL;
+    }
+    if (ctx->ui.canvas_guide_mode > (uint8_t)DRAWING_PROGRAM_UI_CANVAS_GUIDE_MODE_CORNERS_AND_EDGES) {
+        ctx->ui.canvas_guide_mode = (uint8_t)DRAWING_PROGRAM_UI_CANVAS_GUIDE_MODE_OFF;
     }
     if (ctx->ui.tool_fill_tolerance > DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX) {
         ctx->ui.tool_fill_tolerance = DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX;
@@ -214,6 +221,7 @@ static CoreResult drawing_program_render_project_and_update_counters(
 
     ctx->runtime.render_frames_projected_total += 1u;
     ctx->runtime.render_layers_visible_total += (uint64_t)ctx->runtime.render_projection.visible_layer_count;
+    drawing_program_render_revision_refresh(ctx);
     if (ctx->runtime.render_projection.full_redraw) {
         ctx->runtime.render_full_redraw_total += 1u;
     } else if (ctx->runtime.render_projection.targeted_redraw) {
@@ -346,6 +354,11 @@ CoreResult drawing_program_app_state_seed(DrawingProgramAppContext *ctx) {
     }
     result = drawing_program_layer_raster_store_init_from_document(&ctx->layer_rasters, &ctx->document);
     if (result.code != CORE_OK) {
+        return result;
+    }
+    result = drawing_program_texture_project_session_init_from_current_document(ctx);
+    if (result.code != CORE_OK) {
+        drawing_program_layer_raster_store_dispose(&ctx->layer_rasters);
         return result;
     }
     drawing_program_object_store_reset(&ctx->object_store);
@@ -491,6 +504,39 @@ CoreResult drawing_program_runtime_start(DrawingProgramAppContext *ctx) {
         printf("drawing_program workspace preset import OK: %s\n",
                ctx->session.bridge_workspace_preset_path ? ctx->session.bridge_workspace_preset_path : "(null)");
     }
+    if (ctx->session.texture_scene_import_requested) {
+        result = drawing_program_texture_project_session_import_scene_object(
+            ctx,
+            ctx->session.texture_scene_import_path,
+            ctx->session.texture_scene_import_object_id,
+            ctx->session.texture_scene_import_quality_preset);
+        if (result.code != CORE_OK) {
+            return result;
+        }
+        printf("drawing_program texture scene import OK: %s [%s]\n",
+               ctx->session.texture_scene_import_path[0] != '\0' ? ctx->session.texture_scene_import_path : "(null)",
+               ctx->session.texture_scene_import_object_id[0] != '\0' ? ctx->session.texture_scene_import_object_id
+                                                                      : "(null)");
+    }
+    if (ctx->session.texture_export_requested) {
+        char export_dir[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+        const char *requested_dir = ctx->session.texture_export_dir_path[0] != '\0'
+                                        ? ctx->session.texture_export_dir_path
+                                        : 0;
+        result = drawing_program_texture_export_current_project(ctx, requested_dir);
+        if (result.code != CORE_OK) {
+            return result;
+        }
+        if (requested_dir) {
+            (void)snprintf(export_dir, sizeof(export_dir), "%s", requested_dir);
+        } else {
+            result = drawing_program_texture_export_default_directory(ctx, export_dir, sizeof(export_dir));
+            if (result.code != CORE_OK) {
+                return result;
+            }
+        }
+        printf("drawing_program texture export OK: %s\n", export_dir);
+    }
 
     ctx->runtime.runtime_started = 1u;
     return core_result_ok();
@@ -553,20 +599,24 @@ CoreResult drawing_program_app_shutdown(DrawingProgramAppContext *ctx) {
             result = drawing_program_snapshot_export_debug_json(ctx, ctx->session.export_json_path);
             if (result.code != CORE_OK) {
                 drawing_program_layer_raster_store_dispose(&ctx->layer_rasters);
+                drawing_program_texture_project_dispose(&ctx->texture_project);
                 return result;
             }
         }
         drawing_program_layer_raster_store_dispose(&ctx->layer_rasters);
+        drawing_program_texture_project_dispose(&ctx->texture_project);
         return core_result_ok();
     }
     result = drawing_program_session_prefs_save(ctx);
     if (result.code != CORE_OK) {
         drawing_program_layer_raster_store_dispose(&ctx->layer_rasters);
+        drawing_program_texture_project_dispose(&ctx->texture_project);
         return result;
     }
     result = drawing_program_app_ensure_parent_dir(ctx->session.preset_path);
     if (result.code != CORE_OK) {
         drawing_program_layer_raster_store_dispose(&ctx->layer_rasters);
+        drawing_program_texture_project_dispose(&ctx->texture_project);
         return result;
     }
     result = drawing_program_snapshot_save(ctx, ctx->session.preset_path);
@@ -590,6 +640,7 @@ CoreResult drawing_program_app_shutdown(DrawingProgramAppContext *ctx) {
                 result.message ? result.message : "(null)",
                 ctx->session.preset_path ? ctx->session.preset_path : "(null)");
         drawing_program_layer_raster_store_dispose(&ctx->layer_rasters);
+        drawing_program_texture_project_dispose(&ctx->texture_project);
         return result;
     }
     if (ctx->session.export_json_requested) {
@@ -601,6 +652,7 @@ CoreResult drawing_program_app_shutdown(DrawingProgramAppContext *ctx) {
                     result.message ? result.message : "(null)",
                     ctx->session.export_json_path ? ctx->session.export_json_path : "(null)");
             drawing_program_layer_raster_store_dispose(&ctx->layer_rasters);
+            drawing_program_texture_project_dispose(&ctx->texture_project);
             return result;
         }
         printf("drawing_program snapshot debug export OK: preset=%s json=%s\n",
@@ -608,6 +660,7 @@ CoreResult drawing_program_app_shutdown(DrawingProgramAppContext *ctx) {
                ctx->session.export_json_path ? ctx->session.export_json_path : "(null)");
     }
     drawing_program_layer_raster_store_dispose(&ctx->layer_rasters);
+    drawing_program_texture_project_dispose(&ctx->texture_project);
     return core_result_ok();
 }
 

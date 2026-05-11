@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-05-03
+Last updated: 2026-05-07
 
 Current state:
 - scaffold shell lane with lifecycle skeleton implemented
@@ -11,6 +11,7 @@ Current state:
 - authoring draft transaction state is host-owned: entry captures pane/module baselines, Apply validates/rebuilds before `core_layout_apply_authoring(...)`, and Cancel restores the entry baseline
 - authoring draft transaction state also captures UI theme preset, font preset, and font zoom baselines so top-level authoring appearance edits stay accepted-only
 - authoring chrome rendering is isolated in a frame-render adjunct that derives pane/module readout from the existing pane host registry and bindings and now also owns the font/theme takeover overlay
+- the drawing-program `WA1` first-host attach is now treated as a completed host baseline rather than an active attach lane
 - overlay adapter seam exists with typed lifecycle/ownership hooks and dirty-exit guard policy
 - document, editor/session, and command/history foundations are now explicit runtime modules
 - snapshot persistence module now provides pack save/load and debug JSON export seams

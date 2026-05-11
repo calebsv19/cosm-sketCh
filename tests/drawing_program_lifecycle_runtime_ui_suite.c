@@ -1,10 +1,79 @@
 #include <stdio.h>
+#include <string.h>
 
+#include "drawing_program/drawing_program_canvas_reflection.h"
 #include "drawing_program/drawing_program_color_model.h"
+#include "drawing_program/drawing_program_history.h"
 #include "drawing_program/drawing_program_runtime_orchestration.h"
 #include "drawing_program/drawing_program_ui_color_state.h"
+#include "drawing_program/drawing_program_visual_canvas_draw_action_ops.h"
+#include "drawing_program/drawing_program_visual_canvas_stroke_ops.h"
+#include "drawing_program/drawing_program_visual_shape_ops.h"
+#include "drawing_program/drawing_program_visual_transform_ops.h"
 #include "drawing_program_lifecycle_runtime_ui_suite.h"
 #include "drawing_program_lifecycle_test_support.h"
+
+CoreResult drawing_program_visual_apply_canvas_stamp_square_on_layer(DrawingProgramAppContext *ctx,
+                                                                     uint32_t layer_id,
+                                                                     int32_t sample_x,
+                                                                     int32_t sample_y,
+                                                                     DrawingProgramRasterSample value,
+                                                                     uint32_t stroke_width,
+                                                                     uint8_t hardness_percent);
+
+static int runtime_ui_screen_to_canvas_sample(const DrawingProgramAppContext *ctx,
+                                              SDL_Rect pane_rect,
+                                              int sx,
+                                              int sy,
+                                              uint32_t *out_sample_x,
+                                              uint32_t *out_sample_y) {
+    (void)ctx;
+    (void)pane_rect;
+    if (!out_sample_x || !out_sample_y || sx < 0 || sy < 0) {
+        return 0;
+    }
+    *out_sample_x = (uint32_t)sx;
+    *out_sample_y = (uint32_t)sy;
+    return 1;
+}
+
+static int runtime_ui_active_layer_query(const DrawingProgramAppContext *ctx,
+                                         uint32_t *out_layer_id,
+                                         uint32_t *out_index,
+                                         uint8_t *out_visible,
+                                         uint8_t *out_locked) {
+    CoreResult result = drawing_program_runtime_orchestration_resolve_active_layer(
+        ctx, out_layer_id, out_index, out_visible, out_locked);
+    return (result.code == CORE_OK) ? 1 : 0;
+}
+
+static int runtime_ui_active_layer_allows_edits(const DrawingProgramAppContext *ctx) {
+    uint8_t visible = 0u;
+    uint8_t locked = 0u;
+    if (!runtime_ui_active_layer_query(ctx, 0, 0, &visible, &locked)) {
+        return 0;
+    }
+    return (visible && !locked) ? 1 : 0;
+}
+
+static const DrawingProgramVisualCanvasDrawActionOpsHooks *runtime_ui_draw_hooks(void) {
+    static const DrawingProgramVisualCanvasDrawActionOpsHooks hooks = {
+        .screen_to_canvas_sample = runtime_ui_screen_to_canvas_sample,
+        .active_layer_allows_edits_visual = runtime_ui_active_layer_allows_edits,
+        .active_layer_query = runtime_ui_active_layer_query,
+        .sample_value_for_tool = drawing_program_visual_sample_value_for_tool,
+        .tool_brush_radius_samples = drawing_program_visual_tool_brush_radius_samples,
+        .tool_brush_spacing_samples = drawing_program_visual_tool_brush_spacing_samples,
+        .tool_brush_hardness_percent = drawing_program_visual_tool_brush_hardness_percent,
+        .seeded_background_sample_for_coord = drawing_program_visual_seeded_background_sample_for_coord,
+        .begin_canvas_history_group = drawing_program_visual_begin_canvas_history_group,
+        .end_canvas_history_group = drawing_program_visual_end_canvas_history_group,
+        .apply_canvas_stamp_square_on_layer = drawing_program_visual_apply_canvas_stamp_square_on_layer,
+        .apply_canvas_direct_stroke_stamp_square_on_layer =
+            drawing_program_visual_apply_canvas_direct_stroke_stamp_square_on_layer
+    };
+    return &hooks;
+}
 
 int drawing_program_lifecycle_run_runtime_ui_suite(DrawingProgramAppContext *ctx_ptr,
                                                    uint32_t center_x,
@@ -60,9 +129,6 @@ int drawing_program_lifecycle_run_runtime_ui_suite(DrawingProgramAppContext *ctx
     if (ctx.runtime.viewport_sample_probe_success_total != 2u) {
         fprintf(stderr, "lifecycle_test: expected viewport probe success count 2 got=%llu\n",
                 (unsigned long long)ctx.runtime.viewport_sample_probe_success_total);
-        return 1;
-    }
-    if (!expect_ok(drawing_program_app_shutdown(&ctx), "shutdown")) {
         return 1;
     }
     if (ctx.runtime.frame_counter != 2u) {
@@ -149,14 +215,13 @@ int drawing_program_lifecycle_run_runtime_ui_suite(DrawingProgramAppContext *ctx
         return 1;
     }
     if (ctx.runtime.render_projection.raster_sample_count == 0u ||
-        ctx.runtime.render_projection.raster_nonzero_count == 0u ||
-        ctx.runtime.render_projection.raster_hash32 == 0u) {
+        ctx.runtime.render_projection.visible_layer_count == 0u ||
+        ctx.runtime.render_active_surface_content_revision == 0u) {
         fprintf(stderr, "lifecycle_test: expected raster projection baseline populated\n");
         return 1;
     }
-    if (ctx.runtime.render_canvas_last_raster_hash != ctx.runtime.render_projection.raster_hash32 ||
-        ctx.runtime.render_canvas_last_nonzero_samples != ctx.runtime.render_projection.raster_nonzero_count) {
-        fprintf(stderr, "lifecycle_test: expected canvas module to consume raster projection fields\n");
+    if (ctx.runtime.render_layer_opacity_revision == 0u) {
+        fprintf(stderr, "lifecycle_test: expected layer opacity revision baseline populated\n");
         return 1;
     }
     if (!ctx.runtime.render_last_has_active_layer || ctx.runtime.render_last_active_layer_id != 1u) {
@@ -274,11 +339,417 @@ int drawing_program_lifecycle_run_runtime_ui_suite(DrawingProgramAppContext *ctx
                     (unsigned)sample);
             return 1;
         }
+        drawing_program_history_clear(&ctx.history);
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS),
+                       "s3_shape_history_clear_canvas_long_line")) {
+            return 1;
+        }
+        {
+            uint32_t history_units = 0u;
+            uint32_t history_total_units = 0u;
+            uint32_t line_start_x = 24u;
+            uint32_t line_end_x = 0u;
+            if (ctx.document.raster_width <= 96u) {
+                fprintf(stderr, "lifecycle_test: expected canvas width for long line history regression\n");
+                return 1;
+            }
+            line_end_x = ctx.document.raster_width - 24u;
+            ctx.ui.tool_shape_mode = 0u;
+            ctx.ui.tool_shape_stroke_width = 16u;
+            if (!expect_ok(drawing_program_app_shape_commit_samples(&ctx,
+                                                                    DRAWING_PROGRAM_TOOL_LINE,
+                                                                    line_start_x,
+                                                                    48u,
+                                                                    line_end_x,
+                                                                    48u),
+                           "s3_shape_history_long_line_commit")) {
+                return 1;
+            }
+            if (!expect_ok(drawing_program_document_sample_read(&ctx.document,
+                                                                (line_start_x + line_end_x) / 2u,
+                                                                48u,
+                                                                &sample),
+                           "s3_shape_history_long_line_probe")) {
+                return 1;
+            }
+            if (sample != expected_draw_value) {
+                fprintf(stderr,
+                        "lifecycle_test: expected long line history sample=%u got=%u\n",
+                        (unsigned)expected_draw_value,
+                        (unsigned)sample);
+                return 1;
+            }
+            drawing_program_history_query_units(&ctx.history, &history_units, &history_total_units);
+            if (history_units != 1u || history_total_units != 1u || ctx.history.count <= 3u) {
+                fprintf(stderr,
+                        "lifecycle_test: expected long line delta batching to keep one undo unit and multiple commands cursor=%u total=%u count=%u\n",
+                        (unsigned)history_units,
+                        (unsigned)history_total_units,
+                        (unsigned)ctx.history.count);
+                return 1;
+            }
+            if (!expect_ok(drawing_program_history_undo(&ctx.history,
+                                                        &ctx.document,
+                                                        &ctx.layer_rasters,
+                                                        &ctx.object_store),
+                           "s3_shape_history_long_line_undo")) {
+                return 1;
+            }
+            if (!expect_ok(drawing_program_document_sample_read(&ctx.document,
+                                                                (line_start_x + line_end_x) / 2u,
+                                                                48u,
+                                                                &sample),
+                           "s3_shape_history_long_line_probe_after_undo")) {
+                return 1;
+            }
+            if (sample != bg) {
+                fprintf(stderr,
+                        "lifecycle_test: expected long line undo to restore background=%u got=%u\n",
+                        (unsigned)bg,
+                        (unsigned)sample);
+                return 1;
+            }
+        }
+        drawing_program_history_clear(&ctx.history);
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS),
+                       "s3_shape_history_clear_canvas_large_rect")) {
+            return 1;
+        }
+        {
+            uint32_t history_units_before = 0u;
+            uint32_t history_units_after = 0u;
+            uint32_t history_total_units = 0u;
+            uint32_t undo_steps = 0u;
+            uint32_t rect_x0 = 24u;
+            uint32_t rect_y0 = 24u;
+            uint32_t rect_x1 = rect_x0 + 255u;
+            uint32_t rect_y1 = rect_y0 + 159u;
+            if (ctx.document.raster_width <= rect_x1 + 1u ||
+                ctx.document.raster_height <= rect_y1 + 1u) {
+                fprintf(stderr,
+                        "lifecycle_test: expected canvas size for large rect history regression raster=%ux%u need>%ux%u\n",
+                        (unsigned)ctx.document.raster_width,
+                        (unsigned)ctx.document.raster_height,
+                        (unsigned)rect_x1,
+                        (unsigned)rect_y1);
+                return 1;
+            }
+            ctx.ui.tool_shape_mode = 1u;
+            ctx.ui.tool_shape_stroke_width = 1u;
+            drawing_program_history_query_units(&ctx.history, &history_units_before, 0);
+            if (!expect_ok(drawing_program_app_shape_commit_samples(&ctx,
+                                                                    DRAWING_PROGRAM_TOOL_RECT,
+                                                                    rect_x0,
+                                                                    rect_y0,
+                                                                    rect_x1,
+                                                                    rect_y1),
+                           "s3_shape_history_large_rect_commit")) {
+                return 1;
+            }
+            if (!expect_ok(drawing_program_document_sample_read(&ctx.document, rect_x0 + 10u, rect_y0 + 10u, &sample),
+                           "s3_shape_history_large_rect_probe")) {
+                return 1;
+            }
+            if (sample != expected_draw_value) {
+                fprintf(stderr,
+                        "lifecycle_test: expected large rect fill sample=%u got=%u\n",
+                        (unsigned)expected_draw_value,
+                        (unsigned)sample);
+                return 1;
+            }
+            drawing_program_history_query_units(&ctx.history, &history_units_after, &history_total_units);
+            if (history_units_after <= history_units_before + 1u) {
+                fprintf(stderr,
+                        "lifecycle_test: expected large rect fill to split undo units before=%u after=%u total=%u\n",
+                        (unsigned)history_units_before,
+                        (unsigned)history_units_after,
+                        (unsigned)history_total_units);
+                return 1;
+            }
+            while (history_units_after > history_units_before) {
+                if (!expect_ok(drawing_program_history_undo(&ctx.history,
+                                                            &ctx.document,
+                                                            &ctx.layer_rasters,
+                                                            &ctx.object_store),
+                               "s3_shape_history_large_rect_undo")) {
+                    return 1;
+                }
+                undo_steps += 1u;
+                drawing_program_history_query_units(&ctx.history, &history_units_after, 0);
+            }
+            if (undo_steps < 2u) {
+                fprintf(stderr,
+                        "lifecycle_test: expected large rect undo to require multiple units got=%u\n",
+                        (unsigned)undo_steps);
+                return 1;
+            }
+            if (!expect_ok(drawing_program_document_sample_read(&ctx.document, rect_x0 + 10u, rect_y0 + 10u, &sample),
+                           "s3_shape_history_large_rect_probe_after_undo")) {
+                return 1;
+            }
+            if (sample != bg) {
+                fprintf(stderr,
+                        "lifecycle_test: expected large rect undo to restore background=%u got=%u\n",
+                        (unsigned)bg,
+                        (unsigned)sample);
+                return 1;
+            }
+        }
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS),
+                       "s3_reflection_clear_canvas_brush")) {
+            return 1;
+        }
+        {
+            VisualCanvasInteractionState reflection_draw_state;
+            memset(&reflection_draw_state, 0, sizeof(reflection_draw_state));
+            ctx.editor.active_tool = DRAWING_PROGRAM_TOOL_BRUSH;
+            ctx.ui.tool_brush_size = 1u;
+            ctx.ui.tool_brush_spacing = 1u;
+            ctx.ui.tool_brush_hardness = 100u;
+            ctx.editor.symmetry_horizontal = 1u;
+            ctx.editor.symmetry_vertical = 1u;
+            if (!drawing_program_canvas_reflection_set_active_center(&ctx, 20u, 20u)) {
+                fprintf(stderr, "lifecycle_test: expected reflection center set to succeed for brush mirror test\n");
+                return 1;
+            }
+            drawing_program_canvas_reflection_sync_active_surface_from_editor(&ctx);
+            if (!expect_ok(drawing_program_visual_apply_canvas_draw_at_screen(&ctx,
+                                                                              (SDL_Rect){ 0, 0, 128, 128 },
+                                                                              18,
+                                                                              19,
+                                                                              &reflection_draw_state,
+                                                                              runtime_ui_draw_hooks()),
+                           "s3_reflection_brush_apply")) {
+                return 1;
+            }
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&ctx.document, 18u, 19u, &sample),
+                       "s3_reflection_brush_source_sample")) {
+            return 1;
+        }
+        if (sample != expected_draw_value) {
+            fprintf(stderr,
+                    "lifecycle_test: expected reflection brush source=%u got=%u\n",
+                    (unsigned)expected_draw_value,
+                    (unsigned)sample);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&ctx.document, 22u, 19u, &sample),
+                       "s3_reflection_brush_vertical_sample")) {
+            return 1;
+        }
+        if (sample != expected_draw_value) {
+            fprintf(stderr,
+                    "lifecycle_test: expected reflection brush vertical=%u got=%u\n",
+                    (unsigned)expected_draw_value,
+                    (unsigned)sample);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&ctx.document, 18u, 21u, &sample),
+                       "s3_reflection_brush_horizontal_sample")) {
+            return 1;
+        }
+        if (sample != expected_draw_value) {
+            fprintf(stderr,
+                    "lifecycle_test: expected reflection brush horizontal=%u got=%u\n",
+                    (unsigned)expected_draw_value,
+                    (unsigned)sample);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&ctx.document, 22u, 21u, &sample),
+                       "s3_reflection_brush_quad_sample")) {
+            return 1;
+        }
+        if (sample != expected_draw_value) {
+            fprintf(stderr,
+                    "lifecycle_test: expected reflection brush quad=%u got=%u\n",
+                    (unsigned)expected_draw_value,
+                    (unsigned)sample);
+            return 1;
+        }
+        drawing_program_history_clear(&ctx.history);
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS),
+                       "s3_reflection_clear_canvas_brush_history")) {
+            return 1;
+        }
+        drawing_program_history_clear(&ctx.history);
+        {
+            VisualCanvasInteractionState reflection_span_state;
+            memset(&reflection_span_state, 0, sizeof(reflection_span_state));
+            ctx.editor.active_tool = DRAWING_PROGRAM_TOOL_BRUSH;
+            ctx.ui.tool_brush_size = 2u;
+            ctx.ui.tool_brush_spacing = 1u;
+            ctx.ui.tool_brush_hardness = 100u;
+            ctx.editor.symmetry_horizontal = 1u;
+            ctx.editor.symmetry_vertical = 1u;
+            if (!drawing_program_canvas_reflection_set_active_center(&ctx, 40u, 40u)) {
+                fprintf(stderr, "lifecycle_test: expected reflection center set to succeed for brush history test\n");
+                return 1;
+            }
+            drawing_program_canvas_reflection_sync_active_surface_from_editor(&ctx);
+            drawing_program_visual_begin_canvas_history_group(&ctx);
+            if (!expect_ok(drawing_program_visual_apply_canvas_draw_at_screen(&ctx,
+                                                                              (SDL_Rect){ 0, 0, 128, 128 },
+                                                                              30,
+                                                                              31,
+                                                                              &reflection_span_state,
+                                                                              runtime_ui_draw_hooks()),
+                           "s3_reflection_brush_span_apply")) {
+                return 1;
+            }
+            if (!expect_ok(drawing_program_visual_flush_direct_stroke_history(
+                               &ctx, &reflection_span_state, reflection_span_state.direct_stroke_history_layer_id),
+                           "s3_reflection_brush_span_flush")) {
+                return 1;
+            }
+            drawing_program_visual_end_canvas_history_group(&ctx);
+        }
+        if (ctx.history.count != 3u) {
+            fprintf(stderr,
+                    "lifecycle_test: expected reflected hard-brush delta command count=3 got=%u\n",
+                    (unsigned)ctx.history.count);
+            return 1;
+        }
+        drawing_program_history_clear(&ctx.history);
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS),
+                       "s3_reflection_clear_canvas_long_stroke")) {
+            return 1;
+        }
+        {
+            VisualCanvasInteractionState long_stroke_state;
+            uint32_t history_units = 0u;
+            uint32_t history_total_units = 0u;
+            uint32_t start_x = 8u;
+            uint32_t start_y = 24u;
+            uint32_t long_steps =
+                (ctx.document.raster_width > (start_x + 270u)) ? 270u : 0u;
+            uint32_t step = 0u;
+            memset(&long_stroke_state, 0, sizeof(long_stroke_state));
+            if (long_steps == 0u) {
+                fprintf(stderr,
+                        "lifecycle_test: expected canvas width to support long-stroke chunking regression\n");
+                return 1;
+            }
+            ctx.editor.active_tool = DRAWING_PROGRAM_TOOL_BRUSH;
+            ctx.ui.tool_brush_size = 1u;
+            ctx.ui.tool_brush_spacing = 1u;
+            ctx.ui.tool_brush_hardness = 100u;
+            ctx.editor.symmetry_horizontal = 0u;
+            ctx.editor.symmetry_vertical = 0u;
+            drawing_program_visual_begin_canvas_history_group(&ctx);
+            for (step = 0u; step <= long_steps; ++step) {
+                if (!expect_ok(drawing_program_visual_apply_canvas_draw_at_screen(&ctx,
+                                                                                  (SDL_Rect){ 0, 0, 512, 512 },
+                                                                                  (int)(start_x + step),
+                                                                                  (int)start_y,
+                                                                                  &long_stroke_state,
+                                                                                  runtime_ui_draw_hooks()),
+                               "s3_long_stroke_chunk_apply")) {
+                    return 1;
+                }
+            }
+            if (!expect_ok(drawing_program_visual_flush_direct_stroke_history(
+                               &ctx, &long_stroke_state, long_stroke_state.direct_stroke_history_layer_id),
+                           "s3_long_stroke_chunk_flush")) {
+                return 1;
+            }
+            drawing_program_visual_end_canvas_history_group(&ctx);
+            drawing_program_history_query_units(&ctx.history, &history_units, &history_total_units);
+            if (history_units != 2u || history_total_units != 2u) {
+                fprintf(stderr,
+                        "lifecycle_test: expected long stroke chunking to create 2 undo units got cursor=%u total=%u\n",
+                        (unsigned)history_units,
+                        (unsigned)history_total_units);
+                return 1;
+            }
+        }
+        drawing_program_history_clear(&ctx.history);
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS),
+                       "s3_reflection_clear_canvas_rect")) {
+            return 1;
+        }
+        ctx.editor.active_tool = DRAWING_PROGRAM_TOOL_SELECT;
+        ctx.ui.tool_shape_target_mode = (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_PIXEL;
+        ctx.ui.tool_shape_mode = 2u;
+        ctx.ui.tool_shape_stroke_width = 1u;
+        ctx.editor.symmetry_horizontal = 1u;
+        ctx.editor.symmetry_vertical = 1u;
+        if (!drawing_program_canvas_reflection_set_active_center(&ctx, 20u, 20u)) {
+            fprintf(stderr, "lifecycle_test: expected reflection center set to succeed for rect mirror test\n");
+            return 1;
+        }
+        drawing_program_canvas_reflection_sync_active_surface_from_editor(&ctx);
+        if (!expect_ok(drawing_program_app_shape_commit_samples(&ctx,
+                                                                DRAWING_PROGRAM_TOOL_RECT,
+                                                                12u,
+                                                                12u,
+                                                                14u,
+                                                                14u),
+                       "s3_reflection_rect_commit")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&ctx.document, 13u, 13u, &sample),
+                       "s3_reflection_rect_source_fill")) {
+            return 1;
+        }
+        if (sample != expected_draw_value) {
+            fprintf(stderr,
+                    "lifecycle_test: expected reflection rect source=%u got=%u\n",
+                    (unsigned)expected_draw_value,
+                    (unsigned)sample);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&ctx.document, 27u, 13u, &sample),
+                       "s3_reflection_rect_vertical_fill")) {
+            return 1;
+        }
+        if (sample != expected_draw_value) {
+            fprintf(stderr,
+                    "lifecycle_test: expected reflection rect vertical=%u got=%u\n",
+                    (unsigned)expected_draw_value,
+                    (unsigned)sample);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&ctx.document, 13u, 27u, &sample),
+                       "s3_reflection_rect_horizontal_fill")) {
+            return 1;
+        }
+        if (sample != expected_draw_value) {
+            fprintf(stderr,
+                    "lifecycle_test: expected reflection rect horizontal=%u got=%u\n",
+                    (unsigned)expected_draw_value,
+                    (unsigned)sample);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&ctx.document, 27u, 27u, &sample),
+                       "s3_reflection_rect_quad_fill")) {
+            return 1;
+        }
+        if (sample != expected_draw_value) {
+            fprintf(stderr,
+                    "lifecycle_test: expected reflection rect quad=%u got=%u\n",
+                    (unsigned)expected_draw_value,
+                    (unsigned)sample);
+            return 1;
+        }
         drawing_program_object_store_reset(&ctx.object_store);
         drawing_program_object_selection_reset(&ctx.object_selection);
         ctx.ui.tool_shape_target_mode = (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_OBJECT;
         ctx.ui.tool_shape_mode = 2u;
         ctx.ui.tool_shape_stroke_width = 2u;
+        ctx.editor.symmetry_horizontal = 0u;
+        ctx.editor.symmetry_vertical = 1u;
+        if (!drawing_program_canvas_reflection_set_active_center(&ctx, 20u, 20u)) {
+            fprintf(stderr, "lifecycle_test: expected reflection center set to succeed for object mirror test\n");
+            return 1;
+        }
+        drawing_program_canvas_reflection_sync_active_surface_from_editor(&ctx);
         if (!expect_ok(drawing_program_app_shape_commit_samples(&ctx,
                                                                 DRAWING_PROGRAM_TOOL_RECT,
                                                                 14u,
@@ -288,32 +759,33 @@ int drawing_program_lifecycle_run_runtime_ui_suite(DrawingProgramAppContext *ctx
                        "s3_shape_target_rect_object_commit")) {
             return 1;
         }
-        if (ctx.object_store.object_count != 1u ||
-            ctx.object_selection.count != 1u ||
+        if (ctx.object_store.object_count != 2u ||
+            ctx.object_selection.count != 2u ||
             ctx.object_selection.active_object_id == 0u) {
             fprintf(stderr,
-                    "lifecycle_test: expected rect object target to create one selected object count=%u sel=%u active=%u\n",
+                    "lifecycle_test: expected reflected rect object target to create two selected objects count=%u sel=%u active=%u\n",
                     (unsigned)ctx.object_store.object_count,
                     (unsigned)ctx.object_selection.count,
                     (unsigned)ctx.object_selection.active_object_id);
             return 1;
         }
         {
-            const DrawingProgramObjectRecord *object =
-                drawing_program_object_store_get_by_id(&ctx.object_store, ctx.object_selection.active_object_id);
-            if (!object ||
-                object->type != (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_RECT ||
-                object->origin_x != 14 ||
-                object->origin_y != 14 ||
-                object->width != 9u ||
-                object->height != 5u) {
+            uint32_t rect_hits = 0u;
+            uint32_t object_index = 0u;
+            for (object_index = 0u; object_index < ctx.object_store.object_count; ++object_index) {
+                const DrawingProgramObjectRecord *object = &ctx.object_store.objects[object_index];
+                if (object->type == (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_RECT &&
+                    object->width == 9u &&
+                    object->height == 5u &&
+                    ((object->origin_x == 14 && object->origin_y == 14) ||
+                     (object->origin_x == 18 && object->origin_y == 14))) {
+                    rect_hits += 1u;
+                }
+            }
+            if (rect_hits != 2u) {
                 fprintf(stderr,
-                        "lifecycle_test: expected rect object target geometry origin=%d,%d size=%ux%u type=%u\n",
-                        object ? object->origin_x : -1,
-                        object ? object->origin_y : -1,
-                        object ? (unsigned)object->width : 0u,
-                        object ? (unsigned)object->height : 0u,
-                        object ? (unsigned)object->type : 0u);
+                        "lifecycle_test: expected reflected rect objects at 14,14 and 18,14 hits=%u\n",
+                        (unsigned)rect_hits);
                 return 1;
             }
         }
@@ -330,6 +802,9 @@ int drawing_program_lifecycle_run_runtime_ui_suite(DrawingProgramAppContext *ctx
         }
         drawing_program_object_store_reset(&ctx.object_store);
         drawing_program_object_selection_reset(&ctx.object_selection);
+        ctx.editor.symmetry_horizontal = 0u;
+        ctx.editor.symmetry_vertical = 0u;
+        drawing_program_canvas_reflection_sync_active_surface_from_editor(&ctx);
         if (!expect_ok(drawing_program_app_shape_commit_samples(&ctx,
                                                                 DRAWING_PROGRAM_TOOL_CIRCLE,
                                                                 32u,
@@ -376,6 +851,10 @@ int drawing_program_lifecycle_run_runtime_ui_suite(DrawingProgramAppContext *ctx
             return 1;
         }
         ctx.ui.tool_shape_target_mode = (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_PIXEL;
+    }
+
+    if (!expect_ok(drawing_program_app_shutdown(&ctx), "shutdown")) {
+        return 1;
     }
 
 #undef ctx

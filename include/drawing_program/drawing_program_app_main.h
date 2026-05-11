@@ -15,6 +15,7 @@
 #include "drawing_program/drawing_program_render_domain.h"
 #include "drawing_program/drawing_program_selection.h"
 #include "drawing_program/drawing_program_snapshot.h"
+#include "drawing_program/drawing_program_texture_project.h"
 #include "drawing_program/drawing_program_viewport.h"
 
 #ifdef __cplusplus
@@ -42,6 +43,17 @@ typedef enum DrawingProgramAuthoringOverlayMode {
     DRAWING_PROGRAM_AUTHORING_OVERLAY_FONT_THEME = 1u
 } DrawingProgramAuthoringOverlayMode;
 
+typedef enum DrawingProgramUiCanvasControlMode {
+    DRAWING_PROGRAM_UI_CANVAS_CONTROL_MODE_PAINT = 0u,
+    DRAWING_PROGRAM_UI_CANVAS_CONTROL_MODE_LAYOUT = 1u
+} DrawingProgramUiCanvasControlMode;
+
+typedef enum DrawingProgramUiCanvasGuideMode {
+    DRAWING_PROGRAM_UI_CANVAS_GUIDE_MODE_OFF = 0u,
+    DRAWING_PROGRAM_UI_CANVAS_GUIDE_MODE_CORNERS = 1u,
+    DRAWING_PROGRAM_UI_CANVAS_GUIDE_MODE_CORNERS_AND_EDGES = 2u
+} DrawingProgramUiCanvasGuideMode;
+
 typedef struct DrawingProgramAppRuntimeState {
     uint64_t frame_counter;
     uint8_t state_seeded;
@@ -64,8 +76,28 @@ typedef struct DrawingProgramAppRuntimeState {
     uint64_t render_module_calls_total;
     uint64_t render_module_canvas_calls_total;
     uint64_t render_module_palette_calls_total;
+    uint64_t render_surface_cache_hit_total;
+    uint64_t render_surface_cache_miss_total;
+    uint64_t render_surface_cache_active_hit_total;
+    uint64_t render_surface_cache_active_miss_total;
+    uint64_t render_surface_cache_inactive_hit_total;
+    uint64_t render_surface_cache_inactive_miss_total;
+    uint64_t render_surface_cache_rebuild_total;
+    uint64_t render_surface_cache_copy_total;
+    uint64_t render_surface_cache_unavailable_total;
+    uint64_t render_surface_cache_deferred_total;
+    uint64_t render_surface_cache_queue_step_total;
+    uint64_t render_surface_cache_compose_us_total;
+    uint64_t render_surface_cache_upload_us_total;
+    uint64_t render_surface_cache_rebuild_us_total;
+    uint64_t render_surface_cache_entry_peak;
+    uint32_t render_surface_cache_pending_last;
+    uint64_t render_zoom_bucket_switch_total;
+    uint64_t render_active_surface_content_revision;
+    uint64_t render_layer_opacity_revision;
     uint32_t render_canvas_last_raster_hash;
     uint32_t render_canvas_last_nonzero_samples;
+    uint32_t render_zoom_bucket_percent;
     uint64_t tool_switch_total;
     uint32_t render_last_active_layer_id;
     uint8_t render_last_has_active_layer;
@@ -94,6 +126,14 @@ typedef struct DrawingProgramAppUiState {
     uint8_t tool_shape_target_mode;
     uint8_t tool_fill_tolerance;
     uint8_t tool_select_mode;
+    uint8_t canvas_control_mode;
+    uint8_t canvas_guide_mode;
+    uint8_t canvas_reflection_center_valid;
+    uint8_t reserved0;
+    uint8_t reserved1;
+    uint8_t reserved2;
+    uint32_t canvas_reflection_center_x;
+    uint32_t canvas_reflection_center_y;
     uint8_t layer_opacity_entry_count;
     uint8_t recent_color_count;
     uint8_t selected_recent_color_index;
@@ -141,6 +181,8 @@ typedef struct DrawingProgramAppSessionState {
     uint8_t export_json_requested;
     uint8_t bridge_workspace_check_requested;
     uint8_t bridge_workspace_import_requested;
+    uint8_t texture_scene_import_requested;
+    uint8_t texture_export_requested;
     uint8_t preset_path_cli_override;
     uint8_t persist_enabled;
     uint8_t runtime_root_cli_override;
@@ -153,6 +195,7 @@ typedef struct DrawingProgramAppSessionState {
     char runtime_root_path[512];
     char input_root_path[512];
     char output_root_path[512];
+    char scene_authored_root_path[512];
     char preset_path_buffer[512];
     char project_path_buffer[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
     char recent_project_paths[DRAWING_PROGRAM_RECENT_PROJECT_CAPACITY][DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
@@ -164,7 +207,7 @@ typedef struct DrawingProgramAppSessionState {
     uint8_t ui_prefs_loaded;
     uint8_t reserved0;
     uint8_t reserved1;
-    uint8_t reserved2;
+    uint32_t texture_scene_import_quality_preset;
     uint32_t ui_theme_preset_id;
     uint32_t ui_font_preset_id;
     int8_t ui_font_zoom_step;
@@ -172,12 +215,18 @@ typedef struct DrawingProgramAppSessionState {
     const char *project_path;
     const char *export_json_path;
     const char *bridge_workspace_preset_path;
+    char selected_scene_path[512];
+    char selected_scene_object_id[DRAWING_PROGRAM_TEXTURE_PROJECT_ID_CAPACITY];
+    char texture_scene_import_path[512];
+    char texture_scene_import_object_id[DRAWING_PROGRAM_TEXTURE_PROJECT_ID_CAPACITY];
+    char texture_export_dir_path[512];
 } DrawingProgramAppSessionState;
 
 typedef struct DrawingProgramAppContext {
     DrawingProgramAppSessionState session;
     DrawingProgramAppRuntimeState runtime;
     DrawingProgramDocument document;
+    DrawingProgramTextureProject texture_project;
     DrawingProgramEditorState editor;
     DrawingProgramHistory history;
     DrawingProgramLayerRasterStore layer_rasters;

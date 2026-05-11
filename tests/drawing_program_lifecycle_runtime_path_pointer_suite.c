@@ -364,6 +364,9 @@ int drawing_program_lifecycle_run_runtime_path_pointer_suite(DrawingProgramAppCo
         uint8_t fill_after_b = 0u;
         uint8_t fill_after_c = 0u;
         uint8_t fill_after_outside = 0u;
+        uint8_t fill_after_undo_a = 0u;
+        uint8_t fill_after_undo_b = 0u;
+        uint8_t fill_after_undo_c = 0u;
         uint8_t replacement = 0u;
         uint8_t base_a = 16u;
         uint8_t base_b = 20u;
@@ -487,10 +490,130 @@ int drawing_program_lifecycle_run_runtime_path_pointer_suite(DrawingProgramAppCo
             return 1;
         }
         drawing_program_history_query_units(&workflow_ctx.history, &history_units, 0);
-        if (history_units != 3u) {
+        if (history_units != 1u) {
             fprintf(stderr,
-                    "lifecycle_test: expected mixed-value tolerance fill to split into 3 history units got=%u\n",
+                    "lifecycle_test: expected mixed-value tolerance fill to record as 1 history unit got=%u\n",
                     (unsigned)history_units);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_history_undo(&workflow_ctx.history,
+                                                    &workflow_ctx.document,
+                                                    &workflow_ctx.layer_rasters,
+                                                    &workflow_ctx.object_store),
+                       "fill_tolerance_undo")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&workflow_ctx.document, 10u, 10u, &fill_after_undo_a),
+                       "fill_tolerance_after_undo_a")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&workflow_ctx.document, 11u, 10u, &fill_after_undo_b),
+                       "fill_tolerance_after_undo_b")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&workflow_ctx.document, 12u, 10u, &fill_after_undo_c),
+                       "fill_tolerance_after_undo_c")) {
+            return 1;
+        }
+        if (fill_after_undo_a != base_a || fill_after_undo_b != base_b || fill_after_undo_c != base_a) {
+            fprintf(stderr,
+                    "lifecycle_test: expected fill undo to restore %u,%u,%u got %u,%u,%u\n",
+                    (unsigned)base_a,
+                    (unsigned)base_b,
+                    (unsigned)base_a,
+                    (unsigned)fill_after_undo_a,
+                    (unsigned)fill_after_undo_b,
+                    (unsigned)fill_after_undo_c);
+            return 1;
+        }
+    }
+    {
+        uint8_t fill_center_after = 0u;
+        uint8_t fill_center_undo = 0u;
+        uint8_t replacement = 0u;
+        uint32_t history_units_before_undo = 0u;
+        uint32_t history_units = 0u;
+        uint32_t undo_count = 0u;
+        drawing_program_object_store_reset(&workflow_ctx.object_store);
+        drawing_program_object_selection_reset(&workflow_ctx.object_selection);
+        drawing_program_selection_reset(&workflow_ctx.selection);
+        drawing_program_history_clear(&workflow_ctx.history);
+        memset(&interaction, 0, sizeof(interaction));
+        workflow_ctx.editor.active_tool = DRAWING_PROGRAM_TOOL_FILL;
+        workflow_ctx.editor.active_layer_id = workflow_ctx.document.layers[0].layer_id;
+        workflow_ctx.document.layers[0].visible = 1u;
+        workflow_ctx.document.layers[0].locked = 0u;
+        workflow_ctx.ui.tool_fill_tolerance = 0u;
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &workflow_ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS),
+                       "fill_large_clear_canvas")) {
+            return 1;
+        }
+        replacement = drawing_program_visual_sample_value_for_tool(&workflow_ctx, workflow_ctx.editor.active_tool);
+        if (!expect_ok(drawing_program_visual_apply_canvas_fill_at_screen(&workflow_ctx,
+                                                                          (SDL_Rect){ 0, 0, 128, 128 },
+                                                                          0,
+                                                                          0,
+                                                                          &fill_hooks),
+                       "fill_large_apply")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&workflow_ctx.document,
+                                                            workflow_ctx.document.raster_width / 2u,
+                                                            workflow_ctx.document.raster_height / 2u,
+                                                            &fill_center_after),
+                       "fill_large_center_after")) {
+            return 1;
+        }
+        if (fill_center_after != replacement) {
+            fprintf(stderr,
+                    "lifecycle_test: expected large fill to replace center with %u got=%u\n",
+                    (unsigned)replacement,
+                    (unsigned)fill_center_after);
+            return 1;
+        }
+        drawing_program_history_query_units(&workflow_ctx.history, &history_units, 0);
+        if (history_units != 1u) {
+            fprintf(stderr,
+                    "lifecycle_test: expected fill to remain one undo unit regardless of size got=%u\n",
+                    (unsigned)history_units);
+            return 1;
+        }
+        history_units_before_undo = history_units;
+        if (workflow_ctx.document.raster_sample_count > DRAWING_PROGRAM_HISTORY_DELTA_BLOCK_FLUSH_CAPACITY &&
+            workflow_ctx.history.count <= 3u) {
+            fprintf(stderr,
+                    "lifecycle_test: expected large fill to span multiple delta-block commands count=%u samples=%u\n",
+                    (unsigned)workflow_ctx.history.count,
+                    (unsigned)workflow_ctx.document.raster_sample_count);
+            return 1;
+        }
+        while (drawing_program_history_undo(&workflow_ctx.history,
+                                            &workflow_ctx.document,
+                                            &workflow_ctx.layer_rasters,
+                                            &workflow_ctx.object_store)
+                   .code == CORE_OK) {
+            undo_count += 1u;
+        }
+        if (undo_count != history_units_before_undo) {
+            fprintf(stderr,
+                    "lifecycle_test: expected large fill undo count=%u to match history units=%u\n",
+                    (unsigned)undo_count,
+                    (unsigned)history_units_before_undo);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&workflow_ctx.document,
+                                                            workflow_ctx.document.raster_width / 2u,
+                                                            workflow_ctx.document.raster_height / 2u,
+                                                            &fill_center_undo),
+                       "fill_large_center_undo")) {
+            return 1;
+        }
+        if (fill_center_undo !=
+            drawing_program_color_legacy_sample_from_sample(drawing_program_color_eraser_value())) {
+            fprintf(stderr,
+                    "lifecycle_test: expected large fill undo to restore clear canvas center got=%u\n",
+                    (unsigned)fill_center_undo);
             return 1;
         }
     }

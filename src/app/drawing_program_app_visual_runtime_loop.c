@@ -23,6 +23,7 @@
 #include "drawing_program/drawing_program_visual_pane_bindings.h"
 #include "drawing_program/drawing_program_visual_resources.h"
 #include "drawing_program/drawing_program_visual_runtime_debug.h"
+#include "drawing_program/drawing_program_visual_surface_cache.h"
 #include "drawing_program/drawing_program_visual_text_render.h"
 #include "drawing_program/drawing_program_visual_theme.h"
 #include "drawing_program/drawing_program_visual_tool_options.h"
@@ -76,7 +77,8 @@ static void drawing_program_visual_loop_update_wait_policy(
     const VisualCanvasInteractionState *interaction,
     uint32_t event_count,
     int recent_input_active,
-    int resize_pending) {
+    int resize_pending,
+    int background_busy) {
     int high_intensity_mode = drawing_program_visual_loop_has_continuous_interaction(interaction);
     if (!policy_input) {
         return;
@@ -84,7 +86,7 @@ static void drawing_program_visual_loop_update_wait_policy(
     policy_input->high_intensity_mode = high_intensity_mode ? 1u : 0u;
     policy_input->interaction_active =
         (high_intensity_mode || event_count > 0u || recent_input_active) ? 1u : 0u;
-    policy_input->background_busy = 0u;
+    policy_input->background_busy = background_busy ? 1u : 0u;
     policy_input->resize_pending = resize_pending ? 1u : 0u;
 }
 
@@ -515,95 +517,153 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
         }
     }
 
-    while (!quit) {
-        SDL_Event event;
-        DrawingProgramVisualLoopEventContext event_ctx;
-        int current_w = 0;
-        int current_h = 0;
-        int wait_timeout_ms = 0;
-        int resize_pending = 0;
-        int have_wait_event = 0;
-        int frame_dirty = 0;
-        int force_render = 0;
-        int recent_input_active = 0;
-        int should_run_runtime_tick = 0;
-        int high_intensity_mode = 0;
-        int should_render = 0;
-        int require_window_sync = 0;
-        uint32_t frame_event_count = 0u;
-        uint32_t frame_runtime_tick_event_count = 0u;
-        uint32_t wait_blocked_ms = 0u;
-        uint32_t wait_call_count = 0u;
-        uint32_t frame_now_ms = 0u;
-        Uint64 frame_begin_counter = SDL_GetPerformanceCounter();
-        double frame_elapsed_sec = 0.0;
-        DrawingProgramVisualLoopRenderPolicyInput render_policy_input = {0};
-        event_ctx.window = window;
-        event_ctx.renderer = renderer;
-        event_ctx.app = &app_ctx;
-        event_ctx.canvas_interaction = &canvas_interaction;
-        event_ctx.selection = &selection_state;
-        event_ctx.panel_ui = &panel_ui;
-        event_ctx.input_handlers = input_handlers;
-        event_ctx.selected_theme = &selected_theme;
-        event_ctx.theme_preset = &theme_preset;
-        event_ctx.quit = &quit;
-        event_ctx.resize_pending = &resize_pending;
+    {
+        int background_present_dirty = 0;
+        while (!quit) {
+            SDL_Event event;
+            DrawingProgramVisualLoopEventContext event_ctx;
+            int current_w = 0;
+            int current_h = 0;
+            int wait_timeout_ms = 0;
+            int resize_pending = 0;
+            int have_wait_event = 0;
+            int frame_dirty = 0;
+            int force_render = 0;
+            int recent_input_active = 0;
+            int should_run_runtime_tick = 0;
+            int high_intensity_mode = 0;
+            int background_busy = 0;
+            int should_render = 0;
+            int require_window_sync = 0;
+            uint32_t frame_event_count = 0u;
+            uint32_t frame_runtime_tick_event_count = 0u;
+            uint32_t wait_blocked_ms = 0u;
+            uint32_t wait_call_count = 0u;
+            uint32_t frame_now_ms = 0u;
+            Uint64 frame_begin_counter = SDL_GetPerformanceCounter();
+            double frame_elapsed_sec = 0.0;
+            DrawingProgramVisualLoopRenderPolicyInput render_policy_input = {0};
+            event_ctx.window = window;
+            event_ctx.renderer = renderer;
+            event_ctx.app = &app_ctx;
+            event_ctx.canvas_interaction = &canvas_interaction;
+            event_ctx.selection = &selection_state;
+            event_ctx.panel_ui = &panel_ui;
+            event_ctx.input_handlers = input_handlers;
+            event_ctx.selected_theme = &selected_theme;
+            event_ctx.theme_preset = &theme_preset;
+            event_ctx.quit = &quit;
+            event_ctx.resize_pending = &resize_pending;
 
-        wait_timeout_ms = drawing_program_visual_loop_compute_wait_timeout_ms(&wait_policy_input);
-        if (wait_timeout_ms > 0) {
-            uint32_t wait_start = SDL_GetTicks();
-            have_wait_event = SDL_WaitEventTimeout(&event, wait_timeout_ms) == 1;
-            wait_blocked_ms += (SDL_GetTicks() - wait_start);
-            wait_call_count += 1u;
-        }
-        if (have_wait_event) {
-            drawing_program_visual_loop_handle_event(&event_ctx, &event);
-            frame_event_count += 1u;
-            if (drawing_program_visual_loop_event_requires_runtime_tick(&event)) {
-                frame_runtime_tick_event_count += 1u;
+            wait_timeout_ms = drawing_program_visual_loop_compute_wait_timeout_ms(&wait_policy_input);
+            if (wait_timeout_ms > 0) {
+                uint32_t wait_start = SDL_GetTicks();
+                have_wait_event = SDL_WaitEventTimeout(&event, wait_timeout_ms) == 1;
+                wait_blocked_ms += (SDL_GetTicks() - wait_start);
+                wait_call_count += 1u;
             }
-        }
-        while (SDL_PollEvent(&event)) {
-            drawing_program_visual_loop_handle_event(&event_ctx, &event);
-            frame_event_count += 1u;
-            if (drawing_program_visual_loop_event_requires_runtime_tick(&event)) {
-                frame_runtime_tick_event_count += 1u;
+            if (have_wait_event) {
+                drawing_program_visual_loop_handle_event(&event_ctx, &event);
+                frame_event_count += 1u;
+                if (drawing_program_visual_loop_event_requires_runtime_tick(&event)) {
+                    frame_runtime_tick_event_count += 1u;
+                }
             }
-        }
-        if (frame_event_count > 0u) {
-            last_input_event_ms = (uint32_t)SDL_GetTicks();
-        }
-        if (quit) {
-            break;
-        }
-        high_intensity_mode = drawing_program_visual_loop_has_continuous_interaction(&canvas_interaction);
-        require_window_sync = resize_pending || high_intensity_mode || present_count == 0u;
-        if (require_window_sync &&
-            SDL_GetRendererOutputSize(renderer, &current_w, &current_h) == 0 &&
-            current_w > 0 && current_h > 0) {
-            result = drawing_program_app_set_pane_host_bounds(&app_ctx, (float)current_w, (float)current_h);
-            if (result.code != CORE_OK) {
-                fprintf(stderr, "drawing_program: set pane host bounds failed: %s\n", result.message);
+            while (SDL_PollEvent(&event)) {
+                drawing_program_visual_loop_handle_event(&event_ctx, &event);
+                frame_event_count += 1u;
+                if (drawing_program_visual_loop_event_requires_runtime_tick(&event)) {
+                    frame_runtime_tick_event_count += 1u;
+                }
+            }
+            if (frame_event_count > 0u) {
+                last_input_event_ms = (uint32_t)SDL_GetTicks();
+            }
+            if (quit) {
                 break;
             }
-        }
-        frame_now_ms = (uint32_t)SDL_GetTicks();
-        if (last_input_event_ms != 0u &&
-            (uint32_t)(frame_now_ms - last_input_event_ms) <= DRAWING_PROGRAM_LOOP_INPUT_RESPONSE_BOOST_MS) {
-            recent_input_active = 1;
-        }
-        frame_dirty =
-            (resize_pending || high_intensity_mode || frame_event_count > 0u || recent_input_active) ? 1 : 0;
-        force_render = (present_count == 0u) ? 1 : 0;
-        should_run_runtime_tick =
-            (force_render || resize_pending || high_intensity_mode || frame_runtime_tick_event_count > 0u) ? 1 : 0;
-        render_policy_input.frame_dirty = (uint8_t)frame_dirty;
-        render_policy_input.force_render = (uint8_t)force_render;
-        render_policy_input.now_ms = frame_now_ms;
-        render_policy_input.last_present_ms = last_present_ms;
-        should_render = drawing_program_visual_loop_should_render_frame(&render_policy_input);
-        if (!should_render) {
+            high_intensity_mode = drawing_program_visual_loop_has_continuous_interaction(&canvas_interaction);
+            require_window_sync = resize_pending || high_intensity_mode || present_count == 0u;
+            if (require_window_sync &&
+                SDL_GetRendererOutputSize(renderer, &current_w, &current_h) == 0 &&
+                current_w > 0 && current_h > 0) {
+                result = drawing_program_app_set_pane_host_bounds(&app_ctx, (float)current_w, (float)current_h);
+                if (result.code != CORE_OK) {
+                    fprintf(stderr, "drawing_program: set pane host bounds failed: %s\n", result.message);
+                    break;
+                }
+            }
+            frame_now_ms = (uint32_t)SDL_GetTicks();
+            if (last_input_event_ms != 0u &&
+                (uint32_t)(frame_now_ms - last_input_event_ms) <= DRAWING_PROGRAM_LOOP_INPUT_RESPONSE_BOOST_MS) {
+                recent_input_active = 1;
+            }
+            app_ctx.runtime.render_surface_cache_pending_last = drawing_program_visual_surface_cache_pending_count();
+            background_busy = app_ctx.runtime.render_surface_cache_pending_last > 0u ? 1 : 0;
+            frame_dirty = (resize_pending || high_intensity_mode || frame_event_count > 0u || recent_input_active ||
+                           background_present_dirty)
+                              ? 1
+                              : 0;
+            force_render = (present_count == 0u) ? 1 : 0;
+            should_run_runtime_tick =
+                (force_render || resize_pending || high_intensity_mode || frame_runtime_tick_event_count > 0u) ? 1 : 0;
+            render_policy_input.background_busy = background_busy ? 1u : 0u;
+            render_policy_input.frame_dirty = (uint8_t)frame_dirty;
+            render_policy_input.force_render = (uint8_t)force_render;
+            render_policy_input.now_ms = frame_now_ms;
+            render_policy_input.last_present_ms = last_present_ms;
+            should_render = drawing_program_visual_loop_should_render_frame(&render_policy_input);
+            if (!should_render) {
+                frame_elapsed_sec = drawing_program_visual_loop_elapsed_sec(frame_begin_counter,
+                                                                            SDL_GetPerformanceCounter(),
+                                                                            perf_freq);
+                drawing_program_visual_loop_diag_tick(frame_elapsed_sec, wait_blocked_ms, wait_call_count);
+                drawing_program_visual_loop_update_wait_policy(&wait_policy_input,
+                                                               &canvas_interaction,
+                                                               frame_event_count,
+                                                               recent_input_active,
+                                                               resize_pending,
+                                                               background_busy);
+                continue;
+            }
+
+            if (should_run_runtime_tick) {
+                result = drawing_program_app_run_loop(&app_ctx);
+                if (result.code != CORE_OK) {
+                    fprintf(stderr, "drawing_program: run_loop failed: %s\n", result.message);
+                    break;
+                }
+            }
+            drawing_program_visual_layer_opacity_sync_document(&app_ctx);
+            drawing_program_visual_text_set_font_preset_id(app_ctx.ui.font_preset_id);
+            if (!drawing_program_visual_draw_debug_frame(window,
+                                                         renderer,
+                                                         &app_ctx,
+                                                         &theme_preset,
+                                                         &panel_ui,
+                                                         &selection_state,
+                                                         &canvas_interaction)) {
+                fprintf(stderr, "drawing_program: visual debug frame draw failed\n");
+                result = (CoreResult){CORE_ERR_IO, "visual debug frame draw failed"};
+                break;
+            }
+            SDL_RenderPresent(renderer);
+            background_present_dirty = 0;
+            {
+                DrawingProgramVisualSurfaceCacheTelemetry cache_telemetry;
+                if (drawing_program_visual_surface_cache_process_pending_step(high_intensity_mode ? 1u : 0u,
+                                                                             &cache_telemetry) > 0u) {
+                    app_ctx.runtime.render_surface_cache_rebuild_total += (uint64_t)cache_telemetry.cache_rebuilt;
+                    app_ctx.runtime.render_surface_cache_compose_us_total += (uint64_t)cache_telemetry.cache_compose_us;
+                    app_ctx.runtime.render_surface_cache_upload_us_total += (uint64_t)cache_telemetry.cache_upload_us;
+                    app_ctx.runtime.render_surface_cache_rebuild_us_total += (uint64_t)cache_telemetry.cache_rebuild_us;
+                    app_ctx.runtime.render_surface_cache_queue_step_total += 1u;
+                    background_present_dirty = 1;
+                }
+            }
+            present_count += 1u;
+            last_present_ms = (uint32_t)SDL_GetTicks();
+            drawing_program_visual_update_window_title(window, &app_ctx, &selection_state, present_count);
             frame_elapsed_sec = drawing_program_visual_loop_elapsed_sec(frame_begin_counter,
                                                                         SDL_GetPerformanceCounter(),
                                                                         perf_freq);
@@ -612,43 +672,9 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
                                                            &canvas_interaction,
                                                            frame_event_count,
                                                            recent_input_active,
-                                                           resize_pending);
-            continue;
+                                                           resize_pending,
+                                                           background_busy || background_present_dirty);
         }
-
-        if (should_run_runtime_tick) {
-            result = drawing_program_app_run_loop(&app_ctx);
-            if (result.code != CORE_OK) {
-                fprintf(stderr, "drawing_program: run_loop failed: %s\n", result.message);
-                break;
-            }
-        }
-        drawing_program_visual_layer_opacity_sync_document(&app_ctx);
-        drawing_program_visual_text_set_font_preset_id(app_ctx.ui.font_preset_id);
-        if (!drawing_program_visual_draw_debug_frame(window,
-                                                     renderer,
-                                                     &app_ctx,
-                                                     &theme_preset,
-                                                     &panel_ui,
-                                                     &selection_state,
-                                                     &canvas_interaction)) {
-            fprintf(stderr, "drawing_program: visual debug frame draw failed\n");
-            result = (CoreResult){CORE_ERR_IO, "visual debug frame draw failed"};
-            break;
-        }
-        SDL_RenderPresent(renderer);
-        present_count += 1u;
-        last_present_ms = (uint32_t)SDL_GetTicks();
-        drawing_program_visual_update_window_title(window, &app_ctx, &selection_state, present_count);
-        frame_elapsed_sec = drawing_program_visual_loop_elapsed_sec(frame_begin_counter,
-                                                                    SDL_GetPerformanceCounter(),
-                                                                    perf_freq);
-        drawing_program_visual_loop_diag_tick(frame_elapsed_sec, wait_blocked_ms, wait_call_count);
-        drawing_program_visual_loop_update_wait_policy(&wait_policy_input,
-                                                       &canvas_interaction,
-                                                       frame_event_count,
-                                                       recent_input_active,
-                                                       resize_pending);
     }
 
     result = drawing_program_app_shutdown(&app_ctx);
@@ -663,6 +689,7 @@ cleanup:
     drawing_program_visual_font_cache_shutdown();
     drawing_program_visual_canvas_world_backdrop_cache_shutdown();
     drawing_program_visual_object_overlay_cache_shutdown();
+    drawing_program_visual_surface_cache_shutdown();
     drawing_program_visual_canvas_texture_shutdown();
     if (layer_rasters_initialized && app_ptr) {
         drawing_program_layer_raster_store_dispose(&app_ctx.layer_rasters);

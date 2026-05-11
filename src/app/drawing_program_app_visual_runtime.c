@@ -417,7 +417,11 @@ static const DrawingProgramVisualCanvasDrawActionOpsHooks *visual_canvas_draw_ac
         .tool_brush_spacing_samples = drawing_program_visual_tool_brush_spacing_samples,
         .tool_brush_hardness_percent = drawing_program_visual_tool_brush_hardness_percent,
         .seeded_background_sample_for_coord = drawing_program_visual_seeded_background_sample_for_coord,
-        .apply_canvas_stamp_square_on_layer = drawing_program_visual_apply_canvas_stamp_square_on_layer
+        .begin_canvas_history_group = drawing_program_visual_begin_canvas_history_group,
+        .end_canvas_history_group = drawing_program_visual_end_canvas_history_group,
+        .apply_canvas_stamp_square_on_layer = drawing_program_visual_apply_canvas_stamp_square_on_layer,
+        .apply_canvas_direct_stroke_stamp_square_on_layer =
+            drawing_program_visual_apply_canvas_direct_stroke_stamp_square_on_layer
     };
     return &hooks;
 }
@@ -528,6 +532,7 @@ static void draw_canvas_viewport_chrome(SDL_Renderer *renderer,
 static const DrawingProgramVisualCanvasWorldRenderHooks *visual_canvas_world_render_hooks(void) {
     static const DrawingProgramVisualCanvasWorldRenderHooks hooks = {
         .compute_canvas_sheet_metrics = drawing_program_visual_compute_canvas_sheet_metrics,
+        .draw_bitmap_text = drawing_program_visual_draw_bitmap_text,
         .draw_selection_overlay = draw_selection_overlay,
         .draw_object_overlay = draw_object_overlay,
         .draw_shape_preview_overlay = draw_shape_preview_overlay
@@ -719,10 +724,6 @@ static CoreResult visual_transform_session_nudge_object_move(DrawingProgramAppCo
         ctx, interaction, dx, dy, visual_transform_ops_hooks());
 }
 
-static void begin_canvas_history_group(DrawingProgramAppContext *ctx) {
-    drawing_program_visual_begin_canvas_history_group(ctx);
-}
-
 static void cancel_all_transient_interactions(DrawingProgramAppContext *ctx,
                                               VisualCanvasInteractionState *interaction,
                                               VisualSelectionState *selection,
@@ -772,7 +773,7 @@ const DrawingProgramVisualInputHandlersHooks *drawing_program_visual_input_handl
             visual_transform_session_begin_object_path_handle_move,
         .apply_canvas_picker_at_screen = apply_canvas_picker_at_screen,
         .apply_canvas_fill_at_screen = apply_canvas_fill_at_screen,
-        .begin_canvas_history_group = begin_canvas_history_group,
+        .begin_canvas_history_group = drawing_program_visual_begin_canvas_history_group,
         .delete_active_selection_payload_or_objects = delete_active_selection_payload_or_objects,
         .path_draft_commit = path_draft_commit,
         .apply_insert_object_path_point = visual_object_insert_path_point,

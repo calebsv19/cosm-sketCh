@@ -5,26 +5,37 @@
 #include <string.h>
 
 #include "drawing_program/drawing_program_icns_export.h"
+#include "drawing_program/drawing_program_canvas_reflection.h"
 #include "drawing_program/drawing_program_native_dialogs.h"
 #include "drawing_program/drawing_program_iconset_export.h"
 #include "drawing_program/drawing_program_png_export.h"
 #include "drawing_program/drawing_program_project_state.h"
 #include "drawing_program/drawing_program_snapshot.h"
+#include "drawing_program/drawing_program_texture_canvas_ops.h"
+#include "drawing_program/drawing_program_texture_scene_browser.h"
+#include "drawing_program/drawing_program_texture_export.h"
+#include "drawing_program/drawing_program_texture_project_session.h"
+#include "drawing_program/drawing_program_texture_workspace.h"
 #include "drawing_program/drawing_program_visual_input_core.h"
 #include "drawing_program/drawing_program_visual_input_panel_color.h"
+#include "drawing_program/drawing_program_visual_input_right_file_tabs.h"
 #include "drawing_program/drawing_program_ui_color_state.h"
 #include "drawing_program/drawing_program_visual_layout.h"
+#include "drawing_program/drawing_program_visual_layer_roles.h"
 #include "drawing_program/drawing_program_visual_layer_opacity.h"
 #include "drawing_program/drawing_program_visual_pane_bindings.h"
+#include "drawing_program/drawing_program_visual_right_panel_defs.h"
 #include "drawing_program/drawing_program_viewport.h"
 
 enum {
     VISUAL_LEFT_PANEL_SLOT_TOOLS_VALUE = 0,
     VISUAL_LEFT_PANEL_SLOT_OBJECTS_VALUE = 1,
-    VISUAL_RIGHT_PANEL_SLOT_CANVAS_VALUE = 0,
-    VISUAL_RIGHT_PANEL_SLOT_LAYER_VALUE = 1,
-    VISUAL_RIGHT_PANEL_SLOT_COLOR_VALUE = 2,
-    VISUAL_RIGHT_PANEL_SLOT_FILE_VALUE = 3,
+    VISUAL_RIGHT_PANEL_SLOT_CANVAS_VALUE = VISUAL_RIGHT_PANEL_SLOT_CANVAS,
+    VISUAL_RIGHT_PANEL_SLOT_LAYER_VALUE = VISUAL_RIGHT_PANEL_SLOT_LAYER,
+    VISUAL_RIGHT_PANEL_SLOT_COLOR_VALUE = VISUAL_RIGHT_PANEL_SLOT_COLOR,
+    VISUAL_RIGHT_PANEL_SLOT_FILE_VALUE = VISUAL_RIGHT_PANEL_SLOT_FILE,
+    VISUAL_RIGHT_PANEL_SLOT_ASSET_VALUE = VISUAL_RIGHT_PANEL_SLOT_ASSET,
+    VISUAL_RIGHT_PANEL_SLOT_EXPORT_VALUE = VISUAL_RIGHT_PANEL_SLOT_EXPORT,
     VISUAL_RIGHT_FILE_ACTION_NEW_PROJECT = 0,
     VISUAL_RIGHT_FILE_ACTION_OPEN_PROJECT = 1,
     VISUAL_RIGHT_FILE_ACTION_SAVE_PROJECT = 2,
@@ -35,10 +46,13 @@ enum {
     VISUAL_RIGHT_FILE_ACTION_COUNT = 7,
     VISUAL_RIGHT_FILE_ROUTE_ACTION_PICK_INPUT = 0,
     VISUAL_RIGHT_FILE_ROUTE_ACTION_PICK_OUTPUT = 1,
-    VISUAL_RIGHT_FILE_ROUTE_ACTION_EXPORT_PNG = 2,
-    VISUAL_RIGHT_FILE_ROUTE_ACTION_EXPORT_ICONSET = 3,
-    VISUAL_RIGHT_FILE_ROUTE_ACTION_EXPORT_ICNS = 4,
-    VISUAL_RIGHT_FILE_ROUTE_ACTION_COUNT = 5
+    VISUAL_RIGHT_FILE_ROUTE_ACTION_PICK_SCENE = 2,
+    VISUAL_RIGHT_FILE_ROUTE_ACTION_OPEN_OBJECT = 3,
+    VISUAL_RIGHT_FILE_ROUTE_ACTION_EXPORT_PNG = 4,
+    VISUAL_RIGHT_FILE_ROUTE_ACTION_EXPORT_TEXTURES = 5,
+    VISUAL_RIGHT_FILE_ROUTE_ACTION_EXPORT_ICONSET = 6,
+    VISUAL_RIGHT_FILE_ROUTE_ACTION_EXPORT_ICNS = 7,
+    VISUAL_RIGHT_FILE_ROUTE_ACTION_COUNT = 8
 };
 
 static int visual_object_style_fill_enabled(uint8_t style_mode) {
@@ -58,6 +72,7 @@ static uint8_t visual_object_style_set_fill_enabled(uint8_t style_mode, int enab
     return 0u;
 }
 
+#if 0
 static void visual_right_panel_set_file_status(DrawingProgramAppContext *ctx, const char *format, ...) {
     va_list args;
     if (!ctx || !format) {
@@ -70,6 +85,7 @@ static void visual_right_panel_set_file_status(DrawingProgramAppContext *ctx, co
                     args);
     va_end(args);
 }
+#endif
 
 static void visual_panel_clear_object_target_ui(VisualPanelUiState *ui) {
     if (!ui) {
@@ -79,6 +95,7 @@ static void visual_panel_clear_object_target_ui(VisualPanelUiState *ui) {
     ui->object_color_target_object_id = 0u;
 }
 
+#if 0
 static void visual_right_panel_default_project_filename(const DrawingProgramAppContext *ctx,
                                                         char *out_name,
                                                         size_t out_cap) {
@@ -99,7 +116,59 @@ static void visual_right_panel_default_project_filename(const DrawingProgramAppC
     }
     (void)snprintf(out_name, out_cap, "%s", base_name);
 }
+#endif
 
+#define VISUAL_RIGHT_CANVAS_DELETE_CONFIRM_MIN_FRAMES 8u
+#define VISUAL_RIGHT_CANVAS_DELETE_CONFIRM_MAX_FRAMES 180u
+
+static void visual_right_panel_disarm_canvas_delete(VisualPanelUiState *ui) {
+    if (!ui) {
+        return;
+    }
+    ui->right_canvas_delete_confirm_pending = 0u;
+    ui->right_canvas_delete_confirm_surface_index = 0u;
+    ui->right_canvas_delete_confirm_armed_frame = 0u;
+}
+
+static void visual_right_panel_disarm_canvas_reflection_pick(VisualPanelUiState *ui) {
+    if (!ui) {
+        return;
+    }
+    ui->right_canvas_reflection_center_pick_pending = 0u;
+}
+
+static void visual_right_panel_arm_canvas_reflection_pick(VisualPanelUiState *ui) {
+    if (!ui) {
+        return;
+    }
+    ui->right_canvas_reflection_center_pick_pending = 1u;
+}
+
+static void visual_right_panel_arm_canvas_delete(DrawingProgramAppContext *ctx, VisualPanelUiState *ui) {
+    if (!ctx || !ui) {
+        return;
+    }
+    ui->right_canvas_delete_confirm_pending = 1u;
+    ui->right_canvas_delete_confirm_surface_index = ctx->texture_project.active_surface_index;
+    ui->right_canvas_delete_confirm_armed_frame = ctx->runtime.frame_counter;
+}
+
+static int visual_right_panel_canvas_delete_is_confirmable(const DrawingProgramAppContext *ctx,
+                                                           const VisualPanelUiState *ui) {
+    uint64_t delta = 0u;
+    if (!ctx || !ui || !ui->right_canvas_delete_confirm_pending ||
+        ui->right_canvas_delete_confirm_surface_index != ctx->texture_project.active_surface_index ||
+        ctx->runtime.frame_counter < ui->right_canvas_delete_confirm_armed_frame) {
+        return 0;
+    }
+    delta = ctx->runtime.frame_counter - ui->right_canvas_delete_confirm_armed_frame;
+    return (delta >= VISUAL_RIGHT_CANVAS_DELETE_CONFIRM_MIN_FRAMES &&
+            delta <= VISUAL_RIGHT_CANVAS_DELETE_CONFIRM_MAX_FRAMES)
+               ? 1
+               : 0;
+}
+
+#if 0
 static int visual_right_panel_save_session(DrawingProgramAppContext *ctx) {
     CoreResult result;
     if (!ctx || !ctx->session.preset_path) {
@@ -309,11 +378,33 @@ static int visual_right_panel_file_queue_hit_slot(DrawingProgramAppContext *ctx,
         return 0;
     }
     m = make_pane_layout_metrics(ctx);
-    queue_rect = right_file_target_queue_rect(rect, m, 10u, VISUAL_RIGHT_FILE_ROUTE_ACTION_COUNT);
+    queue_rect = right_file_target_queue_rect(rect, m, 12u, VISUAL_RIGHT_FILE_ROUTE_ACTION_COUNT);
     if (!hooks->point_in_rect(queue_rect, x, y)) {
         return 0;
     }
-    slot_count = right_file_target_queue_slot_count(ctx);
+    if (ui->right_file_browser_mode == (uint8_t)VISUAL_RIGHT_FILE_BROWSER_MODE_PROJECTS) {
+        slot_count = right_file_target_queue_slot_count(ctx);
+    } else if (ui->right_file_browser_mode == (uint8_t)VISUAL_RIGHT_FILE_BROWSER_MODE_OBJECTS &&
+               ctx->session.selected_scene_path[0] != '\0') {
+        DrawingProgramTextureSceneObjectEntry object_entries[DRAWING_PROGRAM_TEXTURE_SCENE_BROWSER_LIST_CAPACITY];
+        uint32_t object_count = 0u;
+        (void)drawing_program_texture_scene_browser_list_supported_objects(
+            ctx->session.selected_scene_path,
+            object_entries,
+            DRAWING_PROGRAM_TEXTURE_SCENE_BROWSER_LIST_CAPACITY,
+            &object_count,
+            0,
+            0u);
+        slot_count = object_count > 0u ? object_count : 1u;
+    } else {
+        DrawingProgramTextureSceneFileEntry scene_entries[DRAWING_PROGRAM_TEXTURE_SCENE_BROWSER_LIST_CAPACITY];
+        uint32_t scene_count = 0u;
+        (void)drawing_program_texture_scene_browser_list_scene_files(ctx->session.scene_authored_root_path,
+                                                                     scene_entries,
+                                                                     DRAWING_PROGRAM_TEXTURE_SCENE_BROWSER_LIST_CAPACITY,
+                                                                     &scene_count);
+        slot_count = scene_count > 0u ? scene_count : 1u;
+    }
     scroll_y = right_file_target_queue_clamp_scroll(queue_rect,
                                                     m,
                                                     slot_count,
@@ -378,6 +469,66 @@ static int visual_right_panel_pick_output_root(DrawingProgramAppContext *ctx) {
     return 1;
 }
 
+static int visual_right_panel_pick_scene_root(DrawingProgramAppContext *ctx,
+                                              VisualPanelUiState *ui,
+                                              const DrawingProgramVisualInputHandlersHooks *hooks) {
+    char chosen_path[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    CoreResult result;
+    if (!ctx || !ui || !hooks || !hooks->sync_panel_ui_from_app) {
+        return 0;
+    }
+    result = drawing_program_native_choose_directory("Select authored scene root",
+                                                     ctx->session.scene_authored_root_path,
+                                                     chosen_path,
+                                                     sizeof(chosen_path));
+    if (result.code != CORE_OK) {
+        visual_right_panel_set_file_status(ctx, "SCENE ROOT PICKER CANCELLED");
+        return 0;
+    }
+    result = drawing_program_project_state_set_scene_authored_root(ctx, chosen_path);
+    if (result.code != CORE_OK) {
+        visual_right_panel_set_file_status(ctx, "SCENE ROOT UPDATE FAILED");
+        return 0;
+    }
+    ctx->session.selected_scene_path[0] = '\0';
+    ctx->session.selected_scene_object_id[0] = '\0';
+    ui->right_file_browser_mode = (uint8_t)VISUAL_RIGHT_FILE_BROWSER_MODE_SCENES;
+    ui->right_file_target_queue_scroll_y = 0;
+    visual_right_panel_set_file_status(ctx, "SCENE ROOT UPDATED");
+    hooks->sync_panel_ui_from_app(ctx, ui);
+    return 1;
+}
+
+static int visual_right_panel_open_selected_scene_object(DrawingProgramAppContext *ctx,
+                                                         VisualPanelUiState *ui,
+                                                         const DrawingProgramVisualInputHandlersHooks *hooks) {
+    CoreResult result;
+    if (!ctx || !ui || !hooks || !hooks->sync_panel_ui_from_app ||
+        ctx->session.selected_scene_path[0] == '\0' ||
+        ctx->session.selected_scene_object_id[0] == '\0') {
+        return 0;
+    }
+    result = drawing_program_texture_project_session_import_scene_object(
+        ctx,
+        ctx->session.selected_scene_path,
+        ctx->session.selected_scene_object_id,
+        ctx->session.texture_scene_import_quality_preset);
+    if (result.code != CORE_OK) {
+        visual_right_panel_set_file_status(ctx, "OBJECT PACK OPEN FAILED");
+        return 0;
+    }
+    ctx->ui.right_panel_slot = (uint8_t)VISUAL_RIGHT_PANEL_SLOT_CANVAS_VALUE;
+    visual_right_panel_set_file_status(ctx, "OBJECT PACK OPENED");
+    {
+        SDL_Rect canvas_rect = { 0, 0, 0, 0 };
+        if (drawing_program_visual_pane_rect_for_module_type(ctx, 1u, &canvas_rect)) {
+            (void)drawing_program_texture_workspace_fit_all(ctx, canvas_rect);
+        }
+    }
+    hooks->sync_panel_ui_from_app(ctx, ui);
+    return 1;
+}
+
 static int visual_right_panel_export_png(DrawingProgramAppContext *ctx) {
     char export_path[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
     CoreResult result;
@@ -418,6 +569,26 @@ static int visual_right_panel_export_iconset(DrawingProgramAppContext *ctx) {
     return 1;
 }
 
+static int visual_right_panel_export_textures(DrawingProgramAppContext *ctx) {
+    char export_dir[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    CoreResult result;
+    if (!ctx) {
+        return 0;
+    }
+    result = drawing_program_texture_export_default_directory(ctx, export_dir, sizeof(export_dir));
+    if (result.code != CORE_OK) {
+        visual_right_panel_set_file_status(ctx, "TEXTURE PATH FAILED");
+        return 0;
+    }
+    result = drawing_program_texture_export_current_project(ctx, export_dir);
+    if (result.code != CORE_OK) {
+        visual_right_panel_set_file_status(ctx, "TEXTURE EXPORT FAILED");
+        return 0;
+    }
+    visual_right_panel_set_file_status(ctx, "TEXTURE SET EXPORTED");
+    return 1;
+}
+
 static int visual_right_panel_export_icns(DrawingProgramAppContext *ctx) {
     char icns_path[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
     CoreResult result;
@@ -437,6 +608,7 @@ static int visual_right_panel_export_icns(DrawingProgramAppContext *ctx) {
     visual_right_panel_set_file_status(ctx, "ICNS EXPORTED");
     return 1;
 }
+#endif
 
 void drawing_program_visual_input_handle_left_panel_click_payload(
     DrawingProgramAppContext *ctx,
@@ -678,40 +850,56 @@ void drawing_program_visual_input_handle_right_panel_click_payload(
     SDL_Rect tab_layer;
     SDL_Rect tab_color;
     SDL_Rect tab_file;
+    SDL_Rect tab_asset;
+    SDL_Rect tab_export;
     if (!ctx || !ui || !hooks) {
         return;
     }
     m = make_pane_layout_metrics(ctx);
     drawing_program_visual_layer_opacity_sync_document(ctx);
-    tab_canvas = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_CANVAS_VALUE, 4u);
-    tab_layer = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_LAYER_VALUE, 4u);
-    tab_color = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_COLOR_VALUE, 4u);
-    tab_file = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_FILE_VALUE, 4u);
+    tab_canvas = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_CANVAS, VISUAL_RIGHT_PANEL_SLOT_COUNT);
+    tab_layer = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_LAYER, VISUAL_RIGHT_PANEL_SLOT_COUNT);
+    tab_color = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_COLOR, VISUAL_RIGHT_PANEL_SLOT_COUNT);
+    tab_file = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_FILE, VISUAL_RIGHT_PANEL_SLOT_COUNT);
+    tab_asset = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_ASSET, VISUAL_RIGHT_PANEL_SLOT_COUNT);
+    tab_export = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_EXPORT, VISUAL_RIGHT_PANEL_SLOT_COUNT);
     if (hooks->point_in_rect(tab_canvas, x, y)) {
-        ctx->ui.right_panel_slot = (uint8_t)VISUAL_RIGHT_PANEL_SLOT_CANVAS_VALUE;
+        ctx->ui.right_panel_slot = (uint8_t)VISUAL_RIGHT_PANEL_SLOT_CANVAS;
         hooks->sync_panel_ui_from_app(ctx, ui);
         return;
     }
     if (hooks->point_in_rect(tab_layer, x, y)) {
-        ctx->ui.right_panel_slot = (uint8_t)VISUAL_RIGHT_PANEL_SLOT_LAYER_VALUE;
+        ctx->ui.right_panel_slot = (uint8_t)VISUAL_RIGHT_PANEL_SLOT_LAYER;
         hooks->sync_panel_ui_from_app(ctx, ui);
         return;
     }
     if (hooks->point_in_rect(tab_color, x, y)) {
-        ctx->ui.right_panel_slot = (uint8_t)VISUAL_RIGHT_PANEL_SLOT_COLOR_VALUE;
+        ctx->ui.right_panel_slot = (uint8_t)VISUAL_RIGHT_PANEL_SLOT_COLOR;
         hooks->sync_panel_ui_from_app(ctx, ui);
         return;
     }
     if (hooks->point_in_rect(tab_file, x, y)) {
-        ctx->ui.right_panel_slot = (uint8_t)VISUAL_RIGHT_PANEL_SLOT_FILE_VALUE;
+        ctx->ui.right_panel_slot = (uint8_t)VISUAL_RIGHT_PANEL_SLOT_FILE;
+        hooks->sync_panel_ui_from_app(ctx, ui);
+        return;
+    }
+    if (hooks->point_in_rect(tab_asset, x, y)) {
+        ctx->ui.right_panel_slot = (uint8_t)VISUAL_RIGHT_PANEL_SLOT_ASSET;
+        hooks->sync_panel_ui_from_app(ctx, ui);
+        return;
+    }
+    if (hooks->point_in_rect(tab_export, x, y)) {
+        ctx->ui.right_panel_slot = (uint8_t)VISUAL_RIGHT_PANEL_SLOT_EXPORT;
         hooks->sync_panel_ui_from_app(ctx, ui);
         return;
     }
     if (hooks->clamp_right_slot(ctx->ui.right_panel_slot) == (uint8_t)VISUAL_RIGHT_PANEL_SLOT_LAYER_VALUE) {
         uint32_t display_i;
+        uint32_t role_i;
         SDL_Rect action;
         SDL_Rect opacity_row;
         SDL_Rect opacity_track;
+        SDL_Rect role_button;
         uint32_t active_layer_id = 0u;
         uint32_t active_layer_index = 0u;
         for (display_i = 0u; display_i < ctx->document.layer_count; ++display_i) {
@@ -802,32 +990,182 @@ void drawing_program_visual_input_handle_right_panel_click_payload(
             hooks->apply_workflow_control_if_valid(ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_TOGGLE_ACTIVE_LAYER_LOCK);
             return;
         }
+        for (role_i = 0u; role_i < (uint32_t)DRAWING_PROGRAM_VISUAL_LAYER_ROLE_PRESET_COUNT; ++role_i) {
+            role_button = right_layer_role_button_rect(rect, m, ctx->document.layer_count, role_i);
+            if (hooks->point_in_rect(role_button, x, y)) {
+                drawing_program_visual_apply_layer_role_preset_active(
+                    ctx, (DrawingProgramVisualLayerRolePreset)role_i);
+                return;
+            }
+        }
     } else if (hooks->clamp_right_slot(ctx->ui.right_panel_slot) == (uint8_t)VISUAL_RIGHT_PANEL_SLOT_CANVAS_VALUE) {
+        SDL_Rect add_surface_button;
+        SDL_Rect duplicate_surface_button;
+        SDL_Rect canvas_mode_button;
+        SDL_Rect canvas_guide_button;
+        SDL_Rect reflect_horizontal_button;
+        SDL_Rect reflect_vertical_button;
+        SDL_Rect center_pick_button;
+        SDL_Rect center_reset_button;
+        SDL_Rect delete_canvas_button;
+        SDL_Rect reset_layout_button;
         SDL_Rect reset_view_button;
         SDL_Rect clear_canvas_button;
         SDL_Rect clear_objects_button;
         SDL_Rect delete_selection_button;
         SDL_Rect clear_history_button;
+        uint32_t surface_index = 0u;
+        uint32_t surface_count = ctx->texture_project.surface_count;
+        add_surface_button = right_canvas_add_surface_button_rect(rect, m);
+        if (hooks->point_in_rect(add_surface_button, x, y)) {
+            visual_right_panel_disarm_canvas_delete(ui);
+            visual_right_panel_disarm_canvas_reflection_pick(ui);
+            if (drawing_program_texture_canvas_add_blank_from_active(ctx, &surface_index).code == CORE_OK) {
+                SDL_Rect canvas_rect = {0, 0, 0, 0};
+                if (drawing_program_visual_pane_rect_for_module_type(ctx, 1u, &canvas_rect)) {
+                    (void)drawing_program_texture_workspace_fit_surface(ctx, canvas_rect, surface_index);
+                }
+            }
+            return;
+        }
+        duplicate_surface_button = right_canvas_duplicate_surface_button_rect(rect, m);
+        if (hooks->point_in_rect(duplicate_surface_button, x, y)) {
+            visual_right_panel_disarm_canvas_delete(ui);
+            visual_right_panel_disarm_canvas_reflection_pick(ui);
+            if (drawing_program_texture_canvas_duplicate_active(ctx, &surface_index).code == CORE_OK) {
+                SDL_Rect canvas_rect = {0, 0, 0, 0};
+                if (drawing_program_visual_pane_rect_for_module_type(ctx, 1u, &canvas_rect)) {
+                    (void)drawing_program_texture_workspace_fit_surface(ctx, canvas_rect, surface_index);
+                }
+            }
+            return;
+        }
+        canvas_mode_button = right_canvas_mode_toggle_button_rect(rect, m);
+        if (hooks->point_in_rect(canvas_mode_button, x, y)) {
+            visual_right_panel_disarm_canvas_delete(ui);
+            visual_right_panel_disarm_canvas_reflection_pick(ui);
+            drawing_program_texture_canvas_toggle_control_mode(ctx);
+            return;
+        }
+        canvas_guide_button = right_canvas_guide_mode_button_rect(rect, m);
+        if (hooks->point_in_rect(canvas_guide_button, x, y)) {
+            visual_right_panel_disarm_canvas_delete(ui);
+            visual_right_panel_disarm_canvas_reflection_pick(ui);
+            drawing_program_texture_canvas_cycle_guide_mode(ctx);
+            return;
+        }
+        reflect_horizontal_button = right_canvas_reflect_horizontal_button_rect(rect, m);
+        if (hooks->point_in_rect(reflect_horizontal_button, x, y)) {
+            visual_right_panel_disarm_canvas_delete(ui);
+            visual_right_panel_disarm_canvas_reflection_pick(ui);
+            ctx->editor.symmetry_horizontal = ctx->editor.symmetry_horizontal ? 0u : 1u;
+            drawing_program_canvas_reflection_sync_active_surface_from_editor(ctx);
+            return;
+        }
+        reflect_vertical_button = right_canvas_reflect_vertical_button_rect(rect, m);
+        if (hooks->point_in_rect(reflect_vertical_button, x, y)) {
+            visual_right_panel_disarm_canvas_delete(ui);
+            visual_right_panel_disarm_canvas_reflection_pick(ui);
+            ctx->editor.symmetry_vertical = ctx->editor.symmetry_vertical ? 0u : 1u;
+            drawing_program_canvas_reflection_sync_active_surface_from_editor(ctx);
+            return;
+        }
+        center_pick_button = right_canvas_center_pick_button_rect(rect, m);
+        if (hooks->point_in_rect(center_pick_button, x, y)) {
+            visual_right_panel_disarm_canvas_delete(ui);
+            if (ui && ui->right_canvas_reflection_center_pick_pending) {
+                visual_right_panel_disarm_canvas_reflection_pick(ui);
+            } else {
+                visual_right_panel_arm_canvas_reflection_pick(ui);
+            }
+            return;
+        }
+        center_reset_button = right_canvas_center_reset_button_rect(rect, m);
+        if (hooks->point_in_rect(center_reset_button, x, y)) {
+            visual_right_panel_disarm_canvas_delete(ui);
+            visual_right_panel_disarm_canvas_reflection_pick(ui);
+            drawing_program_canvas_reflection_reset_active_center(ctx);
+            return;
+        }
+        delete_canvas_button = right_canvas_delete_canvas_button_rect(rect, m);
+        if (hooks->point_in_rect(delete_canvas_button, x, y)) {
+            if (ctx->texture_project.surface_count <= 1u) {
+                visual_right_panel_disarm_canvas_delete(ui);
+                return;
+            }
+            if (visual_right_panel_canvas_delete_is_confirmable(ctx, ui)) {
+                if (drawing_program_texture_canvas_delete_active(ctx, &surface_index).code == CORE_OK) {
+                    SDL_Rect canvas_rect = {0, 0, 0, 0};
+                    visual_right_panel_disarm_canvas_delete(ui);
+                    if (drawing_program_visual_pane_rect_for_module_type(ctx, 1u, &canvas_rect)) {
+                        (void)drawing_program_texture_workspace_fit_surface(ctx, canvas_rect, surface_index);
+                    }
+                }
+                return;
+            }
+            if (ui &&
+                ui->right_canvas_delete_confirm_pending &&
+                ui->right_canvas_delete_confirm_surface_index == ctx->texture_project.active_surface_index &&
+                ctx->runtime.frame_counter > ui->right_canvas_delete_confirm_armed_frame &&
+                (ctx->runtime.frame_counter - ui->right_canvas_delete_confirm_armed_frame) <
+                    VISUAL_RIGHT_CANVAS_DELETE_CONFIRM_MIN_FRAMES) {
+                return;
+            }
+            visual_right_panel_arm_canvas_delete(ctx, ui);
+            visual_right_panel_disarm_canvas_reflection_pick(ui);
+            return;
+        }
+        if (ui && ui->right_canvas_delete_confirm_pending) {
+            visual_right_panel_disarm_canvas_delete(ui);
+        }
+        for (surface_index = 0u; surface_index < surface_count; ++surface_index) {
+            SDL_Rect surface_row = right_canvas_surface_row_rect(rect, m, surface_index);
+            if (hooks->point_in_rect(surface_row, x, y)) {
+                visual_right_panel_disarm_canvas_reflection_pick(ui);
+                if (surface_index == ctx->texture_project.active_surface_index) {
+                    SDL_Rect canvas_rect = {0, 0, 0, 0};
+                    if (drawing_program_visual_pane_rect_for_module_type(ctx, 1u, &canvas_rect)) {
+                        (void)drawing_program_texture_workspace_fit_surface(ctx, canvas_rect, surface_index);
+                    }
+                } else if (drawing_program_texture_project_session_select_surface(ctx, surface_index).code == CORE_OK) {
+                    SDL_Rect canvas_rect = {0, 0, 0, 0};
+                    if (drawing_program_visual_pane_rect_for_module_type(ctx, 1u, &canvas_rect)) {
+                        (void)drawing_program_texture_workspace_fit_surface(ctx, canvas_rect, surface_index);
+                    }
+                }
+                return;
+            }
+        }
+        reset_layout_button = right_canvas_reset_object_layout_button_rect(rect, m);
+        if (hooks->point_in_rect(reset_layout_button, x, y)) {
+            visual_right_panel_disarm_canvas_reflection_pick(ui);
+            if (drawing_program_texture_canvas_reset_object_layout(ctx).code == CORE_OK) {
+                SDL_Rect canvas_rect = {0, 0, 0, 0};
+                if (drawing_program_visual_pane_rect_for_module_type(ctx, 1u, &canvas_rect)) {
+                    (void)drawing_program_texture_workspace_fit_all(ctx, canvas_rect);
+                }
+            }
+            return;
+        }
         reset_view_button = right_canvas_reset_view_button_rect(rect, m);
         if (hooks->point_in_rect(reset_view_button, x, y)) {
+            visual_right_panel_disarm_canvas_reflection_pick(ui);
             SDL_Rect canvas_rect = {0, 0, 0, 0};
             if (!drawing_program_visual_pane_rect_for_module_type(ctx, 1u, &canvas_rect) ||
-                !drawing_program_viewport_reset_to_fit_in_frame(
-                    &ctx->editor.viewport,
-                    &ctx->document,
-                    (DrawingProgramViewportFrame){
-                        (float)canvas_rect.x, (float)canvas_rect.y, (float)canvas_rect.w, (float)canvas_rect.h })) {
+                !drawing_program_texture_workspace_fit_all(ctx, canvas_rect)) {
                 drawing_program_viewport_reset(&ctx->editor.viewport);
             }
             return;
         }
         clear_canvas_button = right_canvas_clear_canvas_button_rect(rect, m);
         if (hooks->point_in_rect(clear_canvas_button, x, y)) {
+            visual_right_panel_disarm_canvas_reflection_pick(ui);
             hooks->apply_workflow_control_if_valid(ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS);
             return;
         }
         clear_objects_button = right_canvas_clear_objects_button_rect(rect, m);
         if (hooks->point_in_rect(clear_objects_button, x, y)) {
+            visual_right_panel_disarm_canvas_reflection_pick(ui);
             hooks->apply_workflow_control_if_valid(ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_OBJECTS);
             visual_panel_clear_object_target_ui(ui);
             return;
@@ -837,106 +1175,29 @@ void drawing_program_visual_input_handle_right_panel_click_payload(
             selection &&
             hooks->delete_active_selection_payload_or_objects &&
             hooks->delete_active_selection_payload_or_objects(ctx, selection, hooks)) {
+            visual_right_panel_disarm_canvas_reflection_pick(ui);
             return;
         }
         clear_history_button = right_canvas_clear_history_button_rect(rect, m);
         if (hooks->point_in_rect(clear_history_button, x, y)) {
+            visual_right_panel_disarm_canvas_reflection_pick(ui);
             hooks->apply_workflow_control_if_valid(ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_HISTORY);
             return;
         }
-    } else if (hooks->clamp_right_slot(ctx->ui.right_panel_slot) == (uint8_t)VISUAL_RIGHT_PANEL_SLOT_COLOR_VALUE) {
+    } else if (hooks->clamp_right_slot(ctx->ui.right_panel_slot) == (uint8_t)VISUAL_RIGHT_PANEL_SLOT_COLOR) {
         if (drawing_program_visual_input_handle_right_color_panel_click_payload(ctx, rect, x, y, ui, hooks)) {
             return;
         }
-    } else if (hooks->clamp_right_slot(ctx->ui.right_panel_slot) == (uint8_t)VISUAL_RIGHT_PANEL_SLOT_FILE_VALUE) {
-        uint32_t slot_index = 0u;
-        SDL_Rect new_project_button =
-            right_file_action_button_rect(rect, m, VISUAL_RIGHT_FILE_ACTION_NEW_PROJECT, VISUAL_RIGHT_FILE_ACTION_COUNT);
-        SDL_Rect open_project_button =
-            right_file_action_button_rect(rect, m, VISUAL_RIGHT_FILE_ACTION_OPEN_PROJECT, VISUAL_RIGHT_FILE_ACTION_COUNT);
-        SDL_Rect save_project_button =
-            right_file_action_button_rect(rect, m, VISUAL_RIGHT_FILE_ACTION_SAVE_PROJECT, VISUAL_RIGHT_FILE_ACTION_COUNT);
-        SDL_Rect save_as_button =
-            right_file_action_button_rect(rect, m, VISUAL_RIGHT_FILE_ACTION_SAVE_AS, VISUAL_RIGHT_FILE_ACTION_COUNT);
-        SDL_Rect load_project_button =
-            right_file_action_button_rect(rect, m, VISUAL_RIGHT_FILE_ACTION_LOAD_PROJECT, VISUAL_RIGHT_FILE_ACTION_COUNT);
-        SDL_Rect save_session_button = right_file_save_session_button_rect(rect, m);
-        SDL_Rect reload_session_button = right_file_reload_session_button_rect(rect, m);
-        SDL_Rect pick_input_root_button = right_file_route_action_button_rect(rect,
-                                                                              m,
-                                                                              10u,
-                                                                              VISUAL_RIGHT_FILE_ROUTE_ACTION_PICK_INPUT,
-                                                                              VISUAL_RIGHT_FILE_ROUTE_ACTION_COUNT);
-        SDL_Rect pick_output_root_button = right_file_route_action_button_rect(rect,
-                                                                               m,
-                                                                               10u,
-                                                                               VISUAL_RIGHT_FILE_ROUTE_ACTION_PICK_OUTPUT,
-                                                                               VISUAL_RIGHT_FILE_ROUTE_ACTION_COUNT);
-        SDL_Rect export_png_button = right_file_route_action_button_rect(rect,
-                                                                         m,
-                                                                         10u,
-                                                                         VISUAL_RIGHT_FILE_ROUTE_ACTION_EXPORT_PNG,
-                                                                         VISUAL_RIGHT_FILE_ROUTE_ACTION_COUNT);
-        SDL_Rect export_iconset_button = right_file_route_action_button_rect(rect,
-                                                                             m,
-                                                                             10u,
-                                                                             VISUAL_RIGHT_FILE_ROUTE_ACTION_EXPORT_ICONSET,
-                                                                             VISUAL_RIGHT_FILE_ROUTE_ACTION_COUNT);
-        SDL_Rect export_icns_button = right_file_route_action_button_rect(rect,
-                                                                          m,
-                                                                          10u,
-                                                                          VISUAL_RIGHT_FILE_ROUTE_ACTION_EXPORT_ICNS,
-                                                                          VISUAL_RIGHT_FILE_ROUTE_ACTION_COUNT);
-        if (visual_right_panel_file_queue_hit_slot(ctx, rect, x, y, ui, hooks, &slot_index)) {
-            (void)visual_right_panel_select_project_slot(ctx, slot_index, ui, hooks);
+    } else if (hooks->clamp_right_slot(ctx->ui.right_panel_slot) == (uint8_t)VISUAL_RIGHT_PANEL_SLOT_FILE) {
+        if (drawing_program_visual_input_handle_right_file_tab_payload(ctx, rect, x, y, selection, ui, hooks)) {
             return;
         }
-        if (hooks->point_in_rect(new_project_button, x, y)) {
-            (void)visual_right_panel_new_project(ctx, ui, hooks);
+    } else if (hooks->clamp_right_slot(ctx->ui.right_panel_slot) == (uint8_t)VISUAL_RIGHT_PANEL_SLOT_ASSET) {
+        if (drawing_program_visual_input_handle_right_asset_tab_payload(ctx, rect, x, y, selection, ui, hooks)) {
             return;
         }
-        if (hooks->point_in_rect(open_project_button, x, y)) {
-            (void)visual_right_panel_open_project(ctx, selection, ui, hooks);
-            return;
-        }
-        if (hooks->point_in_rect(save_project_button, x, y)) {
-            (void)visual_right_panel_save_project(ctx);
-            return;
-        }
-        if (hooks->point_in_rect(save_as_button, x, y)) {
-            (void)visual_right_panel_save_as_project(ctx, ui, hooks);
-            return;
-        }
-        if (hooks->point_in_rect(load_project_button, x, y)) {
-            (void)visual_right_panel_load_project(ctx, selection, ui, hooks);
-            return;
-        }
-        if (hooks->point_in_rect(save_session_button, x, y)) {
-            (void)visual_right_panel_save_session(ctx);
-            return;
-        }
-        if (hooks->point_in_rect(reload_session_button, x, y)) {
-            (void)visual_right_panel_reload_session(ctx, selection, ui, hooks);
-            return;
-        }
-        if (hooks->point_in_rect(pick_input_root_button, x, y)) {
-            (void)visual_right_panel_pick_input_root(ctx, ui, hooks);
-            return;
-        }
-        if (hooks->point_in_rect(pick_output_root_button, x, y)) {
-            (void)visual_right_panel_pick_output_root(ctx);
-            return;
-        }
-        if (hooks->point_in_rect(export_png_button, x, y)) {
-            (void)visual_right_panel_export_png(ctx);
-            return;
-        }
-        if (hooks->point_in_rect(export_iconset_button, x, y)) {
-            (void)visual_right_panel_export_iconset(ctx);
-            return;
-        }
-        if (hooks->point_in_rect(export_icns_button, x, y)) {
-            (void)visual_right_panel_export_icns(ctx);
+    } else if (hooks->clamp_right_slot(ctx->ui.right_panel_slot) == (uint8_t)VISUAL_RIGHT_PANEL_SLOT_EXPORT) {
+        if (drawing_program_visual_input_handle_right_export_tab_payload(ctx, rect, x, y, ui, hooks)) {
             return;
         }
     }
@@ -949,29 +1210,8 @@ int drawing_program_visual_input_handle_right_panel_wheel_payload(DrawingProgram
                                                                   int wheel_y,
                                                                   VisualPanelUiState *ui,
                                                                   const DrawingProgramVisualInputHandlersHooks *hooks) {
-    VisualPaneLayoutMetrics m;
-    SDL_Rect queue_rect;
-    uint32_t slot_count;
-    int scroll_y;
-    int row_stride;
     if (!ctx || !ui || !hooks || !hooks->point_in_rect || wheel_y == 0) {
         return 0;
     }
-    if (hooks->clamp_right_slot(ctx->ui.right_panel_slot) != (uint8_t)VISUAL_RIGHT_PANEL_SLOT_FILE_VALUE) {
-        return 0;
-    }
-    m = make_pane_layout_metrics(ctx);
-    queue_rect = right_file_target_queue_rect(rect, m, 10u, VISUAL_RIGHT_FILE_ROUTE_ACTION_COUNT);
-    if (!hooks->point_in_rect(queue_rect, x, y)) {
-        return 0;
-    }
-    row_stride = m.row_h + m.section_gap;
-    if (row_stride < 1) {
-        row_stride = 1;
-    }
-    slot_count = right_file_target_queue_slot_count(ctx);
-    scroll_y = ui->right_file_target_queue_scroll_y - (wheel_y * row_stride);
-    ui->right_file_target_queue_scroll_y =
-        right_file_target_queue_clamp_scroll(queue_rect, m, slot_count, scroll_y);
-    return 1;
+    return drawing_program_visual_input_handle_right_file_tabs_wheel_payload(ctx, rect, x, y, wheel_y, ui, hooks);
 }

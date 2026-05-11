@@ -194,12 +194,11 @@ CoreResult drawing_program_render_project_frame(
     const struct DrawingProgramEditorState *editor,
     const DrawingProgramRenderInvalidation *invalidation,
     DrawingProgramRenderFrameProjection *out_projection) {
-    const DrawingProgramRasterSample *layer_views[DRAWING_PROGRAM_MAX_LAYERS];
     uint32_t i;
-    uint32_t hash32 = 2166136261u;
     if (!document || !editor || !invalidation || !out_projection) {
         return render_invalid("null render projection argument");
     }
+    (void)layer_rasters;
 
     memset(out_projection, 0, sizeof(*out_projection));
     out_projection->logical_width = document->logical_width;
@@ -214,7 +213,6 @@ CoreResult drawing_program_render_project_frame(
     out_projection->targeted_redraw =
         (!out_projection->full_redraw && invalidation->target_invalidation_count > 0u) ? 1u : 0u;
 
-    (void)render_layer_views_resolve(document, layer_rasters, layer_views);
     for (i = 0u; i < document->layer_count; ++i) {
         if (document->layers[i].visible) {
             out_projection->visible_layer_count += 1u;
@@ -223,15 +221,6 @@ CoreResult drawing_program_render_project_frame(
             out_projection->has_active_layer = 1u;
         }
     }
-    for (i = 0u; i < document->raster_sample_count; ++i) {
-        DrawingProgramRasterSample composed = render_compose_sample_for_index(document, layer_views, 0, 0u, i);
-        if (!drawing_program_color_sample_is_transparent(composed)) {
-            out_projection->raster_nonzero_count += 1u;
-        }
-        hash32 ^= composed;
-        hash32 *= 16777619u;
-    }
-    out_projection->raster_hash32 = (document->raster_sample_count > 0u) ? hash32 : 0u;
     out_projection->hidden_layer_count = out_projection->layer_count - out_projection->visible_layer_count;
 
     return core_result_ok();

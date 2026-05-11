@@ -1,0 +1,6 @@
+#ifndef DRAWING_PROGRAM_LIFECYCLE_TEXTURE_IMPORT_SUITE_H
+#define DRAWING_PROGRAM_LIFECYCLE_TEXTURE_IMPORT_SUITE_H
+
+int drawing_program_lifecycle_run_texture_import_suite(void);
+
+#endif

@@ -181,6 +181,7 @@ CoreResult drawing_program_snapshot_shell_load_current(
     memcpy(ctx->history.entries, payload->history_entries, sizeof(ctx->history.entries));
     ctx->history.count = payload->header.history_count;
     ctx->history.cursor = payload->header.history_cursor;
+    ctx->history.raster_delta_count = 0u;
     ctx->pane_host.node_count = payload->header.node_count;
     ctx->pane_host.root_index = 0u;
     ctx->pane_host.module_binding_count = payload->header.binding_count;

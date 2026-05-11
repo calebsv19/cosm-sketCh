@@ -13,6 +13,8 @@ extern "C" {
 #endif
 
 #define DRAWING_PROGRAM_HISTORY_CAPACITY 16384u
+#define DRAWING_PROGRAM_HISTORY_RASTER_DELTA_CAPACITY DRAWING_PROGRAM_MAX_RASTER_SAMPLES
+#define DRAWING_PROGRAM_HISTORY_DELTA_BLOCK_FLUSH_CAPACITY 4096u
 
 typedef enum DrawingProgramCommandType {
     DRAWING_PROGRAM_COMMAND_NONE = 0,
@@ -30,8 +32,15 @@ typedef enum DrawingProgramCommandType {
     DRAWING_PROGRAM_COMMAND_SET_OBJECT_FILL_COLOR = 12,
     DRAWING_PROGRAM_COMMAND_INSERT_OBJECT_PATH_POINT = 13,
     DRAWING_PROGRAM_COMMAND_REMOVE_OBJECT_PATH_POINT = 14,
-    DRAWING_PROGRAM_COMMAND_SET_OBJECT_SIZE = 15
+    DRAWING_PROGRAM_COMMAND_SET_OBJECT_SIZE = 15,
+    DRAWING_PROGRAM_COMMAND_SET_RASTER_DELTA_BLOCK = 16
 } DrawingProgramCommandType;
+
+typedef struct DrawingProgramHistoryRasterDeltaEntry {
+    uint32_t sample_index;
+    DrawingProgramRasterSample previous_sample_value;
+    DrawingProgramRasterSample new_sample_value;
+} DrawingProgramHistoryRasterDeltaEntry;
 
 typedef struct DrawingProgramCommand {
     DrawingProgramCommandType type;
@@ -85,6 +94,8 @@ typedef struct DrawingProgramHistory {
     DrawingProgramCommand entries[DRAWING_PROGRAM_HISTORY_CAPACITY];
     uint32_t count;
     uint32_t cursor;
+    DrawingProgramHistoryRasterDeltaEntry raster_delta_entries[DRAWING_PROGRAM_HISTORY_RASTER_DELTA_CAPACITY];
+    uint32_t raster_delta_count;
 } DrawingProgramHistory;
 
 void drawing_program_history_init(DrawingProgramHistory *history);
@@ -112,6 +123,14 @@ CoreResult drawing_program_history_apply_set_sample_span_value(DrawingProgramHis
                                                                uint32_t span_start_index,
                                                                uint32_t span_length,
                                                                DrawingProgramRasterSample value);
+CoreResult drawing_program_history_apply_raster_delta_block(
+    DrawingProgramHistory *history,
+    DrawingProgramDocument *document,
+    DrawingProgramLayerRasterStore *layer_rasters,
+    uint32_t layer_id,
+    const DrawingProgramHistoryRasterDeltaEntry *entries,
+    uint32_t entry_count);
+CoreResult drawing_program_history_validate_raster_delta_storage(const DrawingProgramHistory *history);
 CoreResult drawing_program_history_apply_set_object_origin(DrawingProgramHistory *history,
                                                            DrawingProgramObjectStore *object_store,
                                                            uint32_t object_id,

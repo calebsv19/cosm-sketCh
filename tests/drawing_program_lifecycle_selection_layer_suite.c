@@ -427,15 +427,15 @@ int drawing_program_lifecycle_run_selection_layer_suite(DrawingProgramAppContext
                            "workflow_compose_projection_hidden")) {
                 return 1;
             }
-            if (projection_visible.raster_hash32 == projection_hidden.raster_hash32 ||
-                projection_visible.visible_layer_count == projection_hidden.visible_layer_count) {
+            if (projection_visible.visible_layer_count == projection_hidden.visible_layer_count ||
+                projection_visible.hidden_layer_count == projection_hidden.hidden_layer_count) {
                 fprintf(stderr,
-                        "lifecycle_test: expected layer visibility to change composited projection hash/visible-count "
-                        "visible(hash=%u vis=%u) hidden(hash=%u vis=%u)\n",
-                        (unsigned)projection_visible.raster_hash32,
+                        "lifecycle_test: expected layer visibility to change projection visibility counts "
+                        "visible(vis=%u hidden=%u) hidden(vis=%u hidden=%u)\n",
                         (unsigned)projection_visible.visible_layer_count,
-                        (unsigned)projection_hidden.raster_hash32,
-                        (unsigned)projection_hidden.visible_layer_count);
+                        (unsigned)projection_visible.hidden_layer_count,
+                        (unsigned)projection_hidden.visible_layer_count,
+                        (unsigned)projection_hidden.hidden_layer_count);
                 return 1;
             }
             if (!expect_ok(drawing_program_document_set_layer_visibility(&workflow_ctx.document,

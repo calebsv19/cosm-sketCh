@@ -28,6 +28,8 @@ typedef struct DrawingProgramVisualCanvasDrawActionOpsHooks {
     DrawingProgramRasterSample (*seeded_background_sample_for_coord)(const DrawingProgramDocument *document,
                                                                      uint32_t x,
                                                                      uint32_t y);
+    void (*begin_canvas_history_group)(DrawingProgramAppContext *ctx);
+    void (*end_canvas_history_group)(DrawingProgramAppContext *ctx);
     CoreResult (*apply_canvas_stamp_square_on_layer)(DrawingProgramAppContext *ctx,
                                                      uint32_t layer_id,
                                                      int32_t sample_x,
@@ -35,6 +37,14 @@ typedef struct DrawingProgramVisualCanvasDrawActionOpsHooks {
                                                      DrawingProgramRasterSample value,
                                                      uint32_t stroke_width,
                                                      uint8_t hardness_percent);
+    CoreResult (*apply_canvas_direct_stroke_stamp_square_on_layer)(DrawingProgramAppContext *ctx,
+                                                                   VisualCanvasInteractionState *interaction,
+                                                                   uint32_t layer_id,
+                                                                   int32_t sample_x,
+                                                                   int32_t sample_y,
+                                                                   DrawingProgramRasterSample value,
+                                                                   uint32_t stroke_width,
+                                                                   uint8_t hardness_percent);
 } DrawingProgramVisualCanvasDrawActionOpsHooks;
 
 CoreResult drawing_program_visual_apply_canvas_draw_at_screen(DrawingProgramAppContext *ctx,

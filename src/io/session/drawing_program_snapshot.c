@@ -8,6 +8,7 @@
 #include "drawing_program/drawing_program_app_post_load.h"
 #include "drawing_program/drawing_program_authoring_host.h"
 #include "drawing_program/drawing_program_snapshot_shell.h"
+#include "drawing_program/drawing_program_texture_project_session.h"
 #include "drawing_program/drawing_program_snapshot_ui_settings.h"
 
 typedef struct DrawingProgramSnapshotHeaderV1 {
@@ -42,13 +43,17 @@ static int snapshot_trace_enabled(void) {
     return 1;
 }
 
-CoreResult drawing_program_snapshot_save(const struct DrawingProgramAppContext *ctx, const char *path) {
+CoreResult drawing_program_snapshot_save(struct DrawingProgramAppContext *ctx, const char *path) {
     CorePackWriter writer;
     DrawingProgramSnapshotV1 *legacy_payload = 0;
     CoreResult result;
     uint32_t accepted_root_index = 0u;
     if (!ctx || !path) {
         return drawing_program_snapshot_invalid("invalid snapshot save request");
+    }
+    result = drawing_program_texture_project_session_commit_active_surface(ctx);
+    if (result.code != CORE_OK) {
+        return result;
     }
     legacy_payload = (DrawingProgramSnapshotV1 *)calloc(1u, sizeof(*legacy_payload));
     if (!legacy_payload) {
@@ -103,6 +108,12 @@ CoreResult drawing_program_snapshot_save(const struct DrawingProgramAppContext *
         (void)core_pack_writer_close(&writer);
         return result;
     }
+    result = drawing_program_snapshot_write_history_raster_delta_chunk(&writer, ctx);
+    if (result.code != CORE_OK) {
+        free(legacy_payload);
+        (void)core_pack_writer_close(&writer);
+        return result;
+    }
     result = core_pack_writer_add_chunk(&writer, "DPS2", legacy_payload, (uint64_t)sizeof(*legacy_payload));
     if (result.code != CORE_OK) {
         free(legacy_payload);
@@ -110,6 +121,12 @@ CoreResult drawing_program_snapshot_save(const struct DrawingProgramAppContext *
         return result;
     }
     result = drawing_program_snapshot_write_layer_raster_chunk(&writer, ctx);
+    if (result.code != CORE_OK) {
+        free(legacy_payload);
+        (void)core_pack_writer_close(&writer);
+        return result;
+    }
+    result = drawing_program_texture_project_snapshot_write(&writer, &ctx->texture_project);
     if (result.code != CORE_OK) {
         free(legacy_payload);
         (void)core_pack_writer_close(&writer);
@@ -148,15 +165,19 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
     DrawingProgramSnapshotV1 *payload = 0;
     CoreResult result;
     CoreResult shell_result;
+    CoreResult texture_project_result;
+    DrawingProgramTextureProject loaded_texture_project;
     uint8_t upgraded_legacy_palette_samples = 0u;
     uint8_t loaded_current_shell = 0u;
     uint8_t current_shell_format_incompatible = 0u;
+    uint8_t loaded_texture_project_found = 0u;
     uint8_t *layer_chunk_data = 0;
     uint8_t *object_chunk_data = 0;
     if (!ctx || !path) {
         return drawing_program_snapshot_invalid("invalid snapshot load request");
     }
 
+    memset(&loaded_texture_project, 0, sizeof(loaded_texture_project));
     payload = (DrawingProgramSnapshotV1 *)calloc(1u, sizeof(*payload));
     if (!payload) {
         return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "failed to allocate snapshot load payload" };
@@ -176,6 +197,15 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
         }
         return result;
     }
+    texture_project_result = drawing_program_texture_project_snapshot_load(&loaded_texture_project,
+                                                                          &reader,
+                                                                          &loaded_texture_project_found);
+    if (texture_project_result.code != CORE_OK) {
+        free(payload);
+        (void)core_pack_reader_close(&reader);
+        drawing_program_texture_project_dispose(&loaded_texture_project);
+        return texture_project_result;
+    }
     shell_result = drawing_program_snapshot_shell_load_current(ctx, &reader, &loaded_current_shell);
     if (snapshot_trace_enabled()) {
         fprintf(stderr,
@@ -190,6 +220,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
     } else if (shell_result.code != CORE_OK) {
         free(payload);
         (void)core_pack_reader_close(&reader);
+        drawing_program_texture_project_dispose(&loaded_texture_project);
         return shell_result;
     }
     if (!loaded_current_shell) {
@@ -198,6 +229,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
             if (current_shell_format_incompatible) {
                 free(payload);
                 (void)core_pack_reader_close(&reader);
+                drawing_program_texture_project_dispose(&loaded_texture_project);
                 if (snapshot_trace_enabled()) {
                     fprintf(stderr,
                             "drawing_program trace snapshot_load fail path=%s code=%d message=%s\n",
@@ -209,6 +241,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
             }
             free(payload);
             (void)core_pack_reader_close(&reader);
+            drawing_program_texture_project_dispose(&loaded_texture_project);
             if (snapshot_trace_enabled()) {
                 fprintf(stderr,
                         "drawing_program trace snapshot_load fail path=%s code=%d message=%s\n",
@@ -223,6 +256,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
             if (result.code != CORE_OK) {
                 free(payload);
                 (void)core_pack_reader_close(&reader);
+                drawing_program_texture_project_dispose(&loaded_texture_project);
                 return result;
             }
         } else {
@@ -230,11 +264,13 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
             if (result.code != CORE_OK) {
                 free(payload);
                 (void)core_pack_reader_close(&reader);
+                drawing_program_texture_project_dispose(&loaded_texture_project);
                 return result;
             }
             if (payload->header.version != 1u) {
                 free(payload);
                 (void)core_pack_reader_close(&reader);
+                drawing_program_texture_project_dispose(&loaded_texture_project);
                 return (CoreResult){ CORE_ERR_FORMAT, "unsupported drawing snapshot version" };
             }
             if (payload->header.node_count > DRAWING_PROGRAM_PANE_NODE_CAPACITY ||
@@ -243,6 +279,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
                 payload->header.history_cursor > payload->header.history_count) {
                 free(payload);
                 (void)core_pack_reader_close(&reader);
+                drawing_program_texture_project_dispose(&loaded_texture_project);
                 return (CoreResult){ CORE_ERR_FORMAT, "invalid drawing snapshot bounds" };
             }
 
@@ -254,10 +291,18 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
             memcpy(ctx->history.entries, payload->history_entries, sizeof(ctx->history.entries));
             ctx->history.count = payload->header.history_count;
             ctx->history.cursor = payload->header.history_cursor;
+            ctx->history.raster_delta_count = 0u;
             ctx->pane_host.node_count = payload->header.node_count;
             ctx->pane_host.root_index = 0u;
             ctx->pane_host.module_binding_count = payload->header.binding_count;
         }
+    }
+    result = drawing_program_snapshot_apply_history_raster_delta_chunk(ctx, &reader);
+    if (result.code != CORE_OK) {
+        free(payload);
+        (void)core_pack_reader_close(&reader);
+        drawing_program_texture_project_dispose(&loaded_texture_project);
+        return result;
     }
     drawing_program_object_store_reset(&ctx->object_store);
     if (snapshot_trace_enabled()) {
@@ -277,6 +322,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
     if (result.code != CORE_OK) {
         free(payload);
         (void)core_pack_reader_close(&reader);
+        drawing_program_texture_project_dispose(&loaded_texture_project);
         if (snapshot_trace_enabled()) {
             fprintf(stderr,
                     "drawing_program trace snapshot_load layer_raster_init_fail code=%d message=%s logical=%ux%u density=%u layer_count=%u raster=%ux%u samples=%u\n",
@@ -300,6 +346,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
         if (!layer_chunk_data) {
             free(payload);
             (void)core_pack_reader_close(&reader);
+            drawing_program_texture_project_dispose(&loaded_texture_project);
             return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "failed to allocate layer raster chunk buffer" };
         }
         result = core_pack_reader_read_chunk_data(&reader, &layer_chunk, layer_chunk_data, layer_chunk.size);
@@ -308,6 +355,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
             layer_chunk_data = 0;
             free(payload);
             (void)core_pack_reader_close(&reader);
+            drawing_program_texture_project_dispose(&loaded_texture_project);
             return result;
         }
         result = drawing_program_snapshot_apply_layer_raster_chunk(ctx, layer_chunk_data, layer_chunk.size);
@@ -316,6 +364,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
         if (result.code != CORE_OK) {
             free(payload);
             (void)core_pack_reader_close(&reader);
+            drawing_program_texture_project_dispose(&loaded_texture_project);
             return result;
         }
     }
@@ -325,6 +374,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
         if (!object_chunk_data) {
             free(payload);
             (void)core_pack_reader_close(&reader);
+            drawing_program_texture_project_dispose(&loaded_texture_project);
             return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "failed to allocate object chunk buffer" };
         }
         result = core_pack_reader_read_chunk_data(&reader, &object_chunk, object_chunk_data, object_chunk.size);
@@ -333,6 +383,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
             object_chunk_data = 0;
             free(payload);
             (void)core_pack_reader_close(&reader);
+            drawing_program_texture_project_dispose(&loaded_texture_project);
             return result;
         }
         result = drawing_program_snapshot_apply_object_chunk(ctx, object_chunk_data, object_chunk.size);
@@ -341,6 +392,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
         if (result.code != CORE_OK) {
             free(payload);
             (void)core_pack_reader_close(&reader);
+            drawing_program_texture_project_dispose(&loaded_texture_project);
             return result;
         }
     }
@@ -348,6 +400,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
     if (result.code != CORE_OK) {
         free(payload);
         (void)core_pack_reader_close(&reader);
+        drawing_program_texture_project_dispose(&loaded_texture_project);
         return result;
     }
     result = core_pack_reader_find_chunk(&reader, "DPUI", 0u, &ui_chunk);
@@ -362,6 +415,20 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
         if (result.code == CORE_OK) {
             result = drawing_program_pane_host_rebuild(ctx);
         }
+    }
+    if (result.code == CORE_OK) {
+        if (loaded_texture_project_found) {
+            drawing_program_texture_project_dispose(&ctx->texture_project);
+            ctx->texture_project = loaded_texture_project;
+            result = drawing_program_texture_project_session_commit_active_surface(ctx);
+        } else {
+            result = drawing_program_texture_project_session_init_from_current_document(ctx);
+        }
+        if (result.code == CORE_OK) {
+            drawing_program_texture_project_session_sync_scene_selection_from_project(ctx);
+        }
+    } else {
+        drawing_program_texture_project_dispose(&loaded_texture_project);
     }
     if (result.code == CORE_OK) {
         drawing_program_app_rearm_after_document_swap(ctx);

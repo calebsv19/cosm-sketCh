@@ -11,6 +11,7 @@ typedef struct DrawingProgramVisualLoopWaitPolicyInput {
 } DrawingProgramVisualLoopWaitPolicyInput;
 
 typedef struct DrawingProgramVisualLoopRenderPolicyInput {
+    uint8_t background_busy;
     uint8_t frame_dirty;
     uint8_t force_render;
     uint32_t now_ms;

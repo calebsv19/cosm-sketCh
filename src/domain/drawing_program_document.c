@@ -42,6 +42,14 @@ static CoreResult drawing_program_document_invalid(const char *message) {
     return r;
 }
 
+static uint64_t drawing_program_document_next_content_revision(uint64_t current_revision) {
+    uint64_t next_revision = current_revision + 1u;
+    if (next_revision == 0u) {
+        next_revision = 1u;
+    }
+    return next_revision;
+}
+
 static CoreResult drawing_program_document_find_layer_index_internal(const DrawingProgramDocument *document,
                                                                      uint32_t layer_id,
                                                                      uint32_t *out_layer_index) {
@@ -82,6 +90,7 @@ CoreResult drawing_program_document_init_with_shape(DrawingProgramDocument *docu
     document->logical_width = logical_width;
     document->logical_height = logical_height;
     document->sample_density = sample_density;
+    document->content_revision = 1u;
     document->raster_width = raster_width;
     document->raster_height = raster_height;
     document->raster_sample_count = raster_sample_count;
@@ -92,7 +101,7 @@ CoreResult drawing_program_document_init_with_shape(DrawingProgramDocument *docu
     (void)snprintf(document->layers[0].name,
                    sizeof(document->layers[0].name),
                    "%s",
-                   "Base Layer");
+                   "Base");
     document->layers[0].visible = 1u;
     document->layers[0].locked = 0u;
 
@@ -128,6 +137,10 @@ CoreResult drawing_program_document_set_layer_visibility(DrawingProgramDocument 
     }
     if (out_previous_visibility) {
         *out_previous_visibility = document->layers[index].visible;
+    }
+    if ((document->layers[index].visible ? 1u : 0u) != (visible ? 1u : 0u)) {
+        document->content_revision =
+            drawing_program_document_next_content_revision(document->content_revision);
     }
     document->layers[index].visible = visible ? 1u : 0u;
     return core_result_ok();
@@ -208,6 +221,8 @@ CoreResult drawing_program_document_add_layer(DrawingProgramDocument *document,
     if (document->next_layer_id == 0u) {
         document->next_layer_id = 1u;
     }
+    document->content_revision =
+        drawing_program_document_next_content_revision(document->content_revision);
     if (out_layer_id) {
         *out_layer_id = layer_id;
     }
@@ -238,6 +253,8 @@ CoreResult drawing_program_document_remove_layer(DrawingProgramDocument *documen
     }
     memset(&document->layers[document->layer_count - 1u], 0, sizeof(document->layers[document->layer_count - 1u]));
     document->layer_count -= 1u;
+    document->content_revision =
+        drawing_program_document_next_content_revision(document->content_revision);
     return core_result_ok();
 }
 
@@ -275,6 +292,8 @@ CoreResult drawing_program_document_move_layer(DrawingProgramDocument *document,
         temp = document->layers[index];
         document->layers[index] = document->layers[target];
         document->layers[target] = temp;
+        document->content_revision =
+            drawing_program_document_next_content_revision(document->content_revision);
     }
     if (out_new_index) {
         *out_new_index = target;
@@ -334,7 +353,17 @@ CoreResult drawing_program_document_sample_write(DrawingProgramDocument *documen
         *out_previous_value = document->raster_samples[idx];
     }
     document->raster_samples[idx] = drawing_program_color_normalize_input_sample(value);
+    document->content_revision =
+        drawing_program_document_next_content_revision(document->content_revision);
     return core_result_ok();
+}
+
+void drawing_program_document_mark_content_changed(DrawingProgramDocument *document) {
+    if (!document) {
+        return;
+    }
+    document->content_revision =
+        drawing_program_document_next_content_revision(document->content_revision);
 }
 
 CoreResult drawing_program_document_upgrade_legacy_checker_seed(DrawingProgramDocument *document,

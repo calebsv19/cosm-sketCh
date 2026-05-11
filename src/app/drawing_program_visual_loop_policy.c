@@ -104,7 +104,7 @@ int drawing_program_visual_loop_should_render_frame(
     if (!input) {
         return 1;
     }
-    if (input->force_render || input->frame_dirty || input->last_present_ms == 0u) {
+    if (input->force_render || input->frame_dirty || input->background_busy || input->last_present_ms == 0u) {
         return 1;
     }
     heartbeat_ms = drawing_program_visual_loop_render_heartbeat_ms();

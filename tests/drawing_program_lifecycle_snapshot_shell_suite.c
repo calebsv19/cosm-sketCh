@@ -1,10 +1,14 @@
 #include <stdio.h>
+#include <math.h>
 #include <string.h>
 #include <unistd.h>
 
 #include "core_pack.h"
 #include "drawing_program/drawing_program_app_main.h"
+#include "drawing_program/drawing_program_canvas_reflection.h"
 #include "drawing_program/drawing_program_color_model.h"
+#include "drawing_program/drawing_program_texture_canvas_ops.h"
+#include "drawing_program/drawing_program_texture_project_session.h"
 #include "drawing_program/drawing_program_history.h"
 #include "drawing_program/drawing_program_ui_color_state.h"
 #include "drawing_program_lifecycle_snapshot_helpers.h"
@@ -44,6 +48,390 @@ int drawing_program_lifecycle_run_snapshot_shell_suite(DrawingProgramAppContext 
             fprintf(stderr, "lifecycle_test: expected debug json output at %s\n", json_path);
             return 1;
         }
+    }
+    {
+        static DrawingProgramAppContext texture_save_ctx;
+        static DrawingProgramAppContext texture_load_ctx;
+        static DrawingProgramAppContext legacy_texture_load_ctx;
+        char texture_arg0[] = "drawing_program_texture_project_roundtrip";
+        char texture_arg1[] = "--headless";
+        char texture_arg2[] = "--smoke-frames";
+        char texture_arg3[] = "1";
+        char texture_arg4[] = "--preset";
+        char texture_arg5[] = "/tmp/drawing_program_texture_project_roundtrip.pack";
+        char *texture_argv[] = {
+            texture_arg0, texture_arg1, texture_arg2, texture_arg3, texture_arg4, texture_arg5, 0
+        };
+        const char *legacy_pack_path = "/tmp/drawing_program_texture_project_roundtrip_legacy.pack";
+        uint32_t extra_surface_index = 0u;
+        uint32_t blank_surface_index = 0u;
+        uint32_t base_sample_x = 41u;
+        uint32_t base_sample_y = 53u;
+        uint32_t extra_sample_x = 9u;
+        uint32_t extra_sample_y = 11u;
+        uint32_t blank_logical_width = 80u;
+        uint32_t blank_logical_height = 112u;
+        float extra_layout_offset_x = 24.0f;
+        float extra_layout_offset_y = -18.0f;
+        uint8_t base_sample_value = 0u;
+        uint8_t extra_sample_value = 0u;
+        uint8_t loaded_base_sample = 0u;
+        uint8_t loaded_extra_sample = 0u;
+        CorePackReader texture_reader;
+        CorePackChunkInfo texture_root_chunk;
+        CorePackChunkInfo texture_doc_chunk;
+        CorePackChunkInfo texture_layer_chunk;
+        (void)unlink(texture_arg5);
+        (void)unlink(legacy_pack_path);
+        if (!expect_ok(drawing_program_app_bootstrap(&texture_save_ctx, 6, texture_argv),
+                       "texture_project_bootstrap_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_config_load(&texture_save_ctx), "texture_project_config_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_state_seed(&texture_save_ctx), "texture_project_state_seed_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_subsystems_init(&texture_save_ctx), "texture_project_subsystems_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_runtime_start(&texture_save_ctx), "texture_project_runtime_start_save")) {
+            return 1;
+        }
+        base_sample_value = 201u;
+        if (!expect_ok(drawing_program_document_sample_write(&texture_save_ctx.document,
+                                                             base_sample_x,
+                                                             base_sample_y,
+                                                             base_sample_value,
+                                                             0),
+                       "texture_project_seed_base_surface")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_texture_project_session_add_surface_from_active(&texture_save_ctx,
+                                                                                       "Right Face",
+                                                                                       &extra_surface_index),
+                       "texture_project_add_surface")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_texture_project_session_select_surface(&texture_save_ctx, extra_surface_index),
+                       "texture_project_select_extra_surface")) {
+            return 1;
+        }
+        extra_sample_value = 77u;
+        if (!expect_ok(drawing_program_document_sample_write(&texture_save_ctx.document,
+                                                             extra_sample_x,
+                                                             extra_sample_y,
+                                                             extra_sample_value,
+                                                             0),
+                       "texture_project_seed_extra_surface")) {
+            return 1;
+        }
+        (void)snprintf(texture_save_ctx.texture_project.source_scene_id,
+                       sizeof(texture_save_ctx.texture_project.source_scene_id),
+                       "%s",
+                       "scene_snapshot_roundtrip");
+        (void)snprintf(texture_save_ctx.texture_project.source_object_id,
+                       sizeof(texture_save_ctx.texture_project.source_object_id),
+                       "%s",
+                       "obj_snapshot_roundtrip");
+        (void)snprintf(texture_save_ctx.texture_project.source_scene_path,
+                       sizeof(texture_save_ctx.texture_project.source_scene_path),
+                       "%s",
+                       "/tmp/drawing_program_snapshot_scene_roundtrip.json");
+        texture_save_ctx.texture_project.primitive_kind = DRAWING_PROGRAM_TEXTURE_PRIMITIVE_KIND_RECT_PRISM;
+        texture_save_ctx.texture_project.net_layout_kind = DRAWING_PROGRAM_TEXTURE_NET_LAYOUT_KIND_RECT_PRISM_CROSS;
+        {
+            DrawingProgramTextureSurfaceSemantic semantic;
+            if (!expect_ok(drawing_program_texture_net_seed_surface_semantic(
+                               DRAWING_PROGRAM_TEXTURE_PRIMITIVE_KIND_RECT_PRISM,
+                               DRAWING_PROGRAM_TEXTURE_FACE_ROLE_FRONT,
+                               &semantic),
+                           "texture_project_seed_front_semantic")) {
+                return 1;
+            }
+            if (!expect_ok(drawing_program_texture_project_set_surface_semantic(&texture_save_ctx.texture_project,
+                                                                                0u,
+                                                                                &semantic),
+                           "texture_project_apply_front_semantic")) {
+                return 1;
+            }
+            if (!expect_ok(drawing_program_texture_net_seed_surface_semantic(
+                               DRAWING_PROGRAM_TEXTURE_PRIMITIVE_KIND_RECT_PRISM,
+                               DRAWING_PROGRAM_TEXTURE_FACE_ROLE_RIGHT,
+                               &semantic),
+                           "texture_project_seed_right_semantic")) {
+                return 1;
+            }
+            if (!expect_ok(drawing_program_texture_project_set_surface_semantic(&texture_save_ctx.texture_project,
+                                                                                extra_surface_index,
+                                                                                &semantic),
+                           "texture_project_apply_right_semantic")) {
+                return 1;
+            }
+        }
+        texture_save_ctx.ui.canvas_control_mode = (uint8_t)DRAWING_PROGRAM_UI_CANVAS_CONTROL_MODE_LAYOUT;
+        texture_save_ctx.ui.canvas_guide_mode =
+            (uint8_t)DRAWING_PROGRAM_UI_CANVAS_GUIDE_MODE_CORNERS_AND_EDGES;
+        texture_save_ctx.editor.symmetry_horizontal = 1u;
+        texture_save_ctx.editor.symmetry_vertical = 0u;
+        if (!drawing_program_canvas_reflection_set_active_center(&texture_save_ctx, 13u, 17u)) {
+            return 1;
+        }
+        drawing_program_canvas_reflection_sync_active_surface_from_editor(&texture_save_ctx);
+        if (!expect_ok(drawing_program_texture_project_session_move_surface(&texture_save_ctx,
+                                                                            extra_surface_index,
+                                                                            extra_layout_offset_x,
+                                                                            extra_layout_offset_y),
+                       "texture_project_move_extra_surface")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_texture_canvas_add_blank_from_active(&texture_save_ctx, &blank_surface_index),
+                       "texture_project_add_blank_surface")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_texture_project_session_resize_active_blank_surface(&texture_save_ctx,
+                                                                                           blank_logical_width,
+                                                                                           blank_logical_height),
+                       "texture_project_resize_blank_surface")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_texture_project_session_select_surface(&texture_save_ctx, extra_surface_index),
+                       "texture_project_reselect_painted_surface_before_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_snapshot_save(&texture_save_ctx, texture_arg5), "texture_project_save")) {
+            return 1;
+        }
+        if (!expect_ok(core_pack_reader_open(texture_arg5, &texture_reader), "texture_project_pack_open")) {
+            return 1;
+        }
+        if (!expect_ok(core_pack_reader_find_chunk(&texture_reader, "DPTP", 0u, &texture_root_chunk),
+                       "texture_project_root_chunk")) {
+            (void)core_pack_reader_close(&texture_reader);
+            return 1;
+        }
+        if (!expect_ok(core_pack_reader_find_chunk(&texture_reader, "DTSD", 1u, &texture_doc_chunk),
+                       "texture_project_second_document_chunk")) {
+            (void)core_pack_reader_close(&texture_reader);
+            return 1;
+        }
+        if (!expect_ok(core_pack_reader_find_chunk(&texture_reader, "DTSR", 1u, &texture_layer_chunk),
+                       "texture_project_second_layer_chunk")) {
+            (void)core_pack_reader_close(&texture_reader);
+            return 1;
+        }
+        (void)core_pack_reader_close(&texture_reader);
+        if (!write_legacy_snapshot_without_texture_project_chunks(texture_arg5, legacy_pack_path)) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_bootstrap(&texture_load_ctx, 6, texture_argv),
+                       "texture_project_bootstrap_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_config_load(&texture_load_ctx), "texture_project_config_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_state_seed(&texture_load_ctx), "texture_project_state_seed_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_snapshot_load(&texture_load_ctx, texture_arg5), "texture_project_load")) {
+            return 1;
+        }
+        if (texture_load_ctx.texture_project.surface_count != 3u ||
+            texture_load_ctx.ui.canvas_control_mode != (uint8_t)DRAWING_PROGRAM_UI_CANVAS_CONTROL_MODE_LAYOUT ||
+            texture_load_ctx.ui.canvas_guide_mode !=
+                (uint8_t)DRAWING_PROGRAM_UI_CANVAS_GUIDE_MODE_CORNERS_AND_EDGES ||
+            !texture_load_ctx.editor.symmetry_horizontal ||
+            texture_load_ctx.editor.symmetry_vertical ||
+            texture_load_ctx.texture_project.active_surface_index != extra_surface_index ||
+            texture_load_ctx.texture_project.primitive_kind != DRAWING_PROGRAM_TEXTURE_PRIMITIVE_KIND_RECT_PRISM ||
+            texture_load_ctx.texture_project.net_layout_kind != DRAWING_PROGRAM_TEXTURE_NET_LAYOUT_KIND_RECT_PRISM_CROSS) {
+            fprintf(stderr,
+                    "lifecycle_test: expected texture project load surface_count=3 mode=layout guides=edges reflect=H active=%u prism layout got count=%u mode=%u guides=%u reflect=%u/%u active=%u primitive=%u layout=%u\n",
+                    (unsigned)extra_surface_index,
+                    (unsigned)texture_load_ctx.texture_project.surface_count,
+                    (unsigned)texture_load_ctx.ui.canvas_control_mode,
+                    (unsigned)texture_load_ctx.ui.canvas_guide_mode,
+                    (unsigned)texture_load_ctx.editor.symmetry_horizontal,
+                    (unsigned)texture_load_ctx.editor.symmetry_vertical,
+                    (unsigned)texture_load_ctx.texture_project.active_surface_index,
+                    (unsigned)texture_load_ctx.texture_project.primitive_kind,
+                    (unsigned)texture_load_ctx.texture_project.net_layout_kind);
+            return 1;
+        }
+        {
+            uint32_t reflection_center_x = 0u;
+            uint32_t reflection_center_y = 0u;
+            if (!drawing_program_canvas_reflection_active_center(&texture_load_ctx,
+                                                                 &reflection_center_x,
+                                                                 &reflection_center_y) ||
+                reflection_center_x != 13u ||
+                reflection_center_y != 17u) {
+                fprintf(stderr,
+                        "lifecycle_test: expected texture project reflection center 13,17 got=%u,%u\n",
+                        (unsigned)reflection_center_x,
+                        (unsigned)reflection_center_y);
+                return 1;
+            }
+        }
+        if (strcmp(texture_load_ctx.texture_project.source_scene_id, "scene_snapshot_roundtrip") != 0 ||
+            strcmp(texture_load_ctx.texture_project.source_object_id, "obj_snapshot_roundtrip") != 0 ||
+            strcmp(texture_load_ctx.texture_project.source_scene_path,
+                   "/tmp/drawing_program_snapshot_scene_roundtrip.json") != 0 ||
+            strcmp(texture_load_ctx.session.selected_scene_path,
+                   "/tmp/drawing_program_snapshot_scene_roundtrip.json") != 0 ||
+            strcmp(texture_load_ctx.session.selected_scene_object_id, "obj_snapshot_roundtrip") != 0) {
+            fprintf(stderr,
+                    "lifecycle_test: expected texture project snapshot provenance roundtrip scene=%s object=%s path=%s selected_path=%s selected_object=%s\n",
+                    texture_load_ctx.texture_project.source_scene_id,
+                    texture_load_ctx.texture_project.source_object_id,
+                    texture_load_ctx.texture_project.source_scene_path,
+                    texture_load_ctx.session.selected_scene_path,
+                    texture_load_ctx.session.selected_scene_object_id);
+            return 1;
+        }
+        {
+            const DrawingProgramTextureSurface *loaded_blank_surface =
+                drawing_program_texture_project_surface_at(&texture_load_ctx.texture_project, blank_surface_index);
+            if (!loaded_blank_surface ||
+                !loaded_blank_surface->storage ||
+                !loaded_blank_surface->user_created ||
+                !loaded_blank_surface->is_blank ||
+                loaded_blank_surface->resize_locked ||
+                loaded_blank_surface->storage->document.logical_width != blank_logical_width ||
+                loaded_blank_surface->storage->document.logical_height != blank_logical_height) {
+                fprintf(stderr,
+                        "lifecycle_test: expected loaded blank texture surface to persist user/blank/free resized state user=%u blank=%u lock=%u size=%ux%u\n",
+                        (unsigned)(loaded_blank_surface ? loaded_blank_surface->user_created : 0u),
+                        (unsigned)(loaded_blank_surface ? loaded_blank_surface->is_blank : 0u),
+                        (unsigned)(loaded_blank_surface ? loaded_blank_surface->resize_locked : 0u),
+                        (unsigned)(loaded_blank_surface ? loaded_blank_surface->storage->document.logical_width : 0u),
+                        (unsigned)(loaded_blank_surface ? loaded_blank_surface->storage->document.logical_height : 0u));
+                return 1;
+            }
+        }
+        {
+            const DrawingProgramTextureSurface *loaded_active_surface =
+                drawing_program_texture_project_surface_at(&texture_load_ctx.texture_project, extra_surface_index);
+            if (!loaded_active_surface ||
+                !loaded_active_surface->user_created ||
+                loaded_active_surface->is_blank ||
+                !loaded_active_surface->resize_locked ||
+                fabsf(loaded_active_surface->layout_offset_x - extra_layout_offset_x) > 0.01f ||
+                fabsf(loaded_active_surface->layout_offset_y - extra_layout_offset_y) > 0.01f ||
+                loaded_active_surface->semantic.layout_kind != DRAWING_PROGRAM_TEXTURE_NET_LAYOUT_KIND_RECT_PRISM_CROSS ||
+                loaded_active_surface->semantic.net_slot != DRAWING_PROGRAM_TEXTURE_NET_SLOT_RIGHT ||
+                loaded_active_surface->semantic.orientation != DRAWING_PROGRAM_TEXTURE_NET_ORIENTATION_R90 ||
+                loaded_active_surface->semantic.adjacent_face_roles[DRAWING_PROGRAM_TEXTURE_NET_EDGE_SIDE_LEFT] !=
+                    DRAWING_PROGRAM_TEXTURE_FACE_ROLE_FRONT) {
+                fprintf(stderr,
+                        "lifecycle_test: expected loaded active texture surface to persist user/blank/lock/net flags and offsets user=%u blank=%u lock=%u offset=(%.2f,%.2f) layout=%u slot=%u orientation=%u left_adj=%u\n",
+                        (unsigned)(loaded_active_surface ? loaded_active_surface->user_created : 0u),
+                        (unsigned)(loaded_active_surface ? loaded_active_surface->is_blank : 0u),
+                        (unsigned)(loaded_active_surface ? loaded_active_surface->resize_locked : 0u),
+                        loaded_active_surface ? loaded_active_surface->layout_offset_x : 0.0f,
+                        loaded_active_surface ? loaded_active_surface->layout_offset_y : 0.0f,
+                        (unsigned)(loaded_active_surface ? loaded_active_surface->semantic.layout_kind : 0u),
+                        (unsigned)(loaded_active_surface ? loaded_active_surface->semantic.net_slot : 0u),
+                        (unsigned)(loaded_active_surface ? loaded_active_surface->semantic.orientation : 0u),
+                        (unsigned)(loaded_active_surface
+                                       ? loaded_active_surface->semantic.adjacent_face_roles
+                                             [DRAWING_PROGRAM_TEXTURE_NET_EDGE_SIDE_LEFT]
+                                       : 0u));
+                return 1;
+            }
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&texture_load_ctx.document,
+                                                            extra_sample_x,
+                                                            extra_sample_y,
+                                                            &loaded_extra_sample),
+                       "texture_project_loaded_extra_surface_sample")) {
+            return 1;
+        }
+        if (loaded_extra_sample != extra_sample_value) {
+            fprintf(stderr,
+                    "lifecycle_test: expected loaded extra surface sample=%u got=%u\n",
+                    (unsigned)extra_sample_value,
+                    (unsigned)loaded_extra_sample);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_texture_project_session_select_surface(&texture_load_ctx, 0u),
+                       "texture_project_reselect_base_surface")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&texture_load_ctx.document,
+                                                            base_sample_x,
+                                                            base_sample_y,
+                                                            &loaded_base_sample),
+                       "texture_project_loaded_base_surface_sample")) {
+            return 1;
+        }
+        if (loaded_base_sample != base_sample_value) {
+            fprintf(stderr,
+                    "lifecycle_test: expected loaded base surface sample=%u got=%u\n",
+                    (unsigned)base_sample_value,
+                    (unsigned)loaded_base_sample);
+            return 1;
+        }
+        {
+            const DrawingProgramTextureSurface *loaded_base_surface =
+                drawing_program_texture_project_surface_at(&texture_load_ctx.texture_project, 0u);
+            if (!loaded_base_surface ||
+                loaded_base_surface->is_blank ||
+                !loaded_base_surface->resize_locked) {
+                fprintf(stderr,
+                        "lifecycle_test: expected loaded base texture surface to remain nonblank and locked blank=%u lock=%u\n",
+                        (unsigned)(loaded_base_surface ? loaded_base_surface->is_blank : 0u),
+                        (unsigned)(loaded_base_surface ? loaded_base_surface->resize_locked : 0u));
+                return 1;
+            }
+        }
+        if (!expect_ok(drawing_program_app_bootstrap(&legacy_texture_load_ctx, 6, texture_argv),
+                       "legacy_texture_project_bootstrap_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_config_load(&legacy_texture_load_ctx), "legacy_texture_project_config_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_state_seed(&legacy_texture_load_ctx), "legacy_texture_project_state_seed_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_snapshot_load(&legacy_texture_load_ctx, legacy_pack_path),
+                       "legacy_texture_project_load")) {
+            return 1;
+        }
+        if (legacy_texture_load_ctx.texture_project.surface_count != 1u) {
+            fprintf(stderr,
+                    "lifecycle_test: expected legacy load wrap to seed one texture surface got=%u\n",
+                    (unsigned)legacy_texture_load_ctx.texture_project.surface_count);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&legacy_texture_load_ctx.document,
+                                                            extra_sample_x,
+                                                            extra_sample_y,
+                                                            &loaded_extra_sample),
+                       "legacy_texture_project_wrapped_sample")) {
+            return 1;
+        }
+        if (loaded_extra_sample != extra_sample_value) {
+            fprintf(stderr,
+                    "lifecycle_test: expected legacy wrapped active surface sample=%u got=%u\n",
+                    (unsigned)extra_sample_value,
+                    (unsigned)loaded_extra_sample);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_shutdown(&texture_save_ctx), "texture_project_shutdown_save")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_shutdown(&texture_load_ctx), "texture_project_shutdown_load")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_app_shutdown(&legacy_texture_load_ctx), "legacy_texture_project_shutdown_load")) {
+            return 1;
+        }
+        (void)unlink(texture_arg5);
+        (void)unlink(legacy_pack_path);
     }
     {
         static DrawingProgramAppContext repaired_load_ctx;
@@ -186,16 +574,17 @@ int drawing_program_lifecycle_run_snapshot_shell_suite(DrawingProgramAppContext 
             return 1;
         }
         if (load_ctx.runtime.render_projection.raster_sample_count == 0u ||
-            load_ctx.runtime.render_projection.raster_nonzero_count == 0u ||
-            load_ctx.runtime.render_projection.raster_hash32 == 0u) {
+            load_ctx.runtime.render_projection.visible_layer_count == 0u ||
+            load_ctx.runtime.render_active_surface_content_revision == 0u) {
             fprintf(stderr,
                     "lifecycle_test: expected post-load run loop to repopulate render projection immediately\n");
             return 1;
         }
-        if (load_ctx.runtime.render_canvas_last_raster_hash != load_ctx.runtime.render_projection.raster_hash32 ||
-            load_ctx.runtime.render_canvas_last_nonzero_samples != load_ctx.runtime.render_projection.raster_nonzero_count) {
+        if (load_ctx.runtime.render_layer_opacity_revision == 0u ||
+            load_ctx.runtime.render_last_active_layer_id == 0u ||
+            !load_ctx.runtime.render_last_has_active_layer) {
             fprintf(stderr,
-                    "lifecycle_test: expected post-load edit to update visible canvas signature in the same session\n");
+                    "lifecycle_test: expected post-load edit to refresh active render revision state in the same session\n");
             return 1;
         }
         if (!expect_ok(drawing_program_app_shutdown(&save_ctx), "post_load_edit_shutdown_save")) {

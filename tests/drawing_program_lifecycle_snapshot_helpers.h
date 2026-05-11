@@ -15,5 +15,9 @@ int write_snapshot_with_truncated_dps2_shell(const char *source_pack_path,
                                              const char *output_pack_path);
 int write_snapshot_with_truncated_dps3_shell(const char *source_pack_path,
                                              const char *output_pack_path);
+int write_legacy_snapshot_without_texture_project_chunks(const char *source_pack_path,
+                                                         const char *output_pack_path);
+int write_texture_project_snapshot_with_v5_root(const char *source_pack_path,
+                                                const char *output_pack_path);
 
 #endif

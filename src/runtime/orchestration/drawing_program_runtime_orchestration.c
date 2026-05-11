@@ -200,6 +200,7 @@ static CoreResult clear_canvas_samples(DrawingProgramAppContext *ctx) {
             }
         }
     }
+    drawing_program_document_mark_content_changed(&ctx->document);
     result = find_layer_index(ctx, ctx->editor.active_layer_id, &active_index);
     if (result.code != CORE_OK && ctx->document.layer_count > 0u) {
         ctx->editor.active_layer_id = ctx->document.layers[0].layer_id;

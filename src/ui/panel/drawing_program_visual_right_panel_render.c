@@ -1,145 +1,19 @@
 #include "drawing_program/drawing_program_visual_right_panel_render.h"
 
 #include <stdio.h>
-#include <string.h>
 
-#include "drawing_program/drawing_program_icns_export.h"
+#include "drawing_program/drawing_program_canvas_reflection.h"
 #include "drawing_program/drawing_program_object_store.h"
-#include "drawing_program/drawing_program_iconset_export.h"
-#include "drawing_program/drawing_program_png_export.h"
-#include "drawing_program/drawing_program_project_state.h"
+#include "drawing_program/drawing_program_texture_net_guides.h"
+#include "drawing_program/drawing_program_texture_project.h"
+#include "drawing_program/drawing_program_visual_layer_roles.h"
 #include "drawing_program/drawing_program_visual_layer_opacity.h"
 #include "drawing_program/drawing_program_visual_layout.h"
 #include "drawing_program/drawing_program_visual_panel_render_common.h"
+#include "drawing_program/drawing_program_visual_right_panel_defs.h"
 #include "drawing_program/drawing_program_visual_right_panel_color_render.h"
+#include "drawing_program/drawing_program_visual_right_panel_file_tabs_render.h"
 #include "drawing_program/drawing_program_visual_theme.h"
-
-enum {
-    VISUAL_RIGHT_PANEL_SLOT_CANVAS_VALUE = 0,
-    VISUAL_RIGHT_PANEL_SLOT_LAYER_VALUE = 1,
-    VISUAL_RIGHT_PANEL_SLOT_COLOR_VALUE = 2,
-    VISUAL_RIGHT_PANEL_SLOT_FILE_VALUE = 3,
-    VISUAL_RIGHT_FILE_ACTION_NEW_PROJECT = 0,
-    VISUAL_RIGHT_FILE_ACTION_OPEN_PROJECT = 1,
-    VISUAL_RIGHT_FILE_ACTION_SAVE_PROJECT = 2,
-    VISUAL_RIGHT_FILE_ACTION_SAVE_AS = 3,
-    VISUAL_RIGHT_FILE_ACTION_LOAD_PROJECT = 4,
-    VISUAL_RIGHT_FILE_ACTION_SAVE_SESSION = 5,
-    VISUAL_RIGHT_FILE_ACTION_RELOAD_SESSION = 6,
-    VISUAL_RIGHT_FILE_ACTION_COUNT = 7,
-    VISUAL_RIGHT_FILE_ROUTE_ACTION_PICK_INPUT = 0,
-    VISUAL_RIGHT_FILE_ROUTE_ACTION_PICK_OUTPUT = 1,
-    VISUAL_RIGHT_FILE_ROUTE_ACTION_EXPORT_PNG = 2,
-    VISUAL_RIGHT_FILE_ROUTE_ACTION_EXPORT_ICONSET = 3,
-    VISUAL_RIGHT_FILE_ROUTE_ACTION_EXPORT_ICNS = 4,
-    VISUAL_RIGHT_FILE_ROUTE_ACTION_COUNT = 5
-};
-
-static void visual_right_panel_format_path_line(char *out_line,
-                                                size_t out_cap,
-                                                const char *label,
-                                                const char *path) {
-    size_t path_len = 0u;
-    const char *display_path = path;
-    if (!out_line || out_cap == 0u) {
-        return;
-    }
-    if (!label) {
-        label = "PATH";
-    }
-    if (!path || path[0] == '\0') {
-        (void)snprintf(out_line, out_cap, "%s (unset)", label);
-        return;
-    }
-    path_len = strlen(path);
-    if (path_len > 28u) {
-        display_path = path + (path_len - 28u);
-        while (*display_path != '\0' && *display_path != '/') {
-            ++display_path;
-        }
-        if (*display_path == '/') {
-            ++display_path;
-        } else {
-            display_path = path + (path_len - 28u);
-        }
-        (void)snprintf(out_line, out_cap, "%s .../%s", label, display_path);
-        return;
-    }
-    (void)snprintf(out_line, out_cap, "%s %s", label, path);
-}
-
-static void visual_right_panel_format_recent_project_line(char *out_line,
-                                                          size_t out_cap,
-                                                          uint32_t row_index,
-                                                          const char *path,
-                                                          uint8_t existing) {
-    const char *name = path;
-    size_t name_len = 0u;
-    if (!out_line || out_cap == 0u) {
-        return;
-    }
-    if (!path || path[0] == '\0') {
-        (void)snprintf(out_line, out_cap, "N%u NEW TARGET", (unsigned)(row_index + 1u));
-        return;
-    }
-    name = strrchr(path, '/');
-    name = name ? (name + 1) : path;
-    name_len = strlen(name);
-    if (name_len > 22u) {
-        name += (name_len - 22u);
-    }
-    (void)snprintf(out_line,
-                   out_cap,
-                   "%c%u %s %s",
-                   existing ? 'S' : 'N',
-                   (unsigned)(row_index + 1u),
-                   existing ? "LOAD" : "SAVE",
-                   name);
-}
-
-static void visual_right_panel_draw_scrollbar(SDL_Renderer *renderer,
-                                              SDL_Rect viewport,
-                                              int offset_y,
-                                              int max_offset_y,
-                                              SDL_Color track_color,
-                                              SDL_Color thumb_color) {
-    SDL_Rect track;
-    SDL_Rect thumb;
-    float ratio;
-    if (!renderer || viewport.h <= 0 || max_offset_y <= 0) {
-        return;
-    }
-    track.x = viewport.x + viewport.w - 8;
-    track.y = viewport.y;
-    track.w = 6;
-    track.h = viewport.h;
-    if (track.w < 1 || track.h < 1) {
-        return;
-    }
-    if (offset_y < 0) {
-        offset_y = 0;
-    }
-    if (offset_y > max_offset_y) {
-        offset_y = max_offset_y;
-    }
-    ratio = (float)viewport.h / (float)(viewport.h + max_offset_y);
-    if (ratio < 0.1f) {
-        ratio = 0.1f;
-    }
-    thumb = track;
-    thumb.h = (int)((float)track.h * ratio);
-    if (thumb.h < 6) {
-        thumb.h = 6;
-    }
-    if (thumb.h > track.h) {
-        thumb.h = track.h;
-    }
-    thumb.y = track.y + (int)((float)(track.h - thumb.h) * ((float)offset_y / (float)max_offset_y));
-    SDL_SetRenderDrawColor(renderer, track_color.r, track_color.g, track_color.b, track_color.a);
-    (void)SDL_RenderFillRect(renderer, &track);
-    SDL_SetRenderDrawColor(renderer, thumb_color.r, thumb_color.g, thumb_color.b, thumb_color.a);
-    (void)SDL_RenderFillRect(renderer, &thumb);
-}
 
 void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                                                       SDL_Rect rect,
@@ -157,6 +31,8 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
     SDL_Rect tab_layer;
     SDL_Rect tab_color;
     SDL_Rect tab_file;
+    SDL_Rect tab_asset;
+    SDL_Rect tab_export;
     SDL_Rect row;
     int y;
     uint8_t active_visible = 0u;
@@ -171,6 +47,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
         !hooks->color_index_clamp || !hooks->color_rgb_from_index) {
         return;
     }
+    (void)interaction;
     right_slot = hooks->clamp_right_slot(ctx->ui.right_panel_slot);
     m = make_pane_layout_metrics(ctx);
     resolve_visual_theme_palette(theme, &p);
@@ -187,10 +64,12 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
     y = rect.y + m.pad_y;
     hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, "RIGHT PANEL", p.text_primary, m.title_scale);
     y += m.title_glyph_h + m.section_gap;
-    tab_canvas = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_CANVAS_VALUE, 4u);
-    tab_layer = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_LAYER_VALUE, 4u);
-    tab_color = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_COLOR_VALUE, 4u);
-    tab_file = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_FILE_VALUE, 4u);
+    tab_canvas = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_CANVAS, VISUAL_RIGHT_PANEL_SLOT_COUNT);
+    tab_layer = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_LAYER, VISUAL_RIGHT_PANEL_SLOT_COUNT);
+    tab_color = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_COLOR, VISUAL_RIGHT_PANEL_SLOT_COUNT);
+    tab_file = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_FILE, VISUAL_RIGHT_PANEL_SLOT_COUNT);
+    tab_asset = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_ASSET, VISUAL_RIGHT_PANEL_SLOT_COUNT);
+    tab_export = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_EXPORT, VISUAL_RIGHT_PANEL_SLOT_COUNT);
     drawing_program_visual_panel_draw_tab_button(renderer,
                                                  rect,
                                                  tab_canvas,
@@ -199,9 +78,9 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                                                  p.button_fill_hover,
                                                  p.button_fill_active,
                                                  p.button_border,
-                                                 (right_slot == VISUAL_RIGHT_PANEL_SLOT_CANVAS_VALUE) ? p.text_primary : p.text_muted,
+                                                 (right_slot == VISUAL_RIGHT_PANEL_SLOT_CANVAS) ? p.text_primary : p.text_muted,
                                                  m.body_scale,
-                                                 right_slot == VISUAL_RIGHT_PANEL_SLOT_CANVAS_VALUE,
+                                                 right_slot == VISUAL_RIGHT_PANEL_SLOT_CANVAS,
                                                  drawing_program_visual_panel_ui_hovered(ui, tab_canvas, hooks),
                                                  hooks);
     drawing_program_visual_panel_draw_tab_button(renderer,
@@ -212,9 +91,9 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                                                  p.button_fill_hover,
                                                  p.button_fill_active,
                                                  p.button_border,
-                                                 (right_slot == VISUAL_RIGHT_PANEL_SLOT_LAYER_VALUE) ? p.text_primary : p.text_muted,
+                                                 (right_slot == VISUAL_RIGHT_PANEL_SLOT_LAYER) ? p.text_primary : p.text_muted,
                                                  m.body_scale,
-                                                 right_slot == VISUAL_RIGHT_PANEL_SLOT_LAYER_VALUE,
+                                                 right_slot == VISUAL_RIGHT_PANEL_SLOT_LAYER,
                                                  drawing_program_visual_panel_ui_hovered(ui, tab_layer, hooks),
                                                  hooks);
     drawing_program_visual_panel_draw_tab_button(renderer,
@@ -225,9 +104,9 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                                                  p.button_fill_hover,
                                                  p.button_fill_active,
                                                  p.button_border,
-                                                 (right_slot == VISUAL_RIGHT_PANEL_SLOT_COLOR_VALUE) ? p.text_primary : p.text_muted,
+                                                 (right_slot == VISUAL_RIGHT_PANEL_SLOT_COLOR) ? p.text_primary : p.text_muted,
                                                  m.body_scale,
-                                                 right_slot == VISUAL_RIGHT_PANEL_SLOT_COLOR_VALUE,
+                                                 right_slot == VISUAL_RIGHT_PANEL_SLOT_COLOR,
                                                  drawing_program_visual_panel_ui_hovered(ui, tab_color, hooks),
                                                  hooks);
     drawing_program_visual_panel_draw_tab_button(renderer,
@@ -238,99 +117,78 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                                                  p.button_fill_hover,
                                                  p.button_fill_active,
                                                  p.button_border,
-                                                 (right_slot == VISUAL_RIGHT_PANEL_SLOT_FILE_VALUE) ? p.text_primary
-                                                                                                   : p.text_muted,
+                                                 (right_slot == VISUAL_RIGHT_PANEL_SLOT_FILE) ? p.text_primary : p.text_muted,
                                                  m.body_scale,
-                                                 right_slot == VISUAL_RIGHT_PANEL_SLOT_FILE_VALUE,
+                                                 right_slot == VISUAL_RIGHT_PANEL_SLOT_FILE,
                                                  drawing_program_visual_panel_ui_hovered(ui, tab_file, hooks),
+                                                 hooks);
+    drawing_program_visual_panel_draw_tab_button(renderer,
+                                                 rect,
+                                                 tab_asset,
+                                                 "ASSET",
+                                                 p.button_fill,
+                                                 p.button_fill_hover,
+                                                 p.button_fill_active,
+                                                 p.button_border,
+                                                 (right_slot == VISUAL_RIGHT_PANEL_SLOT_ASSET) ? p.text_primary : p.text_muted,
+                                                 m.body_scale,
+                                                 right_slot == VISUAL_RIGHT_PANEL_SLOT_ASSET,
+                                                 drawing_program_visual_panel_ui_hovered(ui, tab_asset, hooks),
+                                                 hooks);
+    drawing_program_visual_panel_draw_tab_button(renderer,
+                                                 rect,
+                                                 tab_export,
+                                                 "EXPORT",
+                                                 p.button_fill,
+                                                 p.button_fill_hover,
+                                                 p.button_fill_active,
+                                                 p.button_border,
+                                                 (right_slot == VISUAL_RIGHT_PANEL_SLOT_EXPORT) ? p.text_primary
+                                                                                               : p.text_muted,
+                                                 m.body_scale,
+                                                 right_slot == VISUAL_RIGHT_PANEL_SLOT_EXPORT,
+                                                 drawing_program_visual_panel_ui_hovered(ui, tab_export, hooks),
                                                  hooks);
     y += m.tab_h + m.section_gap;
 
-    if (right_slot == VISUAL_RIGHT_PANEL_SLOT_CANVAS_VALUE) {
-        const char *pointer_state = "POINTER: PANEL";
-        const char *interaction_hint = "LMB: DRAW  RMB: PAN VIEW  WHEEL: ZOOM";
-        uint32_t history_cursor_units = 0u;
-        uint32_t history_count_units = 0u;
+    if (right_slot == VISUAL_RIGHT_PANEL_SLOT_CANVAS) {
+        const DrawingProgramTextureSurface *active_surface =
+            drawing_program_texture_project_surface_at(&ctx->texture_project, ctx->texture_project.active_surface_index);
+        SDL_Rect add_surface_button;
+        SDL_Rect duplicate_surface_button;
+        SDL_Rect canvas_mode_button;
+        SDL_Rect canvas_guide_button;
+        SDL_Rect reflect_horizontal_button;
+        SDL_Rect reflect_vertical_button;
+        SDL_Rect center_pick_button;
+        SDL_Rect center_reset_button;
+        SDL_Rect delete_canvas_button;
+        SDL_Rect reset_layout_button;
         SDL_Rect reset_view_button;
         SDL_Rect clear_canvas_button;
         SDL_Rect clear_objects_button;
         SDL_Rect delete_selection_button;
         SDL_Rect clear_history_button;
+        uint32_t surface_index = 0u;
         uint32_t brush_radius = hooks->tool_brush_radius_samples(ctx, ctx->editor.active_tool);
         uint32_t brush_spacing = hooks->tool_brush_spacing_samples(ctx, ctx->editor.active_tool, brush_radius);
-        uint32_t selection_w = (selection && selection->has_payload) ? selection->width : 0u;
-        uint32_t selection_h = (selection && selection->has_payload) ? selection->height : 0u;
-        uint32_t selection_payload = (selection && selection->has_payload) ? selection->payload_count : 0u;
-        uint32_t selection_layer_id = (selection && selection->has_payload) ? selection->layer_id : 0u;
-        uint32_t selection_regions = 0u;
+        uint32_t reflection_center_x = 0u;
+        uint32_t reflection_center_y = 0u;
         int delete_selection_enabled = (selection &&
                                         selection->has_payload &&
                                         hooks->active_layer_allows_edits_visual(ctx))
                                            ? 1
                                            : 0;
-        uint32_t clipboard_w = ctx->clipboard.has_payload ? ctx->clipboard.width : 0u;
-        uint32_t clipboard_h = ctx->clipboard.has_payload ? ctx->clipboard.height : 0u;
-        uint32_t clipboard_payload = ctx->clipboard.has_payload ? ctx->clipboard.payload_count : 0u;
-        uint32_t clipboard_source_layer_id = ctx->clipboard.has_payload ? ctx->clipboard.source_layer_id : 0u;
-        const char *transform_axis = "FREE";
-        if (ui && ui->mouse_known) {
-            SDL_Rect canvas_rect = { 0, 0, 0, 0 };
-            if (hooks->pane_rect_for_module_type(ctx, 1u, &canvas_rect) &&
-                hooks->point_in_rect(canvas_rect, ui->mouse_x, ui->mouse_y)) {
-                pointer_state = "POINTER: CANVAS";
-            }
-        }
-        if (selection && selection->has_payload) {
-            selection_regions = hooks->selection_component_count(selection);
-            if (selection_regions == 0u) {
-                selection_regions = 1u;
-            }
-        }
-        if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_SELECT) {
-            interaction_hint = (ctx->object_selection.count > 0u)
-                                   ? "LMB OBJECT: PICK  EMPTY:MARQUEE  SHIFT+LMB:ADD  ALT+LMB:REMOVE"
-                                   : "LMB: MARQUEE  SHIFT:ADD  ALT:SUBTRACT";
-        } else if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_MOVE) {
-            if (ctx->object_selection.count > 0u) {
-                interaction_hint = "LMB: MOVE OBJECTS  ALT+LMB POINT: MOVE VERTEX  ARROWS:NUDGE  SHIFT+ARROW:x10";
-            } else {
-                interaction_hint = selection && selection->has_payload
-                                       ? "LMB: MOVE SEL  ARROWS:NUDGE  SHIFT+ARROW:x10"
-                                       : "MOVE TOOL: NO ACTIVE SELECTION";
-            }
-        } else if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_FILL) {
-            interaction_hint = "LMB: FILL REGION  TOLERANCE CONTROLS MATCH RANGE";
-        } else if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_PICKER) {
-            interaction_hint = "LMB: PICK COLOR";
-        } else if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_PATH) {
-            interaction_hint =
-                "LMB: ADD POINT  ENTER: CLOSED PATH  SHIFT+ENTER: OPEN PATH  ESC: CANCEL  BACKSPACE: UNDO POINT";
-        } else if (ctx->object_selection.count > 0u) {
-            interaction_hint = "OBJECTS SELECTED  USE SELECT/MOVE OR CMD+R RASTERIZE";
-        }
-        if (selection && selection->moving) {
-            if (interaction && interaction->move_axis_lock == 1u) {
-                transform_axis = "X";
-            } else if (interaction && interaction->move_axis_lock == 2u) {
-                transform_axis = "Y";
-            }
-        } else if (interaction && interaction->object_move_active) {
-            if (interaction->move_axis_lock == 1u) {
-                transform_axis = "X";
-            } else if (interaction->move_axis_lock == 2u) {
-                transform_axis = "Y";
-            }
-        }
-        drawing_program_history_query_units(&ctx->history, &history_cursor_units, &history_count_units);
+        (void)drawing_program_canvas_reflection_active_center(ctx, &reflection_center_x, &reflection_center_y);
         y = right_canvas_metrics_start_y(rect, m);
-        (void)snprintf(line, sizeof(line), "HISTORY %u/%u", history_cursor_units, history_count_units);
-        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
-        y += m.line_h;
         if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_BRUSH) {
             (void)snprintf(line,
                            sizeof(line),
-                           "TOOL %s  R%u S%u O%u%% H%u%%",
+                           "TOOL %s  MODE %s  R%u S%u O%u%% H%u%%",
                            hooks->tool_name(ctx->editor.active_tool),
+                           (ctx->ui.canvas_control_mode == (uint8_t)DRAWING_PROGRAM_UI_CANVAS_CONTROL_MODE_LAYOUT)
+                               ? "LAYOUT"
+                               : "PAINT",
                            brush_radius,
                            brush_spacing,
                            (unsigned)hooks->clamp_setting_u8(ctx->ui.tool_brush_opacity, 1u, 100u),
@@ -338,144 +196,314 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
         } else if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_ERASER) {
             (void)snprintf(line,
                            sizeof(line),
-                           "TOOL %s  R%u S%u",
+                           "TOOL %s  MODE %s  R%u S%u",
                            hooks->tool_name(ctx->editor.active_tool),
+                           (ctx->ui.canvas_control_mode == (uint8_t)DRAWING_PROGRAM_UI_CANVAS_CONTROL_MODE_LAYOUT)
+                               ? "LAYOUT"
+                               : "PAINT",
                            brush_radius,
                            brush_spacing);
         } else if (hooks->tool_uses_shape_commit(ctx->editor.active_tool)) {
-            if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_LINE) {
-                (void)snprintf(line,
-                               sizeof(line),
-                               "TOOL %s  W%u",
-                               hooks->tool_name(ctx->editor.active_tool),
-                               (unsigned)hooks->clamp_setting_u8(ctx->ui.tool_shape_stroke_width, 1u, 16u));
-            } else {
-                (void)snprintf(line,
-                               sizeof(line),
-                               "TOOL %s  W%u MODE %s TARGET %s",
-                               hooks->tool_name(ctx->editor.active_tool),
-                               (unsigned)hooks->clamp_setting_u8(ctx->ui.tool_shape_stroke_width, 1u, 16u),
-                               hooks->shape_mode_name(hooks->tool_shape_mode(ctx)),
-                               drawing_program_visual_shape_target_mode_name(
-                                   hooks->clamp_setting_u8(ctx->ui.tool_shape_target_mode, 0u, 1u)));
-            }
-        } else if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_FILL) {
             (void)snprintf(line,
                            sizeof(line),
-                           "TOOL %s  TOL %u (d%u)",
+                           "TOOL %s  CANVAS %s  W%u %s",
                            hooks->tool_name(ctx->editor.active_tool),
-                           (unsigned)hooks->tool_fill_tolerance_setting(ctx),
-                           (unsigned)hooks->fill_tolerance_sample_delta(hooks->tool_fill_tolerance_setting(ctx)));
-        } else if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_SELECT) {
+                           (ctx->ui.canvas_control_mode == (uint8_t)DRAWING_PROGRAM_UI_CANVAS_CONTROL_MODE_LAYOUT)
+                               ? "LAYOUT"
+                               : "PAINT",
+                           (unsigned)hooks->clamp_setting_u8(ctx->ui.tool_shape_stroke_width, 1u, 16u),
+                           hooks->shape_mode_name(hooks->tool_shape_mode(ctx)));
+        } else {
             (void)snprintf(line,
                            sizeof(line),
                            "TOOL %s  MODE %s",
                            hooks->tool_name(ctx->editor.active_tool),
-                           drawing_program_visual_select_mode_name(hooks->clamp_setting_u8(ctx->ui.tool_select_mode, 0u, 2u)));
-        } else if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_PATH) {
-            (void)snprintf(line,
-                           sizeof(line),
-                           "TOOL %s  W%u MODE %s",
-                           hooks->tool_name(ctx->editor.active_tool),
-                           (unsigned)hooks->clamp_setting_u8(ctx->ui.tool_shape_stroke_width, 1u, 16u),
-                           hooks->shape_mode_name(hooks->tool_shape_mode(ctx)));
-        } else {
-            (void)snprintf(line, sizeof(line), "TOOL %s", hooks->tool_name(ctx->editor.active_tool));
+                           (ctx->ui.canvas_control_mode == (uint8_t)DRAWING_PROGRAM_UI_CANVAS_CONTROL_MODE_LAYOUT)
+                               ? "LAYOUT"
+                               : "PAINT");
         }
         hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
         y += m.line_h;
         (void)snprintf(line,
                        sizeof(line),
-                       "LAYER %u O%u%% V%s K%s",
-                       (unsigned)ctx->editor.active_layer_id,
-                       (unsigned)active_opacity,
-                       active_visible ? "ON" : "OFF",
-                       active_locked ? "ON" : "OFF");
+                       "SURFACES %u  ACTIVE %u/%u",
+                       (unsigned)ctx->texture_project.surface_count,
+                       (unsigned)(ctx->texture_project.active_surface_index + 1u),
+                       (unsigned)(ctx->texture_project.surface_count > 0u ? ctx->texture_project.surface_count : 1u));
         hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
         y += m.line_h;
-        (void)snprintf(line, sizeof(line), "VIEW Z%.2fx PAN %d,%d", (double)ctx->editor.viewport.zoom, (int)ctx->editor.viewport.pan_x, (int)ctx->editor.viewport.pan_y);
-        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
-        y += m.line_h;
-        if (selection && selection->has_payload) {
+        if (active_surface && active_surface->storage) {
             (void)snprintf(line,
                            sizeof(line),
-                           "SELECTION %ux%u P%u R%u L%u",
-                           selection_w,
-                           selection_h,
-                           selection_payload,
-                           selection_regions,
-                           selection_layer_id);
+                           "ACTIVE %s %ux%u %s",
+                           drawing_program_texture_project_face_role_name(active_surface->face_role),
+                           (unsigned)active_surface->storage->document.raster_width,
+                           (unsigned)active_surface->storage->document.raster_height,
+                           drawing_program_texture_project_quality_preset_name(active_surface->quality_preset));
         } else {
-            (void)snprintf(line, sizeof(line), "SELECTION NONE");
+            (void)snprintf(line, sizeof(line), "ACTIVE SURFACE n/a");
         }
         hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
         y += m.line_h;
-        if (ctx->object_selection.count > 0u) {
-            const DrawingProgramObjectRecord *active_object =
-                drawing_program_object_store_get_by_id(&ctx->object_store, ctx->object_selection.active_object_id);
+        if (active_surface && active_surface->semantic.layout_kind != DRAWING_PROGRAM_TEXTURE_NET_LAYOUT_KIND_NONE) {
             (void)snprintf(line,
                            sizeof(line),
-                           "OBJECTS %u ACTIVE %u",
-                           (unsigned)ctx->object_selection.count,
-                           (unsigned)ctx->object_selection.active_object_id);
+                           "NET %s %s %s",
+                           drawing_program_texture_net_layout_kind_name(active_surface->semantic.layout_kind),
+                           drawing_program_texture_net_slot_name(active_surface->semantic.net_slot),
+                           drawing_program_texture_net_orientation_name(active_surface->semantic.orientation));
             hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
             y += m.line_h;
-            if (active_object) {
+        }
+        (void)snprintf(line,
+                       sizeof(line),
+                       "GUIDES %s  REFLECT %c/%c @ %u,%u  VIEW Z%.2fx PAN %d,%d",
+                       drawing_program_ui_canvas_guide_mode_name(ctx->ui.canvas_guide_mode),
+                       ctx->editor.symmetry_horizontal ? 'H' : '-',
+                       ctx->editor.symmetry_vertical ? 'V' : '-',
+                       (unsigned)reflection_center_x,
+                       (unsigned)reflection_center_y,
+                       (double)ctx->editor.viewport.zoom,
+                       (int)ctx->editor.viewport.pan_x,
+                       (int)ctx->editor.viewport.pan_y);
+        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
+        y += m.line_h;
+        if (ctx->texture_project.source_object_id[0] != '\0') {
+            const char *primitive_name = "none";
+            switch (ctx->texture_project.primitive_kind) {
+                case DRAWING_PROGRAM_TEXTURE_PRIMITIVE_KIND_PLANE: primitive_name = "plane"; break;
+                case DRAWING_PROGRAM_TEXTURE_PRIMITIVE_KIND_RECT_PRISM: primitive_name = "rect_prism"; break;
+                default: break;
+            }
+            if (ctx->texture_project.source_scene_id[0] != '\0') {
                 (void)snprintf(line,
                                sizeof(line),
-                               "OBJ ORIGIN %d,%d SIZE %ux%u",
-                               (int)active_object->origin_x,
-                               (int)active_object->origin_y,
-                               (unsigned)active_object->width,
-                               (unsigned)active_object->height);
+                               "SOURCE %s / %s", ctx->texture_project.source_object_id, primitive_name);
             } else {
-                (void)snprintf(line, sizeof(line), "OBJ ORIGIN n/a");
+                (void)snprintf(line,
+                               sizeof(line),
+                               "SOURCE %s %s", ctx->texture_project.source_object_id, primitive_name);
             }
-        } else {
-            (void)snprintf(line, sizeof(line), "OBJECTS NONE");
-            hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
-            y += m.line_h;
-            (void)snprintf(line, sizeof(line), "OBJ ORIGIN n/a");
-        }
-        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
-        y += m.line_h;
-        if (selection && selection->moving) {
-            (void)snprintf(line,
-                           sizeof(line),
-                           "TRANSFORM MOVE d(%d,%d) AXIS %s",
-                           (int)selection->offset_x,
-                           (int)selection->offset_y,
-                           transform_axis);
-        } else if (interaction && interaction->object_move_active) {
-            (void)snprintf(line,
-                           sizeof(line),
-                           "TRANSFORM OBJ d(%d,%d) AXIS %s",
-                           (int)interaction->object_move_offset_x,
-                           (int)interaction->object_move_offset_y,
-                           transform_axis);
-        } else if (selection && selection->selecting) {
-            (void)snprintf(line, sizeof(line), "TRANSFORM MARQUEE ACTIVE");
-        } else {
-            (void)snprintf(line, sizeof(line), "TRANSFORM IDLE");
-        }
-        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
-        y += m.line_h;
-        if (ctx->clipboard.has_payload) {
-            (void)snprintf(line, sizeof(line), "CLIPBOARD %ux%u P%u L%u", clipboard_w, clipboard_h, clipboard_payload, clipboard_source_layer_id);
             hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
             y += m.line_h;
         }
-        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, pointer_state, p.text_muted, m.body_scale);
-        y += m.line_h;
-        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, interaction_hint, p.text_muted, m.body_scale);
+        add_surface_button = right_canvas_add_surface_button_rect(rect, m);
+        duplicate_surface_button = right_canvas_duplicate_surface_button_rect(rect, m);
+        canvas_mode_button = right_canvas_mode_toggle_button_rect(rect, m);
+        canvas_guide_button = right_canvas_guide_mode_button_rect(rect, m);
+        reflect_horizontal_button = right_canvas_reflect_horizontal_button_rect(rect, m);
+        reflect_vertical_button = right_canvas_reflect_vertical_button_rect(rect, m);
+        center_pick_button = right_canvas_center_pick_button_rect(rect, m);
+        center_reset_button = right_canvas_center_reset_button_rect(rect, m);
+        delete_canvas_button = right_canvas_delete_canvas_button_rect(rect, m);
+        drawing_program_visual_panel_draw_tab_button(renderer,
+                                                     rect,
+                                                     add_surface_button,
+                                                     "ADD CANVAS",
+                                                     p.button_fill,
+                                                     p.button_fill_hover,
+                                                     p.button_fill_active,
+                                                     p.button_border,
+                                                     p.text_primary,
+                                                     m.body_scale,
+                                                     0,
+                                                     drawing_program_visual_panel_ui_hovered(ui, add_surface_button, hooks),
+                                                     hooks);
+        drawing_program_visual_panel_draw_tab_button(renderer,
+                                                     rect,
+                                                     duplicate_surface_button,
+                                                     "DUPLICATE CANVAS",
+                                                     p.button_fill,
+                                                     p.button_fill_hover,
+                                                     p.button_fill_active,
+                                                     p.button_border,
+                                                     p.text_primary,
+                                                     m.body_scale,
+                                                     0,
+                                                     drawing_program_visual_panel_ui_hovered(ui, duplicate_surface_button, hooks),
+                                                     hooks);
+        drawing_program_visual_panel_draw_tab_button(
+            renderer,
+            rect,
+            canvas_mode_button,
+            (ctx->ui.canvas_control_mode == (uint8_t)DRAWING_PROGRAM_UI_CANVAS_CONTROL_MODE_LAYOUT)
+                ? "CANVAS MODE: LAYOUT"
+                : "CANVAS MODE: PAINT",
+            p.button_fill,
+            p.button_fill_hover,
+            p.button_fill_active,
+            p.button_border,
+            p.text_primary,
+            m.body_scale,
+            ctx->ui.canvas_control_mode == (uint8_t)DRAWING_PROGRAM_UI_CANVAS_CONTROL_MODE_LAYOUT,
+            drawing_program_visual_panel_ui_hovered(ui, canvas_mode_button, hooks),
+            hooks);
+        drawing_program_visual_panel_draw_tab_button(
+            renderer,
+            rect,
+            canvas_guide_button,
+            (ctx->ui.canvas_guide_mode == (uint8_t)DRAWING_PROGRAM_UI_CANVAS_GUIDE_MODE_OFF)
+                ? "GUIDES: OFF"
+                : ((ctx->ui.canvas_guide_mode == (uint8_t)DRAWING_PROGRAM_UI_CANVAS_GUIDE_MODE_CORNERS)
+                       ? "GUIDES: CORNERS"
+                       : "GUIDES: CORNERS+EDGES"),
+            p.button_fill,
+            p.button_fill_hover,
+            p.button_fill_active,
+            p.button_border,
+            p.text_primary,
+            m.body_scale,
+            ctx->ui.canvas_guide_mode != (uint8_t)DRAWING_PROGRAM_UI_CANVAS_GUIDE_MODE_OFF,
+            drawing_program_visual_panel_ui_hovered(ui, canvas_guide_button, hooks),
+            hooks);
+        drawing_program_visual_panel_draw_tab_button(renderer,
+                                                     rect,
+                                                     reflect_horizontal_button,
+                                                     "REFLECT H",
+                                                     p.button_fill,
+                                                     p.button_fill_hover,
+                                                     p.button_fill_active,
+                                                     p.button_border,
+                                                     p.text_primary,
+                                                     m.body_scale,
+                                                     ctx->editor.symmetry_horizontal ? 1 : 0,
+                                                     drawing_program_visual_panel_ui_hovered(ui,
+                                                                                            reflect_horizontal_button,
+                                                                                            hooks),
+                                                     hooks);
+        drawing_program_visual_panel_draw_tab_button(renderer,
+                                                     rect,
+                                                     reflect_vertical_button,
+                                                     "REFLECT V",
+                                                     p.button_fill,
+                                                     p.button_fill_hover,
+                                                     p.button_fill_active,
+                                                     p.button_border,
+                                                     p.text_primary,
+                                                     m.body_scale,
+                                                     ctx->editor.symmetry_vertical ? 1 : 0,
+                                                     drawing_program_visual_panel_ui_hovered(ui,
+                                                                                            reflect_vertical_button,
+                                                                                            hooks),
+                                                     hooks);
+        drawing_program_visual_panel_draw_tab_button(renderer,
+                                                     rect,
+                                                     center_pick_button,
+                                                     (ui && ui->right_canvas_reflection_center_pick_pending)
+                                                         ? "PICK CENTER"
+                                                         : "SET CENTER",
+                                                     p.button_fill,
+                                                     p.button_fill_hover,
+                                                     p.button_fill_active,
+                                                     p.button_border,
+                                                     p.text_primary,
+                                                     m.body_scale,
+                                                     (ui && ui->right_canvas_reflection_center_pick_pending) ? 1 : 0,
+                                                     drawing_program_visual_panel_ui_hovered(ui, center_pick_button, hooks),
+                                                     hooks);
+        {
+            char center_label[64];
+            (void)snprintf(center_label,
+                           sizeof(center_label),
+                           "RESET %u,%u",
+                           (unsigned)reflection_center_x,
+                           (unsigned)reflection_center_y);
+            drawing_program_visual_panel_draw_tab_button(renderer,
+                                                         rect,
+                                                         center_reset_button,
+                                                         center_label,
+                                                         p.button_fill,
+                                                         p.button_fill_hover,
+                                                         p.button_fill_active,
+                                                         p.button_border,
+                                                         p.text_primary,
+                                                         m.body_scale,
+                                                         0,
+                                                         drawing_program_visual_panel_ui_hovered(ui,
+                                                                                                center_reset_button,
+                                                                                                hooks),
+                                                         hooks);
+        }
+        {
+            int delete_canvas_armed =
+                ui &&
+                ui->right_canvas_delete_confirm_pending &&
+                ui->right_canvas_delete_confirm_surface_index == ctx->texture_project.active_surface_index;
+            uint8_t delete_fill_r = (p.button_fill_active.r > 227u) ? 255u : (uint8_t)(p.button_fill_active.r + 28u);
+            uint8_t delete_hover_r = (p.button_fill_hover.r > 219u) ? 255u : (uint8_t)(p.button_fill_hover.r + 36u);
+            SDL_Color delete_fill = delete_canvas_armed
+                                        ? (SDL_Color){ delete_fill_r,
+                                                       p.button_fill_active.g,
+                                                       p.button_fill_active.b,
+                                                       p.button_fill_active.a }
+                                        : p.button_fill;
+            SDL_Color delete_hover = delete_canvas_armed
+                                         ? (SDL_Color){ delete_hover_r,
+                                                        p.button_fill_hover.g,
+                                                        p.button_fill_hover.b,
+                                                        p.button_fill_hover.a }
+                                         : p.button_fill_hover;
+            drawing_program_visual_panel_draw_tab_button(renderer,
+                                                         rect,
+                                                         delete_canvas_button,
+                                                         delete_canvas_armed ? "DELETE CANVAS: CONFIRM"
+                                                                             : "DELETE CANVAS",
+                                                         delete_fill,
+                                                         delete_hover,
+                                                         p.button_fill_active,
+                                                         p.button_border,
+                                                         (ctx->texture_project.surface_count > 1u) ? p.text_primary
+                                                                                                  : p.text_muted,
+                                                         m.body_scale,
+                                                         delete_canvas_armed,
+                                                         drawing_program_visual_panel_ui_hovered(ui,
+                                                                                                delete_canvas_button,
+                                                                                                hooks),
+                                                         hooks);
+        }
+        for (surface_index = 0u; surface_index < ctx->texture_project.surface_count; ++surface_index) {
+            const DrawingProgramTextureSurface *surface =
+                drawing_program_texture_project_surface_at(&ctx->texture_project, surface_index);
+            SDL_Color fill;
+            SDL_Color text_color;
+            if (!surface || !surface->storage) {
+                continue;
+            }
+            row = right_canvas_surface_row_rect(rect, m, surface_index);
+            fill = (surface_index == ctx->texture_project.active_surface_index) ? p.button_fill_active : p.button_fill;
+            text_color =
+                (surface_index == ctx->texture_project.active_surface_index) ? p.text_primary : p.text_muted;
+            if (drawing_program_visual_panel_ui_hovered(ui, row, hooks)) {
+                fill = (surface_index == ctx->texture_project.active_surface_index) ? p.button_fill_active : p.button_fill_hover;
+            }
+            SDL_SetRenderDrawColor(renderer, fill.r, fill.g, fill.b, fill.a);
+            (void)SDL_RenderFillRect(renderer, &row);
+            SDL_SetRenderDrawColor(renderer, p.button_border.r, p.button_border.g, p.button_border.b, p.button_border.a);
+            (void)SDL_RenderDrawRect(renderer, &row);
+            (void)snprintf(line,
+                           sizeof(line),
+                           "%u %s %ux%u %s %s",
+                           (unsigned)(surface_index + 1u),
+                           surface->name,
+                           (unsigned)surface->storage->document.logical_width,
+                           (unsigned)surface->storage->document.logical_height,
+                           surface->is_blank ? "BLANK" : "PAINT",
+                           surface->resize_locked ? "LOCK" : "FREE");
+            hooks->draw_bitmap_text(renderer, rect, row.x + 6, row.y + m.row_text_y, line, text_color, m.body_scale);
+        }
 
+        reset_layout_button = right_canvas_reset_object_layout_button_rect(rect, m);
         reset_view_button = right_canvas_reset_view_button_rect(rect, m);
         clear_canvas_button = right_canvas_clear_canvas_button_rect(rect, m);
         clear_objects_button = right_canvas_clear_objects_button_rect(rect, m);
         delete_selection_button = right_canvas_delete_selection_button_rect(rect, m);
         clear_history_button = right_canvas_clear_history_button_rect(rect, m);
 
-        drawing_program_visual_panel_draw_tab_button(renderer, rect, reset_view_button, "RESET VIEW",
+        drawing_program_visual_panel_draw_tab_button(renderer, rect, reset_layout_button, "RESET TO OBJECT LAYOUT",
+                                                     p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
+                                                     p.text_primary, m.body_scale, 0,
+                                                     drawing_program_visual_panel_ui_hovered(ui, reset_layout_button, hooks), hooks);
+        drawing_program_visual_panel_draw_tab_button(renderer, rect, reset_view_button, "FIT ALL",
                                                      p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
                                                      p.text_primary, m.body_scale, 0,
                                                      drawing_program_visual_panel_ui_hovered(ui, reset_view_button, hooks), hooks);
@@ -495,11 +523,14 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                                                      p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
                                                      p.text_primary, m.body_scale, 0,
                                                      drawing_program_visual_panel_ui_hovered(ui, clear_history_button, hooks), hooks);
-    } else if (right_slot == VISUAL_RIGHT_PANEL_SLOT_LAYER_VALUE) {
+    } else if (right_slot == VISUAL_RIGHT_PANEL_SLOT_LAYER) {
         uint32_t display_i;
         SDL_Rect button_rect;
         SDL_Rect opacity_row_rect;
+        SDL_Rect role_button_rect;
         int opacity_label_y;
+        int role_section_y;
+        DrawingProgramVisualLayerRolePreset active_role = DRAWING_PROGRAM_VISUAL_LAYER_ROLE_PRESET_CUSTOM;
         hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, "LAYER STACK", p.text_primary, m.body_scale);
         y += m.line_h;
         if (ctx->document.layer_count == 0u) {
@@ -580,7 +611,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                                                      p.text_primary, m.body_scale, 0,
                                                      drawing_program_visual_panel_ui_hovered(ui, button_rect, hooks), hooks);
         button_rect = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_RENAME);
-        drawing_program_visual_panel_draw_tab_button(renderer, rect, button_rect, "RENAME SELECTED",
+        drawing_program_visual_panel_draw_tab_button(renderer, rect, button_rect, "AUTO ROLE NAME",
                                                      p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
                                                      p.text_primary, m.body_scale, 0,
                                                      drawing_program_visual_panel_ui_hovered(ui, button_rect, hooks), hooks);
@@ -637,328 +668,53 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                                                      0,
                                                      drawing_program_visual_panel_ui_hovered(ui, button_rect, hooks),
                                                      hooks);
-    } else if (right_slot == VISUAL_RIGHT_PANEL_SLOT_FILE_VALUE) {
-        uint32_t state_line_count = 10u;
-        uint32_t target_slot_count = right_file_target_queue_slot_count(ctx);
-        SDL_Rect new_project_button = right_file_action_button_rect(rect, m, VISUAL_RIGHT_FILE_ACTION_NEW_PROJECT,
-                                                                    VISUAL_RIGHT_FILE_ACTION_COUNT);
-        SDL_Rect open_project_button = right_file_action_button_rect(rect, m, VISUAL_RIGHT_FILE_ACTION_OPEN_PROJECT,
-                                                                     VISUAL_RIGHT_FILE_ACTION_COUNT);
-        SDL_Rect save_project_button = right_file_action_button_rect(rect, m, VISUAL_RIGHT_FILE_ACTION_SAVE_PROJECT,
-                                                                     VISUAL_RIGHT_FILE_ACTION_COUNT);
-        SDL_Rect save_as_button = right_file_action_button_rect(rect, m, VISUAL_RIGHT_FILE_ACTION_SAVE_AS,
-                                                                VISUAL_RIGHT_FILE_ACTION_COUNT);
-        SDL_Rect load_project_button = right_file_action_button_rect(rect, m, VISUAL_RIGHT_FILE_ACTION_LOAD_PROJECT,
-                                                                     VISUAL_RIGHT_FILE_ACTION_COUNT);
-        SDL_Rect save_session_button = right_file_save_session_button_rect(rect, m);
-        SDL_Rect reload_session_button = right_file_reload_session_button_rect(rect, m);
-        SDL_Rect pick_input_root_button = right_file_route_action_button_rect(rect,
-                                                                              m,
-                                                                              state_line_count,
-                                                                              VISUAL_RIGHT_FILE_ROUTE_ACTION_PICK_INPUT,
-                                                                              VISUAL_RIGHT_FILE_ROUTE_ACTION_COUNT);
-        SDL_Rect pick_output_root_button = right_file_route_action_button_rect(rect,
-                                                                               m,
-                                                                               state_line_count,
-                                                                               VISUAL_RIGHT_FILE_ROUTE_ACTION_PICK_OUTPUT,
-                                                                               VISUAL_RIGHT_FILE_ROUTE_ACTION_COUNT);
-        SDL_Rect export_png_button = right_file_route_action_button_rect(rect,
-                                                                         m,
-                                                                         state_line_count,
-                                                                         VISUAL_RIGHT_FILE_ROUTE_ACTION_EXPORT_PNG,
-                                                                         VISUAL_RIGHT_FILE_ROUTE_ACTION_COUNT);
-        SDL_Rect export_iconset_button = right_file_route_action_button_rect(rect,
-                                                                             m,
-                                                                             state_line_count,
-                                                                             VISUAL_RIGHT_FILE_ROUTE_ACTION_EXPORT_ICONSET,
-                                                                             VISUAL_RIGHT_FILE_ROUTE_ACTION_COUNT);
-        SDL_Rect export_icns_button = right_file_route_action_button_rect(rect,
-                                                                          m,
-                                                                          state_line_count,
-                                                                          VISUAL_RIGHT_FILE_ROUTE_ACTION_EXPORT_ICNS,
-                                                                          VISUAL_RIGHT_FILE_ROUTE_ACTION_COUNT);
-        SDL_Rect target_queue_rect = right_file_target_queue_rect(rect,
-                                                                  m,
-                                                                  state_line_count,
-                                                                  VISUAL_RIGHT_FILE_ROUTE_ACTION_COUNT);
-        int target_scroll_y =
-            ui ? right_file_target_queue_clamp_scroll(target_queue_rect,
-                                                      m,
-                                                      target_slot_count,
-                                                      ui->right_file_target_queue_scroll_y)
-               : 0;
-        int target_scroll_max = right_file_target_queue_scroll_max(target_queue_rect, m, target_slot_count);
-        uint8_t project_dirty = drawing_program_project_state_current_is_dirty(ctx);
-        char export_path[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
-        char iconset_path[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
-        char icns_path[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
-        if (drawing_program_png_export_default_path(ctx, export_path, sizeof(export_path)).code != CORE_OK) {
-            export_path[0] = '\0';
-        }
-        if (drawing_program_iconset_export_default_path(ctx, iconset_path, sizeof(iconset_path)).code != CORE_OK) {
-            iconset_path[0] = '\0';
-        }
-        if (drawing_program_icns_export_default_path(ctx, icns_path, sizeof(icns_path)).code != CORE_OK) {
-            icns_path[0] = '\0';
-        }
-        y = right_file_content_start_y(rect, m);
-        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, "PROJECT ACTIONS", p.text_primary, m.body_scale);
+        active_role = drawing_program_visual_layer_role_detect_active(ctx);
+        role_section_y = right_layer_role_section_start_y(rect, m, ctx->document.layer_count);
+        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, role_section_y, "AUTHORING ROLE", p.text_primary,
+                                m.body_scale);
+        (void)snprintf(line,
+                       sizeof(line),
+                       "ACTIVE %s  %s",
+                       drawing_program_visual_layer_role_name(active_role),
+                       drawing_program_visual_layer_role_lane_label(active_role));
         hooks->draw_bitmap_text(renderer,
                                 rect,
                                 rect.x + m.pad_x,
-                                right_file_target_queue_label_y(rect, m, VISUAL_RIGHT_FILE_ACTION_COUNT),
-                                "TARGET QUEUE  S=LOAD  N=SAVE",
-                                p.text_primary,
+                                role_section_y + m.line_h,
+                                line,
+                                p.text_muted,
                                 m.body_scale);
-        SDL_SetRenderDrawColor(renderer,
-                               p.pane_background_alt.r,
-                               p.pane_background_alt.g,
-                               p.pane_background_alt.b,
-                               p.pane_background_alt.a);
-        (void)SDL_RenderFillRect(renderer, &target_queue_rect);
-        SDL_SetRenderDrawColor(renderer,
-                               p.button_border.r,
-                               p.button_border.g,
-                               p.button_border.b,
-                               p.button_border.a);
-        (void)SDL_RenderDrawRect(renderer, &target_queue_rect);
-        for (i = 0u; i < target_slot_count; ++i) {
-            SDL_Rect project_row = right_file_target_queue_row_rect(target_queue_rect, m, i, target_scroll_y);
-            SDL_Rect clipped_row;
-            char slot_path[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
-            uint8_t existing = 0u;
-            int selected = 0;
-            int hovered = 0;
-            SDL_Color fill = p.button_fill;
-            if (!SDL_IntersectRect(&project_row, &target_queue_rect, &clipped_row)) {
-                continue;
-            }
-            if (drawing_program_project_state_slot_path(ctx, i, slot_path, sizeof(slot_path), &existing).code != CORE_OK) {
-                slot_path[0] = '\0';
-                existing = 0u;
-            }
-            selected = (slot_path[0] != '\0' &&
-                        ctx->session.project_path &&
-                        strcmp(slot_path, ctx->session.project_path) == 0)
-                           ? 1
-                           : 0;
-            hovered = drawing_program_visual_panel_ui_hovered(ui, project_row, hooks);
-            fill = selected ? p.button_fill_active : (hovered ? p.button_fill_hover : p.button_fill);
-            visual_right_panel_format_recent_project_line(line, sizeof(line), i, slot_path, existing);
-            (void)SDL_RenderSetClipRect(renderer, &target_queue_rect);
-            SDL_SetRenderDrawColor(renderer, fill.r, fill.g, fill.b, fill.a);
-            (void)SDL_RenderFillRect(renderer, &project_row);
-            SDL_SetRenderDrawColor(renderer,
-                                   selected ? p.accent_primary.r : p.button_border.r,
-                                   selected ? p.accent_primary.g : p.button_border.g,
-                                   selected ? p.accent_primary.b : p.button_border.b,
-                                   selected ? p.accent_primary.a : p.button_border.a);
-            (void)SDL_RenderDrawRect(renderer, &project_row);
-            hooks->draw_bitmap_text(renderer,
-                                    target_queue_rect,
-                                    project_row.x + 6,
-                                    project_row.y + m.row_text_y,
-                                    line,
-                                    selected ? p.text_primary : p.text_muted,
-                                    m.body_scale);
+        hooks->draw_bitmap_text(renderer,
+                                rect,
+                                rect.x + m.pad_x,
+                                role_section_y + (2 * m.line_h),
+                                "BASE+DETAIL -> BASE  OTHERS -> OVERLAY",
+                                p.text_muted,
+                                m.body_scale);
+        for (i = 0u; i < (uint32_t)DRAWING_PROGRAM_VISUAL_LAYER_ROLE_PRESET_COUNT; ++i) {
+            DrawingProgramVisualLayerRolePreset role = (DrawingProgramVisualLayerRolePreset)i;
+            role_button_rect = right_layer_role_button_rect(rect, m, ctx->document.layer_count, i);
+            drawing_program_visual_panel_draw_tab_button(
+                renderer,
+                rect,
+                role_button_rect,
+                drawing_program_visual_layer_role_button_label(role),
+                p.button_fill,
+                p.button_fill_hover,
+                p.button_fill_active,
+                p.button_border,
+                p.text_primary,
+                m.body_scale,
+                active_role == role,
+                drawing_program_visual_panel_ui_hovered(ui, role_button_rect, hooks),
+                hooks);
         }
-        (void)SDL_RenderSetClipRect(renderer, 0);
-        visual_right_panel_draw_scrollbar(renderer,
-                                          target_queue_rect,
-                                          target_scroll_y,
-                                          target_scroll_max,
-                                          p.button_fill,
-                                          p.button_border);
-        drawing_program_visual_panel_draw_tab_button(renderer,
-                                                     rect,
-                                                     new_project_button,
-                                                     "NEW BLANK",
-                                                     p.button_fill,
-                                                     p.button_fill_hover,
-                                                     p.button_fill_active,
-                                                     p.button_border,
-                                                     p.text_primary,
-                                                     m.body_scale,
-                                                     0,
-                                                     drawing_program_visual_panel_ui_hovered(ui, new_project_button, hooks),
-                                                     hooks);
-        drawing_program_visual_panel_draw_tab_button(renderer,
-                                                     rect,
-                                                     open_project_button,
-                                                     "OPEN PROJECT",
-                                                     p.button_fill,
-                                                     p.button_fill_hover,
-                                                     p.button_fill_active,
-                                                     p.button_border,
-                                                     p.text_primary,
-                                                     m.body_scale,
-                                                     0,
-                                                     drawing_program_visual_panel_ui_hovered(ui, open_project_button, hooks),
-                                                     hooks);
-        drawing_program_visual_panel_draw_tab_button(renderer,
-                                                     rect,
-                                                     save_project_button,
-                                                     "SAVE TARGET",
-                                                     p.button_fill,
-                                                     p.button_fill_hover,
-                                                     p.button_fill_active,
-                                                     p.button_border,
-                                                     p.text_primary,
-                                                     m.body_scale,
-                                                     0,
-                                                     drawing_program_visual_panel_ui_hovered(ui, save_project_button, hooks),
-                                                     hooks);
-        drawing_program_visual_panel_draw_tab_button(renderer,
-                                                     rect,
-                                                     save_as_button,
-                                                     "SAVE AS",
-                                                     p.button_fill,
-                                                     p.button_fill_hover,
-                                                     p.button_fill_active,
-                                                     p.button_border,
-                                                     p.text_primary,
-                                                     m.body_scale,
-                                                     0,
-                                                     drawing_program_visual_panel_ui_hovered(ui, save_as_button, hooks),
-                                                     hooks);
-        drawing_program_visual_panel_draw_tab_button(renderer,
-                                                     rect,
-                                                     load_project_button,
-                                                     "LOAD TARGET",
-                                                     p.button_fill,
-                                                     p.button_fill_hover,
-                                                     p.button_fill_active,
-                                                     p.button_border,
-                                                     p.text_primary,
-                                                     m.body_scale,
-                                                     0,
-                                                     drawing_program_visual_panel_ui_hovered(ui, load_project_button, hooks),
-                                                     hooks);
-        drawing_program_visual_panel_draw_tab_button(renderer,
-                                                     rect,
-                                                     save_session_button,
-                                                     "SAVE SESSION",
-                                                     p.button_fill,
-                                                     p.button_fill_hover,
-                                                     p.button_fill_active,
-                                                     p.button_border,
-                                                     p.text_primary,
-                                                     m.body_scale,
-                                                     0,
-                                                     drawing_program_visual_panel_ui_hovered(ui, save_session_button, hooks),
-                                                     hooks);
-        drawing_program_visual_panel_draw_tab_button(renderer,
-                                                     rect,
-                                                     reload_session_button,
-                                                     "RELOAD SESSION",
-                                                     p.button_fill,
-                                                     p.button_fill_hover,
-                                                     p.button_fill_active,
-                                                     p.button_border,
-                                                     p.text_primary,
-                                                     m.body_scale,
-                                                     0,
-                                                     drawing_program_visual_panel_ui_hovered(ui, reload_session_button, hooks),
-                                                     hooks);
-        drawing_program_visual_panel_draw_tab_button(renderer,
-                                                     rect,
-                                                     pick_input_root_button,
-                                                     "PICK INPUT ROOT",
-                                                     p.button_fill,
-                                                     p.button_fill_hover,
-                                                     p.button_fill_active,
-                                                     p.button_border,
-                                                     p.text_primary,
-                                                     m.body_scale,
-                                                     0,
-                                                     drawing_program_visual_panel_ui_hovered(ui, pick_input_root_button, hooks),
-                                                     hooks);
-        drawing_program_visual_panel_draw_tab_button(renderer,
-                                                     rect,
-                                                     pick_output_root_button,
-                                                     "PICK OUTPUT ROOT",
-                                                     p.button_fill,
-                                                     p.button_fill_hover,
-                                                     p.button_fill_active,
-                                                     p.button_border,
-                                                     p.text_primary,
-                                                     m.body_scale,
-                                                     0,
-                                                     drawing_program_visual_panel_ui_hovered(ui, pick_output_root_button, hooks),
-                                                     hooks);
-        drawing_program_visual_panel_draw_tab_button(renderer,
-                                                     rect,
-                                                     export_png_button,
-                                                     "EXPORT PNG",
-                                                     p.button_fill,
-                                                     p.button_fill_hover,
-                                                     p.button_fill_active,
-                                                     p.button_border,
-                                                     p.text_primary,
-                                                     m.body_scale,
-                                                     0,
-                                                     drawing_program_visual_panel_ui_hovered(ui, export_png_button, hooks),
-                                                     hooks);
-        drawing_program_visual_panel_draw_tab_button(renderer,
-                                                     rect,
-                                                     export_iconset_button,
-                                                     "EXPORT ICONSET",
-                                                     p.button_fill,
-                                                     p.button_fill_hover,
-                                                     p.button_fill_active,
-                                                     p.button_border,
-                                                     p.text_primary,
-                                                     m.body_scale,
-                                                     0,
-                                                     drawing_program_visual_panel_ui_hovered(ui, export_iconset_button, hooks),
-                                                     hooks);
-        drawing_program_visual_panel_draw_tab_button(renderer,
-                                                     rect,
-                                                     export_icns_button,
-                                                     "EXPORT ICNS",
-                                                     p.button_fill,
-                                                     p.button_fill_hover,
-                                                     p.button_fill_active,
-                                                     p.button_border,
-                                                     p.text_primary,
-                                                     m.body_scale,
-                                                     0,
-                                                     drawing_program_visual_panel_ui_hovered(ui, export_icns_button, hooks),
-                                                     hooks);
-        y = right_file_state_start_y(rect, m, state_line_count);
-        visual_right_panel_format_path_line(line, sizeof(line), "TARGET", ctx->session.project_path);
-        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
-        y += m.line_h;
-        (void)snprintf(line, sizeof(line), "STATUS %s", project_dirty ? "DIRTY" : "CLEAN");
-        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
-        y += m.line_h;
-        visual_right_panel_format_path_line(line, sizeof(line), "AUTOSAVE", ctx->session.preset_path);
-        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
-        y += m.line_h;
-        visual_right_panel_format_path_line(line, sizeof(line), "INPUT", ctx->session.input_root_path);
-        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
-        y += m.line_h;
-        visual_right_panel_format_path_line(line, sizeof(line), "OUTPUT", ctx->session.output_root_path);
-        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
-        y += m.line_h;
-        visual_right_panel_format_path_line(line, sizeof(line), "EXPORT", export_path);
-        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
-        y += m.line_h;
-        visual_right_panel_format_path_line(line, sizeof(line), "ICONSET", iconset_path);
-        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
-        y += m.line_h;
-        visual_right_panel_format_path_line(line, sizeof(line), "ICNS", icns_path);
-        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
-        y += m.line_h;
-        if (ctx->session.export_json_path && ctx->session.export_json_path[0] != '\0') {
-            visual_right_panel_format_path_line(line, sizeof(line), "DEBUG", ctx->session.export_json_path);
-        } else {
-            (void)snprintf(line, sizeof(line), "DEBUG export path not set");
-        }
-        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
-        y += m.line_h;
-        (void)snprintf(line, sizeof(line), "ACTION %s", ctx->session.file_action_status_message);
-        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
+    } else if (right_slot == VISUAL_RIGHT_PANEL_SLOT_FILE) {
+        drawing_program_visual_render_right_file_tab(renderer, rect, ctx, ui, m, p, hooks);
+    } else if (right_slot == VISUAL_RIGHT_PANEL_SLOT_ASSET) {
+        drawing_program_visual_render_right_asset_tab(renderer, rect, ctx, ui, m, p, hooks);
+    } else if (right_slot == VISUAL_RIGHT_PANEL_SLOT_EXPORT) {
+        drawing_program_visual_render_right_export_tab(renderer, rect, ctx, ui, m, p, hooks);
     } else {
         drawing_program_visual_render_right_panel_color_tab(renderer, rect, y, ctx, ui, m, p, hooks);
     }

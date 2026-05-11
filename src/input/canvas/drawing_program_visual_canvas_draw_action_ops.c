@@ -1,5 +1,35 @@
 #include "drawing_program/drawing_program_visual_canvas_draw_action_ops.h"
 
+#include "drawing_program/drawing_program_canvas_reflection.h"
+#include "drawing_program/drawing_program_visual_canvas_stroke_ops.h"
+
+enum {
+    DRAWING_PROGRAM_DIRECT_STROKE_HISTORY_GROUP_STEP_LIMIT = 256u
+};
+
+static void drawing_program_visual_note_direct_stroke_step(
+    DrawingProgramAppContext *ctx,
+    uint32_t active_layer_id,
+    VisualCanvasInteractionState *state,
+    const DrawingProgramVisualCanvasDrawActionOpsHooks *hooks) {
+    if (!ctx || !state) {
+        return;
+    }
+    state->direct_stroke_group_step_count =
+        (uint16_t)(state->direct_stroke_group_step_count + 1u);
+    if (state->direct_stroke_group_step_count <
+            (uint16_t)DRAWING_PROGRAM_DIRECT_STROKE_HISTORY_GROUP_STEP_LIMIT ||
+        !hooks ||
+        !hooks->end_canvas_history_group ||
+        !hooks->begin_canvas_history_group) {
+        return;
+    }
+    (void)drawing_program_visual_flush_direct_stroke_history(ctx, state, active_layer_id);
+    hooks->end_canvas_history_group(ctx);
+    hooks->begin_canvas_history_group(ctx);
+    state->direct_stroke_group_step_count = 0u;
+}
+
 CoreResult drawing_program_visual_apply_canvas_draw_at_screen(DrawingProgramAppContext *ctx,
                                                               SDL_Rect pane_rect,
                                                               int sx,
@@ -18,7 +48,8 @@ CoreResult drawing_program_visual_apply_canvas_draw_at_screen(DrawingProgramAppC
     if (!ctx || !state || !hooks || !hooks->screen_to_canvas_sample || !hooks->active_layer_allows_edits_visual ||
         !hooks->active_layer_query || !hooks->sample_value_for_tool || !hooks->tool_brush_radius_samples ||
         !hooks->tool_brush_spacing_samples || !hooks->tool_brush_hardness_percent ||
-        !hooks->seeded_background_sample_for_coord || !hooks->apply_canvas_stamp_square_on_layer) {
+        !hooks->seeded_background_sample_for_coord || !hooks->apply_canvas_stamp_square_on_layer ||
+        !hooks->apply_canvas_direct_stroke_stamp_square_on_layer) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid canvas draw request" };
     }
     if (!hooks->screen_to_canvas_sample(ctx, pane_rect, sx, sy, &sample_x, &sample_y)) {
@@ -38,24 +69,38 @@ CoreResult drawing_program_visual_apply_canvas_draw_at_screen(DrawingProgramAppC
     stamp_width = (radius * 2u) + 1u;
 
     if (!state->has_last_sample) {
-        DrawingProgramRasterSample write_value = value;
-        if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_ERASER) {
-            write_value = hooks->seeded_background_sample_for_coord(&ctx->document, sample_x, sample_y);
-            hardness = 100u;
+        DrawingProgramCanvasReflectionPoint points[DRAWING_PROGRAM_CANVAS_REFLECTION_VARIANT_CAPACITY];
+        uint32_t point_count = drawing_program_canvas_reflection_collect_points(
+            ctx, (int32_t)sample_x, (int32_t)sample_y, points);
+        uint32_t point_index = 0u;
+        if (point_count == 0u) {
+            point_count = 1u;
+            points[0].x = (int32_t)sample_x;
+            points[0].y = (int32_t)sample_y;
         }
-        result = hooks->apply_canvas_stamp_square_on_layer(ctx,
-                                                           active_layer_id,
-                                                           (int32_t)sample_x,
-                                                           (int32_t)sample_y,
-                                                           write_value,
-                                                           stamp_width,
-                                                           hardness);
-        if (result.code != CORE_OK) {
-            return result;
+        for (point_index = 0u; point_index < point_count; ++point_index) {
+            DrawingProgramRasterSample write_value = value;
+            if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_ERASER) {
+                write_value = hooks->seeded_background_sample_for_coord(
+                    &ctx->document, (uint32_t)points[point_index].x, (uint32_t)points[point_index].y);
+                hardness = 100u;
+            }
+            result = hooks->apply_canvas_direct_stroke_stamp_square_on_layer(ctx,
+                                                                             state,
+                                                                             active_layer_id,
+                                                                             points[point_index].x,
+                                                                             points[point_index].y,
+                                                                             write_value,
+                                                                             stamp_width,
+                                                                             hardness);
+            if (result.code != CORE_OK) {
+                return result;
+            }
         }
         state->has_last_sample = 1u;
         state->last_sample_x = sample_x;
         state->last_sample_y = sample_y;
+        drawing_program_visual_note_direct_stroke_step(ctx, active_layer_id, state, hooks);
         return core_result_ok();
     }
 
@@ -79,24 +124,38 @@ CoreResult drawing_program_visual_apply_canvas_draw_at_screen(DrawingProgramAppC
         for (i = 1; i <= steps; ++i) {
             int32_t ix = x0 + (dx * i) / ((steps > 0) ? steps : 1);
             int32_t iy = y0 + (dy * i) / ((steps > 0) ? steps : 1);
-            DrawingProgramRasterSample write_value = value;
+            DrawingProgramCanvasReflectionPoint points[DRAWING_PROGRAM_CANVAS_REFLECTION_VARIANT_CAPACITY];
+            uint32_t point_count = 0u;
+            uint32_t point_index = 0u;
             if (((uint32_t)i % stamp_every) != 0u && i != steps) {
                 continue;
             }
-            if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_ERASER) {
-                write_value = hooks->seeded_background_sample_for_coord(&ctx->document, (uint32_t)ix, (uint32_t)iy);
-                hardness = 100u;
+            point_count = drawing_program_canvas_reflection_collect_points(ctx, ix, iy, points);
+            if (point_count == 0u) {
+                point_count = 1u;
+                points[0].x = ix;
+                points[0].y = iy;
             }
-            result = hooks->apply_canvas_stamp_square_on_layer(ctx,
-                                                               active_layer_id,
-                                                               ix,
-                                                               iy,
-                                                               write_value,
-                                                               stamp_width,
-                                                               hardness);
-            if (result.code != CORE_OK) {
-                return result;
+            for (point_index = 0u; point_index < point_count; ++point_index) {
+                DrawingProgramRasterSample write_value = value;
+                if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_ERASER) {
+                    write_value = hooks->seeded_background_sample_for_coord(
+                        &ctx->document, (uint32_t)points[point_index].x, (uint32_t)points[point_index].y);
+                    hardness = 100u;
+                }
+                result = hooks->apply_canvas_direct_stroke_stamp_square_on_layer(ctx,
+                                                                                 state,
+                                                                                 active_layer_id,
+                                                                                 points[point_index].x,
+                                                                                 points[point_index].y,
+                                                                                 write_value,
+                                                                                 stamp_width,
+                                                                                 hardness);
+                if (result.code != CORE_OK) {
+                    return result;
+                }
             }
+            drawing_program_visual_note_direct_stroke_step(ctx, active_layer_id, state, hooks);
         }
     }
 

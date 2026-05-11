@@ -10,6 +10,13 @@ typedef struct DrawingProgramVisualCanvasWorldRenderHooks {
     void (*compute_canvas_sheet_metrics)(const DrawingProgramAppContext *ctx,
                                          SDL_Rect pane_rect,
                                          VisualCanvasSheetMetrics *out_metrics);
+    int (*draw_bitmap_text)(SDL_Renderer *renderer,
+                            SDL_Rect clip_rect,
+                            int x,
+                            int y,
+                            const char *text,
+                            SDL_Color color,
+                            int scale);
     void (*draw_selection_overlay)(SDL_Renderer *renderer,
                                    SDL_Rect pane_rect,
                                    const DrawingProgramAppContext *ctx,
@@ -43,5 +50,6 @@ void drawing_program_visual_draw_canvas_world_view(
     const DrawingProgramVisualCanvasWorldRenderHooks *hooks);
 
 void drawing_program_visual_canvas_world_backdrop_cache_shutdown(void);
+uint32_t drawing_program_visual_canvas_world_current_zoom_bucket_percent(const DrawingProgramAppContext *ctx);
 
 #endif

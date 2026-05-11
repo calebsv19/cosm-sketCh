@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 
+#include "drawing_program/drawing_program_visual_right_panel_defs.h"
 #include "drawing_program/drawing_program_visual_shape_ops.h"
 
 typedef enum VisualToolOptionKind {
@@ -411,7 +412,7 @@ uint8_t drawing_program_visual_clamp_left_slot(uint8_t slot) {
 }
 
 uint8_t drawing_program_visual_clamp_right_slot(uint8_t slot) {
-    return (slot <= 3u) ? slot : 0u;
+    return (slot < (uint8_t)VISUAL_RIGHT_PANEL_SLOT_COUNT) ? slot : 0u;
 }
 
 void drawing_program_visual_sync_panel_ui_from_app(const DrawingProgramAppContext *ctx, VisualPanelUiState *ui) {

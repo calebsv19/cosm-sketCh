@@ -82,6 +82,28 @@ int right_canvas_content_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m) {
     return y;
 }
 
+static int right_canvas_controls_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m) {
+    int y = right_canvas_metrics_start_y(rect, m);
+    /* Keep the canvas HUD compact so controls stay visible without crowding. */
+    y += 6 * m.line_h;
+    y += m.section_gap;
+    return y;
+}
+
+static SDL_Rect right_canvas_split_button_rect(SDL_Rect row,
+                                               VisualPaneLayoutMetrics m,
+                                               uint32_t column_index,
+                                               uint32_t column_count) {
+    int total_gap = 0;
+    int button_w = 0;
+    if (column_count == 0u) {
+        column_count = 1u;
+    }
+    total_gap = (int)(column_count - 1u) * m.section_gap;
+    button_w = (row.w - total_gap) / (int)column_count;
+    return (SDL_Rect){ row.x + (int)column_index * (button_w + m.section_gap), row.y, button_w, row.h };
+}
+
 SDL_Rect right_panel_slot_tab_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, uint8_t slot_index, uint8_t slot_count) {
     int total_gap = 0;
     int tab_w = 0;
@@ -99,8 +121,75 @@ SDL_Rect right_panel_slot_tab_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, uin
     return (SDL_Rect){ x, y, tab_w, m.tab_h };
 }
 
+SDL_Rect right_canvas_add_surface_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
+    int y = right_canvas_controls_start_y(rect, m);
+    return (SDL_Rect){ rect.x + m.pad_x, y, rect.w - (2 * m.pad_x), m.row_h };
+}
+
+SDL_Rect right_canvas_duplicate_surface_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
+    SDL_Rect add_surface = right_canvas_add_surface_button_rect(rect, m);
+    return (SDL_Rect){ add_surface.x, add_surface.y + add_surface.h + m.section_gap, add_surface.w, add_surface.h };
+}
+
+SDL_Rect right_canvas_mode_toggle_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
+    SDL_Rect duplicate_surface = right_canvas_duplicate_surface_button_rect(rect, m);
+    return (SDL_Rect){ duplicate_surface.x,
+                       duplicate_surface.y + duplicate_surface.h + m.section_gap,
+                       duplicate_surface.w,
+                       duplicate_surface.h };
+}
+
+SDL_Rect right_canvas_guide_mode_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
+    SDL_Rect mode_toggle = right_canvas_mode_toggle_button_rect(rect, m);
+    return (SDL_Rect){ mode_toggle.x, mode_toggle.y + mode_toggle.h + m.section_gap, mode_toggle.w, mode_toggle.h };
+}
+
+SDL_Rect right_canvas_reflect_horizontal_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
+    SDL_Rect guide_toggle = right_canvas_guide_mode_button_rect(rect, m);
+    SDL_Rect row = { guide_toggle.x, guide_toggle.y + guide_toggle.h + m.section_gap, guide_toggle.w, guide_toggle.h };
+    return right_canvas_split_button_rect(row, m, 0u, 2u);
+}
+
+SDL_Rect right_canvas_reflect_vertical_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
+    SDL_Rect guide_toggle = right_canvas_guide_mode_button_rect(rect, m);
+    SDL_Rect row = { guide_toggle.x, guide_toggle.y + guide_toggle.h + m.section_gap, guide_toggle.w, guide_toggle.h };
+    return right_canvas_split_button_rect(row, m, 1u, 2u);
+}
+
+SDL_Rect right_canvas_center_pick_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
+    SDL_Rect reflect_horizontal = right_canvas_reflect_horizontal_button_rect(rect, m);
+    SDL_Rect row = { reflect_horizontal.x,
+                     reflect_horizontal.y + reflect_horizontal.h + m.section_gap,
+                     right_canvas_guide_mode_button_rect(rect, m).w,
+                     reflect_horizontal.h };
+    return right_canvas_split_button_rect(row, m, 0u, 2u);
+}
+
+SDL_Rect right_canvas_center_reset_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
+    SDL_Rect reflect_horizontal = right_canvas_reflect_horizontal_button_rect(rect, m);
+    SDL_Rect row = { reflect_horizontal.x,
+                     reflect_horizontal.y + reflect_horizontal.h + m.section_gap,
+                     right_canvas_guide_mode_button_rect(rect, m).w,
+                     reflect_horizontal.h };
+    return right_canvas_split_button_rect(row, m, 1u, 2u);
+}
+
+SDL_Rect right_canvas_delete_canvas_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
+    SDL_Rect center_pick = right_canvas_center_pick_button_rect(rect, m);
+    return (SDL_Rect){ center_pick.x,
+                       center_pick.y + center_pick.h + m.section_gap,
+                       right_canvas_guide_mode_button_rect(rect, m).w,
+                       center_pick.h };
+}
+
+SDL_Rect right_canvas_reset_object_layout_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
+    int y = rect.y + rect.h - m.pad_y - (6 * m.row_h) - (5 * m.section_gap);
+    return (SDL_Rect){ rect.x + m.pad_x, y, rect.w - (2 * m.pad_x), m.row_h };
+}
+
 SDL_Rect right_canvas_reset_view_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
-    int y = rect.y + rect.h - m.pad_y - (5 * m.row_h) - (4 * m.section_gap);
+    SDL_Rect reset_layout = right_canvas_reset_object_layout_button_rect(rect, m);
+    int y = reset_layout.y + reset_layout.h + m.section_gap;
     return (SDL_Rect){ rect.x + m.pad_x, y, rect.w - (2 * m.pad_x), m.row_h };
 }
 
@@ -126,6 +215,18 @@ SDL_Rect right_canvas_clear_history_button_rect(SDL_Rect rect, VisualPaneLayoutM
 
 int right_canvas_metrics_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m) {
     return right_canvas_content_start_y(rect, m);
+}
+
+int right_canvas_surface_rows_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m) {
+    SDL_Rect delete_canvas = right_canvas_delete_canvas_button_rect(rect, m);
+    int y = delete_canvas.y + delete_canvas.h + m.line_h;
+    return y;
+}
+
+SDL_Rect right_canvas_surface_row_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, uint32_t row_index) {
+    int y = right_canvas_surface_rows_start_y(rect, m);
+    y += (int)row_index * (m.row_h + m.section_gap);
+    return (SDL_Rect){ rect.x + m.pad_x, y, rect.w - (2 * m.pad_x), m.row_h };
 }
 
 int right_file_content_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m) {
@@ -157,6 +258,59 @@ int right_file_state_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m, uint32_t 
     return y;
 }
 
+SDL_Rect right_file_project_queue_rect(SDL_Rect rect,
+                                       VisualPaneLayoutMetrics m,
+                                       uint32_t top_action_count,
+                                       uint32_t state_line_count) {
+    int y = right_file_target_queue_label_y(rect, m, top_action_count) + m.line_h + m.section_gap;
+    int bottom = right_file_state_start_y(rect, m, state_line_count) - m.section_gap;
+    int h = bottom - y;
+    if (h < m.row_h) {
+        h = m.row_h;
+    }
+    return (SDL_Rect){ rect.x + m.pad_x, y, rect.w - (2 * m.pad_x), h };
+}
+
+SDL_Rect right_file_browser_mode_tab_rect(SDL_Rect rect,
+                                          VisualPaneLayoutMetrics m,
+                                          uint32_t mode_index,
+                                          uint32_t mode_count) {
+    int total_gap = 0;
+    int tab_w = 0;
+    int x = 0;
+    int y = right_file_target_queue_label_y(rect, m, 7u) + m.line_h;
+    if (mode_count == 0u) {
+        mode_count = 1u;
+    }
+    total_gap = (int)(mode_count - 1u) * m.tab_gap;
+    tab_w = (rect.w - (2 * m.pad_x) - total_gap) / (int)mode_count;
+    if (tab_w < 28) {
+        tab_w = 28;
+    }
+    x = rect.x + m.pad_x + (int)mode_index * (tab_w + m.tab_gap);
+    return (SDL_Rect){ x, y, tab_w, m.row_h };
+}
+
+SDL_Rect right_asset_browser_mode_tab_rect(SDL_Rect rect,
+                                           VisualPaneLayoutMetrics m,
+                                           uint32_t mode_index,
+                                           uint32_t mode_count) {
+    int total_gap = 0;
+    int tab_w = 0;
+    int x = 0;
+    int y = right_file_content_start_y(rect, m) + m.line_h;
+    if (mode_count == 0u) {
+        mode_count = 1u;
+    }
+    total_gap = (int)(mode_count - 1u) * m.tab_gap;
+    tab_w = (rect.w - (2 * m.pad_x) - total_gap) / (int)mode_count;
+    if (tab_w < 28) {
+        tab_w = 28;
+    }
+    x = rect.x + m.pad_x + (int)mode_index * (tab_w + m.tab_gap);
+    return (SDL_Rect){ x, y, tab_w, m.row_h };
+}
+
 int right_file_route_actions_start_y(SDL_Rect rect,
                                      VisualPaneLayoutMetrics m,
                                      uint32_t state_line_count,
@@ -171,6 +325,20 @@ int right_file_route_actions_start_y(SDL_Rect rect,
     y -= m.section_gap;
     y -= action_block_h;
     return y;
+}
+
+SDL_Rect right_asset_target_queue_rect(SDL_Rect rect,
+                                       VisualPaneLayoutMetrics m,
+                                       uint32_t state_line_count,
+                                       uint32_t action_count) {
+    SDL_Rect browser_tab = right_asset_browser_mode_tab_rect(rect, m, 0u, 3u);
+    int y = browser_tab.y + browser_tab.h + m.section_gap;
+    int bottom = right_file_route_actions_start_y(rect, m, state_line_count, action_count) - m.section_gap;
+    int h = bottom - y;
+    if (h < m.row_h) {
+        h = m.row_h;
+    }
+    return (SDL_Rect){ rect.x + m.pad_x, y, rect.w - (2 * m.pad_x), h };
 }
 
 uint32_t right_file_target_queue_slot_count(const DrawingProgramAppContext *ctx) {
@@ -199,7 +367,8 @@ SDL_Rect right_file_target_queue_rect(SDL_Rect rect,
                                       VisualPaneLayoutMetrics m,
                                       uint32_t state_line_count,
                                       uint32_t route_action_count) {
-    int y = right_file_target_queue_label_y(rect, m, 7u) + m.line_h;
+    SDL_Rect browser_tab = right_file_browser_mode_tab_rect(rect, m, 0u, 3u);
+    int y = browser_tab.y + browser_tab.h + m.section_gap;
     int bottom = right_file_route_actions_start_y(rect, m, state_line_count, route_action_count) - m.section_gap;
     int h = bottom - y;
     if (h < m.row_h) {
@@ -351,6 +520,31 @@ SDL_Rect right_layer_action_button_rect(SDL_Rect rect,
     y += m.line_h + m.section_gap;
     y += (int)button * (m.row_h + m.section_gap);
     return (SDL_Rect){ rect.x + m.pad_x, y, rect.w - (2 * m.pad_x), m.row_h };
+}
+
+int right_layer_role_section_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m, uint32_t layer_count) {
+    SDL_Rect last_action = right_layer_action_button_rect(rect, m, layer_count, VISUAL_LAYER_ACTION_TOGGLE_LOCK);
+    return last_action.y + last_action.h + m.section_gap;
+}
+
+SDL_Rect right_layer_role_button_rect(SDL_Rect rect,
+                                      VisualPaneLayoutMetrics m,
+                                      uint32_t layer_count,
+                                      uint32_t role_index) {
+    int y = right_layer_role_section_start_y(rect, m, layer_count);
+    int button_y = y + (3 * m.line_h) + m.section_gap;
+    int full_w = rect.w - (2 * m.pad_x);
+    int half_w = (full_w - m.tab_gap) / 2;
+    if (half_w < 36) {
+        half_w = 36;
+    }
+    if (role_index >= 4u) {
+        return (SDL_Rect){ rect.x + m.pad_x, button_y + (2 * (m.row_h + m.section_gap)), full_w, m.row_h };
+    }
+    return (SDL_Rect){ rect.x + m.pad_x + ((int)(role_index % 2u) * (half_w + m.tab_gap)),
+                       button_y + ((int)(role_index / 2u) * (m.row_h + m.section_gap)),
+                       half_w,
+                       m.row_h };
 }
 
 int left_panel_content_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m) {

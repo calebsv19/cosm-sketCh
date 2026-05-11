@@ -78,6 +78,7 @@ CoreResult drawing_program_session_prefs_load(struct DrawingProgramAppContext *c
     char prefs_path[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
     char input_root[sizeof(ctx->session.input_root_path)];
     char output_root[sizeof(ctx->session.output_root_path)];
+    char scene_root[sizeof(ctx->session.scene_authored_root_path)];
     char project_path[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
     uint32_t ui_theme_preset_id = 0u;
     uint32_t ui_font_preset_id = 0u;
@@ -90,6 +91,7 @@ CoreResult drawing_program_session_prefs_load(struct DrawingProgramAppContext *c
     CoreResult result;
     input_root[0] = '\0';
     output_root[0] = '\0';
+    scene_root[0] = '\0';
     project_path[0] = '\0';
     if (!ctx) {
         return drawing_program_session_prefs_invalid("invalid session prefs load request");
@@ -111,6 +113,8 @@ CoreResult drawing_program_session_prefs_load(struct DrawingProgramAppContext *c
             (void)snprintf(input_root, sizeof(input_root), "%s", line + 11);
         } else if (strncmp(line, "output_root=", 12u) == 0u) {
             (void)snprintf(output_root, sizeof(output_root), "%s", line + 12);
+        } else if (strncmp(line, "scene_authored_root=", 20u) == 0u) {
+            (void)snprintf(scene_root, sizeof(scene_root), "%s", line + 20);
         } else if (strncmp(line, "project_path=", 13u) == 0u) {
             (void)snprintf(project_path, sizeof(project_path), "%s", line + 13);
         } else if (strncmp(line, "ui_theme_preset_id=", 19u) == 0u) {
@@ -130,6 +134,12 @@ CoreResult drawing_program_session_prefs_load(struct DrawingProgramAppContext *c
     }
     if (!ctx->session.output_root_cli_override && output_root[0] != '\0') {
         (void)snprintf(ctx->session.output_root_path, sizeof(ctx->session.output_root_path), "%s", output_root);
+    }
+    if (scene_root[0] != '\0') {
+        (void)snprintf(ctx->session.scene_authored_root_path,
+                       sizeof(ctx->session.scene_authored_root_path),
+                       "%s",
+                       scene_root);
     }
     if (!ctx->session.input_root_cli_override && project_path[0] != '\0') {
         result = drawing_program_project_state_set_current_path(ctx, project_path);
@@ -168,6 +178,7 @@ CoreResult drawing_program_session_prefs_save(const struct DrawingProgramAppCont
     (void)fprintf(prefs, "version=%u\n", (unsigned)DRAWING_PROGRAM_SESSION_PREFS_VERSION);
     (void)fprintf(prefs, "input_root=%s\n", ctx->session.input_root_path);
     (void)fprintf(prefs, "output_root=%s\n", ctx->session.output_root_path);
+    (void)fprintf(prefs, "scene_authored_root=%s\n", ctx->session.scene_authored_root_path);
     (void)fprintf(prefs, "project_path=%s\n", ctx->session.project_path ? ctx->session.project_path : "");
     (void)fprintf(prefs, "ui_theme_preset_id=%u\n", (unsigned)ctx->ui.theme_preset_id);
     (void)fprintf(prefs, "ui_font_preset_id=%u\n", (unsigned)ctx->ui.font_preset_id);

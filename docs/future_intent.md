@@ -1,16 +1,245 @@
 # Future Intent
 
-Last updated: 2026-05-03
+Last updated: 2026-05-10
 
 Near-term (active):
-- Workspace Authoring `WA1` first-host lane has started:
+- A live `drawing_program` follow-on roadmap is now open in `docs/private_program_docs/drawing_program/active/`:
+  - private active plan: `/Users/calebsv/Desktop/CodeWork/docs/private_program_docs/drawing_program/active/2026-05-08_drawing_program_authored_texture_binding_and_layering_plan.md`
+  - phase order:
+    - `T1` binding UX complete
+    - `T2` authoring conventions complete
+    - `T3` runtime blend policy complete
+    - `T4` dual-layer authored runtime textures queued
+  - `T2-S1` is complete:
+    - `drawing_program` now has one stable authored-layer role recipe:
+      - `Base`
+      - `Material Detail`
+      - `Decal`
+      - `Grime`
+      - `Damage`
+    - the recipe is explicitly aligned to the current `ray_tracing` runtime material-texture taxonomy instead of inventing a separate label family
+    - runtime-intent families are now locked as:
+      - base/substrate:
+        - `solid`
+        - `metal`
+        - `wood`
+        - `brick`
+        - `concrete`
+        - `stone`
+      - overlay/environment:
+        - `rust`
+        - `fog`
+        - `grime`
+        - `oil`
+    - layer role and runtime material intent are now treated as separate concepts so later work can preserve cases like greasy `oil` behavior inside a contamination-style `Grime` role
+    - current export remains the existing flattened single-lane `RGBA` face output; the convention is now frozen so later UI/export/runtime slices can build on one stable recipe
+  - `T2-S2` is complete:
+    - the right `LAYER` tab now exposes bounded role assistance instead of leaving role naming entirely implicit
+    - new layers now default through the convention-aware naming path rather than staying generic `Layer N`
+    - one-click role presets now exist for:
+      - `BASE`
+      - `DETAIL`
+      - `DECAL`
+      - `GRIME`
+      - `DAMAGE`
+    - the tab now exposes compact base-vs-overlay guidance and an active-role readout
+    - the substrate seed now uses canonical `Base` naming instead of the older `Base Layer`
+  - `T2-S3` is complete:
+    - texture projects now persist an explicit authored-texture export intent:
+      - `FLATTENED_ONLY`
+      - `BASE_PLUS_OVERLAY`
+    - the right `EXPORT` tab now exposes a bounded intent toggle for that project-level state
+    - texture export manifests now carry:
+      - `export_intent_kind`
+      - `emitted_output_kind`
+    - current emitted bytes remain the existing flattened single-lane `RGBA` face images, so emitted output is still reported as `FLATTENED_ONLY`
+  - `T2-S4` is complete:
+    - focused lifecycle coverage now proves a current texture-project pack downgraded to a pre-intent `DPTP` `v5` root still reloads and exports cleanly
+    - downgraded pre-intent packs explicitly restore `export_intent_kind` as `FLATTENED_ONLY`
+    - current flattened direct-export and CLI import-plus-export workflows remain green after the export-intent metadata addition
+  - `C1` is complete:
+    - per-surface layer opacity export inputs are now durable texture-project state
+    - export no longer depends on active-surface-only opacity UI arrays
+    - current save/reopen and downgraded legacy `DPTP` `v5` reload/export workflows remain green after that hardening
+  - `C2` is complete:
+    - per-surface authored layer roles are now durable texture-project metadata instead of being inferred from presentation names
+    - authored export lane selection now reads stored role metadata, so renamed layers no longer change base-vs-overlay emission behavior
+    - older packs synthesize compatible role defaults during load so reopen/export workflows stay compatible
+    - texture-project snapshot persistence now carries those role bindings through save/reopen
+  - `C3-S1` is complete:
+    - the first fine-grained authored material-intent shape is now pinned as per-layer intent metadata rather than per-region graphs or another coarse project-wide field
+    - the frozen intent families are now:
+      - base/substrate:
+        - `SOLID`
+        - `METAL`
+        - `WOOD`
+        - `BRICK`
+        - `CONCRETE`
+        - `STONE`
+      - overlay/environment:
+        - `RUST`
+        - `FOG`
+        - `GRIME`
+        - `OIL`
+    - the contract now explicitly separates:
+      - authored layer role
+      - per-layer material intent
+      - legacy project-wide overlay intent
+    - the first compatibility bridge is now frozen:
+      - `Base -> Solid`
+      - `Grime -> Grime`
+      - other roles default to `None`
+      - legacy overlay-intent values can map deterministically into the new per-layer vocabulary
+  - `C3-S2` is now complete:
+    - texture-project surfaces now persist durable per-layer material-intent metadata alongside stored role and opacity metadata
+    - texture-project snapshot save/load now carries that data through `DPTP` root `v11`
+    - authored-texture manifests now emit schema `v5` and include per-surface `layer_material_intent_stable_ids`
+    - flattened-only and `BASE_PLUS_OVERLAY` image emission remain compatibility-safe while the metadata lane hardens underneath
+  - `C3-S3` is now complete:
+    - `ray_tracing` authored-texture ingest now reads the exported per-surface `layer_material_intent_stable_ids` field and derives bounded face-level material-intent metadata from it
+    - hit-time payload resolution now consumes that richer metadata narrowly:
+      - face-level base/substrate intent may modulate payload BSDF after authored base-lane sampling
+      - face-level overlay/environment intent may modulate payload BSDF after authored overlay-lane sampling
+      - face-level overlay intent now takes priority over the older coarse binding-wide fallback field when both exist
+    - the widening stays intentionally bounded:
+      - no region graphs
+      - no arbitrary mask-driven material partitioning
+      - no new runtime authoring UI lane
+  - `C4-S1` is now complete:
+    - the authored-texture manifest invariant set is now explicitly frozen before loader enforcement begins
+    - the bounded runtime contract now requires:
+      - root fields `schema_version`, `export_binding_kind`, `primitive_kind`, and `source_object_id`
+      - binding kind `SEPARATE_FACES`
+      - primitive kinds `PLANE` and `RECT_PRISM`
+      - either legacy flattened `surfaces` or bounded dual-lane `base_surfaces` plus optional `overlay_surfaces`
+    - the required base-lane face completeness is now fixed as:
+      - plane: one valid front face
+      - rect prism: six required faces
+    - invalid binds are expected to fail fully and leave the object unbound rather than partially active
+  - `C4-S2` is now complete:
+    - `ray_tracing` authored-texture bind now enforces the frozen schema, binding-shape, and face-completeness rules
+    - schema handling is now explicit:
+      - only allowed schema versions are accepted
+      - schema `v5` manifests must provide a valid `emitted_output_kind`
+    - face-array handling is now strict:
+      - malformed face entries fail the bind
+      - duplicate face-role declarations fail the bind
+      - unreadable face image files fail the bind
+      - required base-lane completeness is enforced
+      - declared overlay lanes must also be complete
+    - invalid binds now leave the object fully unbound instead of partially active
+  - `C4-S3` is now the next active authored-texture hardening boundary:
+    - surface invalid-binding state in the object-facing authored-texture binding UX instead of failing silently
+  - `T3` is complete:
+    - `ray_tracing` now has one explicit authored/procedural coexistence rule before dual-lane widening begins
+    - authored bitmap sampling establishes the substrate/base response first
+    - procedural base-role stack layers do not replace that authored substrate
+    - procedural overlay-role stack layers still modulate above it
+    - the rule is locked by focused payload coverage plus a scene-level persist/reopen regression
+  - `T4` is now complete:
+    - the authored-texture lane now supports one authored base lane plus one authored overlay lane end to end
+    - overlay material intent is now explicit and aligned to the runtime material taxonomy (`grime`, `oil`, `rust`, `fog`)
+    - flattened-only output remains supported as the compatibility path
+  - no further authored-texture boundary is active inside this roadmap; any next material-authoring expansion should start as a new bounded follow-on
+- The texture-net lane is now a completed reference:
+  - private archive: `/Users/calebsv/Desktop/CodeWork/docs/private_program_docs/drawing_program/archive/2026-05-07_completed_texture_net_orientation_and_guides_snapshot/2026-05-07_drawing_program_texture_net_orientation_and_guides_plan.md`
+  - `N1` is complete:
+    - imported plane/prism packs now carry persisted semantic net metadata beyond face-name-only roles
+    - one authoritative rect-prism mapping now exists for face slot, orientation, corners, edges, and adjacency
+    - plane/prism import now seeds that semantic contract during object-open pack creation
+    - snapshot save/load now preserves the semantic contract and synthesizes it for older supported packs when possible
+  - `N2` is complete:
+    - imported rect-prism packs now open in a canonical semantic atlas net instead of the old generic grid
+    - imported plane packs now use a semantic single-face layout
+    - user-created and duplicate surfaces now survive inside a generic fallback block without disturbing the imported semantic net
+    - workspace fit/hit/selection behavior is aligned to semantic atlas bounds
+  - `N3` is complete:
+    - the `CANVAS` panel now owns a persisted `GUIDES` mode with `OFF`, `CORNERS`, and `CORNERS+EDGES`
+    - prism semantic faces now render stable viewport-only corner chips from canonical vertex ids
+    - `CORNERS+EDGES` adds optional viewport-only seam strips from canonical edge ids
+    - guide overlays stay non-destructive and export-free
+  - `N4` is complete:
+    - semantic face titles now render larger and with stronger contrast plates in the viewport
+    - the top `CANVAS` HUD is now trimmed to compact semantic/editor rows instead of the older debug-heavy metrics wall
+    - overview readability now sits on top of the canonical semantic net plus guide overlay baseline
+  - `N5` is complete:
+    - imported semantic nets now open in canonical object-grounded positions and can then be manually rearranged in layout mode
+    - per-surface layout offsets now persist separately from canonical semantic placement
+    - `RESET TO OBJECT LAYOUT` now restores the imported net to its canonical semantic arrangement without destroying the underlying face contract
+  - `N6` is complete:
+    - texture export manifests now carry the semantic net/orientation/corner/edge/layout-offset contract per surface
+    - the downstream authored-texture loader now has an opt-in face-metadata seam for that richer manifest while preserving current sampling behavior
+  - next boundary: no further slice in this roadmap; any texture-net follow-on should start as a new bounded lane
+  - current direction lock:
+    - keep the finished texture-net lane stable instead of widening immediately into new primitive families or new guide/export semantics without a fresh plan
+    - keep continuity guides viewport-only and export-free unless a future bounded lane explicitly changes that contract
+    - keep generic grid fallback for user-created or unsupported surfaces
+- Right-panel refinement follow-on is now complete:
+  - the right editor panel contract is now:
+    - `CANVAS`
+    - `LAYER`
+    - `COLOR`
+    - `FILE`
+    - `ASSET`
+    - `EXPORT`
+  - current direction lock:
+    - keep retained 2D object editing in the left `OBJECTS` lane; do not rename or merge that lane with scene-asset import UI
+    - keep `FILE` focused on project/session actions plus saved `.pack` browsing
+    - keep scene/object loading in `ASSET`
+    - keep output/export actions in `EXPORT`
+    - prefer compact summary rows over verbose path/status dumps in the right panel
+- Rendering-performance cache roadmap is now a completed reference lane:
+  - private plan: `/Users/calebsv/Desktop/CodeWork/docs/private_program_docs/drawing_program/archive/2026-05-07_completed_wa1_render_texture_snapshot/2026-05-06_drawing_program_rendering_performance_cache_plan.md`
+  - current direction:
+    - the remaining active-only cache assumptions must be fully removed in favor of per-surface cached textures
+    - pan should become destination-rect-only motion against reusable caches
+    - zoom buckets should act as cache rebuild anchors only, while in-between zoom stays smooth by scaling the current cache
+    - dirty revisions should replace full-raster change detection where possible
+    - async rebuild work should stay bounded to deferred cache queueing and wait-policy integration, not widen into backend work by itself
+    - backend reassessment should happen after the SDL-path cache architecture is cleaned up, not before
+  - implemented state:
+    - `R1` is complete through live cache/churn telemetry in the runtime and right `CANVAS` panel
+    - `R2` is complete through an app-local per-surface atlas cache table and cached presentation attempts for every visible surface
+    - inactive surfaces now validate against surface content revisions instead of forcing active-surface-style projection checks
+    - `R3` is complete through removal of the atlas per-pixel fallback renderer; cache failures now stay in a cache-unavailable telemetry lane instead of dropping into CPU sheet redraw
+    - `R4` is complete through explicit zoom-bucket-aware cache reuse: same-bucket zoom stays on scaled cache copies, while bucket transitions force rebuilds
+    - `R5` is complete through revision-based active-surface invalidation, explicit layer-opacity revision tracking, and removal of ordinary full-raster hash walks from atlas cache validation
+    - `R6` is complete through deferred cache rebuild queueing, `background_busy` loop integration, last-good-texture presentation during pending rebuilds, and active-surface-first queue stepping under interaction
+    - `R7` is complete through measured backend reassessment:
+      - cache telemetry now includes cumulative compose/upload/rebuild timing
+      - bounded lifecycle profiling currently shows CPU compose cost dominating texture upload cost on the cleaned SDL path
+      - backend migration is explicitly deferred; any future Vulkan/backend effort requires fresh measured evidence and a new bounded plan
+- Texture authoring six-phase roadmap is now a completed reference lane:
+  - private plan: `/Users/calebsv/Desktop/CodeWork/docs/private_program_docs/drawing_program/archive/2026-05-07_completed_wa1_render_texture_snapshot/2026-05-06_drawing_program_texture_authoring_six_phase_plan.md`
+  - Phase 1: multi-surface texture-project foundation and snapshot contract is complete
+  - Phase 2: atlas-style multi-surface workspace UI in the current canvas viewport area is complete
+  - Phase 3: plane/prism template import from `line_drawing` / `core_scene` object contracts is complete
+  - Phase 4: per-surface export plus object-id/face-role binding metadata is complete
+  - Phase 5: bounded `ray_tracing` authored-bitmap texture consumption bridge is complete
+  - Phase 6 slice plan is now complete:
+    - `S1` complete: scene-authored root state, canvas-mode state, per-surface blank/lock/user flags, and persistence groundwork
+    - `S2` complete: right-panel `CANVAS` surface-manager controls for add/duplicate/mode plus richer per-surface status rows
+    - `S3` complete: scene-authored `.json` root browsing, supported-object listing, `OPEN OBJECT AS TEXTURE PACK`, and guarded `DELETE CANVAS`
+    - `S4` complete: object-driven new-pack/save-root contract cleanup plus authored-scene provenance roundtrip
+    - `S5` complete: layout-mode blank-surface resize interaction with painted-surface blocking and visible atlas resize handles
+    - `S6` complete: persistence hardening, targeted regressions, and doc lock
+  - closeout state:
+    - snapshot lifecycle coverage now proves resized blank/user canvases survive save/load together with restored scene/object context and persisted `CANVAS MODE`
+    - the six-phase texture-authoring roadmap is now structurally complete
+    - the follow-on right-panel cleanup is also complete:
+      - project/session actions remain accessible without sharing one mixed lane with scene/object loading and export actions
+      - scene/object loading now has a dedicated `ASSET` lane
+      - export actions now have a dedicated `EXPORT` lane
+  - keep any future texture follow-on separate from broader primitive-family expansion until a new bounded plan is opened
+- Workspace Authoring `WA1` first-host lane is now a completed reference lane:
   - `WA1-S0` host attach audit is complete
   - `WA1-S1` entry/mode state is complete through `kit_workspace_authoring`, including physical-scancode authoring chord handling and a temporary title-bar active-mode signal
   - `WA1-S2` minimal authoring chrome is complete with visible pane/module readout
   - `WA1-S3` draft Apply/Cancel semantics are complete through baseline capture, draft pending state, Apply commit, and Cancel restore
   - `WA1-S4` accepted authoring persistence is complete; applied pane/module state survives save/load while active un-applied drafts serialize as their entry baseline
   - the `WA1-S4` font/theme overlay correction is complete; `Tab` cycles into a takeover layer with font preset, font zoom, theme preset, and explicit custom-preset stub controls
-  - next boundary is `WA1-S5` closeout only
+  - `WA1-S5` closeout is treated as complete for the drawing-program host lane
+  - any next workspace-authoring work for `drawing_program` should start as a separate bounded rollout or capability-expansion plan
   - module-content swapping, plugin loading, and `line_drawing` attach remain deferred
 - Phase 2 foundations are complete
 - Phase 3 complete:
@@ -253,11 +482,8 @@ Near-term (active):
         - Phase 18 is closed at the intended vector-depth scope
         - the next roadmap boundary is Phase 19 color-system foundation
   - Phase 19 color system foundation is now the active next boundary:
-      - kickoff doc: `../../docs/private_program_docs/drawing_program/2026-04-16_drawing_program_phase_19_color_system_foundation_plan.md`
-      - direction lock:
-        - move beyond grayscale-only working behavior
-        - expand the right panel to `CANVAS | LAYER | COLOR`
-        - keep raster samples byte-sized, but reinterpret them as palette slot indices rather than grayscale values
+      - the Phase 19 foundation and follow-on true-color migration lanes are now structurally complete
+      - any next color work should be treated as optional follow-on UX or authoring depth rather than unfinished migration
         - define true color contract, palette ownership, and dedicated color-pane workflow before widening tool depth again
       - planned slices:
         - `S1` right-panel `COLOR` scaffold

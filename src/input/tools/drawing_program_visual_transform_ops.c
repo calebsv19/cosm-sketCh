@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "drawing_program/drawing_program_selection.h"
+#include "drawing_program/drawing_program_visual_canvas_stroke_ops.h"
 
 void drawing_program_visual_cancel_canvas_draw_and_shape(VisualCanvasInteractionState *interaction) {
     if (!interaction) {
@@ -19,6 +20,9 @@ void drawing_program_visual_cancel_canvas_draw_and_shape(VisualCanvasInteraction
     interaction->move_axis_lock = 0u;
     interaction->marquee_commit_mode = (uint8_t)VISUAL_MARQUEE_COMMIT_REPLACE;
     interaction->has_last_sample = 0u;
+    interaction->direct_stroke_group_step_count = 0u;
+    interaction->direct_stroke_history_layer_id = 0u;
+    interaction->direct_stroke_pending_delta_count = 0u;
     interaction->object_move_active = 0u;
     interaction->object_move_anchor_sample_x = 0u;
     interaction->object_move_anchor_sample_y = 0u;
@@ -37,6 +41,21 @@ void drawing_program_visual_cancel_canvas_draw_and_shape(VisualCanvasInteraction
     interaction->object_path_handle_object_id = 0u;
     interaction->object_path_handle_dx = 0;
     interaction->object_path_handle_dy = 0;
+    interaction->canvas_resize_active = 0u;
+    interaction->canvas_resize_surface_index = 0u;
+    interaction->canvas_resize_start_logical_width = 0u;
+    interaction->canvas_resize_start_logical_height = 0u;
+    interaction->canvas_resize_sample_density = 0u;
+    interaction->canvas_resize_pixels_per_logical = 0.0f;
+    interaction->canvas_resize_anchor_mouse_x = 0;
+    interaction->canvas_resize_anchor_mouse_y = 0;
+    interaction->canvas_move_active = 0u;
+    interaction->canvas_move_surface_index = 0u;
+    interaction->canvas_move_start_offset_x = 0.0f;
+    interaction->canvas_move_start_offset_y = 0.0f;
+    interaction->canvas_move_zoom = 0.0f;
+    interaction->canvas_move_anchor_mouse_x = 0;
+    interaction->canvas_move_anchor_mouse_y = 0;
     interaction->path_preview_sample_x = 0u;
     interaction->path_preview_sample_y = 0u;
     interaction->path_draft_point_count = 0u;
@@ -579,6 +598,10 @@ void drawing_program_visual_cancel_all_transient_interactions(DrawingProgramAppC
                                                               VisualCanvasInteractionState *interaction,
                                                               VisualSelectionState *selection,
                                                               int clear_pan_state) {
+    if (ctx && interaction) {
+        (void)drawing_program_visual_flush_direct_stroke_history(
+            ctx, interaction, interaction->direct_stroke_history_layer_id);
+    }
     drawing_program_visual_end_canvas_history_group(ctx);
     drawing_program_visual_cancel_canvas_draw_and_shape(interaction);
     drawing_program_visual_cancel_selection_transient(selection);

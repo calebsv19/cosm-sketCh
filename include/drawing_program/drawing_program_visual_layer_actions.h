@@ -3,6 +3,7 @@
 
 #include "drawing_program/drawing_program_app_main.h"
 #include "drawing_program/drawing_program_runtime_orchestration.h"
+#include "drawing_program/drawing_program_visual_layer_roles.h"
 
 #ifdef __cplusplus
 extern "C" {

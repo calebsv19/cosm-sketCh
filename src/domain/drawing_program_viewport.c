@@ -174,6 +174,10 @@ float drawing_program_viewport_clamp_zoom(float zoom) {
                            drawing_program_viewport_default_max_zoom());
 }
 
+float drawing_program_viewport_base_pixel_size(void) {
+    return DRAWING_PROGRAM_VIEWPORT_BASE_PIXEL_SIZE;
+}
+
 void drawing_program_viewport_transform_from_state(const DrawingProgramEditorState *editor,
                                                    const DrawingProgramDocument *document,
                                                    DrawingProgramViewportTransform *out_transform) {

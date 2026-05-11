@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "core_theme.h"
+#include "drawing_program/drawing_program_render_revision.h"
 #include "drawing_program/drawing_program_runtime_orchestration.h"
 #include "drawing_program/drawing_program_visual_transform_ops.h"
 #include "drawing_program_lifecycle_baseline_history_suite.h"
@@ -20,6 +21,77 @@ int drawing_program_lifecycle_run_baseline_history_suite(DrawingProgramAppContex
     uint32_t center_y = 0u;
     uint8_t center_before = 0u;
 
+    {
+        uint64_t revision_before = 0u;
+        uint64_t revision_after = 0u;
+        memset(ctx.history.entries, 0, sizeof(ctx.history.entries));
+        ctx.history.count = DRAWING_PROGRAM_HISTORY_CAPACITY;
+        ctx.history.cursor = DRAWING_PROGRAM_HISTORY_CAPACITY;
+        revision_before = drawing_program_render_revision_compose_active_surface_content(&ctx);
+        if (!expect_ok(drawing_program_history_apply_set_sample_value(&ctx.history,
+                                                                      &ctx.document,
+                                                                      &ctx.layer_rasters,
+                                                                      ctx.editor.active_layer_id,
+                                                                      center_x,
+                                                                      center_y,
+                                                                      133u),
+                       "history_capacity_sample_apply")) {
+            return 1;
+        }
+        revision_after = drawing_program_render_revision_compose_active_surface_content(&ctx);
+        if (revision_after == revision_before) {
+            fprintf(stderr,
+                    "lifecycle_test: expected render revision to change after saturated-history sample write\n");
+            return 1;
+        }
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &ctx,
+                           DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_HISTORY),
+                       "history_capacity_clear_history")) {
+            return 1;
+        }
+    }
+    {
+        uint32_t i = 0u;
+        memset(ctx.history.entries, 0, sizeof(ctx.history.entries));
+        ctx.history.entries[0].type = DRAWING_PROGRAM_COMMAND_GROUP_BEGIN;
+        ctx.history.entries[1].type = DRAWING_PROGRAM_COMMAND_SET_SAMPLE_VALUE;
+        ctx.history.entries[1].layer_id = ctx.editor.active_layer_id;
+        ctx.history.entries[2].type = DRAWING_PROGRAM_COMMAND_GROUP_END;
+        for (i = 3u; i < DRAWING_PROGRAM_HISTORY_CAPACITY; ++i) {
+            ctx.history.entries[i].type = DRAWING_PROGRAM_COMMAND_SET_SAMPLE_VALUE;
+            ctx.history.entries[i].layer_id = ctx.editor.active_layer_id;
+        }
+        ctx.history.count = DRAWING_PROGRAM_HISTORY_CAPACITY;
+        ctx.history.cursor = DRAWING_PROGRAM_HISTORY_CAPACITY;
+        if (!expect_ok(drawing_program_history_apply_set_sample_value(&ctx.history,
+                                                                      &ctx.document,
+                                                                      &ctx.layer_rasters,
+                                                                      ctx.editor.active_layer_id,
+                                                                      center_x,
+                                                                      center_y,
+                                                                      131u),
+                       "history_capacity_headroom_sample_apply")) {
+            return 1;
+        }
+        if (ctx.history.count >= DRAWING_PROGRAM_HISTORY_CAPACITY) {
+            fprintf(stderr,
+                    "lifecycle_test: expected saturated history push to reclaim headroom count=%u\n",
+                    (unsigned)ctx.history.count);
+            return 1;
+        }
+        if (ctx.history.entries[0].type == DRAWING_PROGRAM_COMMAND_GROUP_END) {
+            fprintf(stderr,
+                    "lifecycle_test: expected saturated history eviction to drop whole oldest group\n");
+            return 1;
+        }
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &ctx,
+                           DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_HISTORY),
+                       "history_capacity_headroom_clear_history")) {
+            return 1;
+        }
+    }
     {
         DrawingProgramViewportTransform transform;
         DrawingProgramScreenPoint screen = { 10.0f, 20.0f };

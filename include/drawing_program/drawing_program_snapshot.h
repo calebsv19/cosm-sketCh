@@ -9,7 +9,7 @@ extern "C" {
 
 struct DrawingProgramAppContext;
 
-CoreResult drawing_program_snapshot_save(const struct DrawingProgramAppContext *ctx, const char *path);
+CoreResult drawing_program_snapshot_save(struct DrawingProgramAppContext *ctx, const char *path);
 CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, const char *path);
 CoreResult drawing_program_snapshot_export_debug_json(const struct DrawingProgramAppContext *ctx,
                                                       const char *path);

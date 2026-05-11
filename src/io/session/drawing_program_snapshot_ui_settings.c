@@ -249,6 +249,131 @@ typedef struct DrawingProgramUiSettingsV10 {
     uint8_t color_palette_rgb[DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT][3];
 } DrawingProgramUiSettingsV10;
 
+typedef struct DrawingProgramUiSettingsV11 {
+    uint32_t version;
+    uint32_t theme_preset_id;
+    uint32_t font_preset_id;
+    int32_t font_zoom_step;
+    uint8_t left_panel_slot;
+    uint8_t right_panel_slot;
+    uint8_t active_color_index;
+    uint8_t selection_has_payload;
+    uint32_t selection_origin_x;
+    uint32_t selection_origin_y;
+    uint32_t selection_width;
+    uint32_t selection_height;
+    uint8_t tool_brush_size;
+    uint8_t tool_brush_opacity;
+    uint8_t tool_brush_spacing;
+    uint8_t tool_brush_hardness;
+    uint8_t tool_eraser_size;
+    uint8_t tool_shape_stroke_width;
+    uint8_t tool_shape_mode;
+    uint8_t tool_shape_target_mode;
+    uint8_t tool_fill_tolerance;
+    uint8_t tool_select_mode;
+    uint8_t canvas_control_mode;
+    uint8_t layer_opacity_entry_count;
+    uint8_t recent_color_count;
+    uint8_t selected_recent_color_index;
+    uint8_t color_hue;
+    uint8_t color_saturation;
+    uint8_t color_value;
+    uint8_t active_paint_r;
+    uint8_t active_paint_g;
+    uint8_t active_paint_b;
+    uint8_t reserved0;
+    uint32_t layer_opacity_layer_ids[DRAWING_PROGRAM_MAX_LAYERS];
+    uint8_t layer_opacity_values[DRAWING_PROGRAM_MAX_LAYERS];
+    uint8_t recent_color_rgb[DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT][3];
+    uint8_t color_palette_rgb[DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT][3];
+} DrawingProgramUiSettingsV11;
+
+typedef struct DrawingProgramUiSettingsV12 {
+    uint32_t version;
+    uint32_t theme_preset_id;
+    uint32_t font_preset_id;
+    int32_t font_zoom_step;
+    uint8_t left_panel_slot;
+    uint8_t right_panel_slot;
+    uint8_t active_color_index;
+    uint8_t selection_has_payload;
+    uint32_t selection_origin_x;
+    uint32_t selection_origin_y;
+    uint32_t selection_width;
+    uint32_t selection_height;
+    uint8_t tool_brush_size;
+    uint8_t tool_brush_opacity;
+    uint8_t tool_brush_spacing;
+    uint8_t tool_brush_hardness;
+    uint8_t tool_eraser_size;
+    uint8_t tool_shape_stroke_width;
+    uint8_t tool_shape_mode;
+    uint8_t tool_shape_target_mode;
+    uint8_t tool_fill_tolerance;
+    uint8_t tool_select_mode;
+    uint8_t canvas_control_mode;
+    uint8_t canvas_guide_mode;
+    uint8_t layer_opacity_entry_count;
+    uint8_t recent_color_count;
+    uint8_t selected_recent_color_index;
+    uint8_t color_hue;
+    uint8_t color_saturation;
+    uint8_t color_value;
+    uint8_t active_paint_r;
+    uint8_t active_paint_g;
+    uint8_t active_paint_b;
+    uint8_t reserved0;
+    uint32_t layer_opacity_layer_ids[DRAWING_PROGRAM_MAX_LAYERS];
+    uint8_t layer_opacity_values[DRAWING_PROGRAM_MAX_LAYERS];
+    uint8_t recent_color_rgb[DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT][3];
+    uint8_t color_palette_rgb[DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT][3];
+} DrawingProgramUiSettingsV12;
+
+typedef struct DrawingProgramUiSettingsV13 {
+    uint32_t version;
+    uint32_t theme_preset_id;
+    uint32_t font_preset_id;
+    int32_t font_zoom_step;
+    uint8_t left_panel_slot;
+    uint8_t right_panel_slot;
+    uint8_t active_color_index;
+    uint8_t selection_has_payload;
+    uint32_t selection_origin_x;
+    uint32_t selection_origin_y;
+    uint32_t selection_width;
+    uint32_t selection_height;
+    uint8_t tool_brush_size;
+    uint8_t tool_brush_opacity;
+    uint8_t tool_brush_spacing;
+    uint8_t tool_brush_hardness;
+    uint8_t tool_eraser_size;
+    uint8_t tool_shape_stroke_width;
+    uint8_t tool_shape_mode;
+    uint8_t tool_shape_target_mode;
+    uint8_t tool_fill_tolerance;
+    uint8_t tool_select_mode;
+    uint8_t canvas_control_mode;
+    uint8_t canvas_guide_mode;
+    uint8_t canvas_reflection_center_valid;
+    uint8_t layer_opacity_entry_count;
+    uint8_t recent_color_count;
+    uint8_t selected_recent_color_index;
+    uint8_t color_hue;
+    uint8_t color_saturation;
+    uint8_t color_value;
+    uint8_t active_paint_r;
+    uint8_t active_paint_g;
+    uint8_t active_paint_b;
+    uint8_t reserved0;
+    uint32_t canvas_reflection_center_x;
+    uint32_t canvas_reflection_center_y;
+    uint32_t layer_opacity_layer_ids[DRAWING_PROGRAM_MAX_LAYERS];
+    uint8_t layer_opacity_values[DRAWING_PROGRAM_MAX_LAYERS];
+    uint8_t recent_color_rgb[DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT][3];
+    uint8_t color_palette_rgb[DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT][3];
+} DrawingProgramUiSettingsV13;
+
 enum {
     DRAWING_PROGRAM_UI_SETTINGS_VERSION_V1 = 1u,
     DRAWING_PROGRAM_UI_SETTINGS_VERSION_V2 = 2u,
@@ -259,7 +384,10 @@ enum {
     DRAWING_PROGRAM_UI_SETTINGS_VERSION_V7 = 7u,
     DRAWING_PROGRAM_UI_SETTINGS_VERSION_V8 = 8u,
     DRAWING_PROGRAM_UI_SETTINGS_VERSION_V9 = 9u,
-    DRAWING_PROGRAM_UI_SETTINGS_VERSION_V10 = 10u
+    DRAWING_PROGRAM_UI_SETTINGS_VERSION_V10 = 10u,
+    DRAWING_PROGRAM_UI_SETTINGS_VERSION_V11 = 11u,
+    DRAWING_PROGRAM_UI_SETTINGS_VERSION_V12 = 12u,
+    DRAWING_PROGRAM_UI_SETTINGS_VERSION_V13 = 13u
 };
 
 static void drawing_program_snapshot_apply_selection_payload(
@@ -293,12 +421,12 @@ static void drawing_program_snapshot_load_legacy_active_paint(struct DrawingProg
 CoreResult drawing_program_snapshot_write_ui_settings_chunk(
     CorePackWriter *writer,
     const struct DrawingProgramAppContext *ctx) {
-    DrawingProgramUiSettingsV10 ui_settings;
+    DrawingProgramUiSettingsV13 ui_settings;
     if (!writer || !ctx) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid snapshot ui settings write request" };
     }
     memset(&ui_settings, 0, sizeof(ui_settings));
-    ui_settings.version = DRAWING_PROGRAM_UI_SETTINGS_VERSION_V10;
+    ui_settings.version = DRAWING_PROGRAM_UI_SETTINGS_VERSION_V13;
     ui_settings.theme_preset_id = ctx->ui.theme_preset_id;
     ui_settings.font_preset_id = ctx->ui.font_preset_id;
     ui_settings.font_zoom_step = (int32_t)ctx->ui.font_zoom_step;
@@ -321,6 +449,9 @@ CoreResult drawing_program_snapshot_write_ui_settings_chunk(
     ui_settings.tool_shape_target_mode = ctx->ui.tool_shape_target_mode;
     ui_settings.tool_fill_tolerance = ctx->ui.tool_fill_tolerance;
     ui_settings.tool_select_mode = ctx->ui.tool_select_mode;
+    ui_settings.canvas_control_mode = ctx->ui.canvas_control_mode;
+    ui_settings.canvas_guide_mode = ctx->ui.canvas_guide_mode;
+    ui_settings.canvas_reflection_center_valid = ctx->ui.canvas_reflection_center_valid;
     ui_settings.layer_opacity_entry_count = ctx->ui.layer_opacity_entry_count;
     ui_settings.recent_color_count = ctx->ui.recent_color_count;
     ui_settings.selected_recent_color_index = ctx->ui.selected_recent_color_index;
@@ -330,9 +461,8 @@ CoreResult drawing_program_snapshot_write_ui_settings_chunk(
     ui_settings.active_paint_r = ctx->ui.active_paint_r;
     ui_settings.active_paint_g = ctx->ui.active_paint_g;
     ui_settings.active_paint_b = ctx->ui.active_paint_b;
-    if (ui_settings.layer_opacity_entry_count > DRAWING_PROGRAM_MAX_LAYERS) {
-        ui_settings.layer_opacity_entry_count = DRAWING_PROGRAM_MAX_LAYERS;
-    }
+    ui_settings.canvas_reflection_center_x = ctx->ui.canvas_reflection_center_x;
+    ui_settings.canvas_reflection_center_y = ctx->ui.canvas_reflection_center_y;
     memcpy(ui_settings.layer_opacity_layer_ids,
            ctx->ui.layer_opacity_layer_ids,
            sizeof(ui_settings.layer_opacity_layer_ids));
@@ -362,6 +492,9 @@ CoreResult drawing_program_snapshot_apply_ui_settings_chunk(
     DrawingProgramUiSettingsV8 ui_settings_v8;
     DrawingProgramUiSettingsV9 ui_settings_v9;
     DrawingProgramUiSettingsV10 ui_settings_v10;
+    DrawingProgramUiSettingsV11 ui_settings_v11;
+    DrawingProgramUiSettingsV12 ui_settings_v12;
+    DrawingProgramUiSettingsV13 ui_settings_v13;
     CoreResult result;
     if (!ctx || !reader || !chunk) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid snapshot ui settings apply request" };
@@ -377,6 +510,206 @@ CoreResult drawing_program_snapshot_apply_ui_settings_chunk(
     memset(&ui_settings_v8, 0, sizeof(ui_settings_v8));
     memset(&ui_settings_v9, 0, sizeof(ui_settings_v9));
     memset(&ui_settings_v10, 0, sizeof(ui_settings_v10));
+    memset(&ui_settings_v11, 0, sizeof(ui_settings_v11));
+    memset(&ui_settings_v12, 0, sizeof(ui_settings_v12));
+    memset(&ui_settings_v13, 0, sizeof(ui_settings_v13));
+
+    if (chunk->size == (uint64_t)sizeof(ui_settings_v13)) {
+        result =
+            core_pack_reader_read_chunk_data(reader, chunk, &ui_settings_v13, (uint64_t)sizeof(ui_settings_v13));
+        if (result.code == CORE_OK && ui_settings_v13.version == DRAWING_PROGRAM_UI_SETTINGS_VERSION_V13) {
+            uint8_t entry_count = ui_settings_v13.layer_opacity_entry_count;
+            uint8_t recent_count = ui_settings_v13.recent_color_count;
+            if (ui_settings_v13.theme_preset_id < (uint32_t)CORE_THEME_PRESET_COUNT) {
+                ctx->ui.theme_preset_id = ui_settings_v13.theme_preset_id;
+            }
+            if (ui_settings_v13.font_preset_id < (uint32_t)CORE_FONT_PRESET_COUNT) {
+                ctx->ui.font_preset_id = ui_settings_v13.font_preset_id;
+            }
+            ctx->ui.font_zoom_step = (int8_t)ui_settings_v13.font_zoom_step;
+            ctx->ui.left_panel_slot = ui_settings_v13.left_panel_slot;
+            ctx->ui.right_panel_slot = ui_settings_v13.right_panel_slot;
+            ctx->ui.active_color_index = ui_settings_v13.active_color_index;
+            ctx->ui.tool_brush_size = ui_settings_v13.tool_brush_size;
+            ctx->ui.tool_brush_opacity = ui_settings_v13.tool_brush_opacity;
+            ctx->ui.tool_brush_spacing = ui_settings_v13.tool_brush_spacing;
+            ctx->ui.tool_brush_hardness = ui_settings_v13.tool_brush_hardness;
+            ctx->ui.tool_eraser_size = ui_settings_v13.tool_eraser_size;
+            ctx->ui.tool_shape_stroke_width = ui_settings_v13.tool_shape_stroke_width;
+            ctx->ui.tool_shape_mode = ui_settings_v13.tool_shape_mode;
+            ctx->ui.tool_shape_target_mode = ui_settings_v13.tool_shape_target_mode;
+            ctx->ui.tool_fill_tolerance = ui_settings_v13.tool_fill_tolerance;
+            ctx->ui.tool_select_mode = ui_settings_v13.tool_select_mode;
+            ctx->ui.canvas_control_mode = ui_settings_v13.canvas_control_mode;
+            ctx->ui.canvas_guide_mode = ui_settings_v13.canvas_guide_mode;
+            ctx->ui.canvas_reflection_center_valid = ui_settings_v13.canvas_reflection_center_valid;
+            ctx->ui.canvas_reflection_center_x = ui_settings_v13.canvas_reflection_center_x;
+            ctx->ui.canvas_reflection_center_y = ui_settings_v13.canvas_reflection_center_y;
+            ctx->ui.color_hue = ui_settings_v13.color_hue;
+            ctx->ui.color_saturation = ui_settings_v13.color_saturation;
+            ctx->ui.color_value = ui_settings_v13.color_value;
+            ctx->ui.active_paint_r = ui_settings_v13.active_paint_r;
+            ctx->ui.active_paint_g = ui_settings_v13.active_paint_g;
+            ctx->ui.active_paint_b = ui_settings_v13.active_paint_b;
+            ctx->ui.selected_recent_color_index = ui_settings_v13.selected_recent_color_index;
+            if (entry_count > DRAWING_PROGRAM_MAX_LAYERS) {
+                entry_count = DRAWING_PROGRAM_MAX_LAYERS;
+            }
+            if (recent_count > DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT) {
+                recent_count = DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT;
+            }
+            ctx->ui.layer_opacity_entry_count = entry_count;
+            ctx->ui.recent_color_count = recent_count;
+            memcpy(ctx->ui.layer_opacity_layer_ids,
+                   ui_settings_v13.layer_opacity_layer_ids,
+                   sizeof(ctx->ui.layer_opacity_layer_ids));
+            memcpy(ctx->ui.layer_opacity_values,
+                   ui_settings_v13.layer_opacity_values,
+                   sizeof(ctx->ui.layer_opacity_values));
+            memcpy(ctx->ui.recent_color_rgb,
+                   ui_settings_v13.recent_color_rgb,
+                   sizeof(ctx->ui.recent_color_rgb));
+            memcpy(ctx->ui.color_palette_rgb,
+                   ui_settings_v13.color_palette_rgb,
+                   sizeof(ctx->ui.color_palette_rgb));
+            drawing_program_snapshot_apply_selection_payload(ctx,
+                                                             ui_settings_v13.selection_has_payload,
+                                                             ui_settings_v13.selection_origin_x,
+                                                             ui_settings_v13.selection_origin_y,
+                                                             ui_settings_v13.selection_width,
+                                                             ui_settings_v13.selection_height);
+        }
+        return result;
+    }
+
+    if (chunk->size == (uint64_t)sizeof(ui_settings_v12)) {
+        result =
+            core_pack_reader_read_chunk_data(reader, chunk, &ui_settings_v12, (uint64_t)sizeof(ui_settings_v12));
+        if (result.code == CORE_OK && ui_settings_v12.version == DRAWING_PROGRAM_UI_SETTINGS_VERSION_V12) {
+            uint8_t entry_count = ui_settings_v12.layer_opacity_entry_count;
+            uint8_t recent_count = ui_settings_v12.recent_color_count;
+            if (ui_settings_v12.theme_preset_id < (uint32_t)CORE_THEME_PRESET_COUNT) {
+                ctx->ui.theme_preset_id = ui_settings_v12.theme_preset_id;
+            }
+            if (ui_settings_v12.font_preset_id < (uint32_t)CORE_FONT_PRESET_COUNT) {
+                ctx->ui.font_preset_id = ui_settings_v12.font_preset_id;
+            }
+            ctx->ui.font_zoom_step = (int8_t)ui_settings_v12.font_zoom_step;
+            ctx->ui.left_panel_slot = ui_settings_v12.left_panel_slot;
+            ctx->ui.right_panel_slot = ui_settings_v12.right_panel_slot;
+            ctx->ui.active_color_index = ui_settings_v12.active_color_index;
+            ctx->ui.tool_brush_size = ui_settings_v12.tool_brush_size;
+            ctx->ui.tool_brush_opacity = ui_settings_v12.tool_brush_opacity;
+            ctx->ui.tool_brush_spacing = ui_settings_v12.tool_brush_spacing;
+            ctx->ui.tool_brush_hardness = ui_settings_v12.tool_brush_hardness;
+            ctx->ui.tool_eraser_size = ui_settings_v12.tool_eraser_size;
+            ctx->ui.tool_shape_stroke_width = ui_settings_v12.tool_shape_stroke_width;
+            ctx->ui.tool_shape_mode = ui_settings_v12.tool_shape_mode;
+            ctx->ui.tool_shape_target_mode = ui_settings_v12.tool_shape_target_mode;
+            ctx->ui.tool_fill_tolerance = ui_settings_v12.tool_fill_tolerance;
+            ctx->ui.tool_select_mode = ui_settings_v12.tool_select_mode;
+            ctx->ui.canvas_control_mode = ui_settings_v12.canvas_control_mode;
+            ctx->ui.canvas_guide_mode = ui_settings_v12.canvas_guide_mode;
+            ctx->ui.color_hue = ui_settings_v12.color_hue;
+            ctx->ui.color_saturation = ui_settings_v12.color_saturation;
+            ctx->ui.color_value = ui_settings_v12.color_value;
+            ctx->ui.active_paint_r = ui_settings_v12.active_paint_r;
+            ctx->ui.active_paint_g = ui_settings_v12.active_paint_g;
+            ctx->ui.active_paint_b = ui_settings_v12.active_paint_b;
+            ctx->ui.selected_recent_color_index = ui_settings_v12.selected_recent_color_index;
+            if (entry_count > DRAWING_PROGRAM_MAX_LAYERS) {
+                entry_count = DRAWING_PROGRAM_MAX_LAYERS;
+            }
+            if (recent_count > DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT) {
+                recent_count = DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT;
+            }
+            ctx->ui.layer_opacity_entry_count = entry_count;
+            ctx->ui.recent_color_count = recent_count;
+            memcpy(ctx->ui.layer_opacity_layer_ids,
+                   ui_settings_v12.layer_opacity_layer_ids,
+                   sizeof(ctx->ui.layer_opacity_layer_ids));
+            memcpy(ctx->ui.layer_opacity_values,
+                   ui_settings_v12.layer_opacity_values,
+                   sizeof(ctx->ui.layer_opacity_values));
+            memcpy(ctx->ui.recent_color_rgb,
+                   ui_settings_v12.recent_color_rgb,
+                   sizeof(ctx->ui.recent_color_rgb));
+            memcpy(ctx->ui.color_palette_rgb,
+                   ui_settings_v12.color_palette_rgb,
+                   sizeof(ctx->ui.color_palette_rgb));
+            drawing_program_snapshot_apply_selection_payload(ctx,
+                                                             ui_settings_v12.selection_has_payload,
+                                                             ui_settings_v12.selection_origin_x,
+                                                             ui_settings_v12.selection_origin_y,
+                                                             ui_settings_v12.selection_width,
+                                                             ui_settings_v12.selection_height);
+        }
+        return result;
+    }
+
+    if (chunk->size == (uint64_t)sizeof(ui_settings_v11)) {
+        result =
+            core_pack_reader_read_chunk_data(reader, chunk, &ui_settings_v11, (uint64_t)sizeof(ui_settings_v11));
+        if (result.code == CORE_OK && ui_settings_v11.version == DRAWING_PROGRAM_UI_SETTINGS_VERSION_V11) {
+            uint8_t entry_count = ui_settings_v11.layer_opacity_entry_count;
+            uint8_t recent_count = ui_settings_v11.recent_color_count;
+            if (ui_settings_v11.theme_preset_id < (uint32_t)CORE_THEME_PRESET_COUNT) {
+                ctx->ui.theme_preset_id = ui_settings_v11.theme_preset_id;
+            }
+            if (ui_settings_v11.font_preset_id < (uint32_t)CORE_FONT_PRESET_COUNT) {
+                ctx->ui.font_preset_id = ui_settings_v11.font_preset_id;
+            }
+            ctx->ui.font_zoom_step = (int8_t)ui_settings_v11.font_zoom_step;
+            ctx->ui.left_panel_slot = ui_settings_v11.left_panel_slot;
+            ctx->ui.right_panel_slot = ui_settings_v11.right_panel_slot;
+            ctx->ui.active_color_index = ui_settings_v11.active_color_index;
+            ctx->ui.tool_brush_size = ui_settings_v11.tool_brush_size;
+            ctx->ui.tool_brush_opacity = ui_settings_v11.tool_brush_opacity;
+            ctx->ui.tool_brush_spacing = ui_settings_v11.tool_brush_spacing;
+            ctx->ui.tool_brush_hardness = ui_settings_v11.tool_brush_hardness;
+            ctx->ui.tool_eraser_size = ui_settings_v11.tool_eraser_size;
+            ctx->ui.tool_shape_stroke_width = ui_settings_v11.tool_shape_stroke_width;
+            ctx->ui.tool_shape_mode = ui_settings_v11.tool_shape_mode;
+            ctx->ui.tool_shape_target_mode = ui_settings_v11.tool_shape_target_mode;
+            ctx->ui.tool_fill_tolerance = ui_settings_v11.tool_fill_tolerance;
+            ctx->ui.tool_select_mode = ui_settings_v11.tool_select_mode;
+            ctx->ui.canvas_control_mode = ui_settings_v11.canvas_control_mode;
+            ctx->ui.color_hue = ui_settings_v11.color_hue;
+            ctx->ui.color_saturation = ui_settings_v11.color_saturation;
+            ctx->ui.color_value = ui_settings_v11.color_value;
+            ctx->ui.active_paint_r = ui_settings_v11.active_paint_r;
+            ctx->ui.active_paint_g = ui_settings_v11.active_paint_g;
+            ctx->ui.active_paint_b = ui_settings_v11.active_paint_b;
+            ctx->ui.selected_recent_color_index = ui_settings_v11.selected_recent_color_index;
+            if (entry_count > DRAWING_PROGRAM_MAX_LAYERS) {
+                entry_count = DRAWING_PROGRAM_MAX_LAYERS;
+            }
+            if (recent_count > DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT) {
+                recent_count = DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT;
+            }
+            ctx->ui.layer_opacity_entry_count = entry_count;
+            ctx->ui.recent_color_count = recent_count;
+            memcpy(ctx->ui.layer_opacity_layer_ids,
+                   ui_settings_v11.layer_opacity_layer_ids,
+                   sizeof(ctx->ui.layer_opacity_layer_ids));
+            memcpy(ctx->ui.layer_opacity_values,
+                   ui_settings_v11.layer_opacity_values,
+                   sizeof(ctx->ui.layer_opacity_values));
+            memcpy(ctx->ui.recent_color_rgb,
+                   ui_settings_v11.recent_color_rgb,
+                   sizeof(ctx->ui.recent_color_rgb));
+            memcpy(ctx->ui.color_palette_rgb,
+                   ui_settings_v11.color_palette_rgb,
+                   sizeof(ctx->ui.color_palette_rgb));
+            drawing_program_snapshot_apply_selection_payload(ctx,
+                                                             ui_settings_v11.selection_has_payload,
+                                                             ui_settings_v11.selection_origin_x,
+                                                             ui_settings_v11.selection_origin_y,
+                                                             ui_settings_v11.selection_width,
+                                                             ui_settings_v11.selection_height);
+        }
+        return result;
+    }
 
     if (chunk->size == (uint64_t)sizeof(ui_settings_v10)) {
         result =

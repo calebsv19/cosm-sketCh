@@ -14,6 +14,7 @@ typedef struct VisualCanvasSheetMetrics {
 } VisualCanvasSheetMetrics;
 
 #define DRAWING_PROGRAM_PATH_DRAFT_PREVIEW_FLAT_MAX_POINTS (DRAWING_PROGRAM_OBJECT_PATH_MAX_POINTS * 24u)
+#define DRAWING_PROGRAM_DIRECT_STROKE_PENDING_DELTA_CAPACITY DRAWING_PROGRAM_HISTORY_DELTA_BLOCK_FLUSH_CAPACITY
 
 typedef struct VisualCanvasInteractionState {
     uint8_t drawing_active;
@@ -29,8 +30,14 @@ typedef struct VisualCanvasInteractionState {
     uint8_t move_axis_lock;
     uint8_t marquee_commit_mode;
     uint8_t has_last_sample;
+    uint16_t direct_stroke_group_step_count;
+    uint16_t direct_stroke_reserved0;
     uint32_t last_sample_x;
     uint32_t last_sample_y;
+    uint32_t direct_stroke_history_layer_id;
+    uint32_t direct_stroke_pending_delta_count;
+    DrawingProgramHistoryRasterDeltaEntry
+        direct_stroke_pending_deltas[DRAWING_PROGRAM_DIRECT_STROKE_PENDING_DELTA_CAPACITY];
     uint32_t shape_start_sample_x;
     uint32_t shape_start_sample_y;
     uint32_t path_preview_sample_x;
@@ -61,6 +68,25 @@ typedef struct VisualCanvasInteractionState {
     uint32_t object_path_handle_object_id;
     int32_t object_path_handle_dx;
     int32_t object_path_handle_dy;
+    uint8_t canvas_resize_active;
+    uint8_t canvas_resize_reserved0;
+    uint16_t canvas_resize_reserved1;
+    uint32_t canvas_resize_surface_index;
+    uint32_t canvas_resize_start_logical_width;
+    uint32_t canvas_resize_start_logical_height;
+    uint32_t canvas_resize_sample_density;
+    float canvas_resize_pixels_per_logical;
+    int canvas_resize_anchor_mouse_x;
+    int canvas_resize_anchor_mouse_y;
+    uint8_t canvas_move_active;
+    uint8_t canvas_move_reserved0;
+    uint16_t canvas_move_reserved1;
+    uint32_t canvas_move_surface_index;
+    float canvas_move_start_offset_x;
+    float canvas_move_start_offset_y;
+    float canvas_move_zoom;
+    int canvas_move_anchor_mouse_x;
+    int canvas_move_anchor_mouse_y;
     int last_mouse_x;
     int last_mouse_y;
 } VisualCanvasInteractionState;
@@ -70,10 +96,15 @@ typedef struct VisualPanelUiState {
     uint8_t right_slot;
     uint8_t mouse_known;
     uint8_t object_color_target_kind;
+    uint8_t right_file_browser_mode;
+    uint8_t right_canvas_delete_confirm_pending;
+    uint8_t right_canvas_reflection_center_pick_pending;
     int mouse_x;
     int mouse_y;
     int right_file_target_queue_scroll_y;
+    uint32_t right_canvas_delete_confirm_surface_index;
     uint32_t object_color_target_object_id;
+    uint64_t right_canvas_delete_confirm_armed_frame;
 } VisualPanelUiState;
 
 typedef enum VisualObjectColorTargetKind {
@@ -81,6 +112,12 @@ typedef enum VisualObjectColorTargetKind {
     VISUAL_OBJECT_COLOR_TARGET_STROKE = 1,
     VISUAL_OBJECT_COLOR_TARGET_FILL = 2
 } VisualObjectColorTargetKind;
+
+typedef enum VisualRightFileBrowserMode {
+    VISUAL_RIGHT_FILE_BROWSER_MODE_PROJECTS = 0,
+    VISUAL_RIGHT_FILE_BROWSER_MODE_SCENES = 1,
+    VISUAL_RIGHT_FILE_BROWSER_MODE_OBJECTS = 2
+} VisualRightFileBrowserMode;
 
 typedef enum VisualMarqueeCommitMode {
     VISUAL_MARQUEE_COMMIT_REPLACE = 0,

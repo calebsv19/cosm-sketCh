@@ -28,6 +28,7 @@ typedef struct DrawingProgramDocument {
     uint32_t logical_width;
     uint32_t logical_height;
     uint32_t sample_density;
+    uint64_t content_revision;
     uint32_t layer_count;
     uint32_t next_layer_id;
     uint32_t raster_width;
@@ -76,6 +77,7 @@ CoreResult drawing_program_document_sample_write(DrawingProgramDocument *documen
                                                  uint32_t sample_y,
                                                  DrawingProgramRasterSample value,
                                                  DrawingProgramRasterSample *out_previous_value);
+void drawing_program_document_mark_content_changed(DrawingProgramDocument *document);
 CoreResult drawing_program_document_upgrade_legacy_checker_seed(DrawingProgramDocument *document,
                                                                 uint8_t *out_upgraded);
 

@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "drawing_program/drawing_program_canvas_reflection.h"
 #include "drawing_program/drawing_program_color_model.h"
 #include "drawing_program/drawing_program_runtime_orchestration.h"
 #include "drawing_program/drawing_program_ui_color_state.h"
@@ -36,42 +37,42 @@ static uint8_t shape_target_mode(const DrawingProgramAppContext *ctx) {
         (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_OBJECT);
 }
 
-static void rect_bounds_from_samples(uint32_t start_x,
-                                     uint32_t start_y,
-                                     uint32_t end_x,
-                                     uint32_t end_y,
+static void rect_bounds_from_samples(int32_t start_x,
+                                     int32_t start_y,
+                                     int32_t end_x,
+                                     int32_t end_y,
                                      int32_t *out_origin_x,
                                      int32_t *out_origin_y,
                                      uint32_t *out_width,
                                      uint32_t *out_height) {
-    uint32_t min_x = (start_x < end_x) ? start_x : end_x;
-    uint32_t min_y = (start_y < end_y) ? start_y : end_y;
-    uint32_t max_x = (start_x > end_x) ? start_x : end_x;
-    uint32_t max_y = (start_y > end_y) ? start_y : end_y;
+    int32_t min_x = (start_x < end_x) ? start_x : end_x;
+    int32_t min_y = (start_y < end_y) ? start_y : end_y;
+    int32_t max_x = (start_x > end_x) ? start_x : end_x;
+    int32_t max_y = (start_y > end_y) ? start_y : end_y;
     if (out_origin_x) {
-        *out_origin_x = (int32_t)min_x;
+        *out_origin_x = min_x;
     }
     if (out_origin_y) {
-        *out_origin_y = (int32_t)min_y;
+        *out_origin_y = min_y;
     }
     if (out_width) {
-        *out_width = (max_x - min_x) + 1u;
+        *out_width = (uint32_t)((max_x - min_x) + 1);
     }
     if (out_height) {
-        *out_height = (max_y - min_y) + 1u;
+        *out_height = (uint32_t)((max_y - min_y) + 1);
     }
 }
 
-static void circle_bounds_from_samples(uint32_t center_x,
-                                       uint32_t center_y,
-                                       uint32_t edge_x,
-                                       uint32_t edge_y,
+static void circle_bounds_from_samples(int32_t center_x,
+                                       int32_t center_y,
+                                       int32_t edge_x,
+                                       int32_t edge_y,
                                        int32_t *out_origin_x,
                                        int32_t *out_origin_y,
                                        uint32_t *out_width,
                                        uint32_t *out_height) {
-    int32_t cx = (int32_t)center_x;
-    int32_t cy = (int32_t)center_y;
+    int32_t cx = center_x;
+    int32_t cy = center_y;
     int32_t rx = (int32_t)edge_x - cx;
     int32_t ry = (int32_t)edge_y - cy;
     int32_t r = (rx < 0) ? -rx : rx;
@@ -96,17 +97,17 @@ static void circle_bounds_from_samples(uint32_t center_x,
     }
 }
 
-static CoreResult create_shape_object(DrawingProgramAppContext *ctx,
-                                      DrawingProgramToolKind tool,
-                                      uint32_t active_layer_id,
-                                      uint32_t start_x,
-                                      uint32_t start_y,
-                                      uint32_t end_x,
-                                      uint32_t end_y,
-                                      uint8_t mode,
-                                      uint32_t stroke_width) {
+static CoreResult add_shape_object(DrawingProgramAppContext *ctx,
+                                   DrawingProgramToolKind tool,
+                                   uint32_t active_layer_id,
+                                   int32_t start_x,
+                                   int32_t start_y,
+                                   int32_t end_x,
+                                   int32_t end_y,
+                                   uint8_t mode,
+                                   uint32_t stroke_width,
+                                   uint32_t *out_object_id) {
     DrawingProgramObjectRecord seed;
-    uint32_t object_id = 0u;
     DrawingProgramRasterSample color_value;
     CoreResult add_result;
     memset(&seed, 0, sizeof(seed));
@@ -135,14 +136,12 @@ static CoreResult create_shape_object(DrawingProgramAppContext *ctx,
     if (seed.width == 0u || seed.height == 0u) {
         return core_result_ok();
     }
-    add_result = drawing_program_object_store_add(&ctx->object_store, &seed, &object_id);
-    if (add_result.code != CORE_OK || object_id == 0u) {
+    add_result = drawing_program_object_store_add(&ctx->object_store, &seed, out_object_id);
+    if (add_result.code != CORE_OK || !out_object_id || *out_object_id == 0u) {
         return (add_result.code == CORE_OK)
                    ? (CoreResult){ CORE_ERR_FORMAT, "failed to allocate shape object id" }
                    : add_result;
     }
-    drawing_program_selection_reset(&ctx->selection);
-    drawing_program_object_selection_replace_single(&ctx->object_selection, object_id);
     return core_result_ok();
 }
 
@@ -299,10 +298,14 @@ CoreResult drawing_program_visual_apply_canvas_shape_commit(DrawingProgramAppCon
                                                             uint32_t start_y,
                                                             uint32_t end_x,
                                                             uint32_t end_y) {
+    DrawingProgramCanvasReflectionSegment segments[DRAWING_PROGRAM_CANVAS_REFLECTION_VARIANT_CAPACITY];
+    DrawingProgramVisualRasterHistoryBatch history_batch;
     DrawingProgramRasterSample value;
     uint8_t mode;
     uint32_t stroke_width;
     uint32_t active_layer_id = 0u;
+    uint32_t segment_count = 0u;
+    uint32_t segment_index = 0u;
     if (!ctx) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "null app context for shape commit" };
     }
@@ -315,82 +318,122 @@ CoreResult drawing_program_visual_apply_canvas_shape_commit(DrawingProgramAppCon
     value = drawing_program_visual_sample_value_for_tool(ctx, tool);
     mode = drawing_program_visual_tool_shape_mode(ctx);
     stroke_width = drawing_program_visual_tool_shape_stroke_width(ctx);
+    segment_count = drawing_program_canvas_reflection_collect_segments(
+        ctx, (int32_t)start_x, (int32_t)start_y, (int32_t)end_x, (int32_t)end_y, segments);
+    if (segment_count == 0u) {
+        segment_count = 1u;
+        segments[0].start_x = (int32_t)start_x;
+        segments[0].start_y = (int32_t)start_y;
+        segments[0].end_x = (int32_t)end_x;
+        segments[0].end_y = (int32_t)end_y;
+    }
     if (shape_target_mode(ctx) == (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_OBJECT &&
         (tool == DRAWING_PROGRAM_TOOL_RECT || tool == DRAWING_PROGRAM_TOOL_CIRCLE)) {
-        return create_shape_object(ctx,
-                                   tool,
-                                   active_layer_id,
-                                   start_x,
-                                   start_y,
-                                   end_x,
-                                   end_y,
-                                   mode,
-                                   stroke_width);
+        drawing_program_selection_reset(&ctx->selection);
+        drawing_program_object_selection_reset(&ctx->object_selection);
+        for (segment_index = 0u; segment_index < segment_count; ++segment_index) {
+            uint32_t object_id = 0u;
+            CoreResult object_result = add_shape_object(ctx,
+                                                        tool,
+                                                        active_layer_id,
+                                                        segments[segment_index].start_x,
+                                                        segments[segment_index].start_y,
+                                                        segments[segment_index].end_x,
+                                                        segments[segment_index].end_y,
+                                                        mode,
+                                                        stroke_width,
+                                                        &object_id);
+            if (object_result.code != CORE_OK) {
+                return object_result;
+            }
+            if (object_id != 0u) {
+                (void)drawing_program_object_selection_add(&ctx->object_selection, object_id);
+            }
+        }
+        return core_result_ok();
     }
-    switch (tool) {
-        case DRAWING_PROGRAM_TOOL_LINE:
-            return drawing_program_visual_apply_canvas_line_between_samples_on_layer(ctx,
-                                                                                     active_layer_id,
-                                                                                     start_x,
-                                                                                     start_y,
-                                                                                     end_x,
-                                                                                     end_y,
-                                                                                     value,
-                                                                                     stroke_width,
-                                                                                     100u);
-        case DRAWING_PROGRAM_TOOL_RECT: {
-            CoreResult result = core_result_ok();
-            if (drawing_program_visual_shape_mode_includes_fill(tool, mode)) {
-                result = drawing_program_visual_apply_canvas_rect_fill_between_samples_on_layer(ctx,
-                                                                                                active_layer_id,
-                                                                                                start_x,
-                                                                                                start_y,
-                                                                                                end_x,
-                                                                                                end_y,
-                                                                                                value);
-                if (result.code != CORE_OK) {
-                    return result;
+    drawing_program_visual_raster_history_batch_init(&history_batch, active_layer_id);
+    for (segment_index = 0u; segment_index < segment_count; ++segment_index) {
+        CoreResult result = core_result_ok();
+        switch (tool) {
+            case DRAWING_PROGRAM_TOOL_LINE:
+                result = drawing_program_visual_apply_canvas_line_between_samples_with_history_batch(
+                    ctx,
+                    &history_batch,
+                    active_layer_id,
+                    segments[segment_index].start_x,
+                    segments[segment_index].start_y,
+                    segments[segment_index].end_x,
+                    segments[segment_index].end_y,
+                    value,
+                    stroke_width,
+                    100u);
+                break;
+            case DRAWING_PROGRAM_TOOL_RECT:
+                if (drawing_program_visual_shape_mode_includes_fill(tool, mode)) {
+                    result = drawing_program_visual_apply_canvas_rect_fill_between_samples_with_history_batch(
+                        ctx,
+                        &history_batch,
+                        active_layer_id,
+                        segments[segment_index].start_x,
+                        segments[segment_index].start_y,
+                        segments[segment_index].end_x,
+                        segments[segment_index].end_y,
+                        value);
+                    if (result.code != CORE_OK) {
+                        (void)drawing_program_visual_raster_history_batch_finish(ctx, &history_batch);
+                        return result;
+                    }
                 }
-            }
-            if (drawing_program_visual_shape_mode_includes_outline(tool, mode)) {
-                result = drawing_program_visual_apply_canvas_rect_outline_between_samples_on_layer(ctx,
-                                                                                                   active_layer_id,
-                                                                                                   start_x,
-                                                                                                   start_y,
-                                                                                                   end_x,
-                                                                                                   end_y,
-                                                                                                   value,
-                                                                                                   stroke_width);
-            }
+                if (drawing_program_visual_shape_mode_includes_outline(tool, mode)) {
+                    result = drawing_program_visual_apply_canvas_rect_outline_between_samples_with_history_batch(
+                        ctx,
+                        &history_batch,
+                        active_layer_id,
+                        segments[segment_index].start_x,
+                        segments[segment_index].start_y,
+                        segments[segment_index].end_x,
+                        segments[segment_index].end_y,
+                        value,
+                        stroke_width);
+                }
+                break;
+            case DRAWING_PROGRAM_TOOL_CIRCLE:
+                if (drawing_program_visual_shape_mode_includes_fill(tool, mode)) {
+                    result = drawing_program_visual_apply_canvas_circle_fill_between_samples_with_history_batch(
+                        ctx,
+                        &history_batch,
+                        active_layer_id,
+                        segments[segment_index].start_x,
+                        segments[segment_index].start_y,
+                        segments[segment_index].end_x,
+                        segments[segment_index].end_y,
+                        value);
+                    if (result.code != CORE_OK) {
+                        (void)drawing_program_visual_raster_history_batch_finish(ctx, &history_batch);
+                        return result;
+                    }
+                }
+                if (drawing_program_visual_shape_mode_includes_outline(tool, mode)) {
+                    result = drawing_program_visual_apply_canvas_circle_outline_between_samples_with_history_batch(
+                        ctx,
+                        &history_batch,
+                        active_layer_id,
+                        segments[segment_index].start_x,
+                        segments[segment_index].start_y,
+                        segments[segment_index].end_x,
+                        segments[segment_index].end_y,
+                        value,
+                        stroke_width);
+                }
+                break;
+            default:
+                break;
+        }
+        if (result.code != CORE_OK) {
+            (void)drawing_program_visual_raster_history_batch_finish(ctx, &history_batch);
             return result;
         }
-        case DRAWING_PROGRAM_TOOL_CIRCLE: {
-            CoreResult result = core_result_ok();
-            if (drawing_program_visual_shape_mode_includes_fill(tool, mode)) {
-                result = drawing_program_visual_apply_canvas_circle_fill_between_samples_on_layer(ctx,
-                                                                                                  active_layer_id,
-                                                                                                  start_x,
-                                                                                                  start_y,
-                                                                                                  end_x,
-                                                                                                  end_y,
-                                                                                                  value);
-                if (result.code != CORE_OK) {
-                    return result;
-                }
-            }
-            if (drawing_program_visual_shape_mode_includes_outline(tool, mode)) {
-                result = drawing_program_visual_apply_canvas_circle_outline_between_samples_on_layer(ctx,
-                                                                                                     active_layer_id,
-                                                                                                     start_x,
-                                                                                                     start_y,
-                                                                                                     end_x,
-                                                                                                     end_y,
-                                                                                                     value,
-                                                                                                     stroke_width);
-            }
-            return result;
-        }
-        default:
-            return core_result_ok();
     }
+    return drawing_program_visual_raster_history_batch_finish(ctx, &history_batch);
 }

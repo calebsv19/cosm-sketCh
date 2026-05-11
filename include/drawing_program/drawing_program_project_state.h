@@ -13,11 +13,16 @@ struct DrawingProgramAppContext;
 
 CoreResult drawing_program_project_state_configure_defaults(struct DrawingProgramAppContext *ctx);
 CoreResult drawing_program_project_state_prepare_new_path(struct DrawingProgramAppContext *ctx);
+CoreResult drawing_program_project_state_prepare_texture_import_path(struct DrawingProgramAppContext *ctx,
+                                                                    const char *scene_id,
+                                                                    const char *scene_path,
+                                                                    const char *object_id);
 CoreResult drawing_program_project_state_refresh_recent(struct DrawingProgramAppContext *ctx);
 CoreResult drawing_program_project_state_select_recent(struct DrawingProgramAppContext *ctx, uint32_t recent_index);
 CoreResult drawing_program_project_state_select_slot(struct DrawingProgramAppContext *ctx, uint32_t slot_index);
 CoreResult drawing_program_project_state_set_input_root(struct DrawingProgramAppContext *ctx, const char *path);
 CoreResult drawing_program_project_state_set_output_root(struct DrawingProgramAppContext *ctx, const char *path);
+CoreResult drawing_program_project_state_set_scene_authored_root(struct DrawingProgramAppContext *ctx, const char *path);
 CoreResult drawing_program_project_state_set_current_path(struct DrawingProgramAppContext *ctx, const char *path);
 CoreResult drawing_program_project_state_set_save_as_path(struct DrawingProgramAppContext *ctx, const char *path);
 CoreResult drawing_program_project_state_current_exists(const struct DrawingProgramAppContext *ctx, uint8_t *out_exists);

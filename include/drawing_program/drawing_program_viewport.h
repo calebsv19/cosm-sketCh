@@ -50,6 +50,7 @@ typedef struct DrawingProgramViewportTransform {
 void drawing_program_viewport_state_init(DrawingProgramViewportState *viewport);
 void drawing_program_viewport_reset(DrawingProgramViewportState *viewport);
 float drawing_program_viewport_clamp_zoom(float zoom);
+float drawing_program_viewport_base_pixel_size(void);
 void drawing_program_viewport_transform_from_state(const DrawingProgramEditorState *editor,
                                                    const DrawingProgramDocument *document,
                                                    DrawingProgramViewportTransform *out_transform);
