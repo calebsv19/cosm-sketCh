@@ -6,6 +6,7 @@
 #include <json-c/json.h>
 #include <png.h>
 
+#include "core_authored_texture.h"
 #include "drawing_program/drawing_program_app_main.h"
 #include "drawing_program/drawing_program_snapshot.h"
 #include "drawing_program/drawing_program_texture_export_intent.h"
@@ -270,6 +271,85 @@ static int texture_export_manifest_expect_string(json_object *object,
     return 1;
 }
 
+static int texture_export_manifest_expect_missing_key(json_object *object,
+                                                      const char *key) {
+    json_object *value = 0;
+    if (!object || !key) {
+        fprintf(stderr, "lifecycle_test: expected valid missing-key check\n");
+        return 0;
+    }
+    if (json_object_object_get_ex(object, key, &value)) {
+        fprintf(stderr, "lifecycle_test: expected manifest key %s to be absent\n", key);
+        return 0;
+    }
+    return 1;
+}
+
+static int texture_export_manifest_expect_shared_contract(
+    json_object *manifest,
+    CoreAuthoredTexturePrimitiveKind expected_primitive_kind,
+    CoreAuthoredTextureOutputKind expected_output_kind,
+    int expect_overlay_lane) {
+    json_object *schema_value = 0;
+    json_object *binding_value = 0;
+    json_object *output_value = 0;
+    json_object *primitive_value = 0;
+    CoreAuthoredTextureManifestContract contract;
+    const char *binding_name = 0;
+    const char *output_name = 0;
+    const char *primitive_name = 0;
+    memset(&contract, 0, sizeof(contract));
+    if (!manifest ||
+        !json_object_object_get_ex(manifest, "schema_version", &schema_value) ||
+        !schema_value ||
+        json_object_get_type(schema_value) != json_type_int ||
+        !json_object_object_get_ex(manifest, "export_binding_kind", &binding_value) ||
+        !binding_value ||
+        !json_object_object_get_ex(manifest, "emitted_output_kind", &output_value) ||
+        !output_value ||
+        !json_object_object_get_ex(manifest, "primitive_kind", &primitive_value) ||
+        !primitive_value) {
+        fprintf(stderr, "lifecycle_test: expected authored-texture manifest contract keys\n");
+        return 0;
+    }
+    binding_name = json_object_get_string(binding_value);
+    output_name = json_object_get_string(output_value);
+    primitive_name = json_object_get_string(primitive_value);
+    contract.schema_version = (uint32_t)json_object_get_int(schema_value);
+    contract.has_legacy_surfaces =
+        json_object_object_get_ex(manifest, "surfaces", 0) ? true : false;
+    contract.has_base_surfaces =
+        json_object_object_get_ex(manifest, "base_surfaces", 0) ? true : false;
+    contract.has_overlay_surfaces =
+        json_object_object_get_ex(manifest, "overlay_surfaces", 0) ? true : false;
+    if (!core_authored_texture_binding_kind_parse(binding_name, &contract.binding_kind) ||
+        !core_authored_texture_output_kind_parse(output_name, &contract.output_kind) ||
+        !core_authored_texture_primitive_kind_parse(primitive_name, &contract.primitive_kind)) {
+        fprintf(stderr, "lifecycle_test: expected manifest contract values to parse through shared helpers\n");
+        return 0;
+    }
+    if (!core_authored_texture_manifest_contract_validate(&contract)) {
+        fprintf(stderr, "lifecycle_test: expected manifest contract to validate through shared helper\n");
+        return 0;
+    }
+    if (contract.primitive_kind != expected_primitive_kind ||
+        contract.output_kind != expected_output_kind ||
+        (expect_overlay_lane ? !contract.has_overlay_surfaces : contract.has_overlay_surfaces)) {
+        fprintf(stderr,
+                "lifecycle_test: unexpected manifest contract primitive=%u output=%u overlay=%u\n",
+                (unsigned)contract.primitive_kind,
+                (unsigned)contract.output_kind,
+                contract.has_overlay_surfaces ? 1u : 0u);
+        return 0;
+    }
+    if (contract.schema_version == CORE_AUTHORED_TEXTURE_SCHEMA_V5 &&
+        contract.has_legacy_surfaces) {
+        fprintf(stderr, "lifecycle_test: schema v5 manifests must not emit legacy surfaces lane\n");
+        return 0;
+    }
+    return 1;
+}
+
 static int texture_export_manifest_expect_int(json_object *object,
                                               const char *key,
                                               int expected) {
@@ -383,6 +463,10 @@ int drawing_program_lifecycle_run_texture_export_suite(void) {
         "/tmp/drawing_program_texture_export_suite/output/obj_prism_texture_set/obj_prism_front_overlay.png";
     const char *direct_top_png =
         "/tmp/drawing_program_texture_export_suite/output/obj_prism_texture_set/obj_prism_top_base.png";
+    const char *hidden_overlay_export_dir =
+        "/tmp/drawing_program_texture_export_suite/output/obj_prism_texture_set_hidden_overlay";
+    const char *hidden_overlay_manifest_path =
+        "/tmp/drawing_program_texture_export_suite/output/obj_prism_texture_set_hidden_overlay/obj_prism_texture_manifest.json";
     const char *reload_export_dir = "/tmp/drawing_program_texture_export_suite/output/obj_prism_texture_set_reload";
     const char *reload_front_png =
         "/tmp/drawing_program_texture_export_suite/output/obj_prism_texture_set_reload/obj_prism_front_base.png";
@@ -465,6 +549,7 @@ int drawing_program_lifecycle_run_texture_export_suite(void) {
     (void)unlink(direct_front_overlay_png);
     (void)unlink(direct_top_png);
     (void)unlink(direct_manifest_path);
+    (void)unlink(hidden_overlay_manifest_path);
     (void)unlink(reload_front_png);
     (void)unlink(reload_front_overlay_png);
     (void)unlink(reload_back_png);
@@ -473,6 +558,7 @@ int drawing_program_lifecycle_run_texture_export_suite(void) {
     (void)unlink(legacy_front_png);
     (void)unlink(legacy_manifest_path);
     (void)rmdir(direct_export_dir);
+    (void)rmdir(hidden_overlay_export_dir);
     (void)rmdir(reload_export_dir);
     (void)rmdir(cli_export_dir);
     (void)rmdir(legacy_export_dir);
@@ -715,11 +801,11 @@ int drawing_program_lifecycle_run_texture_export_suite(void) {
         json_object_put(manifest);
         return 1;
     }
-    if (!json_object_object_get_ex(manifest, "surfaces", &surfaces) ||
-        !surfaces ||
-        json_object_get_type(surfaces) != json_type_array ||
-        json_object_array_length(surfaces) != 6u) {
-        fprintf(stderr, "lifecycle_test: expected six texture export manifest surfaces for prism\n");
+    if (!texture_export_manifest_expect_shared_contract(
+            manifest,
+            CORE_AUTHORED_TEXTURE_PRIMITIVE_KIND_RECT_PRISM,
+            CORE_AUTHORED_TEXTURE_OUTPUT_KIND_BASE_PLUS_OVERLAY,
+            1)) {
         json_object_put(manifest);
         return 1;
     }
@@ -737,12 +823,13 @@ int drawing_program_lifecycle_run_texture_export_suite(void) {
         !texture_export_manifest_expect_string(surface, "net_layout_kind", "PRISM_CROSS") ||
         !texture_export_manifest_expect_string(surface, "net_slot", "FRONT") ||
         !texture_export_manifest_expect_string(surface, "orientation", "R0") ||
+        !texture_export_manifest_expect_string(surface, "base_material_intent_kind", "concrete") ||
+        !texture_export_manifest_expect_missing_key(surface, "overlay_material_intent_kind") ||
         !texture_export_manifest_expect_array_len(surface, "corner_ids", 4u) ||
         !texture_export_manifest_expect_array_len(surface, "edge_ids", 4u) ||
         !texture_export_manifest_expect_array_len(surface, "adjacent_face_roles", 4u) ||
-        !texture_export_manifest_expect_array_len(surface, "layer_material_intent_stable_ids", 2u) ||
+        !texture_export_manifest_expect_array_len(surface, "layer_material_intent_stable_ids", 1u) ||
         !texture_export_manifest_expect_string_array_item(surface, "layer_material_intent_stable_ids", 0u, "concrete") ||
-        !texture_export_manifest_expect_string_array_item(surface, "layer_material_intent_stable_ids", 1u, "oil") ||
         !texture_export_manifest_expect_double(surface, "layout_offset_x", 18.0, 0.01) ||
         !texture_export_manifest_expect_double(surface, "layout_offset_y", -9.0, 0.01)) {
         json_object_put(manifest);
@@ -765,9 +852,55 @@ int drawing_program_lifecycle_run_texture_export_suite(void) {
     surface = json_object_array_get_idx(surfaces, 0);
     if (!texture_export_manifest_expect_string(surface, "face_role", "FRONT") ||
         !texture_export_manifest_expect_string(surface, "file_name", "obj_prism_front_overlay.png") ||
-        !texture_export_manifest_expect_array_len(surface, "layer_material_intent_stable_ids", 2u) ||
-        !texture_export_manifest_expect_string_array_item(surface, "layer_material_intent_stable_ids", 0u, "concrete") ||
-        !texture_export_manifest_expect_string_array_item(surface, "layer_material_intent_stable_ids", 1u, "oil")) {
+        !texture_export_manifest_expect_missing_key(surface, "base_material_intent_kind") ||
+        !texture_export_manifest_expect_string(surface, "overlay_material_intent_kind", "oil") ||
+        !texture_export_manifest_expect_array_len(surface, "layer_material_intent_stable_ids", 1u) ||
+        !texture_export_manifest_expect_string_array_item(surface, "layer_material_intent_stable_ids", 0u, "oil")) {
+        json_object_put(manifest);
+        return 1;
+    }
+    json_object_put(manifest);
+
+    drawing_program_visual_apply_workflow_control_if_valid(&direct_ctx,
+                                                           DRAWING_PROGRAM_WORKFLOW_CONTROL_TOGGLE_ACTIVE_LAYER_VISIBILITY);
+    if (!expect_ok(drawing_program_texture_export_current_project(&direct_ctx, hidden_overlay_export_dir),
+                   "texture_export_current_project_hidden_overlay")) {
+        return 1;
+    }
+    manifest = json_object_from_file(hidden_overlay_manifest_path);
+    if (!manifest) {
+        fprintf(stderr, "lifecycle_test: expected hidden overlay texture export manifest at %s\n",
+                hidden_overlay_manifest_path);
+        return 1;
+    }
+    if (!json_object_object_get_ex(manifest, "base_surfaces", &surfaces) ||
+        !surfaces ||
+        json_object_get_type(surfaces) != json_type_array ||
+        json_object_array_length(surfaces) != 6u) {
+        fprintf(stderr, "lifecycle_test: expected six hidden-overlay base surfaces for prism\n");
+        json_object_put(manifest);
+        return 1;
+    }
+    surface = json_object_array_get_idx(surfaces, 0);
+    if (!texture_export_manifest_expect_string(surface, "base_material_intent_kind", "concrete") ||
+        !texture_export_manifest_expect_missing_key(surface, "overlay_material_intent_kind") ||
+        !texture_export_manifest_expect_array_len(surface, "layer_material_intent_stable_ids", 1u) ||
+        !texture_export_manifest_expect_string_array_item(surface, "layer_material_intent_stable_ids", 0u, "concrete")) {
+        json_object_put(manifest);
+        return 1;
+    }
+    if (!json_object_object_get_ex(manifest, "overlay_surfaces", &surfaces) ||
+        !surfaces ||
+        json_object_get_type(surfaces) != json_type_array ||
+        json_object_array_length(surfaces) != 6u) {
+        fprintf(stderr, "lifecycle_test: expected six hidden-overlay overlay surfaces for prism\n");
+        json_object_put(manifest);
+        return 1;
+    }
+    surface = json_object_array_get_idx(surfaces, 0);
+    if (!texture_export_manifest_expect_missing_key(surface, "base_material_intent_kind") ||
+        !texture_export_manifest_expect_missing_key(surface, "overlay_material_intent_kind") ||
+        !texture_export_manifest_expect_array_len(surface, "layer_material_intent_stable_ids", 0u)) {
         json_object_put(manifest);
         return 1;
     }
@@ -915,16 +1048,26 @@ int drawing_program_lifecycle_run_texture_export_suite(void) {
         json_object_put(manifest);
         return 1;
     }
-    if (!json_object_object_get_ex(manifest, "surfaces", &surfaces) ||
+    if (!texture_export_manifest_expect_shared_contract(
+            manifest,
+            CORE_AUTHORED_TEXTURE_PRIMITIVE_KIND_RECT_PRISM,
+            CORE_AUTHORED_TEXTURE_OUTPUT_KIND_FLATTENED_ONLY,
+            0)) {
+        json_object_put(manifest);
+        return 1;
+    }
+    if (!json_object_object_get_ex(manifest, "base_surfaces", &surfaces) ||
         !surfaces ||
         json_object_get_type(surfaces) != json_type_array ||
         json_object_array_length(surfaces) != 6u) {
-        fprintf(stderr, "lifecycle_test: expected six legacy texture export manifest surfaces for prism\n");
+        fprintf(stderr, "lifecycle_test: expected six legacy texture export manifest base surfaces for prism\n");
         json_object_put(manifest);
         return 1;
     }
     surface = json_object_array_get_idx(surfaces, 0);
-    if (!texture_export_manifest_expect_array_len(surface, "layer_material_intent_stable_ids", 2u) ||
+    if (!texture_export_manifest_expect_string(surface, "base_material_intent_kind", "solid") ||
+        !texture_export_manifest_expect_missing_key(surface, "overlay_material_intent_kind") ||
+        !texture_export_manifest_expect_array_len(surface, "layer_material_intent_stable_ids", 2u) ||
         !texture_export_manifest_expect_string_array_item(surface, "layer_material_intent_stable_ids", 0u, "solid") ||
         !texture_export_manifest_expect_string_array_item(surface, "layer_material_intent_stable_ids", 1u, "none")) {
         json_object_put(manifest);
@@ -967,11 +1110,19 @@ int drawing_program_lifecycle_run_texture_export_suite(void) {
         json_object_put(manifest);
         return 1;
     }
-    if (!json_object_object_get_ex(manifest, "surfaces", &surfaces) ||
+    if (!texture_export_manifest_expect_shared_contract(
+            manifest,
+            CORE_AUTHORED_TEXTURE_PRIMITIVE_KIND_PLANE,
+            CORE_AUTHORED_TEXTURE_OUTPUT_KIND_FLATTENED_ONLY,
+            0)) {
+        json_object_put(manifest);
+        return 1;
+    }
+    if (!json_object_object_get_ex(manifest, "base_surfaces", &surfaces) ||
         !surfaces ||
         json_object_get_type(surfaces) != json_type_array ||
         json_object_array_length(surfaces) != 1u) {
-        fprintf(stderr, "lifecycle_test: expected one texture export manifest surface for plane\n");
+        fprintf(stderr, "lifecycle_test: expected one texture export manifest base surface for plane\n");
         json_object_put(manifest);
         return 1;
     }
@@ -981,6 +1132,8 @@ int drawing_program_lifecycle_run_texture_export_suite(void) {
         !texture_export_manifest_expect_string(surface, "net_layout_kind", "PLANE") ||
         !texture_export_manifest_expect_string(surface, "net_slot", "FRONT") ||
         !texture_export_manifest_expect_string(surface, "orientation", "R0") ||
+        !texture_export_manifest_expect_string(surface, "base_material_intent_kind", "solid") ||
+        !texture_export_manifest_expect_missing_key(surface, "overlay_material_intent_kind") ||
         !texture_export_manifest_expect_array_len(surface, "corner_ids", 4u) ||
         !texture_export_manifest_expect_array_len(surface, "edge_ids", 4u) ||
         !texture_export_manifest_expect_array_len(surface, "adjacent_face_roles", 4u) ||

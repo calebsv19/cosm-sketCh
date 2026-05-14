@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core_authored_texture.h"
 #include "drawing_program/drawing_program_icns_export.h"
 #include "drawing_program/drawing_program_iconset_export.h"
 #include "drawing_program/drawing_program_png_export.h"
@@ -608,9 +609,10 @@ void drawing_program_visual_render_right_export_tab(SDL_Renderer *renderer,
     (void)snprintf(line,
                    sizeof(line),
                    "EMIT %s",
-                   drawing_program_texture_export_intent_kind_name(
-                       drawing_program_texture_export_intent_emitted_output_kind(
-                           ctx->texture_project.export_intent_kind)));
+                   core_authored_texture_output_kind_name(
+                       (CoreAuthoredTextureOutputKind)
+                           drawing_program_texture_export_intent_emitted_output_kind(
+                               ctx->texture_project.export_intent_kind)));
     hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
     y += m.line_h;
     (void)snprintf(line,

@@ -36,6 +36,7 @@ CORE_BASE_DIR ?= $(SHARED_VENDOR_DIR)/core/core_base
 CORE_OBJECT_DIR ?= $(SHARED_VENDOR_DIR)/core/core_object
 CORE_UNITS_DIR ?= $(SHARED_VENDOR_DIR)/core/core_units
 CORE_SCENE_DIR ?= $(SHARED_VENDOR_DIR)/core/core_scene
+CORE_AUTHORED_TEXTURE_DIR ?= $(SHARED_VENDOR_DIR)/core/core_authored_texture
 CORE_IO_DIR ?= $(SHARED_VENDOR_DIR)/core/core_io
 CORE_THEME_DIR ?= $(SHARED_VENDOR_DIR)/core/core_theme
 CORE_FONT_DIR ?= $(SHARED_VENDOR_DIR)/core/core_font
@@ -53,6 +54,7 @@ CORE_BASE_DIR := $(SHARED_WORKSPACE_DIR)/core/core_base
 CORE_OBJECT_DIR := $(SHARED_WORKSPACE_DIR)/core/core_object
 CORE_UNITS_DIR := $(SHARED_WORKSPACE_DIR)/core/core_units
 CORE_SCENE_DIR := $(SHARED_WORKSPACE_DIR)/core/core_scene
+CORE_AUTHORED_TEXTURE_DIR := $(SHARED_WORKSPACE_DIR)/core/core_authored_texture
 CORE_IO_DIR := $(SHARED_WORKSPACE_DIR)/core/core_io
 CORE_THEME_DIR := $(SHARED_WORKSPACE_DIR)/core/core_theme
 CORE_FONT_DIR := $(SHARED_WORKSPACE_DIR)/core/core_font
@@ -64,6 +66,10 @@ CORE_VIEWPORT2D_DIR := $(SHARED_WORKSPACE_DIR)/core/core_viewport2d
 KIT_RENDER_DIR := $(SHARED_WORKSPACE_DIR)/kit/kit_render
 KIT_PANE_DIR := $(SHARED_WORKSPACE_DIR)/kit/kit_pane
 KIT_WORKSPACE_AUTHORING_DIR := $(SHARED_WORKSPACE_DIR)/kit/kit_workspace_authoring
+endif
+
+ifeq ($(wildcard $(CORE_AUTHORED_TEXTURE_DIR)/include/core_authored_texture.h),)
+CORE_AUTHORED_TEXTURE_DIR := $(SHARED_WORKSPACE_DIR)/core/core_authored_texture
 endif
 
 SDL_CFLAGS := $(shell env PKG_CONFIG_LIBDIR="$(TARGET_PKG_CONFIG_LIBDIR)" $(PKG_CONFIG) --cflags sdl2 2>/dev/null)
@@ -151,6 +157,7 @@ COMMON_CFLAGS := -std=c11 -Wall -Wextra -pedantic \
 	-I$(CORE_OBJECT_DIR)/include \
 	-I$(CORE_UNITS_DIR)/include \
 	-I$(CORE_SCENE_DIR)/include \
+	-I$(CORE_AUTHORED_TEXTURE_DIR)/include \
 	-I$(CORE_THEME_DIR)/include \
 	-I$(CORE_FONT_DIR)/include \
 	-I$(CORE_PACK_DIR)/include \
@@ -572,6 +579,7 @@ CORE_BASE_LOCAL_SRCS := $(wildcard $(CORE_BASE_DIR)/src/*.c) $(wildcard $(CORE_B
 CORE_OBJECT_LOCAL_SRCS := $(wildcard $(CORE_OBJECT_DIR)/src/*.c) $(wildcard $(CORE_OBJECT_DIR)/include/*.h)
 CORE_UNITS_LOCAL_SRCS := $(wildcard $(CORE_UNITS_DIR)/src/*.c) $(wildcard $(CORE_UNITS_DIR)/include/*.h)
 CORE_SCENE_LOCAL_SRCS := $(wildcard $(CORE_SCENE_DIR)/src/*.c) $(wildcard $(CORE_SCENE_DIR)/include/*.h)
+CORE_AUTHORED_TEXTURE_LOCAL_SRCS := $(wildcard $(CORE_AUTHORED_TEXTURE_DIR)/src/*.c) $(wildcard $(CORE_AUTHORED_TEXTURE_DIR)/include/*.h)
 CORE_THEME_LOCAL_SRCS := $(wildcard $(CORE_THEME_DIR)/src/*.c) $(wildcard $(CORE_THEME_DIR)/include/*.h)
 CORE_FONT_LOCAL_SRCS := $(wildcard $(CORE_FONT_DIR)/src/*.c) $(wildcard $(CORE_FONT_DIR)/include/*.h)
 CORE_PACK_LOCAL_SRCS := $(wildcard $(CORE_PACK_DIR)/src/*.c) $(wildcard $(CORE_PACK_DIR)/include/*.h)
@@ -587,6 +595,7 @@ CORE_BASE_LIB := $(SHARED_BUILD_DIR)/libcore_base.a
 CORE_OBJECT_LIB := $(SHARED_BUILD_DIR)/libcore_object.a
 CORE_UNITS_LIB := $(SHARED_BUILD_DIR)/libcore_units.a
 CORE_SCENE_LIB := $(SHARED_BUILD_DIR)/libcore_scene.a
+CORE_AUTHORED_TEXTURE_LIB := $(SHARED_BUILD_DIR)/libcore_authored_texture.a
 CORE_THEME_LIB := $(SHARED_BUILD_DIR)/libcore_theme.a
 CORE_FONT_LIB := $(SHARED_BUILD_DIR)/libcore_font.a
 CORE_PACK_LIB := $(SHARED_BUILD_DIR)/libcore_pack.a
@@ -597,7 +606,7 @@ CORE_VIEWPORT2D_LIB := $(SHARED_BUILD_DIR)/libcore_viewport2d.a
 KIT_RENDER_LIB := $(SHARED_BUILD_DIR)/libkit_render.a
 KIT_PANE_LIB := $(SHARED_BUILD_DIR)/libkit_pane.a
 KIT_WORKSPACE_AUTHORING_LIB := $(SHARED_BUILD_DIR)/libkit_workspace_authoring.a
-SHARED_LIBS := $(KIT_WORKSPACE_AUTHORING_LIB) $(KIT_PANE_LIB) $(KIT_RENDER_LIB) $(CORE_PACK_LIB) $(CORE_PANE_LIB) $(CORE_LAYOUT_LIB) $(CORE_PANE_MODULE_LIB) $(CORE_THEME_LIB) $(CORE_FONT_LIB) $(CORE_VIEWPORT2D_LIB) $(CORE_SCENE_LIB) $(CORE_OBJECT_LIB) $(CORE_UNITS_LIB) $(CORE_BASE_LIB)
+SHARED_LIBS := $(KIT_WORKSPACE_AUTHORING_LIB) $(KIT_PANE_LIB) $(KIT_RENDER_LIB) $(CORE_PACK_LIB) $(CORE_PANE_LIB) $(CORE_LAYOUT_LIB) $(CORE_PANE_MODULE_LIB) $(CORE_THEME_LIB) $(CORE_FONT_LIB) $(CORE_VIEWPORT2D_LIB) $(CORE_AUTHORED_TEXTURE_LIB) $(CORE_SCENE_LIB) $(CORE_OBJECT_LIB) $(CORE_UNITS_LIB) $(CORE_BASE_LIB)
 
 DIST_DIR := dist
 PACKAGE_APP_NAME := sketCh.app
@@ -669,6 +678,11 @@ $(CORE_SCENE_LIB): $(CORE_SCENE_LOCAL_SRCS) $(CORE_OBJECT_LOCAL_SRCS) $(CORE_UNI
 	@$(MAKE) -C "$(CORE_SCENE_DIR)" clean CC="$(SHARED_CC)"
 	@$(MAKE) -C "$(CORE_SCENE_DIR)" CC="$(SHARED_CC)"
 	@cp "$(CORE_SCENE_DIR)/build/libcore_scene.a" "$@"
+
+$(CORE_AUTHORED_TEXTURE_LIB): $(CORE_AUTHORED_TEXTURE_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
+	@$(MAKE) -C "$(CORE_AUTHORED_TEXTURE_DIR)" clean CC="$(SHARED_CC)"
+	@$(MAKE) -C "$(CORE_AUTHORED_TEXTURE_DIR)" CC="$(SHARED_CC)"
+	@cp "$(CORE_AUTHORED_TEXTURE_DIR)/build/libcore_authored_texture.a" "$@"
 
 $(CORE_PACK_LIB): $(CORE_PACK_LOCAL_SRCS) $(CORE_BASE_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
 	@$(MAKE) -C "$(CORE_PACK_DIR)" clean CC="$(SHARED_CC)"

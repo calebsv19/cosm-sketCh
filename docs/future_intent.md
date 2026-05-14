@@ -1,15 +1,12 @@
 # Future Intent
 
-Last updated: 2026-05-10
+Last updated: 2026-05-13
 
 Near-term (active):
-- A live `drawing_program` follow-on roadmap is now open in `docs/private_program_docs/drawing_program/active/`:
-  - private active plan: `/Users/calebsv/Desktop/CodeWork/docs/private_program_docs/drawing_program/active/2026-05-08_drawing_program_authored_texture_binding_and_layering_plan.md`
-  - phase order:
-    - `T1` binding UX complete
-    - `T2` authoring conventions complete
-    - `T3` runtime blend policy complete
-    - `T4` dual-layer authored runtime textures queued
+- The live `drawing_program` feature lane now returns to the reflection roadmap in `docs/private_program_docs/drawing_program/active/`:
+  - private active plan: `/Users/calebsv/Desktop/CodeWork/docs/private_program_docs/drawing_program/active/2026-05-10_drawing_program_reflection_v1_v2_plan.md`
+  - the authored-texture roundtrip roadmaps are now archived together in:
+    - `/Users/calebsv/Desktop/CodeWork/docs/private_program_docs/drawing_program/archive/2026-05-13_completed_authored_texture_roundtrip_snapshot/`
   - `T2-S1` is complete:
     - `drawing_program` now has one stable authored-layer role recipe:
       - `Base`
@@ -128,8 +125,94 @@ Near-term (active):
       - required base-lane completeness is enforced
       - declared overlay lanes must also be complete
     - invalid binds now leave the object fully unbound instead of partially active
-  - `C4-S3` is now the next active authored-texture hardening boundary:
-    - surface invalid-binding state in the object-facing authored-texture binding UX instead of failing silently
+  - `C4-S3` is now complete:
+    - invalid authored-texture binds in `ray_tracing` now record a bounded object-local invalid state instead of silently collapsing to unbound
+    - the selected-object Material editor now surfaces attempted manifest path plus bounded failure reason for invalid authored-texture entries
+    - runtime-scene authoring persistence now preserves invalid authored-texture entries so reopen can fail visibly again instead of dropping the binding silently
+  - `C5-S1` is complete:
+    - the authored-texture manifest contract now has a dedicated shared-core home:
+      - `shared/core/core_authored_texture`
+    - the initial shared scope is intentionally narrow:
+      - schema/version vocabulary
+      - binding/output/primitive vocabulary
+      - face-role/completeness helpers
+      - JSON-free manifest-contract validation
+    - JSON parsing/writing, image IO, editor UX, and runtime persistence remain app-local by design
+  - `C5-S2` is complete:
+    - `drawing_program` export and `ray_tracing` loader validation now both consume shared `core_authored_texture >= 0.1.1` helpers
+    - current schema `v5` manifests now emit the strict shared lane shape:
+      - `base_surfaces`
+      - optional `overlay_surfaces`
+      - no mixed legacy `surfaces` field in the current `v5` output path
+    - the cutover is intentionally bridge-first rather than full subtree rollout:
+      - both apps still default to their vendored shared hosts
+      - the new shared module is reached through a bounded workspace-shared fallback until a later clean subtree refresh
+  - `C5-S3` is complete:
+    - the shared authored-texture contract is now locked with:
+      - shared-module unit coverage
+      - export-side manifest conformance checks in `drawing_program`
+      - runtime-side invalid-manifest rejection checks in `ray_tracing`
+    - `core_authored_texture` is now `0.1.1`
+    - the shared validator now explicitly rejects `FLATTENED_ONLY` manifests that still declare an overlay lane
+    - the exact mixed `schema v5` drift shape (`surfaces` plus `base_surfaces`) is now explicitly rejected in runtime validation coverage
+    - no shared JSON adapter expansion is justified yet
+  - the authored-texture contract-hardening roadmap is now structurally complete:
+    - any next authored-texture work should start as a fresh bounded follow-on after this lane is archived
+  - the authored-texture semantic follow-on roadmap is now active:
+    - `H1` is complete:
+      - exported semantic material-intent metadata is now lane-faithful
+      - hidden, opacity-zero, and lane-excluded layers no longer steer emitted base/overlay semantic metadata
+      - flattened-only exports still expose semantic material-intent metadata only for layers that actually contribute pixels
+      - `ray_tracing` currently keeps overlay behavior stable through a bounded compatibility bridge that merges overlay-face overlay intent into the face-metadata getter
+    - `H2` is complete:
+      - authored-texture manifests now carry explicit per-face summary fields:
+        - `base_material_intent_kind`
+        - `overlay_material_intent_kind`
+      - `drawing_program` now emits those summaries from emitted-lane semantics instead of leaving runtime truth implicit in raw per-layer arrays
+      - `ray_tracing` now prefers the explicit summary fields over `layer_material_intent_stable_ids` for face metadata and payload behavior, while preserving fallback for older manifests that omit them
+      - raw per-layer arrays remain present only as auxiliary/editor-facing metadata during transition
+    - `H3` is complete:
+      - semantic-net metadata is now treated as contract-bearing interchange data instead of best-effort decoration
+      - shared `core_authored_texture` now owns semantic-net parsing/validation for:
+        - `net_layout_kind`
+        - `net_slot`
+        - `orientation`
+        - aggregate corner/edge/adjacency correctness
+      - `ray_tracing` now fails authored-texture bind on malformed semantic-net metadata instead of silently degrading it
+      - compatibility remains bounded:
+        - legacy neutral adjacency aliases `SURFACE` and `UNSPECIFIED` still map to canonical `NONE`
+    - `H4-S1` is now complete:
+      - the minimum-behavior audit concluded that the current authored-texture/runtime lane does not require more than:
+        - one effective base/substrate intent per face
+        - one effective overlay/environment intent per face
+      - the currently truthful supported behavior is now understood as:
+        - one emitted substrate/base material meaning per face
+        - one emitted overlay/environment material meaning per face
+        - authored base plus authored overlay sampling with one effective summary per lane
+      - mixed-material-on-one-face semantics remain explicitly out of scope for this lane:
+        - mixed concrete-plus-brick is not a current truthful runtime feature
+        - mixed oil-plus-rust is not a current truthful runtime feature
+    - `H4-S2` is now complete:
+      - one-intent-per-lane is now the explicit durable authored-texture runtime rule:
+        - one effective base/substrate intent per face
+        - one effective overlay/environment intent per face
+      - explicit per-face summary fields remain the runtime truth for that rule:
+        - `base_material_intent_kind`
+        - `overlay_material_intent_kind`
+      - raw per-layer `layer_material_intent_stable_ids` arrays remain auxiliary/editor-facing metadata only and should not be treated as richer runtime BSDF truth
+    - `H4-S3` is now complete in the bounded closeout sense:
+      - the mask/region path was not chosen for this lane
+      - no new mixed-material follow-on roadmap is being seeded from this authored-texture semantic plan
+      - any future richer mixed-material behavior must start as a separate dedicated roadmap
+    - authored-texture semantic follow-on roadmap closeout:
+      - `H1-H4` are now complete
+      - the authored-texture semantic follow-on roadmap is now structurally complete
+    - next boundary:
+      - no further boundary remains inside this authored-texture semantic roadmap
+    - current direction lock:
+      - stop using raw per-layer lists as if they were truthful runtime BSDF contracts
+      - the current authored-texture/runtime lane is durably represented by one effective base summary and one effective overlay summary per face
+      - any future richer mixed-material runtime behavior should start as a separate mask/region roadmap rather than widening this closed lane ad hoc
   - `T3` is complete:
     - `ray_tracing` now has one explicit authored/procedural coexistence rule before dual-lane widening begins
     - authored bitmap sampling establishes the substrate/base response first

@@ -1,6 +1,6 @@
 # drawing_program Current Truth
 
-Last updated: 2026-05-10
+Last updated: 2026-05-13
 
 ## Program Identity
 - Repository directory: `drawing_program/`
@@ -160,6 +160,77 @@ Last updated: 2026-05-10
       - declared bounded overlay lanes must also be complete
     - invalid binds now leave the object fully unbound instead of partially active
     - focused runtime validation coverage now proves unsupported-schema, missing-output-kind, invalid-binding-kind, incomplete-base-lane, and incomplete-overlay-lane rejection
+  - `C4-S3` authored-texture contract hardening is now complete:
+    - invalid authored-texture binds in `ray_tracing` now record a bounded object-local invalid state instead of collapsing to a silent unbound result
+    - the selected-object Material editor now surfaces the attempted manifest path and bounded validation failure reason for invalid authored-texture entries
+    - clear/unbind now clears both valid authored-texture bindings and stored invalid-binding state
+    - runtime-scene authoring persistence now preserves invalid authored-texture entries by writing their manifest path and binding mode back out instead of erasing them to `null`
+    - reopen now resurfaces invalid authored-texture state through the same object-facing binding UX when the persisted manifest still fails validation
+  - `C5-S2` authored-texture contract hardening is now complete:
+    - `drawing_program` export now emits authored-texture schema/version, binding/output/primitive vocabulary through shared `core_authored_texture >= 0.1.1` helpers instead of keeping those semantics fully app-local
+    - current schema `v5` manifests now emit the strict shared lane shape:
+      - `base_surfaces`
+      - optional `overlay_surfaces`
+      - no mixed legacy `surfaces` field in the current `v5` output path
+    - the host cutover is intentionally narrow:
+      - shared ownership now covers manifest meaning and validation helpers
+      - JSON writing, PNG export policy, and editor UX remain app-local
+    - the current app build still defaults to the vendored `third_party/codework_shared` host and reaches `core_authored_texture` through a bounded workspace-shared fallback until a later subtree refresh lands
+  - `C5-S3` authored-texture contract hardening is now complete:
+    - `core_authored_texture` is now locked at `0.1.1` for the current bridge-first adoption
+    - shared coverage now proves:
+      - the shared validator rejects `FLATTENED_ONLY` manifests that still declare an overlay lane
+      - real `drawing_program` exports validate through the shared helper
+      - `ray_tracing` rejects the mixed `schema v5` legacy/current lane shape (`surfaces` plus `base_surfaces`)
+    - the authored-texture contract-hardening roadmap is now structurally complete, with subtree rollout and any wider shared-adapter extraction deferred to later bounded lanes
+  - `H1` authored-texture semantic follow-on is now complete:
+    - per-surface `layer_material_intent_stable_ids` are now filtered to the emitted lane instead of copying the full raw visible layer stack into each emitted surface
+    - hidden, opacity-zero, and lane-excluded layers no longer steer emitted authored semantic material-intent metadata
+    - flattened-only exports still expose semantic material-intent metadata, but only for layers that actually contribute to the flattened pixels
+    - current runtime overlay behavior remains stable through a bounded compatibility bridge in `ray_tracing` while the next lane (`H2`) replaces list-derived runtime truth with explicit per-face summaries
+  - `H2` authored-texture semantic follow-on is now complete:
+    - emitted surface metadata now carries explicit per-face summary fields:
+      - `base_material_intent_kind`
+      - `overlay_material_intent_kind`
+    - those summaries are now emitted from lane-faithful semantics instead of being left implicit in the raw per-layer arrays
+    - flattened-only surfaces may carry either or both summaries if the flattened pixels contain those families
+    - dual-lane exports now split the explicit summaries by emitted lane:
+      - base surfaces carry the effective emitted base summary
+      - overlay surfaces carry the effective emitted overlay summary
+    - the raw `layer_material_intent_stable_ids` arrays remain present as auxiliary/editor-facing metadata, but the runtime is no longer supposed to treat them as the primary BSDF truth
+  - `H3` authored-texture semantic follow-on is now complete:
+    - semantic-net metadata is now part of the strict authored-texture interchange contract rather than best-effort optional decoration
+    - shared `core_authored_texture` now owns semantic-net parsing/validation for:
+      - `net_layout_kind`
+      - `net_slot`
+      - `orientation`
+      - aggregate corner/edge/adjacency correctness
+    - the frozen semantic-net rules are now:
+      - plane faces:
+        - `net_layout_kind = PLANE`
+        - `net_slot = FRONT`
+        - `corner_ids = [255,255,255,255]`
+        - `edge_ids = [255,255,255,255]`
+        - `adjacent_face_roles = [NONE,NONE,NONE,NONE]`
+      - rect-prism faces:
+        - `net_layout_kind = PRISM_CROSS`
+        - `net_slot` must match the face role
+        - orientation must be one of `R0/R90/R180/R270`
+        - `corner_ids` must be unique within `0..7`
+        - `edge_ids` must be unique within `0..11`
+        - `adjacent_face_roles` must be unique valid prism roles and may not be `NONE` or the face's own role
+    - `ray_tracing` authored-texture bind now rejects malformed semantic-net metadata instead of silently degrading it
+    - compatibility remains bounded:
+      - legacy neutral adjacency aliases `SURFACE` and `UNSPECIFIED` still map to canonical `NONE`
+  - `H4` authored-texture semantic follow-on is now complete:
+    - one-intent-per-lane is now the explicit durable authored-texture runtime rule:
+      - one effective base/substrate intent per face
+      - one effective overlay/environment intent per face
+    - explicit per-face summary fields remain the runtime truth for that rule:
+      - `base_material_intent_kind`
+      - `overlay_material_intent_kind`
+    - raw per-layer `layer_material_intent_stable_ids` arrays remain auxiliary/editor-facing metadata only and should not be treated as richer runtime BSDF truth
+    - no mixed-material-on-one-face mask/region follow-on was seeded from this lane; any future richer authored mixed-material behavior must start as a separate dedicated roadmap
 
 ## Major Lane Summary (Compressed)
 - Foundations complete:
