@@ -170,9 +170,9 @@ CoreResult drawing_program_export_image_compose_document_rgba(const struct Drawi
                                                               uint8_t **out_rgba,
                                                               uint32_t *out_width,
                                                               uint32_t *out_height) {
-    DrawingProgramDocument scratch_document;
+    DrawingProgramDocument *scratch_document = 0;
     DrawingProgramLayerRasterStore scratch_rasters;
-    DrawingProgramHistory scratch_history;
+    DrawingProgramHistory *scratch_history = 0;
     DrawingProgramRasterSample *samples = 0;
     uint8_t *rgba = 0;
     uint8_t layer_opacity[DRAWING_PROGRAM_MAX_LAYERS] = { 0 };
@@ -186,55 +186,74 @@ CoreResult drawing_program_export_image_compose_document_rgba(const struct Drawi
     *out_rgba = 0;
     *out_width = 0u;
     *out_height = 0u;
-    memset(&scratch_document, 0, sizeof(scratch_document));
     memset(&scratch_rasters, 0, sizeof(scratch_rasters));
-    drawing_program_history_init(&scratch_history);
-    result = export_image_prepare_scratch_layers(ctx, &scratch_document, &scratch_rasters);
+    scratch_document = core_alloc(sizeof(*scratch_document));
+    scratch_history = core_alloc(sizeof(*scratch_history));
+    if (!scratch_document || !scratch_history) {
+        core_free(scratch_history);
+        core_free(scratch_document);
+        return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "failed to allocate export scratch state" };
+    }
+    memset(scratch_document, 0, sizeof(*scratch_document));
+    drawing_program_history_init(scratch_history);
+    result = export_image_prepare_scratch_layers(ctx, scratch_document, &scratch_rasters);
     if (result.code != CORE_OK) {
+        core_free(scratch_history);
+        core_free(scratch_document);
         return result;
     }
     samples = core_alloc((size_t)ctx->document.raster_sample_count * sizeof(*samples));
     if (!samples) {
         drawing_program_layer_raster_store_dispose(&scratch_rasters);
+        core_free(scratch_history);
+        core_free(scratch_document);
         return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "failed to allocate export sample buffer" };
     }
     rgba_capacity = (uint64_t)ctx->document.raster_sample_count * 4u;
     if (rgba_capacity == 0u || rgba_capacity > SIZE_MAX) {
         drawing_program_layer_raster_store_dispose(&scratch_rasters);
         core_free(samples);
+        core_free(scratch_history);
+        core_free(scratch_document);
         return export_image_invalid("invalid export pixel capacity");
     }
     rgba = core_alloc((size_t)rgba_capacity);
     if (!rgba) {
         drawing_program_layer_raster_store_dispose(&scratch_rasters);
         core_free(samples);
+        core_free(scratch_history);
+        core_free(scratch_document);
         return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "failed to allocate export RGBA buffer" };
     }
-    result = drawing_program_object_rasterize_visible_to_layers(&scratch_document,
+    result = drawing_program_object_rasterize_visible_to_layers(scratch_document,
                                                                 &scratch_rasters,
-                                                                &scratch_history,
+                                                                scratch_history,
                                                                 &ctx->object_store,
                                                                 &ignored_rasterized_count);
     if (result.code != CORE_OK) {
         core_free(rgba);
         core_free(samples);
         drawing_program_layer_raster_store_dispose(&scratch_rasters);
+        core_free(scratch_history);
+        core_free(scratch_document);
         return result;
     }
     export_image_build_layer_opacity(ctx, layer_opacity);
-    result = drawing_program_render_compose_visible_samples_with_layer_opacity(&scratch_document,
+    result = drawing_program_render_compose_visible_samples_with_layer_opacity(scratch_document,
                                                                                &scratch_rasters,
                                                                                layer_opacity,
-                                                                               scratch_document.layer_count,
+                                                                               scratch_document->layer_count,
                                                                                samples,
-                                                                               scratch_document.raster_sample_count);
+                                                                               scratch_document->raster_sample_count);
     if (result.code != CORE_OK) {
         core_free(rgba);
         core_free(samples);
         drawing_program_layer_raster_store_dispose(&scratch_rasters);
+        core_free(scratch_history);
+        core_free(scratch_document);
         return result;
     }
-    for (i = 0u; i < scratch_document.raster_sample_count; ++i) {
+    for (i = 0u; i < scratch_document->raster_sample_count; ++i) {
         uint8_t r = 0u;
         uint8_t g = 0u;
         uint8_t b = 0u;
@@ -248,8 +267,10 @@ CoreResult drawing_program_export_image_compose_document_rgba(const struct Drawi
     core_free(samples);
     drawing_program_layer_raster_store_dispose(&scratch_rasters);
     *out_rgba = rgba;
-    *out_width = scratch_document.raster_width;
-    *out_height = scratch_document.raster_height;
+    *out_width = scratch_document->raster_width;
+    *out_height = scratch_document->raster_height;
+    core_free(scratch_history);
+    core_free(scratch_document);
     return core_result_ok();
 }
 
