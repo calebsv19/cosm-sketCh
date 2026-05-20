@@ -17,6 +17,7 @@ CORE_PANE_MODULE_DIR ?= $(SHARED_VENDOR_DIR)/core/core_pane_module
 CORE_VIEWPORT2D_DIR ?= $(SHARED_VENDOR_DIR)/core/core_viewport2d
 KIT_RENDER_DIR ?= $(SHARED_VENDOR_DIR)/kit/kit_render
 KIT_PANE_DIR ?= $(SHARED_VENDOR_DIR)/kit/kit_pane
+KIT_UI_DIR ?= $(SHARED_VENDOR_DIR)/kit/kit_ui
 KIT_WORKSPACE_AUTHORING_DIR ?= $(SHARED_VENDOR_DIR)/kit/kit_workspace_authoring
 
 ifeq ($(SHARED_MODE),workspace-linked)
@@ -35,6 +36,7 @@ CORE_PANE_MODULE_DIR := $(SHARED_WORKSPACE_DIR)/core/core_pane_module
 CORE_VIEWPORT2D_DIR := $(SHARED_WORKSPACE_DIR)/core/core_viewport2d
 KIT_RENDER_DIR := $(SHARED_WORKSPACE_DIR)/kit/kit_render
 KIT_PANE_DIR := $(SHARED_WORKSPACE_DIR)/kit/kit_pane
+KIT_UI_DIR := $(SHARED_WORKSPACE_DIR)/kit/kit_ui
 KIT_WORKSPACE_AUTHORING_DIR := $(SHARED_WORKSPACE_DIR)/kit/kit_workspace_authoring
 endif
 

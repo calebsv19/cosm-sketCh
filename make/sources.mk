@@ -85,6 +85,7 @@ APP_LOCAL_SRCS := \
 	src/ui/layout/drawing_program_visual_layout_color.c \
 	src/ui/layers/drawing_program_visual_layer_opacity.c \
 	src/ui/pane/drawing_program_visual_pane_bindings.c \
+	src/ui/panel/drawing_program_ui_button.c \
 	src/ui/panel/drawing_program_visual_panel_render_common.c \
 	src/ui/panel/drawing_program_visual_panel_render.c \
 	src/ui/panel/drawing_program_visual_right_panel_color_render.c \
@@ -195,6 +196,7 @@ HEADLESS_LOCAL_SRCS := \
 	src/ui/layout/drawing_program_visual_layout_color.c \
 	src/ui/layers/drawing_program_visual_layer_opacity.c \
 	src/ui/pane/drawing_program_visual_pane_bindings.c \
+	src/ui/panel/drawing_program_ui_button.c \
 	src/ui/panel/drawing_program_visual_panel_render_common.c \
 	src/ui/panel/drawing_program_visual_panel_render.c \
 	src/ui/panel/drawing_program_visual_right_panel_color_render.c \
@@ -302,6 +304,7 @@ TEST_LOCAL_SRCS := \
 	src/ui/layout/drawing_program_visual_layout_color.c \
 	src/ui/layers/drawing_program_visual_layer_opacity.c \
 	src/ui/pane/drawing_program_visual_pane_bindings.c \
+	src/ui/panel/drawing_program_ui_button.c \
 	src/ui/panel/drawing_program_visual_panel_render_common.c \
 	src/ui/panel/drawing_program_visual_panel_render.c \
 	src/ui/panel/drawing_program_visual_right_panel_color_render.c \

@@ -93,6 +93,7 @@ COMMON_CFLAGS := -std=c11 -Wall -Wextra -pedantic \
 	-I$(CORE_VIEWPORT2D_DIR)/include \
 	-I$(KIT_RENDER_DIR)/include \
 	-I$(KIT_PANE_DIR)/include \
+	-I$(KIT_UI_DIR)/include \
 	-I$(KIT_WORKSPACE_AUTHORING_DIR)/include \
 	$(SDL_CFLAGS) \
 	$(JSON_CFLAGS) \

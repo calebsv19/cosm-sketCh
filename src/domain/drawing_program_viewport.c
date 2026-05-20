@@ -84,6 +84,9 @@ static CoreResult drawing_program_viewport_state_to_core(const DrawingProgramVie
         !drawing_program_viewport_frame_valid(frame)) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "viewport core bridge requires valid state, document, and frame" };
     }
+    if (core_viewport2d_init(out_core).code != CORE_OK) {
+        return (CoreResult){ CORE_ERR_INVALID_ARG, "viewport core bridge requires core viewport init" };
+    }
 
     content_width = drawing_program_viewport_content_width(document);
     content_height = drawing_program_viewport_content_height(document);
@@ -95,6 +98,7 @@ static CoreResult drawing_program_viewport_state_to_core(const DrawingProgramVie
     out_core->min_zoom = drawing_program_viewport_resolved_min_zoom(viewport);
     out_core->max_zoom = drawing_program_viewport_resolved_max_zoom(viewport);
     out_core->zoom = core_viewport2d_clamp_zoom(out_core, zoom);
+    out_core->rotation_rad = viewport->rotation_rad;
     out_core->pan_x = (frame.x + (frame.width * 0.5f)) + viewport->pan_x - ((content_width * out_core->zoom) * 0.5f);
     out_core->pan_y = (frame.y + (frame.height * 0.5f)) + viewport->pan_y - ((content_height * out_core->zoom) * 0.5f);
 
@@ -120,8 +124,9 @@ static CoreResult drawing_program_viewport_state_from_core(DrawingProgramViewpor
     viewport->pan_x = core->pan_x - (frame.x + (frame.width * 0.5f)) + ((content_width * core->zoom) * 0.5f);
     viewport->pan_y = core->pan_y - (frame.y + (frame.height * 0.5f)) + ((content_height * core->zoom) * 0.5f);
     viewport->zoom = drawing_program_viewport_clamp_zoom(core->zoom);
-    viewport->min_zoom = drawing_program_viewport_resolved_min_zoom(core);
-    viewport->max_zoom = drawing_program_viewport_resolved_max_zoom(core);
+    viewport->min_zoom = core->min_zoom;
+    viewport->max_zoom = core->max_zoom;
+    viewport->rotation_rad = core->rotation_rad;
     return core_result_ok();
 }
 
@@ -159,6 +164,7 @@ void drawing_program_viewport_state_init(DrawingProgramViewportState *viewport) 
     viewport->zoom = 1.0f;
     viewport->min_zoom = drawing_program_viewport_default_min_zoom();
     viewport->max_zoom = drawing_program_viewport_default_max_zoom();
+    viewport->rotation_rad = 0.0f;
 }
 
 void drawing_program_viewport_reset(DrawingProgramViewportState *viewport) {

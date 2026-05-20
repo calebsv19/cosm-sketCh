@@ -470,16 +470,6 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                 continue;
             }
             row = right_canvas_surface_row_rect(rect, m, surface_index);
-            fill = (surface_index == ctx->texture_project.active_surface_index) ? p.button_fill_active : p.button_fill;
-            text_color =
-                (surface_index == ctx->texture_project.active_surface_index) ? p.text_primary : p.text_muted;
-            if (drawing_program_visual_panel_ui_hovered(ui, row, hooks)) {
-                fill = (surface_index == ctx->texture_project.active_surface_index) ? p.button_fill_active : p.button_fill_hover;
-            }
-            SDL_SetRenderDrawColor(renderer, fill.r, fill.g, fill.b, fill.a);
-            (void)SDL_RenderFillRect(renderer, &row);
-            SDL_SetRenderDrawColor(renderer, p.button_border.r, p.button_border.g, p.button_border.b, p.button_border.a);
-            (void)SDL_RenderDrawRect(renderer, &row);
             (void)snprintf(line,
                            sizeof(line),
                            "%u %s %ux%u %s %s",
@@ -489,7 +479,26 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                            (unsigned)surface->storage->document.logical_height,
                            surface->is_blank ? "BLANK" : "PAINT",
                            surface->resize_locked ? "LOCK" : "FREE");
-            hooks->draw_bitmap_text(renderer, rect, row.x + 6, row.y + m.row_text_y, line, text_color, m.body_scale);
+            fill = (surface_index == ctx->texture_project.active_surface_index) ? p.button_fill_active : p.button_fill;
+            text_color =
+                (surface_index == ctx->texture_project.active_surface_index) ? p.text_primary : p.text_muted;
+            drawing_program_visual_panel_draw_row_button_variant(
+                renderer,
+                rect,
+                row,
+                line,
+                p.button_fill,
+                p.button_fill_hover,
+                fill,
+                (surface_index == ctx->texture_project.active_surface_index) ? p.accent_primary : p.button_border,
+                text_color,
+                p.text_muted,
+                m.body_scale,
+                surface_index == ctx->texture_project.active_surface_index,
+                drawing_program_visual_panel_ui_hovered(ui, row, hooks),
+                0,
+                0,
+                hooks);
         }
 
         reset_layout_button = right_canvas_reset_object_layout_button_rect(rect, m);
@@ -542,19 +551,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
             const DrawingProgramLayer *layer = &ctx->document.layers[model_i];
             int is_active = (layer->layer_id == ctx->editor.active_layer_id) ? 1 : 0;
             uint8_t layer_opacity = drawing_program_visual_layer_opacity_get(ctx, layer->layer_id);
-            SDL_Color fill = is_active ? p.button_fill_active : p.button_fill;
             row = right_layer_row_rect(rect, m, display_i);
-            if (drawing_program_visual_panel_ui_hovered(ui, row, hooks)) {
-                fill = is_active ? p.button_fill_active : p.button_fill_hover;
-            }
-            SDL_SetRenderDrawColor(renderer, fill.r, fill.g, fill.b, fill.a);
-            (void)SDL_RenderFillRect(renderer, &row);
-            if (is_active) {
-                SDL_SetRenderDrawColor(renderer, p.accent_primary.r, p.accent_primary.g, p.accent_primary.b, 255u);
-            } else {
-                SDL_SetRenderDrawColor(renderer, p.button_border.r, p.button_border.g, p.button_border.b, p.button_border.a);
-            }
-            (void)SDL_RenderDrawRect(renderer, &row);
             (void)snprintf(line,
                            sizeof(line),
                            "%c L%u O%u%% V%s K%s %s",
@@ -564,7 +561,22 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                            layer->visible ? "ON" : "OFF",
                            layer->locked ? "ON" : "OFF",
                            layer->name);
-            hooks->draw_bitmap_text(renderer, rect, row.x + 6, row.y + m.row_text_y, line, p.text_primary, m.body_scale);
+            drawing_program_visual_panel_draw_row_button_variant(renderer,
+                                                                 rect,
+                                                                 row,
+                                                                 line,
+                                                                 p.button_fill,
+                                                                 p.button_fill_hover,
+                                                                 p.button_fill_active,
+                                                                 is_active ? p.accent_primary : p.button_border,
+                                                                 p.text_primary,
+                                                                 p.text_muted,
+                                                                 m.body_scale,
+                                                                 is_active,
+                                                                 drawing_program_visual_panel_ui_hovered(ui, row, hooks),
+                                                                 0,
+                                                                 0,
+                                                                 hooks);
             y = row.y + row.h + m.section_gap;
         }
 

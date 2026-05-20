@@ -664,10 +664,14 @@ static int texture_workspace_core_from_state(const DrawingProgramViewportState *
         atlas_height <= 0.0f) {
         return 0;
     }
+    if (core_viewport2d_init(out_core).code != CORE_OK) {
+        return 0;
+    }
     out_core->min_zoom = viewport->min_zoom;
     out_core->max_zoom = viewport->max_zoom;
     zoom = drawing_program_viewport_clamp_zoom(viewport->zoom);
     out_core->zoom = core_viewport2d_clamp_zoom(out_core, zoom);
+    out_core->rotation_rad = viewport->rotation_rad;
     out_core->pan_x = ((float)pane_rect.x + ((float)pane_rect.w * 0.5f)) + viewport->pan_x -
                       ((atlas_width * out_core->zoom) * 0.5f);
     out_core->pan_y = ((float)pane_rect.y + ((float)pane_rect.h * 0.5f)) + viewport->pan_y -
@@ -691,6 +695,7 @@ static int texture_workspace_state_from_core(DrawingProgramViewportState *viewpo
     viewport->zoom = drawing_program_viewport_clamp_zoom(core->zoom);
     viewport->min_zoom = core->min_zoom;
     viewport->max_zoom = core->max_zoom;
+    viewport->rotation_rad = core->rotation_rad;
     return 1;
 }
 

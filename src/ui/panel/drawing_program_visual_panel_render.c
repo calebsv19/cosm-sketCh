@@ -7,6 +7,7 @@
 #include "drawing_program/drawing_program_visual_panel_render_common.h"
 #include "drawing_program/drawing_program_visual_right_panel_render.h"
 #include "drawing_program/drawing_program_visual_theme.h"
+#include "drawing_program_ui_button.h"
 
 enum {
     VISUAL_LEFT_PANEL_SLOT_TOOLS_VALUE = 0,
@@ -126,10 +127,25 @@ void drawing_program_visual_render_menu_bar_chrome(SDL_Renderer *renderer,
     chip.y = header_y - 1;
     chip.w = chip_w;
     chip.h = m.tab_h;
-    SDL_SetRenderDrawColor(renderer, p.button_fill.r, p.button_fill.g, p.button_fill.b, p.button_fill.a);
-    (void)SDL_RenderFillRect(renderer, &chip);
-    SDL_SetRenderDrawColor(renderer, p.button_border.r, p.button_border.g, p.button_border.b, p.button_border.a);
-    (void)SDL_RenderDrawRect(renderer, &chip);
+    {
+        DrawingProgramUiButtonSpec spec;
+        DrawingProgramUiButtonStyle style;
+
+        drawing_program_ui_button_spec_init(&spec, "");
+        if (drawing_program_ui_button_style_resolve(p.button_fill,
+                                                    p.button_fill_hover,
+                                                    p.button_fill_active,
+                                                    p.button_border,
+                                                    p.text_primary,
+                                                    p.text_muted,
+                                                    &spec,
+                                                    &style) != 0) {
+            return;
+        }
+        if (drawing_program_ui_button_draw_frame(renderer, chip, &style) != 0) {
+            return;
+        }
+    }
     label_w =
         hooks->draw_bitmap_text(renderer, chip, chip.x + 6, chip.y + m.tab_text_y, tool_label, p.text_muted, m.body_scale);
     tool_x = chip.x + 6 + label_w + 6;

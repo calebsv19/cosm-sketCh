@@ -167,20 +167,23 @@ static void visual_right_panel_draw_queue_row(SDL_Renderer *renderer,
                                               VisualPaneLayoutMetrics m,
                                               VisualThemePalette p,
                                               const DrawingProgramVisualPanelRenderHooks *hooks) {
-    SDL_Color fill = selected ? p.button_fill_active : (hovered ? p.button_fill_hover : p.button_fill);
-    SDL_Color border = selected ? p.accent_primary : p.button_border;
     (void)SDL_RenderSetClipRect(renderer, &clip_rect);
-    SDL_SetRenderDrawColor(renderer, fill.r, fill.g, fill.b, fill.a);
-    (void)SDL_RenderFillRect(renderer, &row_rect);
-    SDL_SetRenderDrawColor(renderer, border.r, border.g, border.b, border.a);
-    (void)SDL_RenderDrawRect(renderer, &row_rect);
-    hooks->draw_bitmap_text(renderer,
-                            clip_rect,
-                            row_rect.x + 6,
-                            row_rect.y + m.row_text_y,
-                            label,
-                            selected ? p.text_primary : p.text_muted,
-                            m.body_scale);
+    drawing_program_visual_panel_draw_row_button_variant(renderer,
+                                                         clip_rect,
+                                                         row_rect,
+                                                         label,
+                                                         p.button_fill,
+                                                         p.button_fill_hover,
+                                                         p.button_fill_active,
+                                                         selected ? p.accent_primary : p.button_border,
+                                                         p.text_primary,
+                                                         p.text_muted,
+                                                         m.body_scale,
+                                                         selected,
+                                                         hovered,
+                                                         0,
+                                                         0,
+                                                         hooks);
 }
 
 static void visual_right_panel_draw_button(SDL_Renderer *renderer,
