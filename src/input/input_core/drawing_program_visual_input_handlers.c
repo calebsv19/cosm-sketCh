@@ -15,6 +15,8 @@
 #include "drawing_program/drawing_program_visual_input_panel_clicks.h"
 #include "drawing_program/drawing_program_visual_input_selection_ops.h"
 #include "drawing_program/drawing_program_visual_input_support.h"
+#include "drawing_program/drawing_program_visual_input_workspace_browser.h"
+#include "drawing_program/drawing_program_visual_input_workspace_surface.h"
 #include "drawing_program/drawing_program_visual_layout.h"
 #include "drawing_program/drawing_program_visual_layer_opacity.h"
 
@@ -589,55 +591,14 @@ int drawing_program_visual_input_handle_mouse_button_down_payload(const SDL_Even
     }
     if (down_action == DRAWING_PROGRAM_VISUAL_MOUSE_DOWN_ACTION_CANVAS_LEFT &&
         !canvas_interaction->panning_active) {
-        uint32_t clicked_surface_index = 0u;
-        uint32_t resize_surface_index = 0u;
-        if (panel_ui &&
-            panel_ui->right_canvas_reflection_center_pick_pending) {
-            if (drawing_program_texture_workspace_hit_test_surface(
-                    app, canvas_pane, click_x, click_y, &clicked_surface_index) &&
-                clicked_surface_index != app->texture_project.active_surface_index &&
-                drawing_program_texture_project_session_select_surface(app, clicked_surface_index).code != CORE_OK) {
-                return 1;
-            }
-            if (hooks->screen_to_canvas_sample(app, canvas_pane, click_x, click_y, &sample_x, &sample_y)) {
-                hooks->cancel_all_transient_interactions(app, canvas_interaction, selection_state, 0);
-                (void)drawing_program_canvas_reflection_set_active_center(app, sample_x, sample_y);
-            }
-            panel_ui->right_canvas_reflection_center_pick_pending = 0u;
-            return 1;
-        }
-        if (app->ui.canvas_control_mode == (uint8_t)DRAWING_PROGRAM_UI_CANVAS_CONTROL_MODE_LAYOUT &&
-            drawing_program_texture_canvas_resize_hit_test_handle(
-                app, canvas_pane, click_x, click_y, &resize_surface_index)) {
-            hooks->cancel_all_transient_interactions(app, canvas_interaction, selection_state, 0);
-            if (resize_surface_index != app->texture_project.active_surface_index &&
-                drawing_program_texture_project_session_select_surface(app, resize_surface_index).code != CORE_OK) {
-                return 1;
-            }
-            (void)drawing_program_texture_canvas_resize_begin(
-                app, canvas_pane, canvas_interaction, resize_surface_index, click_x, click_y);
-            return 1;
-        }
-        if (drawing_program_texture_workspace_hit_test_surface(
-                app, canvas_pane, click_x, click_y, &clicked_surface_index) &&
-            (app->ui.canvas_control_mode == (uint8_t)DRAWING_PROGRAM_UI_CANVAS_CONTROL_MODE_LAYOUT ||
-             clicked_surface_index != app->texture_project.active_surface_index)) {
-            int surface_ready = 1;
-            hooks->cancel_all_transient_interactions(app, canvas_interaction, selection_state, 0);
-            if (clicked_surface_index != app->texture_project.active_surface_index &&
-                drawing_program_texture_project_session_select_surface(app, clicked_surface_index).code != CORE_OK) {
-                surface_ready = 0;
-            }
-            if (surface_ready &&
-                app->ui.canvas_control_mode != (uint8_t)DRAWING_PROGRAM_UI_CANVAS_CONTROL_MODE_LAYOUT &&
-                clicked_surface_index == app->texture_project.active_surface_index) {
-                (void)drawing_program_texture_workspace_fit_surface(app, canvas_pane, clicked_surface_index);
-            }
-            if (surface_ready &&
-                app->ui.canvas_control_mode == (uint8_t)DRAWING_PROGRAM_UI_CANVAS_CONTROL_MODE_LAYOUT) {
-                (void)drawing_program_texture_canvas_move_begin(
-                    app, canvas_pane, canvas_interaction, clicked_surface_index, click_x, click_y);
-            }
+        if (drawing_program_visual_input_handle_workspace_canvas_click(click_x,
+                                                                       click_y,
+                                                                       canvas_pane,
+                                                                       app,
+                                                                       canvas_interaction,
+                                                                       selection_state,
+                                                                       panel_ui,
+                                                                       hooks)) {
             return 1;
         }
         if (app->editor.active_tool == DRAWING_PROGRAM_TOOL_SELECT &&

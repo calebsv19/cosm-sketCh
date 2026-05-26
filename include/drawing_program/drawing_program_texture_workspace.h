@@ -24,6 +24,9 @@ int drawing_program_texture_workspace_hit_test_surface(const DrawingProgramAppCo
                                                        int sx,
                                                        int sy,
                                                        uint32_t *out_surface_index);
+/* Sample conversion remains intentionally single-surface: callers must select
+ * the intended texture-project surface before asking the workspace to resolve
+ * screen coordinates into editable sample coordinates. */
 int drawing_program_texture_workspace_screen_to_active_sample(const DrawingProgramAppContext *ctx,
                                                               SDL_Rect pane_rect,
                                                               int sx,

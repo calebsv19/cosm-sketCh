@@ -8,6 +8,7 @@
 #include "drawing_program/drawing_program_color_model.h"
 #include "drawing_program/drawing_program_document.h"
 #include "drawing_program/drawing_program_layer_raster.h"
+#include "drawing_program/drawing_program_render_composed_source.h"
 #include "drawing_program/drawing_program_render_domain.h"
 
 typedef struct VisualTextRendererState {
@@ -27,8 +28,7 @@ typedef struct VisualCanvasTextureState {
     SDL_PixelFormat *pixel_format;
     uint32_t width;
     uint32_t height;
-    DrawingProgramRasterSample *composited_samples;
-    uint32_t composited_capacity;
+    DrawingProgramRenderComposedSourceState composed_source;
     uint8_t has_sync_signature;
     uint32_t last_raster_hash32;
     uint32_t last_raster_nonzero_count;
@@ -50,6 +50,28 @@ static uint32_t visual_layer_opacity_hash32(const uint8_t *layer_opacity_percent
         hash32 *= 16777619u;
     }
     return hash32;
+}
+
+static uint64_t visual_compose_content_key(const DrawingProgramDocument *document,
+                                           uint32_t raster_hash32,
+                                           uint32_t raster_nonzero_count) {
+    if (raster_hash32 == 0u && raster_nonzero_count == 0u) {
+        return document ? document->content_revision : 0u;
+    }
+    return ((uint64_t)raster_hash32 << 32u) | (uint64_t)raster_nonzero_count;
+}
+
+static int visual_dirty_rect_from_source_view(const DrawingProgramRenderComposedSourceView *source_view,
+                                              SDL_Rect *out_rect) {
+    if (!source_view || !out_rect || !source_view->has_dirty_rect || source_view->dirty_rect_is_full ||
+        source_view->dirty_width == 0u || source_view->dirty_height == 0u) {
+        return 0;
+    }
+    out_rect->x = (int)source_view->dirty_x;
+    out_rect->y = (int)source_view->dirty_y;
+    out_rect->w = (int)source_view->dirty_width;
+    out_rect->h = (int)source_view->dirty_height;
+    return 1;
 }
 
 static int visual_file_exists(const char *path) {
@@ -248,9 +270,7 @@ void drawing_program_visual_canvas_texture_shutdown(void) {
     }
     g_visual_canvas_texture.width = 0u;
     g_visual_canvas_texture.height = 0u;
-    free(g_visual_canvas_texture.composited_samples);
-    g_visual_canvas_texture.composited_samples = 0;
-    g_visual_canvas_texture.composited_capacity = 0u;
+    drawing_program_render_composed_source_dispose(&g_visual_canvas_texture.composed_source);
     g_visual_canvas_texture.has_sync_signature = 0u;
     g_visual_canvas_texture.last_raster_hash32 = 0u;
     g_visual_canvas_texture.last_raster_nonzero_count = 0u;
@@ -270,9 +290,13 @@ int drawing_program_visual_canvas_texture_sync_with_signature(
     uint32_t x;
     uint32_t y;
     uint32_t layer_opacity_hash32 = 0u;
-    const DrawingProgramRasterSample *source_samples = 0;
-    CoreResult compose_result;
+    uint64_t compose_content_key = 0u;
+    SDL_Rect dirty_rect;
+    SDL_Rect *lock_rect = 0;
+    DrawingProgramRenderComposedSourceView source_view;
+    CoreResult resolve_result;
     int signature_unchanged = 0;
+    int force_full_upload = 0;
     if (!renderer || !document || !layer_rasters || !layer_opacity_percent || layer_opacity_count == 0u) {
         return 0;
     }
@@ -282,6 +306,7 @@ int drawing_program_visual_canvas_texture_sync_with_signature(
         return 0;
     }
     layer_opacity_hash32 = visual_layer_opacity_hash32(layer_opacity_percent, layer_opacity_count);
+    compose_content_key = visual_compose_content_key(document, raster_hash32, raster_nonzero_count);
     if (!g_visual_canvas_texture.pixel_format) {
         g_visual_canvas_texture.pixel_format = SDL_AllocFormat(SDL_PIXELFORMAT_RGBA8888);
         if (!g_visual_canvas_texture.pixel_format) {
@@ -308,6 +333,7 @@ int drawing_program_visual_canvas_texture_sync_with_signature(
         g_visual_canvas_texture.width = document->raster_width;
         g_visual_canvas_texture.height = document->raster_height;
         g_visual_canvas_texture.has_sync_signature = 0u;
+        force_full_upload = 1;
         (void)SDL_SetTextureBlendMode(g_visual_canvas_texture.texture, SDL_BLENDMODE_NONE);
     }
     signature_unchanged = (g_visual_canvas_texture.has_sync_signature &&
@@ -317,40 +343,44 @@ int drawing_program_visual_canvas_texture_sync_with_signature(
     if (signature_unchanged) {
         return 1;
     }
-    if (g_visual_canvas_texture.composited_capacity < document->raster_sample_count) {
-        DrawingProgramRasterSample *next_samples =
-            (DrawingProgramRasterSample *)realloc(g_visual_canvas_texture.composited_samples,
-                                                  (size_t)document->raster_sample_count * sizeof(*next_samples));
-        if (!next_samples) {
-            return 0;
-        }
-        g_visual_canvas_texture.composited_samples = next_samples;
-        g_visual_canvas_texture.composited_capacity = document->raster_sample_count;
-    }
-    source_samples = document->raster_samples;
-    compose_result = drawing_program_render_compose_visible_samples_with_layer_opacity(document,
-                                                                                        layer_rasters,
-                                                                                        layer_opacity_percent,
-                                                                                        layer_opacity_count,
-                                                                                        g_visual_canvas_texture.composited_samples,
-                                                                                        g_visual_canvas_texture.composited_capacity);
-    if (compose_result.code == CORE_OK) {
-        source_samples = g_visual_canvas_texture.composited_samples;
-    }
-    if (SDL_LockTexture(g_visual_canvas_texture.texture, 0, &pixels, &pitch) != 0) {
+    memset(&source_view, 0, sizeof(source_view));
+    resolve_result = drawing_program_render_composed_source_resolve(&g_visual_canvas_texture.composed_source,
+                                                                    document,
+                                                                    layer_rasters,
+                                                                    layer_opacity_percent,
+                                                                    layer_opacity_count,
+                                                                    compose_content_key,
+                                                                    (uint64_t)layer_opacity_hash32,
+                                                                    &source_view);
+    if (resolve_result.code != CORE_OK || !source_view.samples) {
         return 0;
     }
-    for (y = 0u; y < document->raster_height; ++y) {
+    memset(&dirty_rect, 0, sizeof(dirty_rect));
+    if (!force_full_upload && visual_dirty_rect_from_source_view(&source_view, &dirty_rect)) {
+        lock_rect = &dirty_rect;
+    }
+    if (SDL_LockTexture(g_visual_canvas_texture.texture, lock_rect, &pixels, &pitch) != 0) {
+        return 0;
+    }
+    for (y = lock_rect ? (uint32_t)lock_rect->y : 0u;
+         y < (lock_rect ? (uint32_t)(lock_rect->y + lock_rect->h) : document->raster_height);
+         ++y) {
         uint32_t *row = (uint32_t *)((uint8_t *)pixels + ((size_t)y * (size_t)pitch));
         size_t row_offset = (size_t)y * (size_t)document->raster_width;
-        for (x = 0u; x < document->raster_width; ++x) {
-            DrawingProgramRasterSample sample = source_samples[row_offset + x];
+        uint32_t row_start_x = lock_rect ? (uint32_t)lock_rect->x : 0u;
+        uint32_t row_end_x = lock_rect ? (uint32_t)(lock_rect->x + lock_rect->w) : document->raster_width;
+        if (lock_rect) {
+            row = (uint32_t *)((uint8_t *)pixels +
+                               ((size_t)(y - (uint32_t)lock_rect->y) * (size_t)pitch));
+        }
+        for (x = row_start_x; x < row_end_x; ++x) {
+            DrawingProgramRasterSample sample = source_view.samples[row_offset + x];
             uint8_t r = 0u;
             uint8_t g = 0u;
             uint8_t b = 0u;
             uint8_t a = 0u;
             drawing_program_color_rgba_from_sample(sample, &r, &g, &b, &a);
-            row[x] = SDL_MapRGBA(g_visual_canvas_texture.pixel_format, r, g, b, a);
+            row[x - row_start_x] = SDL_MapRGBA(g_visual_canvas_texture.pixel_format, r, g, b, a);
         }
     }
     SDL_UnlockTexture(g_visual_canvas_texture.texture);

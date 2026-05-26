@@ -72,11 +72,18 @@ int drawing_program_lifecycle_run_authoring_host_suite(void) {
     uint32_t pane_row_count = 0u;
     uint32_t split_node_index;
     uint32_t original_module_type_id;
+    uint32_t exported_root_index = 0u;
+    uint32_t exported_node_count = 0u;
+    uint32_t exported_binding_count = 0u;
     float original_ratio;
     float draft_ratio;
     float applied_ratio;
     float unsaved_draft_ratio;
     int8_t original_font_zoom;
+    DrawingProgramAppUiState exported_ui;
+    CoreLayoutState exported_layout_state;
+    CorePaneNode exported_nodes[DRAWING_PROGRAM_PANE_NODE_CAPACITY];
+    CorePaneModuleBinding exported_bindings[DRAWING_PROGRAM_MODULE_BINDING_CAPACITY];
     uint64_t revision_before_apply;
     KitWorkspaceAuthoringFontThemeLayout font_theme_layout;
     const char *applied_pack_path = "/tmp/drawing_program_authoring_applied.pack";
@@ -290,14 +297,55 @@ int drawing_program_lifecycle_run_authoring_host_suite(void) {
     if (!expect_ok(drawing_program_authoring_host_enter(&ctx), "authoring_host_enter_for_active_draft_save")) {
         return 1;
     }
+    original_font_zoom = ctx.ui.font_zoom_step;
     original_ratio = ctx.pane_host.nodes[split_node_index].ratio_01;
     unsaved_draft_ratio = original_ratio > 0.55f ? original_ratio - 0.07f : original_ratio + 0.07f;
     ctx.pane_host.nodes[split_node_index].ratio_01 = unsaved_draft_ratio;
+    authoring_key_event(&event, SDL_KEYDOWN, SDLK_TAB, KMOD_NONE);
+    if (!drawing_program_authoring_host_handle_sdl_event(&ctx, &event) ||
+        !drawing_program_authoring_host_font_theme_overlay_active(&ctx)) {
+        fprintf(stderr, "authoring_host_test: expected active draft save path to enter font/theme overlay\n");
+        return 1;
+    }
+    authoring_key_event(&event, SDL_KEYDOWN, SDLK_EQUALS, KMOD_CTRL);
+    if (!drawing_program_authoring_host_handle_sdl_event(&ctx, &event) ||
+        ctx.ui.font_zoom_step != original_font_zoom + 1 ||
+        !ctx.authoring_host.font_theme_pending_changes) {
+        fprintf(stderr, "authoring_host_test: expected active draft save path to stage font/theme changes\n");
+        return 1;
+    }
     if (!expect_ok(drawing_program_pane_host_rebuild(&ctx), "authoring_host_active_draft_rebuild") ||
         !expect_ok(drawing_program_authoring_host_mark_draft_changed(&ctx),
                    "authoring_host_active_draft_mark_changed") ||
         !expect_ok(drawing_program_snapshot_save(&ctx, active_draft_pack_path),
                    "authoring_host_active_draft_snapshot_save")) {
+        return 1;
+    }
+    memset(&exported_layout_state, 0, sizeof(exported_layout_state));
+    memset(&exported_nodes, 0, sizeof(exported_nodes));
+    memset(&exported_bindings, 0, sizeof(exported_bindings));
+    memset(&exported_ui, 0, sizeof(exported_ui));
+    if (!expect_ok(drawing_program_authoring_host_export_accepted_pane_state(&ctx,
+                                                                             &exported_layout_state,
+                                                                             exported_nodes,
+                                                                             &exported_node_count,
+                                                                             &exported_root_index,
+                                                                             exported_bindings,
+                                                                             &exported_binding_count),
+                   "authoring_host_export_accepted_pane_state")) {
+        return 1;
+    }
+    drawing_program_authoring_host_export_accepted_ui_state(&ctx, &exported_ui);
+    if (exported_layout_state.mode != CORE_LAYOUT_MODE_RUNTIME ||
+        exported_layout_state.has_pending_changes ||
+        exported_nodes[split_node_index].ratio_01 != original_ratio ||
+        exported_ui.font_zoom_step != original_font_zoom ||
+        exported_ui.theme_preset_id != ctx.authoring_host.baseline_theme_preset_id ||
+        exported_ui.font_preset_id != ctx.authoring_host.baseline_font_preset_id ||
+        ctx.ui.font_zoom_step != original_font_zoom + 1 ||
+        ctx.pane_host.nodes[split_node_index].ratio_01 != unsaved_draft_ratio) {
+        fprintf(stderr,
+                "authoring_host_test: accepted-state export should keep runtime baseline while leaving live draft untouched\n");
         return 1;
     }
     if (!expect_ok(drawing_program_app_bootstrap(&draft_load_ctx, 5, argv),
@@ -312,9 +360,12 @@ int drawing_program_lifecycle_run_authoring_host_suite(void) {
     }
     if (draft_load_ctx.pane_host.nodes[split_node_index].ratio_01 != original_ratio ||
         draft_load_ctx.pane_host.nodes[split_node_index].ratio_01 == unsaved_draft_ratio ||
+        draft_load_ctx.ui.font_zoom_step != original_font_zoom ||
+        draft_load_ctx.ui.theme_preset_id != ctx.authoring_host.baseline_theme_preset_id ||
+        draft_load_ctx.ui.font_preset_id != ctx.authoring_host.baseline_font_preset_id ||
         draft_load_ctx.pane_host.layout_state.mode != CORE_LAYOUT_MODE_RUNTIME ||
         draft_load_ctx.pane_host.layout_state.has_pending_changes) {
-        fprintf(stderr, "authoring_host_test: active draft snapshot save should persist accepted baseline only\n");
+        fprintf(stderr, "authoring_host_test: active draft snapshot save should persist accepted pane and ui baseline only\n");
         return 1;
     }
     if (!expect_ok(drawing_program_authoring_host_cancel(&ctx),

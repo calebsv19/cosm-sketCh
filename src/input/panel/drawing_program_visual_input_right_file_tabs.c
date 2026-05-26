@@ -15,10 +15,9 @@
 #include "drawing_program/drawing_program_texture_export.h"
 #include "drawing_program/drawing_program_texture_project_session.h"
 #include "drawing_program/drawing_program_texture_scene_browser.h"
-#include "drawing_program/drawing_program_texture_workspace.h"
 #include "drawing_program/drawing_program_visual_layout.h"
+#include "drawing_program/drawing_program_visual_input_workspace_view.h"
 #include "drawing_program/drawing_program_visual_layer_opacity.h"
-#include "drawing_program/drawing_program_visual_pane_bindings.h"
 #include "drawing_program/drawing_program_visual_right_panel_defs.h"
 
 enum {
@@ -362,14 +361,8 @@ static int visual_right_panel_open_selected_scene_object(DrawingProgramAppContex
         visual_right_panel_set_file_status(ctx, "OBJECT PACK OPEN FAILED");
         return 0;
     }
-    ctx->ui.right_panel_slot = (uint8_t)VISUAL_RIGHT_PANEL_SLOT_CANVAS;
+    (void)drawing_program_visual_input_workspace_view_show_canvas_fit_all(ctx);
     visual_right_panel_set_file_status(ctx, "OBJECT PACK OPENED");
-    {
-        SDL_Rect canvas_rect = { 0, 0, 0, 0 };
-        if (drawing_program_visual_pane_rect_for_module_type(ctx, 1u, &canvas_rect)) {
-            (void)drawing_program_texture_workspace_fit_all(ctx, canvas_rect);
-        }
-    }
     hooks->sync_panel_ui_from_app(ctx, ui);
     return 1;
 }

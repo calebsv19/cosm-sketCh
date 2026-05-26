@@ -11,6 +11,14 @@ static CoreResult layer_raster_invalid(const char *message) {
     return r;
 }
 
+static uint64_t layer_raster_next_content_revision(uint64_t current_revision) {
+    uint64_t next_revision = current_revision + 1u;
+    if (next_revision == 0u) {
+        next_revision = 1u;
+    }
+    return next_revision;
+}
+
 static int layer_raster_document_shape_valid(const DrawingProgramDocument *document) {
     return document &&
            document->layer_count <= DRAWING_PROGRAM_MAX_LAYERS &&
@@ -99,6 +107,7 @@ static CoreResult layer_raster_ensure_capacity(DrawingProgramLayerRasterStore *s
     if (required_capacity > store->slot_capacity) {
         for (i = store->slot_capacity; i < required_capacity; ++i) {
             store->slot_layer_ids[i] = 0u;
+            store->slot_content_revisions[i] = 0u;
         }
     }
     store->slot_capacity = required_capacity;
@@ -123,6 +132,7 @@ static CoreResult layer_raster_claim_slot(DrawingProgramLayerRasterStore *store,
     for (i = 0u; i < store->slot_capacity; ++i) {
         if (store->slot_layer_ids[i] == 0u) {
             store->slot_layer_ids[i] = layer_id;
+            store->slot_content_revisions[i] = 1u;
             store->slot_count += 1u;
             *out_slot_index = i;
             return core_result_ok();
@@ -198,6 +208,7 @@ CoreResult drawing_program_layer_raster_store_sync_document_layers(
         if (store->slot_layer_ids[i] != 0u && !keep_slots[i]) {
             DrawingProgramRasterSample *slot_samples = layer_raster_slot_ptr(store, i);
             store->slot_layer_ids[i] = 0u;
+            store->slot_content_revisions[i] = 0u;
             if (store->slot_count > 0u) {
                 store->slot_count -= 1u;
             }
@@ -249,6 +260,8 @@ CoreResult drawing_program_layer_raster_store_seed_from_legacy_surface(
         copy_count = (size_t)store->sample_count;
     }
     memcpy(slot_samples, document->raster_samples, copy_count * sizeof(*slot_samples));
+    store->slot_content_revisions[slot_index] =
+        layer_raster_next_content_revision(store->slot_content_revisions[slot_index]);
     return core_result_ok();
 }
 
@@ -336,6 +349,8 @@ CoreResult drawing_program_layer_raster_store_sample_write(
         *out_previous_value = slot_samples[sample_index];
     }
     slot_samples[sample_index] = drawing_program_color_normalize_input_sample(value);
+    store->slot_content_revisions[slot_index] =
+        layer_raster_next_content_revision(store->slot_content_revisions[slot_index]);
     return core_result_ok();
 }
 
@@ -360,6 +375,23 @@ CoreResult drawing_program_layer_raster_store_export_layer(
     }
     *out_samples = slot_samples;
     *out_sample_count = store->sample_count;
+    return core_result_ok();
+}
+
+CoreResult drawing_program_layer_raster_store_export_layer_revision(
+    const DrawingProgramLayerRasterStore *store,
+    uint32_t layer_id,
+    uint64_t *out_revision) {
+    CoreResult result;
+    uint32_t slot_index = 0u;
+    if (!store || !out_revision) {
+        return layer_raster_invalid("invalid layer revision export request");
+    }
+    result = layer_raster_find_slot_index(store, layer_id, &slot_index);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    *out_revision = store->slot_content_revisions[slot_index];
     return core_result_ok();
 }
 
@@ -418,5 +450,7 @@ CoreResult drawing_program_layer_raster_store_import_layer(
             slot_samples[i] = drawing_program_color_normalize_input_sample(samples[i]);
         }
     }
+    store->slot_content_revisions[slot_index] =
+        layer_raster_next_content_revision(store->slot_content_revisions[slot_index]);
     return core_result_ok();
 }

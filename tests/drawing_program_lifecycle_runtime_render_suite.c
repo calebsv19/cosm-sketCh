@@ -5,6 +5,7 @@
 
 #include "core_theme.h"
 #include "drawing_program/drawing_program_texture_project_session.h"
+#include "drawing_program/drawing_program_render_cache_telemetry.h"
 #include "drawing_program/drawing_program_texture_workspace.h"
 #include "drawing_program/drawing_program_visual_layer_opacity.h"
 #include "drawing_program/drawing_program_visual_canvas_coords.h"
@@ -190,11 +191,15 @@ static void lifecycle_front_top_edge_sample_point(const VisualCanvasSheetMetrics
     *out_y = metrics->sheet_rect.y + inset + (thickness / 2);
 }
 
-static uint32_t lifecycle_process_all_pending_surface_cache_steps(void) {
+static uint32_t lifecycle_process_all_pending_surface_cache_steps(DrawingProgramAppContext *ctx) {
     uint32_t processed = 0u;
     while (drawing_program_visual_surface_cache_pending_count() > 0u) {
-        if (drawing_program_visual_surface_cache_process_pending_step(0u, 0) == 0u) {
+        DrawingProgramVisualSurfaceCacheTelemetry telemetry;
+        if (drawing_program_visual_surface_cache_process_pending_step(0u, &telemetry) == 0u) {
             break;
+        }
+        if (ctx) {
+            drawing_program_render_cache_note_queue_step(ctx, &telemetry);
         }
         processed += 1u;
     }
@@ -411,9 +416,17 @@ static int lifecycle_assert_canvas_world_cache_draw(DrawingProgramAppContext *ct
         goto cleanup;
     }
     if (drawing_program_visual_surface_cache_pending_count() != 1u ||
-        lifecycle_process_all_pending_surface_cache_steps() != 1u ||
+        lifecycle_process_all_pending_surface_cache_steps(ctx) != 1u ||
         drawing_program_visual_surface_cache_pending_count() != 0u) {
         fprintf(stderr, "lifecycle_test: expected one queued active-surface rebuild step\n");
+        goto cleanup;
+    }
+    if (ctx->runtime.render_surface_cache_deferred_total != 1u ||
+        ctx->runtime.render_surface_cache_queue_step_total != 1u) {
+        fprintf(stderr,
+                "lifecycle_test: expected one deferred active rebuild and one queue step deferred=%llu queue_steps=%llu\n",
+                (unsigned long long)ctx->runtime.render_surface_cache_deferred_total,
+                (unsigned long long)ctx->runtime.render_surface_cache_queue_step_total);
         goto cleanup;
     }
     drawing_program_visual_draw_canvas_world_view(
@@ -436,8 +449,17 @@ static int lifecycle_assert_canvas_world_cache_draw(DrawingProgramAppContext *ct
                 (unsigned)ctx->texture_project.surface_count);
         goto cleanup;
     }
-    if (lifecycle_process_all_pending_surface_cache_steps() != ctx->texture_project.surface_count) {
+    if (lifecycle_process_all_pending_surface_cache_steps(ctx) != ctx->texture_project.surface_count) {
         fprintf(stderr, "lifecycle_test: expected queued opacity rebuild to drain one step per surface\n");
+        goto cleanup;
+    }
+    if (ctx->runtime.render_surface_cache_deferred_total != 1u + ctx->texture_project.surface_count ||
+        ctx->runtime.render_surface_cache_queue_step_total != 1u + ctx->texture_project.surface_count) {
+        fprintf(stderr,
+                "lifecycle_test: expected opacity wave deferred/queue counts deferred=%llu queue_steps=%llu surfaces=%u\n",
+                (unsigned long long)ctx->runtime.render_surface_cache_deferred_total,
+                (unsigned long long)ctx->runtime.render_surface_cache_queue_step_total,
+                (unsigned)ctx->texture_project.surface_count);
         goto cleanup;
     }
     drawing_program_visual_draw_canvas_world_view(
@@ -459,8 +481,18 @@ static int lifecycle_assert_canvas_world_cache_draw(DrawingProgramAppContext *ct
                 (unsigned)ctx->texture_project.surface_count);
         goto cleanup;
     }
-    if (lifecycle_process_all_pending_surface_cache_steps() != ctx->texture_project.surface_count) {
+    if (lifecycle_process_all_pending_surface_cache_steps(ctx) != ctx->texture_project.surface_count) {
         fprintf(stderr, "lifecycle_test: expected queued bucket rebuild to drain one step per surface\n");
+        goto cleanup;
+    }
+    if (ctx->runtime.render_surface_cache_deferred_total != 1u + (ctx->texture_project.surface_count * 2u) ||
+        ctx->runtime.render_surface_cache_queue_step_total !=
+            1u + (ctx->texture_project.surface_count * 2u)) {
+        fprintf(stderr,
+                "lifecycle_test: expected bucket wave deferred/queue counts deferred=%llu queue_steps=%llu surfaces=%u\n",
+                (unsigned long long)ctx->runtime.render_surface_cache_deferred_total,
+                (unsigned long long)ctx->runtime.render_surface_cache_queue_step_total,
+                (unsigned)ctx->texture_project.surface_count);
         goto cleanup;
     }
     drawing_program_visual_draw_canvas_world_view(

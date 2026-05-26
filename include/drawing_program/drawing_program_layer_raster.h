@@ -17,6 +17,7 @@ typedef struct DrawingProgramLayerRasterStore {
     uint32_t slot_capacity;
     uint32_t slot_count;
     uint32_t slot_layer_ids[DRAWING_PROGRAM_MAX_LAYERS];
+    uint64_t slot_content_revisions[DRAWING_PROGRAM_MAX_LAYERS];
     DrawingProgramRasterSample *slot_samples;
 } DrawingProgramLayerRasterStore;
 
@@ -54,6 +55,10 @@ CoreResult drawing_program_layer_raster_store_export_layer(
     uint32_t layer_id,
     const DrawingProgramRasterSample **out_samples,
     uint32_t *out_sample_count);
+CoreResult drawing_program_layer_raster_store_export_layer_revision(
+    const DrawingProgramLayerRasterStore *store,
+    uint32_t layer_id,
+    uint64_t *out_revision);
 CoreResult drawing_program_layer_raster_store_export_layer_mutable(
     DrawingProgramLayerRasterStore *store,
     uint32_t layer_id,

@@ -3,6 +3,9 @@
 #include <string.h>
 
 #include "drawing_program/drawing_program_runtime_orchestration.h"
+#include "drawing_program/drawing_program_texture_canvas_move.h"
+#include "drawing_program/drawing_program_texture_project_session.h"
+#include "drawing_program/drawing_program_texture_workspace.h"
 #include "drawing_program/drawing_program_visual_canvas_action_ops.h"
 #include "drawing_program/drawing_program_visual_input_handlers.h"
 #include "drawing_program/drawing_program_visual_input_selection_ops.h"
@@ -195,6 +198,85 @@ int drawing_program_lifecycle_run_runtime_path_pointer_suite(DrawingProgramAppCo
     fill_hooks.active_layer_sample_read_visual = lifecycle_test_active_layer_sample_read_visual;
     memset(&interaction, 0, sizeof(interaction));
     memset(&panel_ui, 0, sizeof(panel_ui));
+
+    {
+        SDL_Rect canvas_rect = { 0, 0, 240, 180 };
+        VisualCanvasSheetMetrics side_metrics;
+        uint32_t side_surface_index = 0u;
+
+        drawing_program_object_store_reset(&workflow_ctx.object_store);
+        drawing_program_object_selection_reset(&workflow_ctx.object_selection);
+        drawing_program_selection_reset(&workflow_ctx.selection);
+        drawing_program_history_clear(&workflow_ctx.history);
+        memset(&interaction, 0, sizeof(interaction));
+        memset(&panel_ui, 0, sizeof(panel_ui));
+        workflow_ctx.editor.active_tool = DRAWING_PROGRAM_TOOL_PATH;
+        workflow_ctx.ui.canvas_control_mode = (uint8_t)DRAWING_PROGRAM_UI_CANVAS_CONTROL_MODE_LAYOUT;
+
+        if (!expect_ok(drawing_program_texture_project_session_seed_blank(
+                           &workflow_ctx, 128u, 96u, DRAWING_PROGRAM_TEXTURE_QUALITY_PRESET_STANDARD),
+                       "runtime_path_workspace_layout_seed_blank") ||
+            !expect_ok(drawing_program_texture_project_session_add_surface(&workflow_ctx,
+                                                                           "Right",
+                                                                           64u,
+                                                                           96u,
+                                                                           1u,
+                                                                           DRAWING_PROGRAM_TEXTURE_FACE_ROLE_RIGHT,
+                                                                           DRAWING_PROGRAM_TEXTURE_QUALITY_PRESET_STANDARD,
+                                                                           &side_surface_index),
+                       "runtime_path_workspace_layout_add_surface") ||
+            !drawing_program_texture_workspace_fit_all(&workflow_ctx, canvas_rect) ||
+            !drawing_program_texture_workspace_surface_sheet_metrics(
+                &workflow_ctx, canvas_rect, side_surface_index, &side_metrics)) {
+            fprintf(stderr, "lifecycle_test: expected workspace layout setup for atlas-shell click split\n");
+            return 1;
+        }
+
+        memset(&event, 0, sizeof(event));
+        event.type = SDL_MOUSEBUTTONDOWN;
+        event.button.button = SDL_BUTTON_LEFT;
+        event.button.x = side_metrics.sheet_rect.x + (side_metrics.sheet_rect.w / 2);
+        event.button.y = side_metrics.sheet_rect.y + (side_metrics.sheet_rect.h / 2);
+        if (!drawing_program_visual_input_handle_mouse_button_down_payload(&event,
+                                                                           1,
+                                                                           event.button.x,
+                                                                           event.button.y,
+                                                                           0,
+                                                                           (SDL_Rect){ 0, 0, 0, 0 },
+                                                                           0,
+                                                                           (SDL_Rect){ 0, 0, 0, 0 },
+                                                                           1,
+                                                                           canvas_rect,
+                                                                           &workflow_ctx,
+                                                                           &interaction,
+                                                                           &workflow_ctx.selection,
+                                                                           &panel_ui,
+                                                                           &hooks)) {
+            fprintf(stderr, "lifecycle_test: expected layout-mode atlas sheet click to be consumed\n");
+            return 1;
+        }
+        if (workflow_ctx.texture_project.active_surface_index != side_surface_index ||
+            !interaction.canvas_move_active ||
+            interaction.canvas_move_surface_index != side_surface_index ||
+            workflow_ctx.object_selection.count != 0u ||
+            interaction.path_draft_active) {
+            fprintf(stderr,
+                    "lifecycle_test: expected atlas-shell layout click to switch active surface and start move without entering true edit path active=%u move=%u move_surface=%u selection=%u path_draft=%u\n",
+                    (unsigned)workflow_ctx.texture_project.active_surface_index,
+                    (unsigned)interaction.canvas_move_active,
+                    (unsigned)interaction.canvas_move_surface_index,
+                    (unsigned)workflow_ctx.object_selection.count,
+                    (unsigned)interaction.path_draft_active);
+            return 1;
+        }
+        drawing_program_texture_canvas_move_end(&interaction);
+        workflow_ctx.ui.canvas_control_mode = (uint8_t)DRAWING_PROGRAM_UI_CANVAS_CONTROL_MODE_PAINT;
+        if (!expect_ok(drawing_program_texture_project_session_seed_blank(
+                           &workflow_ctx, 128u, 128u, DRAWING_PROGRAM_TEXTURE_QUALITY_PRESET_STANDARD),
+                       "runtime_path_workspace_layout_restore_blank")) {
+            return 1;
+        }
+    }
 
     {
         const DrawingProgramObjectRecord *path_object = 0;

@@ -23,6 +23,7 @@
 #include "drawing_program/drawing_program_visual_pane_bindings.h"
 #include "drawing_program/drawing_program_visual_resources.h"
 #include "drawing_program/drawing_program_visual_runtime_debug.h"
+#include "drawing_program/drawing_program_render_cache_telemetry.h"
 #include "drawing_program/drawing_program_visual_surface_cache.h"
 #include "drawing_program/drawing_program_visual_text_render.h"
 #include "drawing_program/drawing_program_visual_theme.h"
@@ -653,11 +654,7 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
                 DrawingProgramVisualSurfaceCacheTelemetry cache_telemetry;
                 if (drawing_program_visual_surface_cache_process_pending_step(high_intensity_mode ? 1u : 0u,
                                                                              &cache_telemetry) > 0u) {
-                    app_ctx.runtime.render_surface_cache_rebuild_total += (uint64_t)cache_telemetry.cache_rebuilt;
-                    app_ctx.runtime.render_surface_cache_compose_us_total += (uint64_t)cache_telemetry.cache_compose_us;
-                    app_ctx.runtime.render_surface_cache_upload_us_total += (uint64_t)cache_telemetry.cache_upload_us;
-                    app_ctx.runtime.render_surface_cache_rebuild_us_total += (uint64_t)cache_telemetry.cache_rebuild_us;
-                    app_ctx.runtime.render_surface_cache_queue_step_total += 1u;
+                    drawing_program_render_cache_note_queue_step(&app_ctx, &cache_telemetry);
                     background_present_dirty = 1;
                 }
             }

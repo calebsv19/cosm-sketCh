@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "drawing_program/drawing_program_canvas_reflection.h"
+#include "drawing_program/drawing_program_render_cache_telemetry.h"
 #include "drawing_program/drawing_program_render_zoom_bucket.h"
 #include "drawing_program/drawing_program_render_revision.h"
 #include "drawing_program/drawing_program_texture_project.h"
@@ -71,46 +72,6 @@ static void drawing_program_visual_canvas_world_draw_backdrop_immediate(
     SDL_SetRenderDrawColor(renderer, sheet_fill.r, sheet_fill.g, sheet_fill.b, sheet_fill.a);
     (void)SDL_RenderFillRect(renderer, &clip_sheet);
     (void)SDL_RenderSetClipRect(renderer, 0);
-}
-
-static void drawing_program_visual_canvas_world_note_cache_telemetry(
-    DrawingProgramAppContext *ctx,
-    const DrawingProgramVisualSurfaceCacheTelemetry *telemetry,
-    uint8_t active_surface) {
-    if (!ctx || !telemetry) {
-        return;
-    }
-    if (telemetry->cache_hit) {
-        ctx->runtime.render_surface_cache_hit_total += 1u;
-        if (active_surface) {
-            ctx->runtime.render_surface_cache_active_hit_total += 1u;
-        } else {
-            ctx->runtime.render_surface_cache_inactive_hit_total += 1u;
-        }
-    }
-    if (telemetry->cache_miss) {
-        ctx->runtime.render_surface_cache_miss_total += 1u;
-        if (active_surface) {
-            ctx->runtime.render_surface_cache_active_miss_total += 1u;
-        } else {
-            ctx->runtime.render_surface_cache_inactive_miss_total += 1u;
-        }
-    }
-    if (telemetry->cache_deferred) {
-        ctx->runtime.render_surface_cache_deferred_total += 1u;
-    }
-    if (telemetry->cache_rebuilt) {
-        ctx->runtime.render_surface_cache_rebuild_total += 1u;
-    }
-    if (telemetry->cache_copy_ready) {
-        ctx->runtime.render_surface_cache_copy_total += 1u;
-    }
-    if (telemetry->cache_unavailable) {
-        ctx->runtime.render_surface_cache_unavailable_total += 1u;
-    }
-    ctx->runtime.render_surface_cache_compose_us_total += (uint64_t)telemetry->cache_compose_us;
-    ctx->runtime.render_surface_cache_upload_us_total += (uint64_t)telemetry->cache_upload_us;
-    ctx->runtime.render_surface_cache_rebuild_us_total += (uint64_t)telemetry->cache_rebuild_us;
 }
 
 uint32_t drawing_program_visual_canvas_world_current_zoom_bucket_percent(const DrawingProgramAppContext *ctx) {
@@ -336,9 +297,9 @@ void drawing_program_visual_draw_canvas_world_view(
                                                                        layer_opacity,
                                                                        DRAWING_PROGRAM_MAX_LAYERS,
                                                                        &cache_telemetry);
-            drawing_program_visual_canvas_world_note_cache_telemetry((DrawingProgramAppContext *)ctx,
-                                                                     &cache_telemetry,
-                                                                     active_surface);
+            drawing_program_render_cache_note_surface_sync((DrawingProgramAppContext *)ctx,
+                                                           &cache_telemetry,
+                                                           active_surface);
             {
                 uint32_t entry_count = drawing_program_visual_surface_cache_entry_count();
                 if (entry_count > ctx->runtime.render_surface_cache_entry_peak) {

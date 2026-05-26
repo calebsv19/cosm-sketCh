@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -15,10 +16,13 @@
 #include "drawing_program/drawing_program_visual_layer_actions.h"
 #include "drawing_program/drawing_program_visual_input_handlers.h"
 #include "drawing_program/drawing_program_visual_input_panel_clicks.h"
+#include "drawing_program/drawing_program_visual_input_workspace_view.h"
 #include "drawing_program/drawing_program_visual_layout.h"
 #include "drawing_program/drawing_program_visual_layer_roles.h"
 #include "drawing_program/drawing_program_visual_layout_color.h"
+#include "drawing_program/drawing_program_visual_pane_bindings.h"
 #include "drawing_program/drawing_program_visual_tool_options.h"
+#include "drawing_program/drawing_program_texture_workspace.h"
 #include "drawing_program_lifecycle_color_panel_suite.h"
 #include "drawing_program_lifecycle_test_support.h"
 
@@ -34,6 +38,10 @@ static int lifecycle_test_active_layer_query(const DrawingProgramAppContext *ctx
     CoreResult result = drawing_program_runtime_orchestration_resolve_active_layer(
         ctx, out_layer_id, out_index, out_visible, out_locked);
     return (result.code == CORE_OK) ? 1 : 0;
+}
+
+static int lifecycle_test_float_equal(float lhs, float rhs) {
+    return fabsf(lhs - rhs) <= 0.0001f;
 }
 
 static int write_color_panel_scene_fixture(const char *path) {
@@ -565,6 +573,46 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
                     (unsigned)panel_ui.right_canvas_delete_confirm_pending);
             return 1;
         }
+        {
+            DrawingProgramAppContext expected_view_ctx = workflow_ctx;
+            SDL_Rect canvas_pane_rect = {0, 0, 0, 0};
+            workflow_ctx.editor.viewport.pan_x = 151.0f;
+            workflow_ctx.editor.viewport.pan_y = -87.0f;
+            workflow_ctx.editor.viewport.zoom = 3.25f;
+            expected_view_ctx.editor.viewport = workflow_ctx.editor.viewport;
+            if (!drawing_program_visual_input_workspace_view_fit_surface(
+                    &workflow_ctx, workflow_ctx.texture_project.active_surface_index) ||
+                !drawing_program_visual_pane_rect_for_module_type(&expected_view_ctx, 1u, &canvas_pane_rect) ||
+                !drawing_program_texture_workspace_fit_surface(
+                    &expected_view_ctx, canvas_pane_rect, expected_view_ctx.texture_project.active_surface_index) ||
+                !lifecycle_test_float_equal(workflow_ctx.editor.viewport.pan_x,
+                                            expected_view_ctx.editor.viewport.pan_x) ||
+                !lifecycle_test_float_equal(workflow_ctx.editor.viewport.pan_y,
+                                            expected_view_ctx.editor.viewport.pan_y) ||
+                !lifecycle_test_float_equal(workflow_ctx.editor.viewport.zoom,
+                                            expected_view_ctx.editor.viewport.zoom)) {
+                fprintf(stderr,
+                        "lifecycle_test: expected workspace view fit-surface helper to match direct fit policy\n");
+                return 1;
+            }
+            workflow_ctx.editor.viewport.pan_x = -205.0f;
+            workflow_ctx.editor.viewport.pan_y = 133.0f;
+            workflow_ctx.editor.viewport.zoom = 2.75f;
+            expected_view_ctx.editor.viewport = workflow_ctx.editor.viewport;
+            if (!drawing_program_visual_input_workspace_view_fit_all_or_reset(&workflow_ctx) ||
+                !drawing_program_visual_pane_rect_for_module_type(&expected_view_ctx, 1u, &canvas_pane_rect) ||
+                !drawing_program_texture_workspace_fit_all(&expected_view_ctx, canvas_pane_rect) ||
+                !lifecycle_test_float_equal(workflow_ctx.editor.viewport.pan_x,
+                                            expected_view_ctx.editor.viewport.pan_x) ||
+                !lifecycle_test_float_equal(workflow_ctx.editor.viewport.pan_y,
+                                            expected_view_ctx.editor.viewport.pan_y) ||
+                !lifecycle_test_float_equal(workflow_ctx.editor.viewport.zoom,
+                                            expected_view_ctx.editor.viewport.zoom)) {
+                fprintf(stderr,
+                        "lifecycle_test: expected workspace view fit-all helper to match direct fit policy\n");
+                return 1;
+            }
+        }
         canvas_mode_rect = right_canvas_mode_toggle_button_rect(right_rect, metrics);
         drawing_program_visual_input_handle_right_panel_click_payload(&workflow_ctx,
                                                                       right_rect,
@@ -657,6 +705,31 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
                                                                       &hooks);
         if (!panel_ui.right_canvas_reflection_center_pick_pending) {
             fprintf(stderr, "lifecycle_test: expected set-center button to arm canvas center pick\n");
+            return 1;
+        }
+        {
+            SDL_Rect surface_row_rect = right_canvas_surface_row_rect(right_rect, metrics, 0u);
+            drawing_program_visual_input_handle_right_panel_click_payload(&workflow_ctx,
+                                                                          right_rect,
+                                                                          surface_row_rect.x + 2,
+                                                                          surface_row_rect.y + 2,
+                                                                          &workflow_ctx.selection,
+                                                                          &panel_ui,
+                                                                          &hooks);
+            if (panel_ui.right_canvas_reflection_center_pick_pending) {
+                fprintf(stderr, "lifecycle_test: expected surface-row click to disarm canvas center pick\n");
+                return 1;
+            }
+        }
+        drawing_program_visual_input_handle_right_panel_click_payload(&workflow_ctx,
+                                                                      right_rect,
+                                                                      center_pick_rect.x + 2,
+                                                                      center_pick_rect.y + 2,
+                                                                      &workflow_ctx.selection,
+                                                                      &panel_ui,
+                                                                      &hooks);
+        if (!panel_ui.right_canvas_reflection_center_pick_pending) {
+            fprintf(stderr, "lifecycle_test: expected second set-center arm after row click\n");
             return 1;
         }
         drawing_program_visual_input_handle_right_panel_click_payload(&workflow_ctx,
@@ -767,6 +840,9 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
             return 1;
         }
         open_object_rect = right_file_route_action_button_rect(file_rect, metrics, 4u, 1u, 2u);
+        workflow_ctx.editor.viewport.pan_x = 91.0f;
+        workflow_ctx.editor.viewport.pan_y = -64.0f;
+        workflow_ctx.editor.viewport.zoom = 2.4f;
         drawing_program_visual_input_handle_right_panel_click_payload(&workflow_ctx,
                                                                       file_rect,
                                                                       open_object_rect.x + 2,
@@ -783,6 +859,20 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
                     workflow_ctx.texture_project.source_scene_id,
                     workflow_ctx.texture_project.source_object_id);
             return 1;
+        }
+        {
+            DrawingProgramAppContext expected_view_ctx = workflow_ctx;
+            if (!drawing_program_visual_input_workspace_view_show_canvas_fit_all(&expected_view_ctx) ||
+                !lifecycle_test_float_equal(workflow_ctx.editor.viewport.pan_x,
+                                            expected_view_ctx.editor.viewport.pan_x) ||
+                !lifecycle_test_float_equal(workflow_ctx.editor.viewport.pan_y,
+                                            expected_view_ctx.editor.viewport.pan_y) ||
+                !lifecycle_test_float_equal(workflow_ctx.editor.viewport.zoom,
+                                            expected_view_ctx.editor.viewport.zoom)) {
+                fprintf(stderr,
+                        "lifecycle_test: expected open object click to use shared canvas-show-fit helper\n");
+                return 1;
+            }
         }
         if (!workflow_ctx.session.project_path ||
             strstr(workflow_ctx.session.project_path, "scene_panel_browser__obj_plane_browser") == 0 ||

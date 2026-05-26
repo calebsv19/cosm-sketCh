@@ -26,6 +26,8 @@ CoreResult drawing_program_authoring_host_set_font_preset(DrawingProgramAppConte
 CoreResult drawing_program_authoring_host_set_theme_preset(DrawingProgramAppContext *ctx, uint32_t theme_preset_id);
 CoreResult drawing_program_authoring_host_note_custom_theme_stub(DrawingProgramAppContext *ctx,
                                                                  const char *status);
+void drawing_program_authoring_host_export_accepted_ui_state(const DrawingProgramAppContext *ctx,
+                                                             DrawingProgramAppUiState *out_ui);
 CoreResult drawing_program_authoring_host_export_accepted_pane_state(
     const DrawingProgramAppContext *ctx,
     CoreLayoutState *out_layout_state,

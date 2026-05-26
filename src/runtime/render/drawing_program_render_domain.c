@@ -62,22 +62,41 @@ static uint32_t render_layer_views_resolve(const DrawingProgramDocument *documen
     return legacy_layer_id;
 }
 
-static DrawingProgramRasterSample render_compose_sample_for_index(
+typedef struct DrawingProgramRenderEffectiveLayer {
+    const DrawingProgramRasterSample *samples;
+    uint8_t opacity;
+} DrawingProgramRenderEffectiveLayer;
+
+static uint32_t render_effective_layers_build(
     const DrawingProgramDocument *document,
     const DrawingProgramRasterSample **layer_views,
     const uint8_t *layer_opacity_percent,
     uint32_t layer_opacity_count,
-    uint32_t sample_index) {
+    DrawingProgramRenderEffectiveLayer *out_layers,
+    uint8_t *out_all_full_opacity,
+    uint32_t *out_partial_count,
+    uint32_t *out_first_partial_index) {
     uint32_t i;
-    DrawingProgramRasterSample composed = drawing_program_color_eraser_value();
-    if (!document || !layer_views || sample_index >= document->raster_sample_count) {
-        return composed;
+    uint32_t effective_count = 0u;
+    uint32_t partial_count = 0u;
+    uint32_t first_partial_index = 0u;
+    uint8_t all_full_opacity = 1u;
+    if (!document || !layer_views || !out_layers) {
+        if (out_all_full_opacity) {
+            *out_all_full_opacity = 0u;
+        }
+        if (out_partial_count) {
+            *out_partial_count = 0u;
+        }
+        if (out_first_partial_index) {
+            *out_first_partial_index = 0u;
+        }
+        return 0u;
     }
     for (i = 0u; i < document->layer_count; ++i) {
-        const DrawingProgramRasterSample *samples;
-        DrawingProgramRasterSample sample;
+        const DrawingProgramRasterSample *samples = layer_views[i];
         uint8_t opacity = 100u;
-        if (!document->layers[i].visible) {
+        if (!document->layers[i].visible || !samples) {
             continue;
         }
         if (layer_opacity_percent && i < layer_opacity_count) {
@@ -89,20 +108,170 @@ static DrawingProgramRasterSample render_compose_sample_for_index(
         if (opacity == 0u) {
             continue;
         }
-        samples = layer_views[i];
-        if (!samples) {
+        out_layers[effective_count].samples = samples;
+        out_layers[effective_count].opacity = opacity;
+        if (opacity < 100u) {
+            all_full_opacity = 0u;
+            if (partial_count == 0u) {
+                first_partial_index = effective_count;
+            }
+            partial_count += 1u;
+        }
+        effective_count += 1u;
+    }
+    if (out_all_full_opacity) {
+        *out_all_full_opacity = (effective_count > 0u) ? all_full_opacity : 0u;
+    }
+    if (out_partial_count) {
+        *out_partial_count = partial_count;
+    }
+    if (out_first_partial_index) {
+        *out_first_partial_index = first_partial_index;
+    }
+    return effective_count;
+}
+
+static DrawingProgramRasterSample render_compose_sample_for_index(
+    const DrawingProgramDocument *document,
+    const DrawingProgramRenderEffectiveLayer *effective_layers,
+    uint32_t effective_layer_count,
+    uint8_t all_full_opacity,
+    uint32_t sample_index) {
+    uint32_t i;
+    DrawingProgramRasterSample composed = drawing_program_color_eraser_value();
+    if (!document || !effective_layers || sample_index >= document->raster_sample_count) {
+        return composed;
+    }
+    if (all_full_opacity) {
+        for (i = effective_layer_count; i > 0u; --i) {
+            DrawingProgramRasterSample sample = effective_layers[i - 1u].samples[sample_index];
+            if (!drawing_program_color_sample_is_transparent(sample)) {
+                return sample;
+            }
+        }
+        return composed;
+    }
+    for (i = effective_layer_count; i > 0u; --i) {
+        DrawingProgramRasterSample sample = effective_layers[i - 1u].samples[sample_index];
+        if (drawing_program_color_sample_is_transparent(sample)) {
             continue;
         }
-        sample = samples[sample_index];
+        if (effective_layers[i - 1u].opacity >= 100u) {
+            return sample;
+        }
+        break;
+    }
+    for (i = 0u; i < effective_layer_count; ++i) {
+        DrawingProgramRasterSample sample = effective_layers[i].samples[sample_index];
         if (!drawing_program_color_sample_is_transparent(sample)) {
-            if (opacity >= 100u) {
+            if (effective_layers[i].opacity >= 100u) {
                 composed = sample;
             } else {
-                composed = drawing_program_color_blend_samples(composed, sample, opacity);
+                composed = drawing_program_color_blend_samples(composed, sample, effective_layers[i].opacity);
             }
         }
     }
     return composed;
+}
+
+static DrawingProgramRasterSample render_compose_single_partial_layer_for_index(
+    const DrawingProgramRenderEffectiveLayer *effective_layers,
+    uint32_t effective_layer_count,
+    uint32_t partial_layer_index,
+    uint32_t sample_index) {
+    DrawingProgramRasterSample transparent = drawing_program_color_eraser_value();
+    DrawingProgramRasterSample lower_base = transparent;
+    DrawingProgramRasterSample partial_sample;
+    uint8_t partial_opacity;
+    uint32_t i;
+    if (!effective_layers || partial_layer_index >= effective_layer_count) {
+        return transparent;
+    }
+    for (i = effective_layer_count; i > partial_layer_index + 1u; --i) {
+        DrawingProgramRasterSample sample = effective_layers[i - 1u].samples[sample_index];
+        if (!drawing_program_color_sample_is_transparent(sample)) {
+            return sample;
+        }
+    }
+    for (i = partial_layer_index; i > 0u; --i) {
+        DrawingProgramRasterSample sample = effective_layers[i - 1u].samples[sample_index];
+        if (!drawing_program_color_sample_is_transparent(sample)) {
+            lower_base = sample;
+            break;
+        }
+    }
+    partial_sample = effective_layers[partial_layer_index].samples[sample_index];
+    partial_opacity = effective_layers[partial_layer_index].opacity;
+    if (drawing_program_color_sample_is_transparent(partial_sample)) {
+        return lower_base;
+    }
+    return drawing_program_color_blend_samples(lower_base, partial_sample, partial_opacity);
+}
+
+static void render_apply_uniform_opacity_samples(const DrawingProgramRasterSample *source_samples,
+                                                 uint32_t sample_count,
+                                                 uint8_t opacity,
+                                                 DrawingProgramRasterSample *out_samples) {
+    uint32_t i;
+    DrawingProgramRasterSample transparent = drawing_program_color_eraser_value();
+    if (!source_samples || !out_samples) {
+        return;
+    }
+    if (opacity >= 100u) {
+        memcpy(out_samples, source_samples, (size_t)sample_count * sizeof(*out_samples));
+        return;
+    }
+    for (i = 0u; i < sample_count; ++i) {
+        DrawingProgramRasterSample sample = source_samples[i];
+        if (drawing_program_color_sample_is_transparent(sample)) {
+            out_samples[i] = transparent;
+        } else {
+            out_samples[i] = drawing_program_color_blend_samples(transparent, sample, opacity);
+        }
+    }
+}
+
+CoreResult drawing_program_render_resolve_direct_visible_samples_with_layer_opacity(
+    const struct DrawingProgramDocument *document,
+    const struct DrawingProgramLayerRasterStore *layer_rasters,
+    const uint8_t *layer_opacity_percent,
+    uint32_t layer_opacity_count,
+    const DrawingProgramRasterSample **out_samples,
+    uint32_t *out_sample_count) {
+    const DrawingProgramRasterSample *layer_views[DRAWING_PROGRAM_MAX_LAYERS];
+    DrawingProgramRenderEffectiveLayer effective_layers[DRAWING_PROGRAM_MAX_LAYERS];
+    const DrawingProgramRasterSample *direct_samples = 0;
+    uint32_t effective_count;
+    if (!document || !out_samples || !out_sample_count) {
+        return render_invalid("null direct render resolve argument");
+    }
+    *out_samples = 0;
+    *out_sample_count = 0u;
+    if (document->raster_sample_count == 0u) {
+        return (CoreResult){ CORE_ERR_NOT_FOUND, "no raster samples for direct render resolve" };
+    }
+    (void)render_layer_views_resolve(document, layer_rasters, layer_views);
+    effective_count = render_effective_layers_build(document,
+                                                    layer_views,
+                                                    layer_opacity_percent,
+                                                    layer_opacity_count,
+                                                    effective_layers,
+                                                    0,
+                                                    0,
+                                                    0);
+    if (effective_count != 1u) {
+        return (CoreResult){ CORE_ERR_NOT_FOUND, "direct render resolve requires compose" };
+    }
+    if (effective_layers[0].opacity < 100u) {
+        return (CoreResult){ CORE_ERR_NOT_FOUND, "direct render resolve requires compose" };
+    }
+    direct_samples = effective_layers[0].samples;
+    if (!direct_samples) {
+        return (CoreResult){ CORE_ERR_NOT_FOUND, "direct render resolve found no direct source" };
+    }
+    *out_samples = direct_samples;
+    *out_sample_count = document->raster_sample_count;
+    return core_result_ok();
 }
 
 CoreResult drawing_program_render_compose_visible_samples_with_layer_opacity(
@@ -113,6 +282,11 @@ CoreResult drawing_program_render_compose_visible_samples_with_layer_opacity(
     DrawingProgramRasterSample *out_samples,
     uint32_t out_capacity) {
     const DrawingProgramRasterSample *layer_views[DRAWING_PROGRAM_MAX_LAYERS];
+    DrawingProgramRenderEffectiveLayer effective_layers[DRAWING_PROGRAM_MAX_LAYERS];
+    uint32_t effective_count;
+    uint32_t partial_count = 0u;
+    uint32_t first_partial_index = 0u;
+    uint8_t all_full_opacity = 0u;
     uint32_t i;
     if (!document || !out_samples) {
         return render_invalid("null render compose argument");
@@ -121,11 +295,41 @@ CoreResult drawing_program_render_compose_visible_samples_with_layer_opacity(
         return (CoreResult){ CORE_ERR_INVALID_ARG, "render compose output capacity too small" };
     }
     (void)render_layer_views_resolve(document, layer_rasters, layer_views);
+    effective_count = render_effective_layers_build(document,
+                                                    layer_views,
+                                                    layer_opacity_percent,
+                                                    layer_opacity_count,
+                                                    effective_layers,
+                                                    &all_full_opacity,
+                                                    &partial_count,
+                                                    &first_partial_index);
+    if (effective_count == 0u) {
+        for (i = 0u; i < document->raster_sample_count; ++i) {
+            out_samples[i] = drawing_program_color_eraser_value();
+        }
+        return core_result_ok();
+    }
+    if (effective_count == 1u && effective_layers[0].opacity < 100u) {
+        render_apply_uniform_opacity_samples(effective_layers[0].samples,
+                                             document->raster_sample_count,
+                                             effective_layers[0].opacity,
+                                             out_samples);
+        return core_result_ok();
+    }
+    if (partial_count == 1u) {
+        for (i = 0u; i < document->raster_sample_count; ++i) {
+            out_samples[i] = render_compose_single_partial_layer_for_index(effective_layers,
+                                                                           effective_count,
+                                                                           first_partial_index,
+                                                                           i);
+        }
+        return core_result_ok();
+    }
     for (i = 0u; i < document->raster_sample_count; ++i) {
         out_samples[i] = render_compose_sample_for_index(document,
-                                                         layer_views,
-                                                         layer_opacity_percent,
-                                                         layer_opacity_count,
+                                                         effective_layers,
+                                                         effective_count,
+                                                         all_full_opacity,
                                                          i);
     }
     return core_result_ok();
@@ -140,6 +344,11 @@ CoreResult drawing_program_render_compose_visible_sample_with_layer_opacity(
     uint32_t sample_y,
     DrawingProgramRasterSample *out_sample) {
     const DrawingProgramRasterSample *layer_views[DRAWING_PROGRAM_MAX_LAYERS];
+    DrawingProgramRenderEffectiveLayer effective_layers[DRAWING_PROGRAM_MAX_LAYERS];
+    uint32_t effective_count;
+    uint32_t partial_count = 0u;
+    uint32_t first_partial_index = 0u;
+    uint8_t all_full_opacity = 0u;
     uint32_t sample_index;
     if (!document || !out_sample) {
         return render_invalid("null render compose single-sample argument");
@@ -152,10 +361,29 @@ CoreResult drawing_program_render_compose_visible_sample_with_layer_opacity(
         return (CoreResult){ CORE_ERR_INVALID_ARG, "render single-sample index out of range" };
     }
     (void)render_layer_views_resolve(document, layer_rasters, layer_views);
+    effective_count = render_effective_layers_build(document,
+                                                    layer_views,
+                                                    layer_opacity_percent,
+                                                    layer_opacity_count,
+                                                    effective_layers,
+                                                    &all_full_opacity,
+                                                    &partial_count,
+                                                    &first_partial_index);
+    if (effective_count == 0u) {
+        *out_sample = drawing_program_color_eraser_value();
+        return core_result_ok();
+    }
+    if (partial_count == 1u) {
+        *out_sample = render_compose_single_partial_layer_for_index(effective_layers,
+                                                                    effective_count,
+                                                                    first_partial_index,
+                                                                    sample_index);
+        return core_result_ok();
+    }
     *out_sample = render_compose_sample_for_index(document,
-                                                  layer_views,
-                                                  layer_opacity_percent,
-                                                  layer_opacity_count,
+                                                  effective_layers,
+                                                  effective_count,
+                                                  all_full_opacity,
                                                   sample_index);
     return core_result_ok();
 }

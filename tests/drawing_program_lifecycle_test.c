@@ -18,10 +18,13 @@
 #include "drawing_program_lifecycle_selection_layer_suite.h"
 #include "drawing_program_lifecycle_authoring_host_suite.h"
 #include "drawing_program_lifecycle_baseline_history_suite.h"
+#include "drawing_program_lifecycle_composed_source_suite.h"
 #include "drawing_program_lifecycle_export_suite.h"
 #include "drawing_program_lifecycle_object_path_suite.h"
 #include "drawing_program_lifecycle_persistence_contract_suite.h"
+#include "drawing_program_lifecycle_render_domain_suite.h"
 #include "drawing_program_lifecycle_runtime_render_suite.h"
+#include "drawing_program_lifecycle_surface_cache_contract_suite.h"
 #include "drawing_program_lifecycle_texture_export_suite.h"
 #include "drawing_program_lifecycle_texture_import_suite.h"
 
@@ -189,7 +192,13 @@ int main(void) {
     if (drawing_program_lifecycle_run_export_suite() != 0) {
         return 1;
     }
+    if (drawing_program_lifecycle_run_composed_source_suite() != 0) {
+        return 1;
+    }
     if (drawing_program_lifecycle_run_persistence_contract_suite() != 0) {
+        return 1;
+    }
+    if (drawing_program_lifecycle_run_render_domain_suite() != 0) {
         return 1;
     }
     if (drawing_program_lifecycle_run_texture_export_suite() != 0) {
@@ -209,6 +218,9 @@ int main(void) {
                                                            center_y,
                                                            expected_draw_value,
                                                            expected_eraser_value) != 0) {
+        return 1;
+    }
+    if (drawing_program_lifecycle_run_surface_cache_contract_suite() != 0) {
         return 1;
     }
     if (drawing_program_lifecycle_run_authoring_host_suite() != 0) {

@@ -149,6 +149,16 @@ static void drawing_program_authoring_clear_baseline(DrawingProgramAppContext *c
     ctx->authoring_host.custom_theme_status[0] = '\0';
 }
 
+static void drawing_program_authoring_reset_transient_state(DrawingProgramAppContext *ctx) {
+    if (!ctx) {
+        return;
+    }
+    ctx->authoring_host.key_c_down = 0u;
+    ctx->authoring_host.key_v_down = 0u;
+    ctx->authoring_host.entry_chord_armed_key = KIT_WORKSPACE_AUTHORING_KEY_UNKNOWN;
+    ctx->authoring_host.overlay_mode = DRAWING_PROGRAM_AUTHORING_OVERLAY_PANE;
+}
+
 void drawing_program_authoring_host_reset(DrawingProgramAppContext *ctx) {
     if (!ctx) {
         return;
@@ -158,7 +168,7 @@ void drawing_program_authoring_host_reset(DrawingProgramAppContext *ctx) {
     ctx->pane_host.layout_state.draft_revision = ctx->pane_host.layout_state.active_revision;
     ctx->pane_host.layout_state.has_pending_changes = false;
     ctx->pane_host.layout_state.rebuild_required = false;
-    ctx->authoring_host.overlay_mode = DRAWING_PROGRAM_AUTHORING_OVERLAY_PANE;
+    drawing_program_authoring_reset_transient_state(ctx);
     drawing_program_authoring_clear_baseline(ctx);
 }
 
@@ -216,10 +226,7 @@ CoreResult drawing_program_authoring_host_exit(DrawingProgramAppContext *ctx) {
         drawing_program_authoring_clear_baseline(ctx);
         ctx->authoring_host.exit_count += 1u;
     }
-    ctx->authoring_host.key_c_down = 0u;
-    ctx->authoring_host.key_v_down = 0u;
-    ctx->authoring_host.entry_chord_armed_key = KIT_WORKSPACE_AUTHORING_KEY_UNKNOWN;
-    ctx->authoring_host.overlay_mode = DRAWING_PROGRAM_AUTHORING_OVERLAY_PANE;
+    drawing_program_authoring_reset_transient_state(ctx);
     ctx->authoring_host.last_event_exited = 1u;
     return core_result_ok();
 }
@@ -240,10 +247,7 @@ CoreResult drawing_program_authoring_host_apply(DrawingProgramAppContext *ctx) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "failed to apply authoring mode" };
     }
     drawing_program_authoring_clear_baseline(ctx);
-    ctx->authoring_host.key_c_down = 0u;
-    ctx->authoring_host.key_v_down = 0u;
-    ctx->authoring_host.entry_chord_armed_key = KIT_WORKSPACE_AUTHORING_KEY_UNKNOWN;
-    ctx->authoring_host.overlay_mode = DRAWING_PROGRAM_AUTHORING_OVERLAY_PANE;
+    drawing_program_authoring_reset_transient_state(ctx);
     ctx->authoring_host.apply_count += 1u;
     ctx->authoring_host.last_event_exited = 1u;
     return core_result_ok();
@@ -265,10 +269,7 @@ CoreResult drawing_program_authoring_host_cancel(DrawingProgramAppContext *ctx) 
         return (CoreResult){ CORE_ERR_INVALID_ARG, "failed to cancel authoring mode" };
     }
     drawing_program_authoring_clear_baseline(ctx);
-    ctx->authoring_host.key_c_down = 0u;
-    ctx->authoring_host.key_v_down = 0u;
-    ctx->authoring_host.entry_chord_armed_key = KIT_WORKSPACE_AUTHORING_KEY_UNKNOWN;
-    ctx->authoring_host.overlay_mode = DRAWING_PROGRAM_AUTHORING_OVERLAY_PANE;
+    drawing_program_authoring_reset_transient_state(ctx);
     ctx->authoring_host.cancel_count += 1u;
     ctx->authoring_host.last_event_exited = 1u;
     return core_result_ok();
@@ -373,6 +374,19 @@ CoreResult drawing_program_authoring_host_note_custom_theme_stub(DrawingProgramA
     ctx->authoring_host.custom_theme_status_active = 1u;
     ctx->authoring_host.custom_theme_stub_count += 1u;
     return core_result_ok();
+}
+
+void drawing_program_authoring_host_export_accepted_ui_state(const DrawingProgramAppContext *ctx,
+                                                             DrawingProgramAppUiState *out_ui) {
+    if (!ctx || !out_ui) {
+        return;
+    }
+    *out_ui = ctx->ui;
+    if (drawing_program_authoring_host_active(ctx) && ctx->authoring_host.draft_baseline_valid) {
+        out_ui->theme_preset_id = ctx->authoring_host.baseline_theme_preset_id;
+        out_ui->font_preset_id = ctx->authoring_host.baseline_font_preset_id;
+        out_ui->font_zoom_step = ctx->authoring_host.baseline_font_zoom_step;
+    }
 }
 
 CoreResult drawing_program_authoring_host_export_accepted_pane_state(

@@ -10,6 +10,7 @@
 #include "drawing_program/drawing_program_texture_project.h"
 #include "drawing_program/drawing_program_texture_project_session.h"
 #include "drawing_program/drawing_program_texture_workspace.h"
+#include "drawing_program/drawing_program_visual_input_workspace_surface.h"
 #include "drawing_program/drawing_program_visual_state.h"
 #include "drawing_program_lifecycle_test_support.h"
 #include "drawing_program_lifecycle_texture_workspace_suite.h"
@@ -88,6 +89,7 @@ int drawing_program_lifecycle_run_texture_workspace_suite(DrawingProgramAppConte
     uint32_t hit_surface_index = 0u;
     uint32_t sample_x = 0u;
     uint32_t sample_y = 0u;
+    uint8_t surface_ready = 0u;
     const char *scene_path = "/tmp/drawing_program_texture_workspace_semantic_fixture.json";
 #define ctx (*ctx_ptr)
 
@@ -149,12 +151,28 @@ int drawing_program_lifecycle_run_texture_workspace_suite(DrawingProgramAppConte
                 (unsigned)hit_surface_index);
         return 1;
     }
-    if (!expect_ok(drawing_program_texture_project_session_select_surface(&ctx, side_surface_index),
-                   "texture_workspace_select_side_surface")) {
+    if (ctx.texture_project.active_surface_index != 0u) {
+        fprintf(stderr,
+                "lifecycle_test: expected workspace to keep base surface active before explicit selection got=%u\n",
+                (unsigned)ctx.texture_project.active_surface_index);
         return 1;
     }
-    if (!drawing_program_texture_workspace_fit_surface(&ctx, pane_rect, side_surface_index)) {
-        fprintf(stderr, "lifecycle_test: expected workspace fit-surface to succeed\n");
+    if (drawing_program_texture_workspace_screen_to_active_sample(
+            &ctx,
+            pane_rect,
+            side_metrics.sheet_rect.x + (side_metrics.sheet_rect.w / 2),
+            side_metrics.sheet_rect.y + (side_metrics.sheet_rect.h / 2),
+            &sample_x,
+            &sample_y)) {
+        fprintf(stderr,
+                "lifecycle_test: expected non-active side surface center to reject active-surface sampling before selection\n");
+        return 1;
+    }
+    if (!expect_ok(drawing_program_visual_input_commit_workspace_surface(
+                       &ctx, pane_rect, side_surface_index, 1u, &surface_ready),
+                   "texture_workspace_commit_side_surface") ||
+        !surface_ready) {
+        fprintf(stderr, "lifecycle_test: expected committed side surface to be ready\n");
         return 1;
     }
     if (!drawing_program_texture_workspace_active_sheet_metrics(&ctx, pane_rect, &active_metrics)) {
@@ -166,6 +184,14 @@ int drawing_program_lifecycle_run_texture_workspace_suite(DrawingProgramAppConte
                 "lifecycle_test: expected selected side surface document 64x96 got=%ux%u\n",
                 (unsigned)ctx.document.raster_width,
                 (unsigned)ctx.document.raster_height);
+        return 1;
+    }
+    surface_ready = 0u;
+    if (!expect_ok(drawing_program_visual_input_commit_workspace_surface(
+                       &ctx, pane_rect, side_surface_index, 1u, &surface_ready),
+                   "texture_workspace_recommit_side_surface") ||
+        !surface_ready) {
+        fprintf(stderr, "lifecycle_test: expected recommitted side surface to stay ready\n");
         return 1;
     }
     if (!drawing_program_texture_workspace_screen_to_active_sample(&ctx,
@@ -327,8 +353,11 @@ int drawing_program_lifecycle_run_texture_workspace_suite(DrawingProgramAppConte
             return 1;
         }
     }
-    if (!expect_ok(drawing_program_texture_project_session_select_surface(&ctx, top_surface_index),
-                   "texture_workspace_select_top_surface")) {
+    if (!expect_ok(drawing_program_visual_input_commit_workspace_surface(
+                       &ctx, pane_rect, top_surface_index, 0u, &surface_ready),
+                   "texture_workspace_commit_top_surface") ||
+        !surface_ready) {
+        fprintf(stderr, "lifecycle_test: expected committed top surface to be ready\n");
         return 1;
     }
     if (ctx.texture_project.active_surface_index != top_surface_index) {
@@ -524,9 +553,10 @@ int drawing_program_lifecycle_run_texture_workspace_suite(DrawingProgramAppConte
             (void)unlink(scene_path);
             return 1;
         }
-        if (!expect_ok(drawing_program_texture_project_session_select_surface(&ctx, semantic_top_surface_index),
-                       "texture_workspace_select_semantic_top_surface") ||
-            !drawing_program_texture_workspace_fit_surface(&ctx, pane_rect, semantic_top_surface_index) ||
+    if (!expect_ok(drawing_program_visual_input_commit_workspace_surface(
+                       &ctx, pane_rect, semantic_top_surface_index, 1u, &surface_ready),
+                   "texture_workspace_commit_semantic_top_surface") ||
+            !surface_ready ||
             !drawing_program_texture_workspace_active_sheet_metrics(&ctx, pane_rect, &active_metrics) ||
             !drawing_program_texture_workspace_screen_to_active_sample(&ctx,
                                                                        pane_rect,

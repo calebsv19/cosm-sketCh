@@ -6,6 +6,7 @@
 #include "drawing_program/drawing_program_color_model.h"
 #include "drawing_program/drawing_program_document.h"
 #include "drawing_program/drawing_program_layer_raster.h"
+#include "drawing_program/drawing_program_render_composed_source.h"
 #include "drawing_program/drawing_program_render_domain.h"
 #include "drawing_program/drawing_program_texture_project.h"
 
@@ -30,8 +31,7 @@ typedef struct DrawingProgramVisualSurfaceCacheEntry {
     const DrawingProgramLayerRasterStore *pending_layer_rasters;
     uint8_t pending_layer_opacity[DRAWING_PROGRAM_MAX_LAYERS];
     uint32_t pending_layer_opacity_count;
-    DrawingProgramRasterSample *composited_samples;
-    uint32_t composited_capacity;
+    DrawingProgramRenderComposedSourceState composed_source;
 } DrawingProgramVisualSurfaceCacheEntry;
 
 typedef struct DrawingProgramVisualSurfaceCacheState {
@@ -81,6 +81,47 @@ static uint32_t surface_cache_target_dimension(uint32_t source_dimension, uint32
     return (uint32_t)scaled;
 }
 
+static int surface_cache_target_dirty_rect(const DrawingProgramRenderComposedSourceView *source_view,
+                                           const DrawingProgramDocument *document,
+                                           uint32_t target_width,
+                                           uint32_t target_height,
+                                           SDL_Rect *out_rect) {
+    uint32_t x0 = 0u;
+    uint32_t y0 = 0u;
+    uint32_t x1 = 0u;
+    uint32_t y1 = 0u;
+    if (!source_view || !document || !out_rect || !source_view->has_dirty_rect || source_view->dirty_rect_is_full ||
+        source_view->dirty_width == 0u || source_view->dirty_height == 0u || document->raster_width == 0u ||
+        document->raster_height == 0u || target_width == 0u || target_height == 0u) {
+        return 0;
+    }
+    x0 = (uint32_t)(((uint64_t)source_view->dirty_x * (uint64_t)target_width) / (uint64_t)document->raster_width);
+    y0 = (uint32_t)(((uint64_t)source_view->dirty_y * (uint64_t)target_height) / (uint64_t)document->raster_height);
+    x1 = (uint32_t)((((uint64_t)(source_view->dirty_x + source_view->dirty_width) * (uint64_t)target_width) +
+                     (uint64_t)document->raster_width - 1u) /
+                    (uint64_t)document->raster_width);
+    y1 = (uint32_t)((((uint64_t)(source_view->dirty_y + source_view->dirty_height) * (uint64_t)target_height) +
+                     (uint64_t)document->raster_height - 1u) /
+                    (uint64_t)document->raster_height);
+    if (x1 <= x0) {
+        x1 = x0 + 1u;
+    }
+    if (y1 <= y0) {
+        y1 = y0 + 1u;
+    }
+    if (x1 > target_width) {
+        x1 = target_width;
+    }
+    if (y1 > target_height) {
+        y1 = target_height;
+    }
+    out_rect->x = (int)x0;
+    out_rect->y = (int)y0;
+    out_rect->w = (int)(x1 - x0);
+    out_rect->h = (int)(y1 - y0);
+    return (out_rect->w > 0 && out_rect->h > 0) ? 1 : 0;
+}
+
 static void surface_cache_entry_reset(DrawingProgramVisualSurfaceCacheEntry *entry) {
     if (!entry) {
         return;
@@ -93,7 +134,7 @@ static void surface_cache_entry_reset(DrawingProgramVisualSurfaceCacheEntry *ent
         SDL_FreeFormat(entry->pixel_format);
         entry->pixel_format = 0;
     }
-    free(entry->composited_samples);
+    drawing_program_render_composed_source_dispose(&entry->composed_source);
     memset(entry, 0, sizeof(*entry));
 }
 
@@ -220,57 +261,65 @@ static int surface_cache_sync_pixels(DrawingProgramVisualSurfaceCacheEntry *entr
                                      const DrawingProgramLayerRasterStore *layer_rasters,
                                      const uint8_t *layer_opacity_percent,
                                      uint32_t layer_opacity_count,
+                                     uint64_t content_revision,
+                                     uint64_t layer_opacity_revision,
+                                     uint8_t force_full_upload,
                                      uint32_t *out_compose_us,
                                      uint32_t *out_upload_us) {
     void *pixels = 0;
     int pitch = 0;
     uint32_t x;
     uint32_t y;
-    CoreResult compose_result;
-    const DrawingProgramRasterSample *source_samples = 0;
+    DrawingProgramRenderComposedSourceView source_view;
+    CoreResult resolve_result;
     Uint64 compose_begin = 0u;
     Uint64 compose_end = 0u;
     Uint64 upload_begin = 0u;
     Uint64 upload_end = 0u;
+    SDL_Rect dirty_rect;
+    SDL_Rect *lock_rect = 0;
     if (!entry || !target_texture || !target_pixel_format || !document || !layer_rasters || !layer_opacity_percent ||
         layer_opacity_count == 0u || target_width == 0u || target_height == 0u) {
         return 0;
     }
-    if (entry->composited_capacity < document->raster_sample_count) {
-        DrawingProgramRasterSample *next_samples =
-            (DrawingProgramRasterSample *)realloc(entry->composited_samples,
-                                                  (size_t)document->raster_sample_count * sizeof(*next_samples));
-        if (!next_samples) {
-            return 0;
-        }
-        entry->composited_samples = next_samples;
-        entry->composited_capacity = document->raster_sample_count;
-    }
-    source_samples = document->raster_samples;
+    memset(&source_view, 0, sizeof(source_view));
     compose_begin = SDL_GetPerformanceCounter();
-    compose_result = drawing_program_render_compose_visible_samples_with_layer_opacity(document,
-                                                                                        layer_rasters,
-                                                                                        layer_opacity_percent,
-                                                                                        layer_opacity_count,
-                                                                                        entry->composited_samples,
-                                                                                        entry->composited_capacity);
+    resolve_result = drawing_program_render_composed_source_resolve(&entry->composed_source,
+                                                                    document,
+                                                                    layer_rasters,
+                                                                    layer_opacity_percent,
+                                                                    layer_opacity_count,
+                                                                    content_revision,
+                                                                    layer_opacity_revision,
+                                                                    &source_view);
     compose_end = SDL_GetPerformanceCounter();
-    if (compose_result.code == CORE_OK) {
-        source_samples = entry->composited_samples;
-    }
-    upload_begin = SDL_GetPerformanceCounter();
-    if (SDL_LockTexture(target_texture, 0, &pixels, &pitch) != 0) {
+    if (resolve_result.code != CORE_OK || !source_view.samples) {
         return 0;
     }
-    for (y = 0u; y < target_height; ++y) {
-        uint32_t *row = (uint32_t *)((uint8_t *)pixels + ((size_t)y * (size_t)pitch));
+    memset(&dirty_rect, 0, sizeof(dirty_rect));
+    if (!force_full_upload &&
+        surface_cache_target_dirty_rect(&source_view, document, target_width, target_height, &dirty_rect)) {
+        lock_rect = &dirty_rect;
+    }
+    upload_begin = SDL_GetPerformanceCounter();
+    if (SDL_LockTexture(target_texture, lock_rect, &pixels, &pitch) != 0) {
+        return 0;
+    }
+    for (y = lock_rect ? (uint32_t)lock_rect->y : 0u;
+         y < (lock_rect ? (uint32_t)(lock_rect->y + lock_rect->h) : target_height);
+         ++y) {
+        uint32_t *row = 0;
         uint32_t source_y = (uint32_t)(((uint64_t)y * (uint64_t)document->raster_height) / (uint64_t)target_height);
         size_t row_offset;
+        uint32_t row_start_x = lock_rect ? (uint32_t)lock_rect->x : 0u;
+        uint32_t row_end_x = lock_rect ? (uint32_t)(lock_rect->x + lock_rect->w) : target_width;
         if (source_y >= document->raster_height) {
             source_y = document->raster_height - 1u;
         }
+        row = (uint32_t *)((uint8_t *)pixels +
+                           ((size_t)(lock_rect ? (y - (uint32_t)lock_rect->y) : y) * (size_t)pitch));
         row_offset = (size_t)source_y * (size_t)document->raster_width;
-        for (x = 0u; x < target_width; ++x) {
+        for (x = row_start_x; x < row_end_x; ++x) {
             uint32_t source_x = (uint32_t)(((uint64_t)x * (uint64_t)document->raster_width) / (uint64_t)target_width);
             DrawingProgramRasterSample sample;
             uint8_t r = 0u;
@@ -280,9 +329,9 @@ static int surface_cache_sync_pixels(DrawingProgramVisualSurfaceCacheEntry *entr
             if (source_x >= document->raster_width) {
                 source_x = document->raster_width - 1u;
             }
-            sample = source_samples[row_offset + source_x];
+            sample = source_view.samples[row_offset + source_x];
             drawing_program_color_rgba_from_sample(sample, &r, &g, &b, &a);
-            row[x] = SDL_MapRGBA(target_pixel_format, r, g, b, a);
+            row[x - row_start_x] = SDL_MapRGBA(target_pixel_format, r, g, b, a);
         }
     }
     SDL_UnlockTexture(target_texture);
@@ -351,6 +400,9 @@ static int surface_cache_rebuild_entry(DrawingProgramVisualSurfaceCacheEntry *en
                                    layer_rasters,
                                    layer_opacity_percent,
                                    layer_opacity_count,
+                                   request->content_revision,
+                                   request->layer_opacity_revision,
+                                   reuse_live_texture ? 0u : 1u,
                                    &compose_us,
                                    &upload_us)) {
         if (!reuse_live_texture) {

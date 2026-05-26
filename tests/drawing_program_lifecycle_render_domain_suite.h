@@ -1,0 +1,6 @@
+#ifndef DRAWING_PROGRAM_LIFECYCLE_RENDER_DOMAIN_SUITE_H
+#define DRAWING_PROGRAM_LIFECYCLE_RENDER_DOMAIN_SUITE_H
+
+int drawing_program_lifecycle_run_render_domain_suite(void);
+
+#endif
