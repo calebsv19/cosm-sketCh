@@ -1,0 +1,6 @@
+#ifndef DRAWING_PROGRAM_LIFECYCLE_PERSISTENCE_CONTRACT_SUITE_H
+#define DRAWING_PROGRAM_LIFECYCLE_PERSISTENCE_CONTRACT_SUITE_H
+
+int drawing_program_lifecycle_run_persistence_contract_suite(void);
+
+#endif

@@ -129,6 +129,8 @@ CoreResult drawing_program_session_prefs_load(struct DrawingProgramAppContext *c
         }
     }
     (void)fclose(prefs);
+    /* CLI root overrides own input/output routing for this launch; scene-authored
+       content stays session-owned and still reloads from persisted prefs. */
     if (!ctx->session.input_root_cli_override && input_root[0] != '\0') {
         (void)snprintf(ctx->session.input_root_path, sizeof(ctx->session.input_root_path), "%s", input_root);
     }

@@ -28,6 +28,8 @@ APP_LOCAL_SRCS := \
 	src/io/export/drawing_program_png_export.c \
 	src/io/export/drawing_program_texture_export.c \
 	src/io/session/drawing_program_project_state.c \
+	src/io/session/drawing_program_project_selection.c \
+	src/io/session/drawing_program_session_paths.c \
 	src/io/session/drawing_program_session_prefs.c \
 	src/io/session/drawing_program_native_dialogs.c \
 	src/io/session/drawing_program_snapshot.c \
@@ -139,6 +141,8 @@ HEADLESS_LOCAL_SRCS := \
 	src/io/export/drawing_program_png_export.c \
 	src/io/export/drawing_program_texture_export.c \
 	src/io/session/drawing_program_project_state.c \
+	src/io/session/drawing_program_project_selection.c \
+	src/io/session/drawing_program_session_paths.c \
 	src/io/session/drawing_program_session_prefs.c \
 	src/io/session/drawing_program_native_dialogs.c \
 	src/io/session/drawing_program_snapshot.c \
@@ -247,6 +251,8 @@ TEST_LOCAL_SRCS := \
 	src/io/export/drawing_program_png_export.c \
 	src/io/export/drawing_program_texture_export.c \
 	src/io/session/drawing_program_project_state.c \
+	src/io/session/drawing_program_project_selection.c \
+	src/io/session/drawing_program_session_paths.c \
 	src/io/session/drawing_program_session_prefs.c \
 	src/io/session/drawing_program_native_dialogs.c \
 	src/io/session/drawing_program_snapshot.c \
@@ -331,6 +337,7 @@ TEST_LOCAL_SRCS := \
 	tests/drawing_program_lifecycle_snapshot_layer_suite.c \
 	tests/drawing_program_lifecycle_snapshot_object_suite.c \
 	tests/drawing_program_lifecycle_export_suite.c \
+	tests/drawing_program_lifecycle_persistence_contract_suite.c \
 	tests/drawing_program_lifecycle_texture_export_suite.c \
 	tests/drawing_program_lifecycle_snapshot_helpers.c \
 	tests/drawing_program_lifecycle_snapshot_object_helpers.c \

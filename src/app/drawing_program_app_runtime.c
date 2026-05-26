@@ -5,13 +5,13 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "drawing_program_app_main_internal.h"
 #include "core_font.h"
 #include "core_theme.h"
 #include "drawing_program/drawing_program_authoring_host.h"
 #include "drawing_program/drawing_program_project_state.h"
 #include "drawing_program/drawing_program_render_revision.h"
 #include "drawing_program/drawing_program_runtime_orchestration.h"
+#include "drawing_program/drawing_program_session_paths.h"
 #include "drawing_program/drawing_program_session_prefs.h"
 #include "drawing_program/drawing_program_snapshot.h"
 #include "drawing_program/drawing_program_texture_export.h"
@@ -613,7 +613,7 @@ CoreResult drawing_program_app_shutdown(DrawingProgramAppContext *ctx) {
         drawing_program_texture_project_dispose(&ctx->texture_project);
         return result;
     }
-    result = drawing_program_app_ensure_parent_dir(ctx->session.preset_path);
+    result = drawing_program_session_paths_ensure_parent_dir(ctx->session.preset_path);
     if (result.code != CORE_OK) {
         drawing_program_layer_raster_store_dispose(&ctx->layer_rasters);
         drawing_program_texture_project_dispose(&ctx->texture_project);

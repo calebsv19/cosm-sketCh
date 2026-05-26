@@ -20,6 +20,7 @@
 #include "drawing_program_lifecycle_baseline_history_suite.h"
 #include "drawing_program_lifecycle_export_suite.h"
 #include "drawing_program_lifecycle_object_path_suite.h"
+#include "drawing_program_lifecycle_persistence_contract_suite.h"
 #include "drawing_program_lifecycle_runtime_render_suite.h"
 #include "drawing_program_lifecycle_texture_export_suite.h"
 #include "drawing_program_lifecycle_texture_import_suite.h"
@@ -186,6 +187,9 @@ int main(void) {
         return 1;
     }
     if (drawing_program_lifecycle_run_export_suite() != 0) {
+        return 1;
+    }
+    if (drawing_program_lifecycle_run_persistence_contract_suite() != 0) {
         return 1;
     }
     if (drawing_program_lifecycle_run_texture_export_suite() != 0) {
