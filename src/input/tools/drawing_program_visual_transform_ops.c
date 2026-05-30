@@ -51,6 +51,9 @@ void drawing_program_visual_cancel_canvas_draw_and_shape(VisualCanvasInteraction
     interaction->canvas_resize_anchor_mouse_y = 0;
     interaction->canvas_move_active = 0u;
     interaction->canvas_move_surface_index = 0u;
+    interaction->reflector_drag_active = 0u;
+    interaction->reflector_drag_kind = 0u;
+    interaction->reflector_drag_index = 0u;
     interaction->canvas_move_start_offset_x = 0.0f;
     interaction->canvas_move_start_offset_y = 0.0f;
     interaction->canvas_move_zoom = 0.0f;

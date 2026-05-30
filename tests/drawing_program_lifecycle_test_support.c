@@ -80,7 +80,12 @@ CoreResult lifecycle_test_nudge_selection_move(DrawingProgramAppContext *ctx,
 }
 
 void lifecycle_test_cancel_canvas_draw_and_shape(VisualCanvasInteractionState *interaction) {
-    (void)interaction;
+    if (!interaction) {
+        return;
+    }
+    interaction->reflector_drag_active = 0u;
+    interaction->reflector_drag_kind = 0u;
+    interaction->reflector_drag_index = 0u;
 }
 
 void lifecycle_test_cancel_selection_transient(DrawingProgramSelectionState *selection) {
@@ -92,7 +97,7 @@ void lifecycle_test_cancel_all_transient_interactions(DrawingProgramAppContext *
                                                       DrawingProgramSelectionState *selection,
                                                       int clear_pan_state) {
     (void)ctx;
-    (void)interaction;
     (void)selection;
     (void)clear_pan_state;
+    lifecycle_test_cancel_canvas_draw_and_shape(interaction);
 }

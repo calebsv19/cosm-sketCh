@@ -184,6 +184,15 @@ static void path_draft_update_drag_handle(VisualCanvasInteractionState *interact
     path_draft_preview_cache_refresh(interaction);
 }
 
+static void drawing_program_visual_clear_reflector_drag(VisualCanvasInteractionState *interaction) {
+    if (!interaction) {
+        return;
+    }
+    interaction->reflector_drag_active = 0u;
+    interaction->reflector_drag_kind = 0u;
+    interaction->reflector_drag_index = 0u;
+}
+
 CoreResult path_draft_commit(DrawingProgramAppContext *ctx,
                              VisualCanvasInteractionState *interaction,
                              uint8_t closed) {
@@ -285,6 +294,10 @@ int drawing_program_visual_input_handle_mouse_button_up_payload(const SDL_Event 
     }
     if (canvas_interaction->canvas_move_active) {
         drawing_program_texture_canvas_move_end(canvas_interaction);
+        return 1;
+    }
+    if (canvas_interaction->reflector_drag_active) {
+        drawing_program_visual_clear_reflector_drag(canvas_interaction);
         return 1;
     }
     if (app->editor.active_tool == DRAWING_PROGRAM_TOOL_PATH) {
@@ -435,6 +448,27 @@ int drawing_program_visual_input_handle_mouse_motion_payload(const SDL_Event *ev
                                                           canvas_interaction,
                                                           panel_ui->mouse_x,
                                                           panel_ui->mouse_y);
+    }
+    if (canvas_interaction->reflector_drag_active) {
+        uint32_t sample_x = 0u;
+        uint32_t sample_y = 0u;
+        if (hooks->screen_to_canvas_sample_clamped(
+                app, canvas_pane, panel_ui->mouse_x, panel_ui->mouse_y, &sample_x, &sample_y)) {
+            if (canvas_interaction->reflector_drag_kind == 1u) {
+                (void)drawing_program_canvas_reflection_set_active_center(app, sample_x, sample_y);
+            } else if (canvas_interaction->reflector_drag_kind == 2u) {
+                const DrawingProgramReflectionState *state =
+                    drawing_program_canvas_reflection_active_state(app);
+                int32_t center_x = state ? (int32_t)state->center_x : (int32_t)sample_x;
+                int32_t center_y = state ? (int32_t)state->center_y : (int32_t)sample_y;
+                int32_t dir_x = (int32_t)sample_x - center_x;
+                int32_t dir_y = (int32_t)sample_y - center_y;
+                if (dir_x != 0 || dir_y != 0) {
+                    (void)drawing_program_canvas_reflection_set_active_reflector_direction(app, dir_x, dir_y);
+                }
+            }
+        }
+        return 1;
     }
     if (selection_state->selecting && app->editor.active_tool == DRAWING_PROGRAM_TOOL_SELECT) {
         uint32_t sample_x = 0u;

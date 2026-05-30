@@ -173,12 +173,18 @@ int drawing_program_lifecycle_run_snapshot_shell_suite(DrawingProgramAppContext 
         texture_save_ctx.ui.canvas_control_mode = (uint8_t)DRAWING_PROGRAM_UI_CANVAS_CONTROL_MODE_LAYOUT;
         texture_save_ctx.ui.canvas_guide_mode =
             (uint8_t)DRAWING_PROGRAM_UI_CANVAS_GUIDE_MODE_CORNERS_AND_EDGES;
-        texture_save_ctx.editor.symmetry_horizontal = 1u;
-        texture_save_ctx.editor.symmetry_vertical = 0u;
         if (!drawing_program_canvas_reflection_set_active_center(&texture_save_ctx, 13u, 17u)) {
             return 1;
         }
-        drawing_program_canvas_reflection_sync_active_surface_from_editor(&texture_save_ctx);
+        if (!drawing_program_canvas_reflection_set_crosshair_enabled(&texture_save_ctx, 0u, 0u)) {
+            return 1;
+        }
+        if (!drawing_program_canvas_reflection_add_active_reflector(&texture_save_ctx, 2, 1)) {
+            return 1;
+        }
+        if (!drawing_program_canvas_reflection_add_active_reflector(&texture_save_ctx, 4, 2)) {
+            return 1;
+        }
         if (!expect_ok(drawing_program_texture_project_session_move_surface(&texture_save_ctx,
                                                                             extra_surface_index,
                                                                             extra_layout_offset_x,
@@ -242,13 +248,13 @@ int drawing_program_lifecycle_run_snapshot_shell_suite(DrawingProgramAppContext 
             texture_load_ctx.ui.canvas_control_mode != (uint8_t)DRAWING_PROGRAM_UI_CANVAS_CONTROL_MODE_LAYOUT ||
             texture_load_ctx.ui.canvas_guide_mode !=
                 (uint8_t)DRAWING_PROGRAM_UI_CANVAS_GUIDE_MODE_CORNERS_AND_EDGES ||
-            !texture_load_ctx.editor.symmetry_horizontal ||
+            texture_load_ctx.editor.symmetry_horizontal ||
             texture_load_ctx.editor.symmetry_vertical ||
             texture_load_ctx.texture_project.active_surface_index != extra_surface_index ||
             texture_load_ctx.texture_project.primitive_kind != DRAWING_PROGRAM_TEXTURE_PRIMITIVE_KIND_RECT_PRISM ||
             texture_load_ctx.texture_project.net_layout_kind != DRAWING_PROGRAM_TEXTURE_NET_LAYOUT_KIND_RECT_PRISM_CROSS) {
             fprintf(stderr,
-                    "lifecycle_test: expected texture project load surface_count=3 mode=layout guides=edges reflect=H active=%u prism layout got count=%u mode=%u guides=%u reflect=%u/%u active=%u primitive=%u layout=%u\n",
+                    "lifecycle_test: expected texture project load surface_count=3 mode=layout guides=edges reflect=off active=%u prism layout got count=%u mode=%u guides=%u reflect=%u/%u active=%u primitive=%u layout=%u\n",
                     (unsigned)extra_surface_index,
                     (unsigned)texture_load_ctx.texture_project.surface_count,
                     (unsigned)texture_load_ctx.ui.canvas_control_mode,
@@ -272,6 +278,57 @@ int drawing_program_lifecycle_run_snapshot_shell_suite(DrawingProgramAppContext 
                         "lifecycle_test: expected texture project reflection center 13,17 got=%u,%u\n",
                         (unsigned)reflection_center_x,
                         (unsigned)reflection_center_y);
+                return 1;
+            }
+        }
+        {
+            const DrawingProgramTextureSurface *loaded_active_surface =
+                drawing_program_texture_project_surface_at(&texture_load_ctx.texture_project, extra_surface_index);
+            if (!loaded_active_surface ||
+                loaded_active_surface->reflection_state.reflector_count != 4u ||
+                loaded_active_surface->reflection_state.reflectors[0].direction_dx != 1 ||
+                loaded_active_surface->reflection_state.reflectors[0].direction_dy != 0 ||
+                loaded_active_surface->reflection_state.reflectors[1].direction_dx != 0 ||
+                loaded_active_surface->reflection_state.reflectors[1].direction_dy != 1 ||
+                loaded_active_surface->reflection_state.reflectors[2].direction_dx != 2 ||
+                loaded_active_surface->reflection_state.reflectors[2].direction_dy != 1 ||
+                loaded_active_surface->reflection_state.reflectors[3].direction_dx != 4 ||
+                loaded_active_surface->reflection_state.reflectors[3].direction_dy != 2 ||
+                loaded_active_surface->reflection_state.reflectors[0].enabled ||
+                loaded_active_surface->reflection_state.reflectors[1].enabled ||
+                !loaded_active_surface->reflection_state.reflectors[2].enabled ||
+                !loaded_active_surface->reflection_state.reflectors[3].enabled) {
+                fprintf(stderr,
+                        "lifecycle_test: expected loaded active surface to preserve arbitrary overlapping reflector model count=%u h=(%d,%d,%u) v=(%d,%d,%u) a=(%d,%d,%u) b=(%d,%d,%u)\n",
+                        (unsigned)(loaded_active_surface ? loaded_active_surface->reflection_state.reflector_count : 0u),
+                        loaded_active_surface ? loaded_active_surface->reflection_state.reflectors[0].direction_dx : 0,
+                        loaded_active_surface ? loaded_active_surface->reflection_state.reflectors[0].direction_dy : 0,
+                        (unsigned)(loaded_active_surface ? loaded_active_surface->reflection_state.reflectors[0].enabled : 0u),
+                        loaded_active_surface ? loaded_active_surface->reflection_state.reflectors[1].direction_dx : 0,
+                        loaded_active_surface ? loaded_active_surface->reflection_state.reflectors[1].direction_dy : 0,
+                        (unsigned)(loaded_active_surface ? loaded_active_surface->reflection_state.reflectors[1].enabled : 0u),
+                        loaded_active_surface ? loaded_active_surface->reflection_state.reflectors[2].direction_dx : 0,
+                        loaded_active_surface ? loaded_active_surface->reflection_state.reflectors[2].direction_dy : 0,
+                        (unsigned)(loaded_active_surface ? loaded_active_surface->reflection_state.reflectors[2].enabled : 0u),
+                        loaded_active_surface ? loaded_active_surface->reflection_state.reflectors[3].direction_dx : 0,
+                        loaded_active_surface ? loaded_active_surface->reflection_state.reflectors[3].direction_dy : 0,
+                        (unsigned)(loaded_active_surface ? loaded_active_surface->reflection_state.reflectors[3].enabled : 0u));
+                return 1;
+            }
+        }
+        {
+            DrawingProgramCanvasReflectionPoint points[DRAWING_PROGRAM_CANVAS_REFLECTION_VARIANT_CAPACITY];
+            uint32_t point_count = drawing_program_canvas_reflection_collect_points(&texture_load_ctx, 14, 15, points);
+            if (point_count != 2u ||
+                !((points[0].x == 14 && points[0].y == 15 && points[1].x == 12 && points[1].y == 19) ||
+                  (points[1].x == 14 && points[1].y == 15 && points[0].x == 12 && points[0].y == 19))) {
+                fprintf(stderr,
+                        "lifecycle_test: expected loaded overlapping arbitrary reflectors to dedupe reopen mirror count=%u got=(%d,%d) (%d,%d)\n",
+                        (unsigned)point_count,
+                        points[0].x,
+                        points[0].y,
+                        points[1].x,
+                        points[1].y);
                 return 1;
             }
         }

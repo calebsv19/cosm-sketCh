@@ -1,0 +1,6 @@
+#ifndef DRAWING_PROGRAM_LIFECYCLE_COMPOSED_SOURCE_RCP1_SUITE_H
+#define DRAWING_PROGRAM_LIFECYCLE_COMPOSED_SOURCE_RCP1_SUITE_H
+
+int drawing_program_lifecycle_run_composed_source_rcp1_suite(void);
+
+#endif

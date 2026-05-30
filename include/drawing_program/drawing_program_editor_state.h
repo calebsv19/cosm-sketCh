@@ -5,6 +5,7 @@
 
 #include "core_viewport2d.h"
 #include "drawing_program/drawing_program_document.h"
+#include "drawing_program/drawing_program_reflection_state.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,6 +31,7 @@ typedef struct DrawingProgramEditorState {
     uint32_t active_layer_id;
     uint8_t symmetry_vertical;
     uint8_t symmetry_horizontal;
+    DrawingProgramReflectionState reflection_state;
     DrawingProgramViewportState viewport;
 } DrawingProgramEditorState;
 

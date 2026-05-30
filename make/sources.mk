@@ -41,19 +41,25 @@ APP_LOCAL_SRCS := \
 	src/io/session/drawing_program_texture_canvas_ops.c \
 	src/io/session/drawing_program_texture_project_session.c \
 	src/io/session/drawing_program_texture_project_snapshot.c \
+	src/io/session/drawing_program_texture_project_snapshot_load.c \
 	src/io/session/drawing_program_texture_scene_browser.c \
 	src/io/session/drawing_program_texture_scene_import.c \
 	src/io/session/drawing_program_snapshot_ui_settings.c \
+	src/io/session/drawing_program_snapshot_ui_settings_load.c \
 	src/io/session/drawing_program_snapshot_bridge.c \
 	src/domain/drawing_program_viewport.c \
 	src/runtime/render/drawing_program_render_composed_source.c \
+	src/runtime/render/drawing_program_render_composed_source_dirty_rect.c \
+	src/runtime/render/drawing_program_render_composed_source_plan.c \
 	src/runtime/render/drawing_program_render_domain.c \
 	src/runtime/render/drawing_program_render_backend.c \
 	src/runtime/render/drawing_program_render_cache_telemetry.c \
 	src/runtime/render/drawing_program_render_revision.c \
 	src/runtime/render/drawing_program_render_zoom_bucket.c \
 	src/runtime/orchestration/drawing_program_runtime_orchestration.c \
+	src/runtime/canvas/drawing_program_visual_canvas_history_support.c \
 	src/runtime/canvas/drawing_program_visual_canvas_stroke_ops.c \
+	src/runtime/canvas/drawing_program_reflection_state.c \
 	src/runtime/canvas/drawing_program_canvas_reflection.c \
 	src/runtime/adapters/drawing_program_authoring_host.c \
 	src/runtime/adapters/drawing_program_pane_host.c \
@@ -77,6 +83,7 @@ APP_LOCAL_SRCS := \
 	src/input/panel/drawing_program_visual_input_panel_workspace_modes.c \
 	src/input/panel/drawing_program_visual_input_workspace_view.c \
 	src/input/panel/drawing_program_visual_input_right_file_tabs.c \
+	src/input/panel/drawing_program_visual_input_panel_clicks_left.c \
 	src/input/panel/drawing_program_visual_input_panel_clicks.c \
 	src/input/input_core/drawing_program_visual_input_workspace_browser.c \
 	src/input/input_core/drawing_program_visual_input_workspace_surface.c \
@@ -91,6 +98,7 @@ APP_LOCAL_SRCS := \
 	src/input/input_core/drawing_program_visual_input_handlers.c \
 	src/ui/layout/drawing_program_visual_layout.c \
 	src/ui/layout/drawing_program_visual_layout_color.c \
+	src/ui/layout/drawing_program_visual_reflector_geometry.c \
 	src/ui/layers/drawing_program_visual_layer_opacity.c \
 	src/ui/pane/drawing_program_visual_pane_bindings.c \
 	src/ui/panel/drawing_program_ui_button.c \
@@ -160,19 +168,25 @@ HEADLESS_LOCAL_SRCS := \
 	src/io/session/drawing_program_texture_canvas_ops.c \
 	src/io/session/drawing_program_texture_project_session.c \
 	src/io/session/drawing_program_texture_project_snapshot.c \
+	src/io/session/drawing_program_texture_project_snapshot_load.c \
 	src/io/session/drawing_program_texture_scene_browser.c \
 	src/io/session/drawing_program_texture_scene_import.c \
 	src/io/session/drawing_program_snapshot_ui_settings.c \
+	src/io/session/drawing_program_snapshot_ui_settings_load.c \
 	src/io/session/drawing_program_snapshot_bridge.c \
 	src/domain/drawing_program_viewport.c \
 	src/runtime/render/drawing_program_render_composed_source.c \
+	src/runtime/render/drawing_program_render_composed_source_dirty_rect.c \
+	src/runtime/render/drawing_program_render_composed_source_plan.c \
 	src/runtime/render/drawing_program_render_domain.c \
 	src/runtime/render/drawing_program_render_backend.c \
 	src/runtime/render/drawing_program_render_cache_telemetry.c \
 	src/runtime/render/drawing_program_render_revision.c \
 	src/runtime/render/drawing_program_render_zoom_bucket.c \
 	src/runtime/orchestration/drawing_program_runtime_orchestration.c \
+	src/runtime/canvas/drawing_program_visual_canvas_history_support.c \
 	src/runtime/canvas/drawing_program_visual_canvas_stroke_ops.c \
+	src/runtime/canvas/drawing_program_reflection_state.c \
 	src/runtime/canvas/drawing_program_canvas_reflection.c \
 	src/runtime/adapters/drawing_program_authoring_host.c \
 	src/runtime/adapters/drawing_program_pane_host.c \
@@ -196,6 +210,7 @@ HEADLESS_LOCAL_SRCS := \
 	src/input/panel/drawing_program_visual_input_panel_workspace_modes.c \
 	src/input/panel/drawing_program_visual_input_workspace_view.c \
 	src/input/panel/drawing_program_visual_input_right_file_tabs.c \
+	src/input/panel/drawing_program_visual_input_panel_clicks_left.c \
 	src/input/panel/drawing_program_visual_input_panel_clicks.c \
 	src/input/input_core/drawing_program_visual_input_workspace_browser.c \
 	src/input/input_core/drawing_program_visual_input_workspace_surface.c \
@@ -210,6 +225,7 @@ HEADLESS_LOCAL_SRCS := \
 	src/input/input_core/drawing_program_visual_input_handlers.c \
 	src/ui/layout/drawing_program_visual_layout.c \
 	src/ui/layout/drawing_program_visual_layout_color.c \
+	src/ui/layout/drawing_program_visual_reflector_geometry.c \
 	src/ui/layers/drawing_program_visual_layer_opacity.c \
 	src/ui/pane/drawing_program_visual_pane_bindings.c \
 	src/ui/panel/drawing_program_ui_button.c \
@@ -276,19 +292,25 @@ TEST_LOCAL_SRCS := \
 	src/io/session/drawing_program_texture_canvas_ops.c \
 	src/io/session/drawing_program_texture_project_session.c \
 	src/io/session/drawing_program_texture_project_snapshot.c \
+	src/io/session/drawing_program_texture_project_snapshot_load.c \
 	src/io/session/drawing_program_texture_scene_browser.c \
 	src/io/session/drawing_program_texture_scene_import.c \
 	src/io/session/drawing_program_snapshot_ui_settings.c \
+	src/io/session/drawing_program_snapshot_ui_settings_load.c \
 	src/io/session/drawing_program_snapshot_bridge.c \
 	src/domain/drawing_program_viewport.c \
 	src/runtime/render/drawing_program_render_composed_source.c \
+	src/runtime/render/drawing_program_render_composed_source_dirty_rect.c \
+	src/runtime/render/drawing_program_render_composed_source_plan.c \
 	src/runtime/render/drawing_program_render_domain.c \
 	src/runtime/render/drawing_program_render_backend.c \
 	src/runtime/render/drawing_program_render_cache_telemetry.c \
 	src/runtime/render/drawing_program_render_revision.c \
 	src/runtime/render/drawing_program_render_zoom_bucket.c \
 	src/runtime/orchestration/drawing_program_runtime_orchestration.c \
+	src/runtime/canvas/drawing_program_visual_canvas_history_support.c \
 	src/runtime/canvas/drawing_program_visual_canvas_stroke_ops.c \
+	src/runtime/canvas/drawing_program_reflection_state.c \
 	src/runtime/canvas/drawing_program_canvas_reflection.c \
 	src/runtime/adapters/drawing_program_authoring_host.c \
 	src/runtime/adapters/drawing_program_pane_host.c \
@@ -312,6 +334,7 @@ TEST_LOCAL_SRCS := \
 	src/input/panel/drawing_program_visual_input_panel_workspace_modes.c \
 	src/input/panel/drawing_program_visual_input_workspace_view.c \
 	src/input/panel/drawing_program_visual_input_right_file_tabs.c \
+	src/input/panel/drawing_program_visual_input_panel_clicks_left.c \
 	src/input/panel/drawing_program_visual_input_panel_clicks.c \
 	src/input/input_core/drawing_program_visual_input_workspace_browser.c \
 	src/input/input_core/drawing_program_visual_input_workspace_surface.c \
@@ -326,6 +349,7 @@ TEST_LOCAL_SRCS := \
 	src/input/input_core/drawing_program_visual_input_handlers.c \
 	src/ui/layout/drawing_program_visual_layout.c \
 	src/ui/layout/drawing_program_visual_layout_color.c \
+	src/ui/layout/drawing_program_visual_reflector_geometry.c \
 	src/ui/layers/drawing_program_visual_layer_opacity.c \
 	src/ui/pane/drawing_program_visual_pane_bindings.c \
 	src/ui/panel/drawing_program_ui_button.c \
@@ -356,6 +380,8 @@ TEST_LOCAL_SRCS := \
 	tests/drawing_program_lifecycle_snapshot_object_suite.c \
 	tests/drawing_program_lifecycle_export_suite.c \
 	tests/drawing_program_lifecycle_composed_source_suite.c \
+	tests/drawing_program_lifecycle_composed_source_rcp1_suite.c \
+	tests/drawing_program_lifecycle_composed_source_rws1_suite.c \
 	tests/drawing_program_lifecycle_persistence_contract_suite.c \
 	tests/drawing_program_lifecycle_render_domain_suite.c \
 	tests/drawing_program_lifecycle_texture_export_suite.c \

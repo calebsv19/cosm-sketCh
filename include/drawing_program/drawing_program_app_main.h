@@ -128,6 +128,7 @@ typedef struct DrawingProgramAppUiState {
     uint8_t tool_select_mode;
     uint8_t canvas_control_mode;
     uint8_t canvas_guide_mode;
+    DrawingProgramReflectionState reflection_state;
     uint8_t canvas_reflection_center_valid;
     uint8_t reserved0;
     uint8_t reserved1;

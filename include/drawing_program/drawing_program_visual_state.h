@@ -82,6 +82,10 @@ typedef struct VisualCanvasInteractionState {
     uint8_t canvas_move_reserved0;
     uint16_t canvas_move_reserved1;
     uint32_t canvas_move_surface_index;
+    uint8_t reflector_drag_active;
+    uint8_t reflector_drag_kind;
+    uint16_t reflector_drag_reserved0;
+    uint32_t reflector_drag_index;
     float canvas_move_start_offset_x;
     float canvas_move_start_offset_y;
     float canvas_move_zoom;

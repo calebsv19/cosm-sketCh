@@ -2,14 +2,17 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "drawing_program/drawing_program_canvas_reflection.h"
 #include "drawing_program/drawing_program_runtime_orchestration.h"
 #include "drawing_program/drawing_program_texture_canvas_move.h"
 #include "drawing_program/drawing_program_texture_project_session.h"
 #include "drawing_program/drawing_program_texture_workspace.h"
 #include "drawing_program/drawing_program_visual_canvas_action_ops.h"
+#include "drawing_program/drawing_program_visual_canvas_coords.h"
 #include "drawing_program/drawing_program_visual_input_handlers.h"
 #include "drawing_program/drawing_program_visual_input_selection_ops.h"
 #include "drawing_program/drawing_program_visual_input_support.h"
+#include "drawing_program/drawing_program_visual_reflector_geometry.h"
 #include "drawing_program/drawing_program_visual_shape_ops.h"
 #include "drawing_program/drawing_program_visual_transform_ops.h"
 #include "drawing_program_lifecycle_runtime_path_pointer_suite.h"
@@ -696,6 +699,208 @@ int drawing_program_lifecycle_run_runtime_path_pointer_suite(DrawingProgramAppCo
             fprintf(stderr,
                     "lifecycle_test: expected large fill undo to restore clear canvas center got=%u\n",
                     (unsigned)fill_center_undo);
+            return 1;
+        }
+    }
+    {
+        DrawingProgramVisualInputHandlersHooks reflector_hooks;
+        SDL_Rect canvas_rect = { 0, 0, 320, 240 };
+        VisualCanvasSheetMetrics metrics;
+        SDL_Point anchor_handle;
+        SDL_Point direction_handle;
+        const DrawingProgramReflectionState *state = 0;
+        uint32_t expected_sample_x = 0u;
+        uint32_t expected_sample_y = 0u;
+        memset(&interaction, 0, sizeof(interaction));
+        memset(&panel_ui, 0, sizeof(panel_ui));
+        workflow_ctx.editor.active_tool = DRAWING_PROGRAM_TOOL_MOVE;
+        workflow_ctx.ui.canvas_control_mode = (uint8_t)DRAWING_PROGRAM_UI_CANVAS_CONTROL_MODE_PAINT;
+        reflector_hooks = hooks;
+        reflector_hooks.screen_to_canvas_sample = drawing_program_visual_screen_to_canvas_sample;
+        reflector_hooks.screen_to_canvas_sample_clamped = drawing_program_visual_screen_to_canvas_sample_clamped;
+        if (!expect_ok(drawing_program_texture_project_session_seed_blank(
+                           &workflow_ctx, 128u, 96u, DRAWING_PROGRAM_TEXTURE_QUALITY_PRESET_STANDARD),
+                       "runtime_reflector_seed_blank")) {
+            return 1;
+        }
+        if (!drawing_program_canvas_reflection_add_active_reflector(&workflow_ctx, 1, 1)) {
+            fprintf(stderr, "lifecycle_test: expected reflector add helper to succeed for drag test\n");
+            return 1;
+        }
+        state = drawing_program_canvas_reflection_active_state(&workflow_ctx);
+        if (!state ||
+            !drawing_program_texture_workspace_surface_sheet_metrics(
+                &workflow_ctx, canvas_rect, workflow_ctx.texture_project.active_surface_index, &metrics) ||
+            !drawing_program_visual_reflector_screen_handles(
+                &metrics, &state->reflectors[state->active_reflector_index], &anchor_handle, &direction_handle)) {
+            fprintf(stderr, "lifecycle_test: expected reflector drag test metrics/handles to resolve\n");
+            return 1;
+        }
+        memset(&event, 0, sizeof(event));
+        event.type = SDL_MOUSEBUTTONDOWN;
+        event.button.button = SDL_BUTTON_LEFT;
+        event.button.x = direction_handle.x;
+        event.button.y = direction_handle.y;
+        if (!drawing_program_visual_input_handle_mouse_button_down_payload(&event,
+                                                                           1,
+                                                                           direction_handle.x,
+                                                                           direction_handle.y,
+                                                                           0,
+                                                                           (SDL_Rect){ 0, 0, 0, 0 },
+                                                                           0,
+                                                                           (SDL_Rect){ 0, 0, 0, 0 },
+                                                                           1,
+                                                                           canvas_rect,
+                                                                           &workflow_ctx,
+                                                                           &interaction,
+                                                                           &workflow_ctx.selection,
+                                                                           &panel_ui,
+                                                                           &reflector_hooks) ||
+            !interaction.reflector_drag_active ||
+            interaction.reflector_drag_kind != 2u) {
+            fprintf(stderr, "lifecycle_test: expected direction-handle click to begin reflector direction drag\n");
+            return 1;
+        }
+        if (!drawing_program_visual_screen_to_canvas_sample_clamped(&workflow_ctx,
+                                                                    canvas_rect,
+                                                                    direction_handle.x + 24,
+                                                                    direction_handle.y - 10,
+                                                                    &expected_sample_x,
+                                                                    &expected_sample_y)) {
+            fprintf(stderr, "lifecycle_test: expected reflector direction drag target sample to resolve\n");
+            return 1;
+        }
+        memset(&event, 0, sizeof(event));
+        event.type = SDL_MOUSEMOTION;
+        event.motion.x = direction_handle.x + 24;
+        event.motion.y = direction_handle.y - 10;
+        (void)drawing_program_visual_input_handle_mouse_motion_payload(&event,
+                                                                       1,
+                                                                       direction_handle.x + 24,
+                                                                       direction_handle.y - 10,
+                                                                       1,
+                                                                       canvas_rect,
+                                                                       &workflow_ctx,
+                                                                       &interaction,
+                                                                       &workflow_ctx.selection,
+                                                                       &panel_ui,
+                                                                       &reflector_hooks);
+        state = drawing_program_canvas_reflection_active_state(&workflow_ctx);
+        if (!state ||
+            state->reflectors[state->active_reflector_index].direction_dx !=
+                (int32_t)expected_sample_x - (int32_t)state->center_x ||
+            state->reflectors[state->active_reflector_index].direction_dy !=
+                (int32_t)expected_sample_y - (int32_t)state->center_y) {
+            fprintf(stderr,
+                    "lifecycle_test: expected reflector direction drag to update direction to %d,%d got=%d,%d\n",
+                    (int32_t)expected_sample_x - (int32_t)(state ? state->center_x : 0u),
+                    (int32_t)expected_sample_y - (int32_t)(state ? state->center_y : 0u),
+                    state ? state->reflectors[state->active_reflector_index].direction_dx : 0,
+                    state ? state->reflectors[state->active_reflector_index].direction_dy : 0);
+            return 1;
+        }
+        memset(&event, 0, sizeof(event));
+        event.type = SDL_MOUSEBUTTONUP;
+        event.button.button = SDL_BUTTON_LEFT;
+        event.button.x = direction_handle.x + 24;
+        event.button.y = direction_handle.y - 10;
+        (void)drawing_program_visual_input_handle_mouse_button_up_payload(&event,
+                                                                          1,
+                                                                          direction_handle.x + 24,
+                                                                          direction_handle.y - 10,
+                                                                          1,
+                                                                          canvas_rect,
+                                                                          &workflow_ctx,
+                                                                          &interaction,
+                                                                          &workflow_ctx.selection,
+                                                                          &reflector_hooks);
+        if (interaction.reflector_drag_active) {
+            fprintf(stderr, "lifecycle_test: expected reflector direction drag to clear on mouse release\n");
+            return 1;
+        }
+        state = drawing_program_canvas_reflection_active_state(&workflow_ctx);
+        if (!state ||
+            !drawing_program_visual_reflector_screen_handles(
+                &metrics, &state->reflectors[state->active_reflector_index], &anchor_handle, &direction_handle)) {
+            fprintf(stderr, "lifecycle_test: expected reflector anchor handle to resolve after direction drag\n");
+            return 1;
+        }
+        memset(&event, 0, sizeof(event));
+        event.type = SDL_MOUSEBUTTONDOWN;
+        event.button.button = SDL_BUTTON_LEFT;
+        event.button.x = anchor_handle.x;
+        event.button.y = anchor_handle.y;
+        if (!drawing_program_visual_input_handle_mouse_button_down_payload(&event,
+                                                                           1,
+                                                                           anchor_handle.x,
+                                                                           anchor_handle.y,
+                                                                           0,
+                                                                           (SDL_Rect){ 0, 0, 0, 0 },
+                                                                           0,
+                                                                           (SDL_Rect){ 0, 0, 0, 0 },
+                                                                           1,
+                                                                           canvas_rect,
+                                                                           &workflow_ctx,
+                                                                           &interaction,
+                                                                           &workflow_ctx.selection,
+                                                                           &panel_ui,
+                                                                           &reflector_hooks) ||
+            !interaction.reflector_drag_active ||
+            interaction.reflector_drag_kind != 1u) {
+            fprintf(stderr, "lifecycle_test: expected anchor-handle click to begin reflector center drag\n");
+            return 1;
+        }
+        if (!drawing_program_visual_screen_to_canvas_sample_clamped(&workflow_ctx,
+                                                                    canvas_rect,
+                                                                    anchor_handle.x + 18,
+                                                                    anchor_handle.y + 12,
+                                                                    &expected_sample_x,
+                                                                    &expected_sample_y)) {
+            fprintf(stderr, "lifecycle_test: expected reflector center drag target sample to resolve\n");
+            return 1;
+        }
+        memset(&event, 0, sizeof(event));
+        event.type = SDL_MOUSEMOTION;
+        event.motion.x = anchor_handle.x + 18;
+        event.motion.y = anchor_handle.y + 12;
+        (void)drawing_program_visual_input_handle_mouse_motion_payload(&event,
+                                                                       1,
+                                                                       anchor_handle.x + 18,
+                                                                       anchor_handle.y + 12,
+                                                                       1,
+                                                                       canvas_rect,
+                                                                       &workflow_ctx,
+                                                                       &interaction,
+                                                                       &workflow_ctx.selection,
+                                                                       &panel_ui,
+                                                                       &reflector_hooks);
+        state = drawing_program_canvas_reflection_active_state(&workflow_ctx);
+        if (!state || state->center_x != expected_sample_x || state->center_y != expected_sample_y) {
+            fprintf(stderr,
+                    "lifecycle_test: expected reflector center drag to move center to %u,%u got=%u,%u\n",
+                    (unsigned)expected_sample_x,
+                    (unsigned)expected_sample_y,
+                    (unsigned)(state ? state->center_x : 0u),
+                    (unsigned)(state ? state->center_y : 0u));
+            return 1;
+        }
+        memset(&event, 0, sizeof(event));
+        event.type = SDL_MOUSEBUTTONUP;
+        event.button.button = SDL_BUTTON_LEFT;
+        event.button.x = anchor_handle.x + 18;
+        event.button.y = anchor_handle.y + 12;
+        (void)drawing_program_visual_input_handle_mouse_button_up_payload(&event,
+                                                                          1,
+                                                                          anchor_handle.x + 18,
+                                                                          anchor_handle.y + 12,
+                                                                          1,
+                                                                          canvas_rect,
+                                                                          &workflow_ctx,
+                                                                          &interaction,
+                                                                          &workflow_ctx.selection,
+                                                                          &reflector_hooks);
+        if (interaction.reflector_drag_active) {
+            fprintf(stderr, "lifecycle_test: expected reflector center drag to clear on mouse release\n");
             return 1;
         }
     }

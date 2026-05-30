@@ -7,6 +7,7 @@
 #include "drawing_program/drawing_program_document.h"
 #include "drawing_program/drawing_program_texture_export_intent.h"
 #include "drawing_program/drawing_program_layer_raster.h"
+#include "drawing_program/drawing_program_reflection_state.h"
 #include "drawing_program/drawing_program_texture_layer_material_intent.h"
 #include "drawing_program/drawing_program_texture_layer_role.h"
 #include "drawing_program/drawing_program_texture_net.h"
@@ -62,6 +63,7 @@ typedef struct DrawingProgramTextureSurface {
     uint64_t content_revision;
     float layout_offset_x;
     float layout_offset_y;
+    DrawingProgramReflectionState reflection_state;
     uint32_t reflection_center_x;
     uint32_t reflection_center_y;
     uint8_t is_blank;

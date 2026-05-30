@@ -802,6 +802,7 @@ int drawing_program_lifecycle_run_runtime_ui_suite(DrawingProgramAppContext *ctx
         }
         drawing_program_object_store_reset(&ctx.object_store);
         drawing_program_object_selection_reset(&ctx.object_selection);
+        drawing_program_reflection_state_init(&ctx.editor.reflection_state);
         ctx.editor.symmetry_horizontal = 0u;
         ctx.editor.symmetry_vertical = 0u;
         drawing_program_canvas_reflection_sync_active_surface_from_editor(&ctx);
@@ -849,6 +850,212 @@ int drawing_program_lifecycle_run_runtime_ui_suite(DrawingProgramAppContext *ctx
                     (unsigned)bg,
                     (unsigned)sample);
             return 1;
+        }
+        {
+            DrawingProgramCanvasReflectionPoint points[DRAWING_PROGRAM_CANVAS_REFLECTION_VARIANT_CAPACITY];
+            uint32_t point_count = 0u;
+            memset(points, 0, sizeof(points));
+            drawing_program_reflection_state_init(&ctx.editor.reflection_state);
+            ctx.editor.reflection_state.center_valid = 1u;
+            ctx.editor.reflection_state.reflector_count = 1u;
+            ctx.editor.reflection_state.reflectors[0].enabled = 1u;
+            ctx.editor.reflection_state.reflectors[0].anchor_x = 0;
+            ctx.editor.reflection_state.reflectors[0].anchor_y = 0;
+            ctx.editor.reflection_state.reflectors[0].direction_dx = 1;
+            ctx.editor.reflection_state.reflectors[0].direction_dy = 1;
+            ctx.editor.symmetry_horizontal = 0u;
+            ctx.editor.symmetry_vertical = 0u;
+            point_count = drawing_program_canvas_reflection_collect_points(&ctx, 10, 4, points);
+            if (point_count != 2u ||
+                !((points[0].x == 10 && points[0].y == 4 && points[1].x == 4 && points[1].y == 10) ||
+                  (points[1].x == 10 && points[1].y == 4 && points[0].x == 4 && points[0].y == 10))) {
+                fprintf(stderr,
+                        "lifecycle_test: expected diagonal reflector to mirror (10,4) <-> (4,10) count=%u got=(%d,%d) (%d,%d)\n",
+                        (unsigned)point_count,
+                        points[0].x,
+                        points[0].y,
+                        points[1].x,
+                        points[1].y);
+                return 1;
+            }
+        }
+        drawing_program_history_clear(&ctx.history);
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS),
+                       "s3_reflection_clear_canvas_diagonal_brush")) {
+            return 1;
+        }
+        {
+            VisualCanvasInteractionState diagonal_brush_state;
+            memset(&diagonal_brush_state, 0, sizeof(diagonal_brush_state));
+            drawing_program_reflection_state_seed_crosshair(&ctx.editor.reflection_state, 20u, 20u);
+            drawing_program_reflection_state_set_crosshair_enabled(&ctx.editor.reflection_state, 0u, 0u);
+            if (!drawing_program_reflection_state_add_reflector(&ctx.editor.reflection_state, 1, 1)) {
+                fprintf(stderr, "lifecycle_test: expected diagonal reflector add to succeed for brush test\n");
+                return 1;
+            }
+            ctx.editor.symmetry_horizontal = 0u;
+            ctx.editor.symmetry_vertical = 0u;
+            drawing_program_canvas_reflection_sync_active_surface_from_editor(&ctx);
+            ctx.editor.active_tool = DRAWING_PROGRAM_TOOL_BRUSH;
+            ctx.ui.tool_brush_size = 1u;
+            ctx.ui.tool_brush_spacing = 1u;
+            ctx.ui.tool_brush_hardness = 100u;
+            if (!expect_ok(drawing_program_visual_apply_canvas_draw_at_screen(&ctx,
+                                                                              (SDL_Rect){ 0, 0, 128, 128 },
+                                                                              24,
+                                                                              18,
+                                                                              &diagonal_brush_state,
+                                                                              runtime_ui_draw_hooks()),
+                           "s3_reflection_diagonal_brush_apply")) {
+                return 1;
+            }
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&ctx.document, 24u, 18u, &sample),
+                       "s3_reflection_diagonal_brush_source")) {
+            return 1;
+        }
+        if (sample != expected_draw_value) {
+            fprintf(stderr,
+                    "lifecycle_test: expected diagonal reflection brush source=%u got=%u\n",
+                    (unsigned)expected_draw_value,
+                    (unsigned)sample);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&ctx.document, 18u, 24u, &sample),
+                       "s3_reflection_diagonal_brush_mirror")) {
+            return 1;
+        }
+        if (sample != expected_draw_value) {
+            fprintf(stderr,
+                    "lifecycle_test: expected diagonal reflection brush mirror=%u got=%u\n",
+                    (unsigned)expected_draw_value,
+                    (unsigned)sample);
+            return 1;
+        }
+        drawing_program_history_clear(&ctx.history);
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS),
+                       "s3_reflection_clear_canvas_diagonal_rect")) {
+            return 1;
+        }
+        drawing_program_reflection_state_seed_crosshair(&ctx.editor.reflection_state, 20u, 20u);
+        drawing_program_reflection_state_set_crosshair_enabled(&ctx.editor.reflection_state, 0u, 0u);
+        if (!drawing_program_reflection_state_add_reflector(&ctx.editor.reflection_state, 1, 1)) {
+            fprintf(stderr, "lifecycle_test: expected diagonal reflector add to succeed for rect test\n");
+            return 1;
+        }
+        ctx.editor.symmetry_horizontal = 0u;
+        ctx.editor.symmetry_vertical = 0u;
+        drawing_program_canvas_reflection_sync_active_surface_from_editor(&ctx);
+        ctx.ui.tool_shape_target_mode = (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_PIXEL;
+        ctx.ui.tool_shape_mode = 2u;
+        ctx.ui.tool_shape_stroke_width = 1u;
+        if (!expect_ok(drawing_program_app_shape_commit_samples(&ctx,
+                                                                DRAWING_PROGRAM_TOOL_RECT,
+                                                                22u,
+                                                                18u,
+                                                                24u,
+                                                                20u),
+                       "s3_reflection_diagonal_rect_commit")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&ctx.document, 23u, 19u, &sample),
+                       "s3_reflection_diagonal_rect_source")) {
+            return 1;
+        }
+        if (sample != expected_draw_value) {
+            fprintf(stderr,
+                    "lifecycle_test: expected diagonal reflection rect source=%u got=%u\n",
+                    (unsigned)expected_draw_value,
+                    (unsigned)sample);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_document_sample_read(&ctx.document, 19u, 23u, &sample),
+                       "s3_reflection_diagonal_rect_mirror")) {
+            return 1;
+        }
+        if (sample != expected_draw_value) {
+            fprintf(stderr,
+                    "lifecycle_test: expected diagonal reflection rect mirror=%u got=%u\n",
+                    (unsigned)expected_draw_value,
+                    (unsigned)sample);
+            return 1;
+        }
+        {
+            DrawingProgramCanvasReflectionSegment segments[DRAWING_PROGRAM_CANVAS_REFLECTION_VARIANT_CAPACITY];
+            uint32_t segment_count = 0u;
+            memset(segments, 0, sizeof(segments));
+            drawing_program_reflection_state_init(&ctx.editor.reflection_state);
+            ctx.editor.reflection_state.center_valid = 1u;
+            ctx.editor.reflection_state.reflector_count = 1u;
+            ctx.editor.reflection_state.reflectors[0].enabled = 1u;
+            ctx.editor.reflection_state.reflectors[0].anchor_x = 0;
+            ctx.editor.reflection_state.reflectors[0].anchor_y = 0;
+            ctx.editor.reflection_state.reflectors[0].direction_dx = 1;
+            ctx.editor.reflection_state.reflectors[0].direction_dy = 1;
+            ctx.editor.symmetry_horizontal = 0u;
+            ctx.editor.symmetry_vertical = 0u;
+            segment_count = drawing_program_canvas_reflection_collect_segments(
+                &ctx, 24, 18, 18, 24, segments);
+            if (segment_count != 1u ||
+                segments[0].start_x != 24 ||
+                segments[0].start_y != 18 ||
+                segments[0].end_x != 18 ||
+                segments[0].end_y != 24) {
+                fprintf(stderr,
+                        "lifecycle_test: expected diagonal reflector to collapse reversed duplicate segment count=%u got=(%d,%d)->(%d,%d)\n",
+                        (unsigned)segment_count,
+                        segments[0].start_x,
+                        segments[0].start_y,
+                        segments[0].end_x,
+                        segments[0].end_y);
+                return 1;
+            }
+        }
+        {
+            DrawingProgramCanvasReflectionPoint points[DRAWING_PROGRAM_CANVAS_REFLECTION_VARIANT_CAPACITY];
+            uint32_t point_count = 0u;
+            memset(points, 0, sizeof(points));
+            drawing_program_reflection_state_init(&ctx.editor.reflection_state);
+            ctx.editor.reflection_state.center_valid = 1u;
+            ctx.editor.reflection_state.reflector_count = 3u;
+            ctx.editor.reflection_state.reflectors[0].enabled = 1u;
+            ctx.editor.reflection_state.reflectors[0].anchor_x = 0;
+            ctx.editor.reflection_state.reflectors[0].anchor_y = 0;
+            ctx.editor.reflection_state.reflectors[0].direction_dx = 1;
+            ctx.editor.reflection_state.reflectors[0].direction_dy = 1;
+            ctx.editor.reflection_state.reflectors[1].enabled = 1u;
+            ctx.editor.reflection_state.reflectors[1].anchor_x = 0;
+            ctx.editor.reflection_state.reflectors[1].anchor_y = 0;
+            ctx.editor.reflection_state.reflectors[1].direction_dx = 1;
+            ctx.editor.reflection_state.reflectors[1].direction_dy = 0;
+            ctx.editor.reflection_state.reflectors[2].enabled = 1u;
+            ctx.editor.reflection_state.reflectors[2].anchor_x = 0;
+            ctx.editor.reflection_state.reflectors[2].anchor_y = 0;
+            ctx.editor.reflection_state.reflectors[2].direction_dx = 0;
+            ctx.editor.reflection_state.reflectors[2].direction_dy = 1;
+            ctx.editor.symmetry_horizontal = 0u;
+            ctx.editor.symmetry_vertical = 0u;
+            point_count = drawing_program_canvas_reflection_collect_points(&ctx, 10, 4, points);
+            if (point_count != DRAWING_PROGRAM_CANVAS_REFLECTION_VARIANT_CAPACITY ||
+                points[0].x != 10 || points[0].y != 4 ||
+                points[1].x != 4 || points[1].y != 10 ||
+                points[2].x != 10 || points[2].y != -4 ||
+                points[3].x != -10 || points[3].y != 4) {
+                fprintf(stderr,
+                        "lifecycle_test: expected bounded reflector ordering to keep source+singles first count=%u got=(%d,%d) (%d,%d) (%d,%d) (%d,%d)\n",
+                        (unsigned)point_count,
+                        points[0].x,
+                        points[0].y,
+                        points[1].x,
+                        points[1].y,
+                        points[2].x,
+                        points[2].y,
+                        points[3].x,
+                        points[3].y);
+                return 1;
+            }
         }
         ctx.ui.tool_shape_target_mode = (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_PIXEL;
     }

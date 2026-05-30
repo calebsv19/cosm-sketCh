@@ -774,6 +774,103 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
                 return 1;
             }
         }
+        {
+            const DrawingProgramReflectionState *reflection_state = 0;
+            SDL_Rect reflector_add_rect = right_canvas_reflector_add_button_rect(right_rect, metrics);
+            SDL_Rect reflector_cycle_rect = right_canvas_reflector_cycle_button_rect(right_rect, metrics);
+            SDL_Rect reflector_toggle_rect = right_canvas_reflector_toggle_button_rect(right_rect, metrics);
+            SDL_Rect reflector_delete_rect = right_canvas_reflector_delete_button_rect(right_rect, metrics);
+            drawing_program_visual_input_handle_right_panel_click_payload(&workflow_ctx,
+                                                                          right_rect,
+                                                                          reflector_add_rect.x + 2,
+                                                                          reflector_add_rect.y + 2,
+                                                                          &workflow_ctx.selection,
+                                                                          &panel_ui,
+                                                                          &hooks);
+            reflection_state = drawing_program_canvas_reflection_active_state(&workflow_ctx);
+            if (!reflection_state ||
+                reflection_state->reflector_count != 3u ||
+                reflection_state->active_reflector_index != 2u ||
+                reflection_state->reflectors[2].direction_dx != 1 ||
+                reflection_state->reflectors[2].direction_dy != 1 ||
+                reflection_state->reflectors[2].label_slot != DRAWING_PROGRAM_REFLECTION_LABEL_SLOT_NONE) {
+                fprintf(stderr,
+                        "lifecycle_test: expected add-reflector click to append active custom diagonal count=%u active=%u dir=%d,%d label=%u\n",
+                        (unsigned)(reflection_state ? reflection_state->reflector_count : 0u),
+                        (unsigned)(reflection_state ? reflection_state->active_reflector_index : 0u),
+                        reflection_state ? reflection_state->reflectors[2].direction_dx : 0,
+                        reflection_state ? reflection_state->reflectors[2].direction_dy : 0,
+                        (unsigned)(reflection_state ? reflection_state->reflectors[2].label_slot : 0u));
+                return 1;
+            }
+            drawing_program_visual_input_handle_right_panel_click_payload(&workflow_ctx,
+                                                                          right_rect,
+                                                                          reflector_toggle_rect.x + 2,
+                                                                          reflector_toggle_rect.y + 2,
+                                                                          &workflow_ctx.selection,
+                                                                          &panel_ui,
+                                                                          &hooks);
+            reflection_state = drawing_program_canvas_reflection_active_state(&workflow_ctx);
+            if (!reflection_state || reflection_state->reflectors[2].enabled) {
+                fprintf(stderr, "lifecycle_test: expected reflector toggle button to disable custom reflector\n");
+                return 1;
+            }
+            drawing_program_visual_input_handle_right_panel_click_payload(&workflow_ctx,
+                                                                          right_rect,
+                                                                          reflector_cycle_rect.x + 2,
+                                                                          reflector_cycle_rect.y + 2,
+                                                                          &workflow_ctx.selection,
+                                                                          &panel_ui,
+                                                                          &hooks);
+            reflection_state = drawing_program_canvas_reflection_active_state(&workflow_ctx);
+            if (!reflection_state || reflection_state->active_reflector_index != 0u) {
+                fprintf(stderr, "lifecycle_test: expected reflector cycle button to wrap active reflector to index 0\n");
+                return 1;
+            }
+            drawing_program_visual_input_handle_right_panel_click_payload(&workflow_ctx,
+                                                                          right_rect,
+                                                                          reflector_delete_rect.x + 2,
+                                                                          reflector_delete_rect.y + 2,
+                                                                          &workflow_ctx.selection,
+                                                                          &panel_ui,
+                                                                          &hooks);
+            reflection_state = drawing_program_canvas_reflection_active_state(&workflow_ctx);
+            if (!reflection_state || reflection_state->reflector_count != 3u) {
+                fprintf(stderr, "lifecycle_test: expected delete-reflector click to ignore canonical reflectors\n");
+                return 1;
+            }
+            drawing_program_visual_input_handle_right_panel_click_payload(&workflow_ctx,
+                                                                          right_rect,
+                                                                          reflector_cycle_rect.x + 2,
+                                                                          reflector_cycle_rect.y + 2,
+                                                                          &workflow_ctx.selection,
+                                                                          &panel_ui,
+                                                                          &hooks);
+            drawing_program_visual_input_handle_right_panel_click_payload(&workflow_ctx,
+                                                                          right_rect,
+                                                                          reflector_cycle_rect.x + 2,
+                                                                          reflector_cycle_rect.y + 2,
+                                                                          &workflow_ctx.selection,
+                                                                          &panel_ui,
+                                                                          &hooks);
+            drawing_program_visual_input_handle_right_panel_click_payload(&workflow_ctx,
+                                                                          right_rect,
+                                                                          reflector_delete_rect.x + 2,
+                                                                          reflector_delete_rect.y + 2,
+                                                                          &workflow_ctx.selection,
+                                                                          &panel_ui,
+                                                                          &hooks);
+            reflection_state = drawing_program_canvas_reflection_active_state(&workflow_ctx);
+            if (!reflection_state ||
+                reflection_state->reflector_count != 2u ||
+                reflection_state->active_reflector_index > 1u) {
+                fprintf(stderr,
+                        "lifecycle_test: expected delete-reflector click to remove custom reflector count=%u active=%u\n",
+                        (unsigned)(reflection_state ? reflection_state->reflector_count : 0u),
+                        (unsigned)(reflection_state ? reflection_state->active_reflector_index : 0u));
+                return 1;
+            }
+        }
         (void)mkdir(scene_root, 0775);
         (void)unlink(scene_file);
         if (!write_color_panel_scene_fixture(scene_file)) {

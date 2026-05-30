@@ -40,6 +40,20 @@ void drawing_program_canvas_reflection_reset_active_center(DrawingProgramAppCont
 int drawing_program_canvas_reflection_set_active_center(DrawingProgramAppContext *ctx,
                                                         uint32_t sample_x,
                                                         uint32_t sample_y);
+const DrawingProgramReflectionState *drawing_program_canvas_reflection_active_state(
+    const DrawingProgramAppContext *ctx);
+int drawing_program_canvas_reflection_set_crosshair_enabled(DrawingProgramAppContext *ctx,
+                                                            uint8_t horizontal_enabled,
+                                                            uint8_t vertical_enabled);
+int drawing_program_canvas_reflection_add_active_reflector(DrawingProgramAppContext *ctx,
+                                                           int32_t direction_dx,
+                                                           int32_t direction_dy);
+int drawing_program_canvas_reflection_cycle_active_reflector(DrawingProgramAppContext *ctx, int delta);
+int drawing_program_canvas_reflection_toggle_active_reflector_enabled(DrawingProgramAppContext *ctx);
+int drawing_program_canvas_reflection_delete_active_reflector(DrawingProgramAppContext *ctx);
+int drawing_program_canvas_reflection_set_active_reflector_direction(DrawingProgramAppContext *ctx,
+                                                                     int32_t direction_dx,
+                                                                     int32_t direction_dy);
 int drawing_program_canvas_reflection_enabled(const DrawingProgramAppContext *ctx);
 uint32_t drawing_program_canvas_reflection_collect_points(
     const DrawingProgramAppContext *ctx,

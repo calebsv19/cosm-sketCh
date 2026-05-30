@@ -19,6 +19,8 @@
 #include "drawing_program_lifecycle_authoring_host_suite.h"
 #include "drawing_program_lifecycle_baseline_history_suite.h"
 #include "drawing_program_lifecycle_composed_source_suite.h"
+#include "drawing_program_lifecycle_composed_source_rcp1_suite.h"
+#include "drawing_program_lifecycle_composed_source_rws1_suite.h"
 #include "drawing_program_lifecycle_export_suite.h"
 #include "drawing_program_lifecycle_object_path_suite.h"
 #include "drawing_program_lifecycle_persistence_contract_suite.h"
@@ -193,6 +195,12 @@ int main(void) {
         return 1;
     }
     if (drawing_program_lifecycle_run_composed_source_suite() != 0) {
+        return 1;
+    }
+    if (drawing_program_lifecycle_run_composed_source_rcp1_suite() != 0) {
+        return 1;
+    }
+    if (drawing_program_lifecycle_run_composed_source_rws1_suite() != 0) {
         return 1;
     }
     if (drawing_program_lifecycle_run_persistence_contract_suite() != 0) {

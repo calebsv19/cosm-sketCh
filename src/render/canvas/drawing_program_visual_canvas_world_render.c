@@ -12,6 +12,7 @@
 #include "drawing_program/drawing_program_texture_net_guides.h"
 #include "drawing_program/drawing_program_texture_workspace.h"
 #include "drawing_program/drawing_program_visual_layer_opacity.h"
+#include "drawing_program/drawing_program_visual_reflector_geometry.h"
 #include "drawing_program/drawing_program_visual_resources.h"
 #include "drawing_program/drawing_program_visual_surface_cache.h"
 #include "drawing_program/drawing_program_visual_theme.h"
@@ -154,32 +155,71 @@ static void drawing_program_visual_draw_reflection_overlay(SDL_Renderer *rendere
                                                            const DrawingProgramAppContext *ctx,
                                                            const VisualCanvasSheetMetrics *metrics,
                                                            const VisualPanelUiState *ui) {
+    const DrawingProgramReflectionState *state = 0;
     uint32_t center_x = 0u;
     uint32_t center_y = 0u;
+    uint8_t any_enabled = 0u;
     int line_x = 0;
     int line_y = 0;
     SDL_Rect marker = {0, 0, 0, 0};
+    uint32_t i;
     if (!renderer || !ctx || !metrics) {
         return;
     }
     if (!drawing_program_canvas_reflection_active_center(ctx, &center_x, &center_y)) {
         return;
     }
-    if (!ctx->editor.symmetry_horizontal &&
-        !ctx->editor.symmetry_vertical &&
-        !(ui && ui->right_canvas_reflection_center_pick_pending)) {
+    state = drawing_program_canvas_reflection_active_state(ctx);
+    if (state) {
+        for (i = 0u; i < state->reflector_count && i < DRAWING_PROGRAM_REFLECTION_REFLECTOR_CAPACITY; ++i) {
+            if (state->reflectors[i].enabled) {
+                any_enabled = 1u;
+                break;
+            }
+        }
+    }
+    if (!any_enabled && !(ui && ui->right_canvas_reflection_center_pick_pending)) {
         return;
+    }
+    (void)SDL_RenderSetClipRect(renderer, &pane_rect);
+    if (state) {
+        for (i = 0u; i < state->reflector_count && i < DRAWING_PROGRAM_REFLECTION_REFLECTOR_CAPACITY; ++i) {
+            SDL_Point line_start;
+            SDL_Point line_end;
+            SDL_Point anchor_handle;
+            SDL_Point direction_handle;
+            SDL_Rect handle_rect;
+            const DrawingProgramReflectorLine *line = &state->reflectors[i];
+            if (!line->enabled ||
+                !drawing_program_visual_reflector_screen_line(metrics, line, &line_start, &line_end)) {
+                continue;
+            }
+            if (i == state->active_reflector_index) {
+                SDL_SetRenderDrawColor(renderer, 255u, 220u, 124u, 255u);
+            } else {
+                SDL_SetRenderDrawColor(renderer, 212u, 166u, 92u, 255u);
+            }
+            (void)SDL_RenderDrawLine(renderer, line_start.x, line_start.y, line_end.x, line_end.y);
+            if (!drawing_program_visual_reflector_screen_handles(
+                    metrics, line, &anchor_handle, &direction_handle)) {
+                continue;
+            }
+            handle_rect.w = (metrics->pixel_size >= 6.0f) ? 7 : 5;
+            handle_rect.h = handle_rect.w;
+            handle_rect.x = direction_handle.x - (handle_rect.w / 2);
+            handle_rect.y = direction_handle.y - (handle_rect.h / 2);
+            SDL_SetRenderDrawColor(renderer,
+                                   (i == state->active_reflector_index) ? 255u : 236u,
+                                   (i == state->active_reflector_index) ? 238u : 214u,
+                                   (i == state->active_reflector_index) ? 184u : 168u,
+                                   255u);
+            (void)SDL_RenderFillRect(renderer, &handle_rect);
+            SDL_SetRenderDrawColor(renderer, 66u, 40u, 12u, 255u);
+            (void)SDL_RenderDrawRect(renderer, &handle_rect);
+        }
     }
     line_x = metrics->sheet_rect.x + (int)(((float)center_x + 0.5f) * metrics->pixel_size);
     line_y = metrics->sheet_rect.y + (int)(((float)center_y + 0.5f) * metrics->pixel_size);
-    if (ctx->editor.symmetry_vertical) {
-        SDL_SetRenderDrawColor(renderer, 244u, 186u, 96u, 255u);
-        (void)SDL_RenderDrawLine(renderer, line_x, metrics->sheet_rect.y, line_x, metrics->sheet_rect.y + metrics->sheet_rect.h);
-    }
-    if (ctx->editor.symmetry_horizontal) {
-        SDL_SetRenderDrawColor(renderer, 244u, 186u, 96u, 255u);
-        (void)SDL_RenderDrawLine(renderer, metrics->sheet_rect.x, line_y, metrics->sheet_rect.x + metrics->sheet_rect.w, line_y);
-    }
     marker.w = (metrics->pixel_size >= 6.0f) ? 7 : 5;
     marker.h = marker.w;
     marker.x = line_x - (marker.w / 2);

@@ -55,6 +55,10 @@ SDL_Rect right_canvas_reflect_horizontal_button_rect(SDL_Rect rect, VisualPaneLa
 SDL_Rect right_canvas_reflect_vertical_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m);
 SDL_Rect right_canvas_center_pick_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m);
 SDL_Rect right_canvas_center_reset_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m);
+SDL_Rect right_canvas_reflector_add_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m);
+SDL_Rect right_canvas_reflector_cycle_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m);
+SDL_Rect right_canvas_reflector_toggle_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m);
+SDL_Rect right_canvas_reflector_delete_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m);
 SDL_Rect right_canvas_delete_canvas_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m);
 SDL_Rect right_canvas_reset_object_layout_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m);
 SDL_Rect right_canvas_reset_view_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m);

@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "core_pack.h"
+#include "drawing_program/drawing_program_reflection_state.h"
 #include "drawing_program_lifecycle_snapshot_helpers.h"
 
 typedef struct DrawingProgramTextureProjectChunkHeaderV5Compat {
@@ -54,6 +55,7 @@ typedef DrawingProgramTextureProjectChunkHeaderV7Compat DrawingProgramTexturePro
 typedef DrawingProgramTextureProjectChunkHeaderV7Compat DrawingProgramTextureProjectChunkHeaderV9Compat;
 typedef DrawingProgramTextureProjectChunkHeaderV7Compat DrawingProgramTextureProjectChunkHeaderV10Compat;
 typedef DrawingProgramTextureProjectChunkHeaderV7Compat DrawingProgramTextureProjectChunkHeaderV11Compat;
+typedef DrawingProgramTextureProjectChunkHeaderV7Compat DrawingProgramTextureProjectChunkHeaderV12Compat;
 
 typedef struct DrawingProgramTextureProjectSurfaceRecordV4Compat {
     uint32_t surface_id;
@@ -203,6 +205,42 @@ typedef struct DrawingProgramTextureProjectSurfaceRecordV8Compat {
     uint8_t layer_material_intent_values[16];
     uint32_t layer_material_intent_layer_ids[16];
 } DrawingProgramTextureProjectSurfaceRecordV8Compat;
+
+typedef struct DrawingProgramTextureProjectSurfaceRecordV9Compat {
+    uint32_t surface_id;
+    uint32_t face_role;
+    uint32_t quality_preset;
+    uint32_t logical_width;
+    uint32_t logical_height;
+    uint32_t sample_density;
+    float layout_offset_x;
+    float layout_offset_y;
+    DrawingProgramReflectionState reflection_state;
+    uint32_t reflection_center_x;
+    uint32_t reflection_center_y;
+    uint8_t is_blank;
+    uint8_t resize_locked;
+    uint8_t user_created;
+    uint8_t reflection_horizontal;
+    uint8_t reflection_vertical;
+    uint8_t layer_opacity_entry_count;
+    uint8_t layer_role_entry_count;
+    uint8_t layer_material_intent_entry_count;
+    uint32_t net_layout_kind;
+    uint32_t net_slot;
+    uint32_t orientation;
+    uint8_t corner_ids[4];
+    uint8_t edge_ids[4];
+    uint8_t adjacent_face_roles[4];
+    uint8_t reserved3[4];
+    char name[64];
+    uint8_t layer_opacity_values[16];
+    uint32_t layer_opacity_layer_ids[16];
+    uint8_t layer_role_values[16];
+    uint32_t layer_role_layer_ids[16];
+    uint8_t layer_material_intent_values[16];
+    uint32_t layer_material_intent_layer_ids[16];
+} DrawingProgramTextureProjectSurfaceRecordV9Compat;
 
 static int lifecycle_snapshot_find_shell_chunk(CorePackReader *reader,
                                                CorePackChunkInfo *out_chunk,
@@ -950,6 +988,7 @@ int write_texture_project_snapshot_with_v5_root(const char *source_pack_path,
     DrawingProgramTextureProjectChunkHeaderV9Compat header_v9;
     DrawingProgramTextureProjectChunkHeaderV10Compat header_v10;
     DrawingProgramTextureProjectChunkHeaderV11Compat header_v11;
+    DrawingProgramTextureProjectChunkHeaderV12Compat header_v12;
     DrawingProgramTextureProjectChunkHeaderV5Compat header_v5;
     uint64_t source_header_size = 0u;
     uint32_t source_root_version = 0u;
@@ -966,6 +1005,7 @@ int write_texture_project_snapshot_with_v5_root(const char *source_pack_path,
     memset(&header_v9, 0, sizeof(header_v9));
     memset(&header_v10, 0, sizeof(header_v10));
     memset(&header_v11, 0, sizeof(header_v11));
+    memset(&header_v12, 0, sizeof(header_v12));
     memset(&header_v5, 0, sizeof(header_v5));
 
     result = core_pack_reader_open(source_pack_path, &reader);
@@ -1094,6 +1134,9 @@ int write_texture_project_snapshot_with_v5_root(const char *source_pack_path,
     if (texture_root_chunk.size >= (uint64_t)sizeof(header_v8)) {
         memcpy(&header_v8, texture_root_data, sizeof(header_v8));
     }
+    if (texture_root_chunk.size >= (uint64_t)sizeof(header_v12)) {
+        memcpy(&header_v12, texture_root_data, sizeof(header_v12));
+    }
     if (texture_root_chunk.size >= (uint64_t)sizeof(header_v11)) {
         memcpy(&header_v11, texture_root_data, sizeof(header_v11));
     }
@@ -1103,7 +1146,10 @@ int write_texture_project_snapshot_with_v5_root(const char *source_pack_path,
     if (texture_root_chunk.size >= (uint64_t)sizeof(header_v9)) {
         memcpy(&header_v9, texture_root_data, sizeof(header_v9));
     }
-    if (header_v11.version == 11u && header_v11.surface_count > 0u) {
+    if (header_v12.version == 12u && header_v12.surface_count > 0u) {
+        source_header_size = (uint64_t)sizeof(header_v12);
+        source_root_version = 12u;
+    } else if (header_v11.version == 11u && header_v11.surface_count > 0u) {
         source_header_size = (uint64_t)sizeof(header_v11);
         source_root_version = 11u;
     } else if (header_v10.version == 10u && header_v10.surface_count > 0u) {
@@ -1132,7 +1178,18 @@ int write_texture_project_snapshot_with_v5_root(const char *source_pack_path,
         return 0;
     }
     header_v5.version = 5u;
-    if (source_root_version == 11u) {
+    if (source_root_version == 12u) {
+        header_v5.primitive_kind = header_v12.primitive_kind;
+        header_v5.net_layout_kind = header_v12.net_layout_kind;
+        header_v5.quality_preset = header_v12.quality_preset;
+        header_v5.export_binding_kind = header_v12.export_binding_kind;
+        header_v5.surface_count = header_v12.surface_count;
+        header_v5.active_surface_index = header_v12.active_surface_index;
+        header_v5.next_surface_id = header_v12.next_surface_id;
+        memcpy(header_v5.source_scene_id, header_v12.source_scene_id, sizeof(header_v5.source_scene_id));
+        memcpy(header_v5.source_object_id, header_v12.source_object_id, sizeof(header_v5.source_object_id));
+        memcpy(header_v5.source_scene_path, header_v12.source_scene_path, sizeof(header_v5.source_scene_path));
+    } else if (source_root_version == 11u) {
         header_v5.primitive_kind = header_v11.primitive_kind;
         header_v5.net_layout_kind = header_v11.net_layout_kind;
         header_v5.quality_preset = header_v11.quality_preset;
@@ -1206,7 +1263,8 @@ int write_texture_project_snapshot_with_v5_root(const char *source_pack_path,
         if (source_root_version == 8u) {
             new_records_size =
                 (uint64_t)header_v8.surface_count * (uint64_t)sizeof(DrawingProgramTextureProjectSurfaceRecordV4Compat);
-        } else if (source_root_version == 9u || source_root_version == 10u || source_root_version == 11u) {
+        } else if (source_root_version == 9u || source_root_version == 10u || source_root_version == 11u ||
+                   source_root_version == 12u) {
             new_records_size =
                 (uint64_t)header_v5.surface_count * (uint64_t)sizeof(DrawingProgramTextureProjectSurfaceRecordV4Compat);
         }
@@ -1229,6 +1287,34 @@ int write_texture_project_snapshot_with_v5_root(const char *source_pack_path,
             DrawingProgramTextureProjectSurfaceRecordV4Compat *dst_records =
                 (DrawingProgramTextureProjectSurfaceRecordV4Compat *)(downgraded_texture_root_data + sizeof(header_v5));
             for (i = 0u; i < header_v8.surface_count; ++i) {
+                memset(&dst_records[i], 0, sizeof(dst_records[i]));
+                dst_records[i].surface_id = src_records[i].surface_id;
+                dst_records[i].face_role = src_records[i].face_role;
+                dst_records[i].quality_preset = src_records[i].quality_preset;
+                dst_records[i].logical_width = src_records[i].logical_width;
+                dst_records[i].logical_height = src_records[i].logical_height;
+                dst_records[i].sample_density = src_records[i].sample_density;
+                dst_records[i].layout_offset_x = src_records[i].layout_offset_x;
+                dst_records[i].layout_offset_y = src_records[i].layout_offset_y;
+                dst_records[i].is_blank = src_records[i].is_blank;
+                dst_records[i].resize_locked = src_records[i].resize_locked;
+                dst_records[i].user_created = src_records[i].user_created;
+                dst_records[i].net_layout_kind = src_records[i].net_layout_kind;
+                dst_records[i].net_slot = src_records[i].net_slot;
+                dst_records[i].orientation = src_records[i].orientation;
+                memcpy(dst_records[i].corner_ids, src_records[i].corner_ids, sizeof(dst_records[i].corner_ids));
+                memcpy(dst_records[i].edge_ids, src_records[i].edge_ids, sizeof(dst_records[i].edge_ids));
+                memcpy(dst_records[i].adjacent_face_roles,
+                       src_records[i].adjacent_face_roles,
+                       sizeof(dst_records[i].adjacent_face_roles));
+                memcpy(dst_records[i].name, src_records[i].name, sizeof(dst_records[i].name));
+            }
+        } else if (source_root_version == 12u) {
+            const DrawingProgramTextureProjectSurfaceRecordV9Compat *src_records =
+                (const DrawingProgramTextureProjectSurfaceRecordV9Compat *)(texture_root_data + source_header_size);
+            DrawingProgramTextureProjectSurfaceRecordV4Compat *dst_records =
+                (DrawingProgramTextureProjectSurfaceRecordV4Compat *)(downgraded_texture_root_data + sizeof(header_v5));
+            for (i = 0u; i < header_v12.surface_count; ++i) {
                 memset(&dst_records[i], 0, sizeof(dst_records[i]));
                 dst_records[i].surface_id = src_records[i].surface_id;
                 dst_records[i].face_role = src_records[i].face_role;

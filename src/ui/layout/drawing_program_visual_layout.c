@@ -174,12 +174,48 @@ SDL_Rect right_canvas_center_reset_button_rect(SDL_Rect rect, VisualPaneLayoutMe
     return right_canvas_split_button_rect(row, m, 1u, 2u);
 }
 
-SDL_Rect right_canvas_delete_canvas_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
+SDL_Rect right_canvas_reflector_add_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
     SDL_Rect center_pick = right_canvas_center_pick_button_rect(rect, m);
-    return (SDL_Rect){ center_pick.x,
-                       center_pick.y + center_pick.h + m.section_gap,
+    SDL_Rect row = { center_pick.x,
+                     center_pick.y + center_pick.h + m.section_gap,
+                     right_canvas_guide_mode_button_rect(rect, m).w,
+                     center_pick.h };
+    return right_canvas_split_button_rect(row, m, 0u, 2u);
+}
+
+SDL_Rect right_canvas_reflector_cycle_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
+    SDL_Rect center_pick = right_canvas_center_pick_button_rect(rect, m);
+    SDL_Rect row = { center_pick.x,
+                     center_pick.y + center_pick.h + m.section_gap,
+                     right_canvas_guide_mode_button_rect(rect, m).w,
+                     center_pick.h };
+    return right_canvas_split_button_rect(row, m, 1u, 2u);
+}
+
+SDL_Rect right_canvas_reflector_toggle_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
+    SDL_Rect add_button = right_canvas_reflector_add_button_rect(rect, m);
+    SDL_Rect row = { add_button.x,
+                     add_button.y + add_button.h + m.section_gap,
+                     right_canvas_guide_mode_button_rect(rect, m).w,
+                     add_button.h };
+    return right_canvas_split_button_rect(row, m, 0u, 2u);
+}
+
+SDL_Rect right_canvas_reflector_delete_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
+    SDL_Rect add_button = right_canvas_reflector_add_button_rect(rect, m);
+    SDL_Rect row = { add_button.x,
+                     add_button.y + add_button.h + m.section_gap,
+                     right_canvas_guide_mode_button_rect(rect, m).w,
+                     add_button.h };
+    return right_canvas_split_button_rect(row, m, 1u, 2u);
+}
+
+SDL_Rect right_canvas_delete_canvas_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {
+    SDL_Rect reflector_toggle = right_canvas_reflector_toggle_button_rect(rect, m);
+    return (SDL_Rect){ reflector_toggle.x,
+                       reflector_toggle.y + reflector_toggle.h + m.section_gap,
                        right_canvas_guide_mode_button_rect(rect, m).w,
-                       center_pick.h };
+                       reflector_toggle.h };
 }
 
 SDL_Rect right_canvas_reset_object_layout_button_rect(SDL_Rect rect, VisualPaneLayoutMetrics m) {

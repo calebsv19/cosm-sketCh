@@ -500,6 +500,7 @@ CoreResult drawing_program_texture_project_session_duplicate_active_surface(Draw
         DrawingProgramTextureSurface *duplicate_surface =
             drawing_program_texture_project_surface_at_mut(&ctx->texture_project, surface_index);
         if (duplicate_surface) {
+            duplicate_surface->reflection_state = active_surface->reflection_state;
             duplicate_surface->reflection_center_x = active_surface->reflection_center_x;
             duplicate_surface->reflection_center_y = active_surface->reflection_center_y;
             duplicate_surface->reflection_horizontal = active_surface->reflection_horizontal;

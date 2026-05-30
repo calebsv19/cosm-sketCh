@@ -72,6 +72,10 @@ int drawing_program_visual_input_handle_right_canvas_workspace_mode_payload(
     const DrawingProgramVisualInputHandlersHooks *hooks) {
     SDL_Rect center_pick_button;
     SDL_Rect center_reset_button;
+    SDL_Rect reflector_add_button;
+    SDL_Rect reflector_cycle_button;
+    SDL_Rect reflector_toggle_button;
+    SDL_Rect reflector_delete_button;
     SDL_Rect delete_canvas_button;
     uint32_t surface_count = 0u;
     uint32_t surface_index = 0u;
@@ -94,6 +98,34 @@ int drawing_program_visual_input_handle_right_canvas_workspace_mode_payload(
     if (hooks->point_in_rect(center_reset_button, x, y)) {
         drawing_program_visual_input_disarm_right_canvas_workspace_modes(ui);
         drawing_program_canvas_reflection_reset_active_center(ctx);
+        return 1;
+    }
+
+    reflector_add_button = right_canvas_reflector_add_button_rect(rect, metrics);
+    if (hooks->point_in_rect(reflector_add_button, x, y)) {
+        drawing_program_visual_input_disarm_right_canvas_workspace_modes(ui);
+        (void)drawing_program_canvas_reflection_add_active_reflector(ctx, 1, 1);
+        return 1;
+    }
+
+    reflector_cycle_button = right_canvas_reflector_cycle_button_rect(rect, metrics);
+    if (hooks->point_in_rect(reflector_cycle_button, x, y)) {
+        drawing_program_visual_input_disarm_right_canvas_workspace_modes(ui);
+        (void)drawing_program_canvas_reflection_cycle_active_reflector(ctx, 1);
+        return 1;
+    }
+
+    reflector_toggle_button = right_canvas_reflector_toggle_button_rect(rect, metrics);
+    if (hooks->point_in_rect(reflector_toggle_button, x, y)) {
+        drawing_program_visual_input_disarm_right_canvas_workspace_modes(ui);
+        (void)drawing_program_canvas_reflection_toggle_active_reflector_enabled(ctx);
+        return 1;
+    }
+
+    reflector_delete_button = right_canvas_reflector_delete_button_rect(rect, metrics);
+    if (hooks->point_in_rect(reflector_delete_button, x, y)) {
+        drawing_program_visual_input_disarm_right_canvas_workspace_modes(ui);
+        (void)drawing_program_canvas_reflection_delete_active_reflector(ctx);
         return 1;
     }
 

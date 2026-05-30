@@ -60,6 +60,48 @@ static CoreResult layer_raster_find_slot_index(const DrawingProgramLayerRasterSt
     return (CoreResult){ CORE_ERR_NOT_FOUND, "layer raster slot not found" };
 }
 
+static void layer_raster_clear_slot_dirty_bounds(DrawingProgramLayerRasterStore *store, uint32_t slot_index) {
+    if (!store || slot_index >= DRAWING_PROGRAM_MAX_LAYERS) {
+        return;
+    }
+    store->slot_dirty_min_x[slot_index] = 0u;
+    store->slot_dirty_min_y[slot_index] = 0u;
+    store->slot_dirty_max_x[slot_index] = 0u;
+    store->slot_dirty_max_y[slot_index] = 0u;
+    store->slot_has_dirty_bounds[slot_index] = 0u;
+}
+
+static void layer_raster_expand_slot_dirty_bounds(DrawingProgramLayerRasterStore *store,
+                                                  uint32_t slot_index,
+                                                  uint32_t min_x,
+                                                  uint32_t min_y,
+                                                  uint32_t max_x,
+                                                  uint32_t max_y) {
+    if (!store || slot_index >= DRAWING_PROGRAM_MAX_LAYERS) {
+        return;
+    }
+    if (!store->slot_has_dirty_bounds[slot_index]) {
+        store->slot_dirty_min_x[slot_index] = min_x;
+        store->slot_dirty_min_y[slot_index] = min_y;
+        store->slot_dirty_max_x[slot_index] = max_x;
+        store->slot_dirty_max_y[slot_index] = max_y;
+        store->slot_has_dirty_bounds[slot_index] = 1u;
+        return;
+    }
+    if (min_x < store->slot_dirty_min_x[slot_index]) {
+        store->slot_dirty_min_x[slot_index] = min_x;
+    }
+    if (min_y < store->slot_dirty_min_y[slot_index]) {
+        store->slot_dirty_min_y[slot_index] = min_y;
+    }
+    if (max_x > store->slot_dirty_max_x[slot_index]) {
+        store->slot_dirty_max_x[slot_index] = max_x;
+    }
+    if (max_y > store->slot_dirty_max_y[slot_index]) {
+        store->slot_dirty_max_y[slot_index] = max_y;
+    }
+}
+
 static CoreResult layer_raster_ensure_capacity(DrawingProgramLayerRasterStore *store, uint32_t required_capacity) {
     DrawingProgramRasterSample *next_samples = 0;
     uint64_t next_bytes_u64;
@@ -108,6 +150,7 @@ static CoreResult layer_raster_ensure_capacity(DrawingProgramLayerRasterStore *s
         for (i = store->slot_capacity; i < required_capacity; ++i) {
             store->slot_layer_ids[i] = 0u;
             store->slot_content_revisions[i] = 0u;
+            layer_raster_clear_slot_dirty_bounds(store, i);
         }
     }
     store->slot_capacity = required_capacity;
@@ -209,6 +252,7 @@ CoreResult drawing_program_layer_raster_store_sync_document_layers(
             DrawingProgramRasterSample *slot_samples = layer_raster_slot_ptr(store, i);
             store->slot_layer_ids[i] = 0u;
             store->slot_content_revisions[i] = 0u;
+            layer_raster_clear_slot_dirty_bounds(store, i);
             if (store->slot_count > 0u) {
                 store->slot_count -= 1u;
             }
@@ -262,6 +306,14 @@ CoreResult drawing_program_layer_raster_store_seed_from_legacy_surface(
     memcpy(slot_samples, document->raster_samples, copy_count * sizeof(*slot_samples));
     store->slot_content_revisions[slot_index] =
         layer_raster_next_content_revision(store->slot_content_revisions[slot_index]);
+    if (document->raster_width > 0u && document->raster_height > 0u) {
+        layer_raster_expand_slot_dirty_bounds(store,
+                                              slot_index,
+                                              0u,
+                                              0u,
+                                              document->raster_width - 1u,
+                                              document->raster_height - 1u);
+    }
     return core_result_ok();
 }
 
@@ -351,6 +403,7 @@ CoreResult drawing_program_layer_raster_store_sample_write(
     slot_samples[sample_index] = drawing_program_color_normalize_input_sample(value);
     store->slot_content_revisions[slot_index] =
         layer_raster_next_content_revision(store->slot_content_revisions[slot_index]);
+    layer_raster_expand_slot_dirty_bounds(store, slot_index, sample_x, sample_y, sample_x, sample_y);
     return core_result_ok();
 }
 
@@ -392,6 +445,48 @@ CoreResult drawing_program_layer_raster_store_export_layer_revision(
         return result;
     }
     *out_revision = store->slot_content_revisions[slot_index];
+    return core_result_ok();
+}
+
+CoreResult drawing_program_layer_raster_store_export_layer_dirty_rect(
+    const DrawingProgramLayerRasterStore *store,
+    uint32_t layer_id,
+    uint32_t *out_x,
+    uint32_t *out_y,
+    uint32_t *out_width,
+    uint32_t *out_height) {
+    CoreResult result;
+    uint32_t slot_index = 0u;
+    if (!store || !out_x || !out_y || !out_width || !out_height) {
+        return layer_raster_invalid("invalid layer dirty rect export request");
+    }
+    result = layer_raster_find_slot_index(store, layer_id, &slot_index);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    if (!store->slot_has_dirty_bounds[slot_index]) {
+        return (CoreResult){ CORE_ERR_NOT_FOUND, "layer dirty rect not tracked" };
+    }
+    *out_x = store->slot_dirty_min_x[slot_index];
+    *out_y = store->slot_dirty_min_y[slot_index];
+    *out_width = store->slot_dirty_max_x[slot_index] - store->slot_dirty_min_x[slot_index] + 1u;
+    *out_height = store->slot_dirty_max_y[slot_index] - store->slot_dirty_min_y[slot_index] + 1u;
+    return core_result_ok();
+}
+
+CoreResult drawing_program_layer_raster_store_clear_layer_dirty_rect(
+    DrawingProgramLayerRasterStore *store,
+    uint32_t layer_id) {
+    CoreResult result;
+    uint32_t slot_index = 0u;
+    if (!store) {
+        return layer_raster_invalid("invalid layer dirty rect clear request");
+    }
+    result = layer_raster_find_slot_index(store, layer_id, &slot_index);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    layer_raster_clear_slot_dirty_bounds(store, slot_index);
     return core_result_ok();
 }
 
@@ -452,5 +547,13 @@ CoreResult drawing_program_layer_raster_store_import_layer(
     }
     store->slot_content_revisions[slot_index] =
         layer_raster_next_content_revision(store->slot_content_revisions[slot_index]);
+    if (store->raster_width > 0u && store->raster_height > 0u) {
+        layer_raster_expand_slot_dirty_bounds(store,
+                                              slot_index,
+                                              0u,
+                                              0u,
+                                              store->raster_width - 1u,
+                                              store->raster_height - 1u);
+    }
     return core_result_ok();
 }

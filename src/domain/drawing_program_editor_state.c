@@ -10,6 +10,7 @@ void drawing_program_editor_state_init(DrawingProgramEditorState *editor,
     }
     memset(editor, 0, sizeof(*editor));
     editor->active_tool = DRAWING_PROGRAM_TOOL_BRUSH;
+    drawing_program_reflection_state_init(&editor->reflection_state);
     drawing_program_viewport_state_init(&editor->viewport);
     if (document && document->layer_count > 0u) {
         editor->active_layer_id = document->layers[0].layer_id;

@@ -152,6 +152,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
     y += m.tab_h + m.section_gap;
 
     if (right_slot == VISUAL_RIGHT_PANEL_SLOT_CANVAS) {
+        const DrawingProgramReflectionState *reflection_state = drawing_program_canvas_reflection_active_state(ctx);
         const DrawingProgramTextureSurface *active_surface =
             drawing_program_texture_project_surface_at(&ctx->texture_project, ctx->texture_project.active_surface_index);
         SDL_Rect add_surface_button;
@@ -162,6 +163,10 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
         SDL_Rect reflect_vertical_button;
         SDL_Rect center_pick_button;
         SDL_Rect center_reset_button;
+        SDL_Rect reflector_add_button;
+        SDL_Rect reflector_cycle_button;
+        SDL_Rect reflector_toggle_button;
+        SDL_Rect reflector_delete_button;
         SDL_Rect delete_canvas_button;
         SDL_Rect reset_layout_button;
         SDL_Rect reset_view_button;
@@ -268,6 +273,21 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                        (int)ctx->editor.viewport.pan_y);
         hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
         y += m.line_h;
+        if (reflection_state && reflection_state->reflector_count > 0u &&
+            reflection_state->active_reflector_index < reflection_state->reflector_count) {
+            const DrawingProgramReflectorLine *active_reflector =
+                &reflection_state->reflectors[reflection_state->active_reflector_index];
+            (void)snprintf(line,
+                           sizeof(line),
+                           "REFLECTORS %u  ACTIVE %u %s DIR %d,%d",
+                           (unsigned)reflection_state->reflector_count,
+                           (unsigned)(reflection_state->active_reflector_index + 1u),
+                           active_reflector->enabled ? "ON" : "OFF",
+                           active_reflector->direction_dx,
+                           active_reflector->direction_dy);
+            hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
+            y += m.line_h;
+        }
         if (ctx->texture_project.source_object_id[0] != '\0') {
             const char *primitive_name = "none";
             switch (ctx->texture_project.primitive_kind) {
@@ -295,6 +315,10 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
         reflect_vertical_button = right_canvas_reflect_vertical_button_rect(rect, m);
         center_pick_button = right_canvas_center_pick_button_rect(rect, m);
         center_reset_button = right_canvas_center_reset_button_rect(rect, m);
+        reflector_add_button = right_canvas_reflector_add_button_rect(rect, m);
+        reflector_cycle_button = right_canvas_reflector_cycle_button_rect(rect, m);
+        reflector_toggle_button = right_canvas_reflector_toggle_button_rect(rect, m);
+        reflector_delete_button = right_canvas_reflector_delete_button_rect(rect, m);
         delete_canvas_button = right_canvas_delete_canvas_button_rect(rect, m);
         drawing_program_visual_panel_draw_tab_button(renderer,
                                                      rect,
@@ -424,6 +448,80 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                                                                                                 hooks),
                                                          hooks);
         }
+        drawing_program_visual_panel_draw_tab_button(renderer,
+                                                     rect,
+                                                     reflector_add_button,
+                                                     "ADD DIAG REFL",
+                                                     p.button_fill,
+                                                     p.button_fill_hover,
+                                                     p.button_fill_active,
+                                                     p.button_border,
+                                                     p.text_primary,
+                                                     m.body_scale,
+                                                     0,
+                                                     drawing_program_visual_panel_ui_hovered(ui,
+                                                                                            reflector_add_button,
+                                                                                            hooks),
+                                                     hooks);
+        drawing_program_visual_panel_draw_tab_button(renderer,
+                                                     rect,
+                                                     reflector_cycle_button,
+                                                     "NEXT REFL",
+                                                     p.button_fill,
+                                                     p.button_fill_hover,
+                                                     p.button_fill_active,
+                                                     p.button_border,
+                                                     p.text_primary,
+                                                     m.body_scale,
+                                                     0,
+                                                     drawing_program_visual_panel_ui_hovered(ui,
+                                                                                            reflector_cycle_button,
+                                                                                            hooks),
+                                                     hooks);
+        drawing_program_visual_panel_draw_tab_button(
+            renderer,
+            rect,
+            reflector_toggle_button,
+            (reflection_state &&
+             reflection_state->reflector_count > 0u &&
+             reflection_state->active_reflector_index < reflection_state->reflector_count &&
+             reflection_state->reflectors[reflection_state->active_reflector_index].enabled)
+                ? "REFL: ON"
+                : "REFL: OFF",
+            p.button_fill,
+            p.button_fill_hover,
+            p.button_fill_active,
+            p.button_border,
+            p.text_primary,
+            m.body_scale,
+            (reflection_state &&
+             reflection_state->reflector_count > 0u &&
+             reflection_state->active_reflector_index < reflection_state->reflector_count &&
+             reflection_state->reflectors[reflection_state->active_reflector_index].enabled)
+                ? 1
+                : 0,
+            drawing_program_visual_panel_ui_hovered(ui, reflector_toggle_button, hooks),
+            hooks);
+        drawing_program_visual_panel_draw_tab_button(
+            renderer,
+            rect,
+            reflector_delete_button,
+            "DELETE REFL",
+            p.button_fill,
+            p.button_fill_hover,
+            p.button_fill_active,
+            p.button_border,
+            (reflection_state &&
+             reflection_state->reflector_count > 0u &&
+             reflection_state->active_reflector_index < reflection_state->reflector_count &&
+             reflection_state->reflectors[reflection_state->active_reflector_index].label_slot ==
+                 DRAWING_PROGRAM_REFLECTION_LABEL_SLOT_NONE)
+                ? p.text_primary
+                : p.text_muted,
+            m.body_scale,
+            0,
+            drawing_program_visual_panel_ui_hovered(ui, reflector_delete_button, hooks),
+            hooks);
         {
             int delete_canvas_armed =
                 ui &&
