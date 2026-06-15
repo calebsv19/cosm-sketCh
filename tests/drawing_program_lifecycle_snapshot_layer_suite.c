@@ -26,6 +26,14 @@ int drawing_program_lifecycle_run_snapshot_layer_suite(void) {
         uint8_t loaded_layer_sample = 0u;
         uint8_t migrated_layer_sample = 0u;
         uint8_t document_seed_sample = 131u;
+        DrawingProgramRasterSample base_layer_sample =
+            drawing_program_color_value_from_rgba(220u, 32u, 24u, 255u);
+        DrawingProgramRasterSample top_layer_sample =
+            drawing_program_color_value_from_rgba(24u, 64u, 220u, 255u);
+        DrawingProgramRasterSample composed_document_sample = top_layer_sample;
+        DrawingProgramRasterSample loaded_base_layer_sample = drawing_program_color_eraser_value();
+        DrawingProgramRasterSample loaded_top_layer_sample = drawing_program_color_eraser_value();
+        DrawingProgramRasterSample loaded_surface_base_layer_sample = drawing_program_color_eraser_value();
         uint32_t new_layer_id = 0u;
         (void)unlink(layer_arg5);
         (void)unlink(legacy_pack_path);
@@ -67,6 +75,28 @@ int drawing_program_lifecycle_run_snapshot_layer_suite(void) {
                        "layer_snapshot_seed_new_layer_surface")) {
             return 1;
         }
+        if (!expect_ok(drawing_program_layer_raster_store_sample_write(&layer_save_ctx.layer_rasters,
+                                                                       layer_save_ctx.document.layers[0].layer_id,
+                                                                       layer_sample_x + 1u,
+                                                                       layer_sample_y,
+                                                                       base_layer_sample,
+                                                                       0),
+                       "layer_snapshot_seed_base_true_color_surface") ||
+            !expect_ok(drawing_program_layer_raster_store_sample_write(&layer_save_ctx.layer_rasters,
+                                                                       new_layer_id,
+                                                                       layer_sample_x + 1u,
+                                                                       layer_sample_y,
+                                                                       top_layer_sample,
+                                                                       0),
+                       "layer_snapshot_seed_top_true_color_surface") ||
+            !expect_ok(drawing_program_document_sample_write(&layer_save_ctx.document,
+                                                             layer_sample_x + 1u,
+                                                             layer_sample_y,
+                                                             composed_document_sample,
+                                                             0),
+                       "layer_snapshot_seed_composed_document_surface")) {
+            return 1;
+        }
         if (!expect_ok(drawing_program_snapshot_save(&layer_save_ctx, layer_arg5), "layer_snapshot_save")) {
             return 1;
         }
@@ -99,6 +129,52 @@ int drawing_program_lifecycle_run_snapshot_layer_suite(void) {
                     (unsigned)layer_sample_value,
                     (unsigned)loaded_layer_sample);
             return 1;
+        }
+        if (!expect_ok(drawing_program_layer_raster_store_raster_sample_read(&layer_load_ctx.layer_rasters,
+                                                                             layer_load_ctx.document.layers[0].layer_id,
+                                                                             layer_sample_x + 1u,
+                                                                             layer_sample_y,
+                                                                             &loaded_base_layer_sample),
+                       "layer_snapshot_loaded_base_true_color_sample") ||
+            !expect_ok(drawing_program_layer_raster_store_raster_sample_read(&layer_load_ctx.layer_rasters,
+                                                                             new_layer_id,
+                                                                             layer_sample_x + 1u,
+                                                                             layer_sample_y,
+                                                                             &loaded_top_layer_sample),
+                       "layer_snapshot_loaded_top_true_color_sample")) {
+            return 1;
+        }
+        if (loaded_base_layer_sample != base_layer_sample ||
+            loaded_top_layer_sample != top_layer_sample ||
+            loaded_base_layer_sample == composed_document_sample) {
+            fprintf(stderr,
+                    "lifecycle_test: expected saved layer rasters to keep base/top separate got base=%08x top=%08x composite=%08x\n",
+                    (unsigned)loaded_base_layer_sample,
+                    (unsigned)loaded_top_layer_sample,
+                    (unsigned)composed_document_sample);
+            return 1;
+        }
+        if (layer_load_ctx.texture_project.surface_count > 0u) {
+            const DrawingProgramTextureSurface *loaded_surface = drawing_program_texture_project_surface_at(
+                &layer_load_ctx.texture_project,
+                layer_load_ctx.texture_project.active_surface_index);
+            if (!loaded_surface || !loaded_surface->storage ||
+                !expect_ok(drawing_program_layer_raster_store_raster_sample_read(&loaded_surface->storage->layer_rasters,
+                                                                                 loaded_surface->storage->document.layers[0].layer_id,
+                                                                                 layer_sample_x + 1u,
+                                                                                 layer_sample_y,
+                                                                                 &loaded_surface_base_layer_sample),
+                           "layer_snapshot_loaded_surface_base_true_color_sample")) {
+                return 1;
+            }
+            if (loaded_surface_base_layer_sample != base_layer_sample ||
+                loaded_surface_base_layer_sample == composed_document_sample) {
+                fprintf(stderr,
+                        "lifecycle_test: expected texture surface base layer to avoid composed snapshot bake got base=%08x composite=%08x\n",
+                        (unsigned)loaded_surface_base_layer_sample,
+                        (unsigned)composed_document_sample);
+                return 1;
+            }
         }
         if (!expect_ok(drawing_program_app_bootstrap(&legacy_load_ctx, 6, layer_argv), "legacy_layer_bootstrap_load")) {
             return 1;

@@ -12,11 +12,7 @@ static CoreResult history_raster_invalid(const char *message) {
 
 static int history_layer_raster_store_usable_local(const DrawingProgramDocument *document,
                                                    const DrawingProgramLayerRasterStore *layer_rasters) {
-    return document &&
-           layer_rasters &&
-           layer_rasters->sample_count == document->raster_sample_count &&
-           layer_rasters->raster_width == document->raster_width &&
-           layer_rasters->raster_height == document->raster_height;
+    return drawing_program_layer_raster_store_matches_document(layer_rasters, document);
 }
 
 static CoreResult history_compose_sample_from_layers_local(const DrawingProgramDocument *document,
@@ -34,12 +30,12 @@ static CoreResult history_compose_sample_from_layers_local(const DrawingProgramD
         if (!document->layers[i].visible) {
             continue;
         }
-        if (history_layer_raster_store_usable_local(document, layer_rasters) &&
-            drawing_program_layer_raster_store_raster_sample_read(layer_rasters,
-                                                                  document->layers[i].layer_id,
-                                                                  sample_x,
-                                                                  sample_y,
-                                                                  &sample).code == CORE_OK) {
+        if (drawing_program_layer_raster_store_raster_sample_read_layer_or_legacy_base(layer_rasters,
+                                                                                       document,
+                                                                                       document->layers[i].layer_id,
+                                                                                       sample_x,
+                                                                                       sample_y,
+                                                                                       &sample).code == CORE_OK) {
             if (!drawing_program_color_sample_is_transparent(sample)) {
                 composed = sample;
             }
@@ -132,13 +128,12 @@ void drawing_program_history_raster_delta_trim_to_count(DrawingProgramHistory *h
     history->raster_delta_count = drawing_program_history_raster_delta_count_for_limit(history, history->count);
 }
 
-void drawing_program_history_raster_delta_drop_prefix(DrawingProgramHistory *history, uint32_t drop_count) {
-    uint32_t drop_delta_count;
+void drawing_program_history_raster_delta_drop_prefix_known_delta_count(DrawingProgramHistory *history,
+                                                                        uint32_t drop_delta_count) {
     uint32_t i;
-    if (!history || drop_count == 0u) {
+    if (!history || drop_delta_count == 0u) {
         return;
     }
-    drop_delta_count = drawing_program_history_raster_delta_count_for_limit(history, drop_count);
     if (drop_delta_count > history->raster_delta_count) {
         drop_delta_count = history->raster_delta_count;
     }
@@ -167,6 +162,15 @@ void drawing_program_history_raster_delta_drop_prefix(DrawingProgramHistory *his
     }
 }
 
+void drawing_program_history_raster_delta_drop_prefix(DrawingProgramHistory *history, uint32_t drop_count) {
+    uint32_t drop_delta_count;
+    if (!history || drop_count == 0u) {
+        return;
+    }
+    drop_delta_count = drawing_program_history_raster_delta_count_for_limit(history, drop_count);
+    drawing_program_history_raster_delta_drop_prefix_known_delta_count(history, drop_delta_count);
+}
+
 static uint32_t history_oldest_unit_end_local(const DrawingProgramHistory *history, uint32_t start_index) {
     uint32_t index = start_index;
     if (!history || index >= history->count) {
@@ -190,10 +194,12 @@ static void history_drop_oldest_unit_until_space(DrawingProgramHistory *history,
            (history->count >= DRAWING_PROGRAM_HISTORY_CAPACITY ||
             history->raster_delta_count + required_delta_count > DRAWING_PROGRAM_HISTORY_RASTER_DELTA_CAPACITY)) {
         uint32_t drop_count = history_oldest_unit_end_local(history, 0u);
+        uint32_t drop_delta_count;
         uint32_t keep_count;
         if (drop_count == 0u || drop_count > history->count) {
             drop_count = 1u;
         }
+        drop_delta_count = drawing_program_history_raster_delta_count_for_limit(history, drop_count);
         keep_count = history->count - drop_count;
         memmove(history->entries, history->entries + drop_count, keep_count * sizeof(history->entries[0]));
         history->count = keep_count;
@@ -202,7 +208,7 @@ static void history_drop_oldest_unit_until_space(DrawingProgramHistory *history,
         } else {
             history->cursor -= drop_count;
         }
-        drawing_program_history_raster_delta_drop_prefix(history, drop_count);
+        drawing_program_history_raster_delta_drop_prefix_known_delta_count(history, drop_delta_count);
     }
 }
 

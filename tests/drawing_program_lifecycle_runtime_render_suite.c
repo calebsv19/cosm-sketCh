@@ -4,17 +4,21 @@
 #include <unistd.h>
 
 #include "core_theme.h"
+#include "drawing_program/drawing_program_runtime_orchestration.h"
 #include "drawing_program/drawing_program_texture_project_session.h"
 #include "drawing_program/drawing_program_render_cache_telemetry.h"
 #include "drawing_program/drawing_program_texture_workspace.h"
 #include "drawing_program/drawing_program_visual_layer_opacity.h"
+#include "drawing_program/drawing_program_visual_right_panel_defs.h"
 #include "drawing_program/drawing_program_visual_canvas_coords.h"
 #include "drawing_program/drawing_program_visual_canvas_world_render.h"
 #include "drawing_program/drawing_program_visual_input_handlers.h"
 #include "drawing_program/drawing_program_visual_pane_bindings.h"
 #include "drawing_program/drawing_program_visual_input_selection_ops.h"
 #include "drawing_program/drawing_program_visual_input_support.h"
+#include "drawing_program/drawing_program_visual_layout.h"
 #include "drawing_program/drawing_program_visual_loop_timing.h"
+#include "drawing_program/drawing_program_visual_overlay_render.h"
 #include "drawing_program/drawing_program_visual_surface_cache.h"
 #include "drawing_program/drawing_program_visual_text_render.h"
 #include "drawing_program/drawing_program_visual_tool_options.h"
@@ -24,6 +28,8 @@
 #include "drawing_program_lifecycle_texture_workspace_suite.h"
 #include "drawing_program_lifecycle_runtime_ui_suite.h"
 #include "drawing_program_lifecycle_test_support.h"
+
+const DrawingProgramVisualInputHandlersHooks *drawing_program_visual_input_handlers_hooks(void);
 
 static void lifecycle_render_noop_selection_overlay(SDL_Renderer *renderer,
                                                     SDL_Rect pane_rect,
@@ -225,7 +231,7 @@ static int lifecycle_assert_canvas_world_cache_draw(DrawingProgramAppContext *ct
     uint64_t hit_after_same_bucket = 0u;
     uint64_t hit_after_pan = 0u;
     uint64_t miss_after_pan = 0u;
-    uint64_t miss_after_active_defer = 0u;
+    uint64_t miss_after_active_rebuild = 0u;
     int profile_mode = lifecycle_render_profile_log_enabled();
     int status = 1;
     if (!ctx) {
@@ -403,11 +409,11 @@ static int lifecycle_assert_canvas_world_cache_draw(DrawingProgramAppContext *ct
     }
     drawing_program_visual_draw_canvas_world_view(
         renderer, pane_rect, ctx, &theme_preset, &selection, &panel_ui, &interaction, &hooks);
-    miss_after_active_defer = ctx->runtime.render_surface_cache_miss_total;
+    miss_after_active_rebuild = ctx->runtime.render_surface_cache_miss_total;
     if (ctx->runtime.render_surface_cache_miss_total != miss_after_pan + 1u ||
         ctx->runtime.render_surface_cache_hit_total < hit_after_pan + (ctx->texture_project.surface_count - 1u)) {
         fprintf(stderr,
-                "lifecycle_test: expected active content mutation to defer one surface rebuild misses=%llu hits=%llu prior_miss=%llu prior_hit=%llu surfaces=%u\n",
+                "lifecycle_test: expected active content mutation to rebuild one surface misses=%llu hits=%llu prior_miss=%llu prior_hit=%llu surfaces=%u\n",
                 (unsigned long long)ctx->runtime.render_surface_cache_miss_total,
                 (unsigned long long)ctx->runtime.render_surface_cache_hit_total,
                 (unsigned long long)miss_after_pan,
@@ -415,46 +421,44 @@ static int lifecycle_assert_canvas_world_cache_draw(DrawingProgramAppContext *ct
                 (unsigned)ctx->texture_project.surface_count);
         goto cleanup;
     }
-    if (drawing_program_visual_surface_cache_pending_count() != 1u ||
-        lifecycle_process_all_pending_surface_cache_steps(ctx) != 1u ||
-        drawing_program_visual_surface_cache_pending_count() != 0u) {
-        fprintf(stderr, "lifecycle_test: expected one queued active-surface rebuild step\n");
+    if (drawing_program_visual_surface_cache_pending_count() != 0u) {
+        fprintf(stderr, "lifecycle_test: expected active-surface rebuild to stay off the deferred queue\n");
         goto cleanup;
     }
-    if (ctx->runtime.render_surface_cache_deferred_total != 1u ||
-        ctx->runtime.render_surface_cache_queue_step_total != 1u) {
+    if (ctx->runtime.render_surface_cache_deferred_total != 0u ||
+        ctx->runtime.render_surface_cache_queue_step_total != 0u) {
         fprintf(stderr,
-                "lifecycle_test: expected one deferred active rebuild and one queue step deferred=%llu queue_steps=%llu\n",
+                "lifecycle_test: expected no deferred active rebuild queue deferred=%llu queue_steps=%llu\n",
                 (unsigned long long)ctx->runtime.render_surface_cache_deferred_total,
                 (unsigned long long)ctx->runtime.render_surface_cache_queue_step_total);
         goto cleanup;
     }
     drawing_program_visual_draw_canvas_world_view(
         renderer, pane_rect, ctx, &theme_preset, &selection, &panel_ui, &interaction, &hooks);
-    if (ctx->runtime.render_surface_cache_miss_total != miss_after_active_defer) {
-        fprintf(stderr, "lifecycle_test: expected queued active rebuild to avoid a second miss on present\n");
+    if (ctx->runtime.render_surface_cache_miss_total != miss_after_active_rebuild) {
+        fprintf(stderr, "lifecycle_test: expected active rebuild to avoid a second miss on present\n");
         goto cleanup;
     }
     drawing_program_visual_layer_opacity_set(ctx, ctx->document.layers[0].layer_id, 84u);
     drawing_program_visual_draw_canvas_world_view(
         renderer, pane_rect, ctx, &theme_preset, &selection, &panel_ui, &interaction, &hooks);
-    if (drawing_program_visual_surface_cache_pending_count() != ctx->texture_project.surface_count ||
+    if (drawing_program_visual_surface_cache_pending_count() != ctx->texture_project.surface_count - 1u ||
         ctx->runtime.render_surface_cache_miss_total <
-            miss_after_active_defer + ctx->texture_project.surface_count) {
+            miss_after_active_rebuild + ctx->texture_project.surface_count) {
         fprintf(stderr,
                 "lifecycle_test: expected opacity revision change to queue the visible atlas wave misses=%llu prior_miss=%llu pending=%u surfaces=%u\n",
                 (unsigned long long)ctx->runtime.render_surface_cache_miss_total,
-                (unsigned long long)miss_after_active_defer,
+                (unsigned long long)miss_after_active_rebuild,
                 (unsigned)drawing_program_visual_surface_cache_pending_count(),
                 (unsigned)ctx->texture_project.surface_count);
         goto cleanup;
     }
-    if (lifecycle_process_all_pending_surface_cache_steps(ctx) != ctx->texture_project.surface_count) {
-        fprintf(stderr, "lifecycle_test: expected queued opacity rebuild to drain one step per surface\n");
+    if (lifecycle_process_all_pending_surface_cache_steps(ctx) != ctx->texture_project.surface_count - 1u) {
+        fprintf(stderr, "lifecycle_test: expected queued opacity rebuild to drain inactive surfaces\n");
         goto cleanup;
     }
-    if (ctx->runtime.render_surface_cache_deferred_total != 1u + ctx->texture_project.surface_count ||
-        ctx->runtime.render_surface_cache_queue_step_total != 1u + ctx->texture_project.surface_count) {
+    if (ctx->runtime.render_surface_cache_deferred_total != ctx->texture_project.surface_count - 1u ||
+        ctx->runtime.render_surface_cache_queue_step_total != ctx->texture_project.surface_count - 1u) {
         fprintf(stderr,
                 "lifecycle_test: expected opacity wave deferred/queue counts deferred=%llu queue_steps=%llu surfaces=%u\n",
                 (unsigned long long)ctx->runtime.render_surface_cache_deferred_total,
@@ -469,7 +473,7 @@ static int lifecycle_assert_canvas_world_cache_draw(DrawingProgramAppContext *ct
         renderer, pane_rect, ctx, &theme_preset, &selection, &panel_ui, &interaction, &hooks);
     if (ctx->runtime.render_zoom_bucket_percent != 100u ||
         ctx->runtime.render_zoom_bucket_switch_total != 1u ||
-        drawing_program_visual_surface_cache_pending_count() != ctx->texture_project.surface_count ||
+        drawing_program_visual_surface_cache_pending_count() != ctx->texture_project.surface_count - 1u ||
         ctx->runtime.render_surface_cache_miss_total < miss_after_first_pass + ctx->texture_project.surface_count) {
         fprintf(stderr,
                 "lifecycle_test: expected bucket transition to queue a rebuild wave bucket=%u switches=%llu misses=%llu first_miss=%llu pending=%u surfaces=%u\n",
@@ -481,13 +485,12 @@ static int lifecycle_assert_canvas_world_cache_draw(DrawingProgramAppContext *ct
                 (unsigned)ctx->texture_project.surface_count);
         goto cleanup;
     }
-    if (lifecycle_process_all_pending_surface_cache_steps(ctx) != ctx->texture_project.surface_count) {
-        fprintf(stderr, "lifecycle_test: expected queued bucket rebuild to drain one step per surface\n");
+    if (lifecycle_process_all_pending_surface_cache_steps(ctx) != ctx->texture_project.surface_count - 1u) {
+        fprintf(stderr, "lifecycle_test: expected queued bucket rebuild to drain inactive surfaces\n");
         goto cleanup;
     }
-    if (ctx->runtime.render_surface_cache_deferred_total != 1u + (ctx->texture_project.surface_count * 2u) ||
-        ctx->runtime.render_surface_cache_queue_step_total !=
-            1u + (ctx->texture_project.surface_count * 2u)) {
+    if (ctx->runtime.render_surface_cache_deferred_total != (ctx->texture_project.surface_count - 1u) * 2u ||
+        ctx->runtime.render_surface_cache_queue_step_total != (ctx->texture_project.surface_count - 1u) * 2u) {
         fprintf(stderr,
                 "lifecycle_test: expected bucket wave deferred/queue counts deferred=%llu queue_steps=%llu surfaces=%u\n",
                 (unsigned long long)ctx->runtime.render_surface_cache_deferred_total,
@@ -506,6 +509,33 @@ static int lifecycle_assert_canvas_world_cache_draw(DrawingProgramAppContext *ct
                 (unsigned long long)ctx->runtime.render_surface_cache_upload_us_total,
                 (unsigned long long)ctx->runtime.render_surface_cache_rebuild_us_total);
         goto cleanup;
+    }
+    {
+        uint64_t miss_before_visibility = ctx->runtime.render_surface_cache_miss_total;
+        if (drawing_program_runtime_orchestration_apply_workflow_control(
+                ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_TOGGLE_ACTIVE_LAYER_VISIBILITY)
+                .code != CORE_OK) {
+            fprintf(stderr, "lifecycle_test: expected visibility toggle after opacity edit to succeed\n");
+            goto cleanup;
+        }
+        drawing_program_visual_draw_canvas_world_view(
+            renderer, pane_rect, ctx, &theme_preset, &selection, &panel_ui, &interaction, &hooks);
+        if (ctx->runtime.render_surface_cache_miss_total <= miss_before_visibility) {
+            fprintf(stderr,
+                    "lifecycle_test: expected visibility toggle to invalidate active surface preview miss_before=%llu misses=%llu\n",
+                    (unsigned long long)miss_before_visibility,
+                    (unsigned long long)ctx->runtime.render_surface_cache_miss_total);
+            goto cleanup;
+        }
+        if (drawing_program_runtime_orchestration_apply_workflow_control(
+                ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_TOGGLE_ACTIVE_LAYER_VISIBILITY)
+                .code != CORE_OK) {
+            fprintf(stderr, "lifecycle_test: expected visibility retoggle after opacity edit to succeed\n");
+            goto cleanup;
+        }
+        (void)lifecycle_process_all_pending_surface_cache_steps(ctx);
+        drawing_program_visual_draw_canvas_world_view(
+            renderer, pane_rect, ctx, &theme_preset, &selection, &panel_ui, &interaction, &hooks);
     }
     if (status == 1 && lifecycle_render_profile_log_enabled()) {
         fprintf(stdout,
@@ -636,9 +666,9 @@ static int lifecycle_assert_canvas_world_guide_overlay(void) {
         fprintf(stderr, "lifecycle_test: expected off-mode corner sample inside software surface\n");
         goto cleanup;
     }
-    if (r > 32u || g > 32u || b > 32u) {
+    if (r >= 180u && g < 160u && b < 160u) {
         fprintf(stderr,
-                "lifecycle_test: expected off-mode guide sample to stay dark got rgba=%u,%u,%u,%u\n",
+                "lifecycle_test: expected off-mode guide sample to omit corner chip got rgba=%u,%u,%u,%u\n",
                 (unsigned)r,
                 (unsigned)g,
                 (unsigned)b,
@@ -663,9 +693,9 @@ static int lifecycle_assert_canvas_world_guide_overlay(void) {
         goto cleanup;
     }
     if (!lifecycle_sample_surface_rgba(surface, edge_x, edge_y, &r, &g, &b, &a) ||
-        r > 32u || g > 32u || b > 32u) {
+        (r >= 180u && g < 160u && b < 160u)) {
         fprintf(stderr,
-                "lifecycle_test: expected corners-only mode to leave top edge dark got rgba=%u,%u,%u,%u\n",
+                "lifecycle_test: expected corners-only mode to omit top edge guide got rgba=%u,%u,%u,%u\n",
                 (unsigned)r,
                 (unsigned)g,
                 (unsigned)b,
@@ -700,6 +730,441 @@ cleanup:
     }
     drawing_program_visual_surface_cache_shutdown();
     (void)unlink(scene_path);
+    return status;
+}
+
+static void lifecycle_mouse_down_event(SDL_Event *event, int x, int y) {
+    memset(event, 0, sizeof(*event));
+    event->type = SDL_MOUSEBUTTONDOWN;
+    event->button.button = SDL_BUTTON_LEFT;
+    event->button.x = x;
+    event->button.y = y;
+}
+
+static int lifecycle_render_active_sample(SDL_Renderer *renderer,
+                                          SDL_Surface *surface,
+                                          SDL_Rect canvas_pane,
+                                          DrawingProgramAppContext *ctx,
+                                          const CoreThemePreset *theme_preset,
+                                          const DrawingProgramVisualCanvasWorldRenderHooks *render_hooks,
+                                          uint32_t sample_x,
+                                          uint32_t sample_y,
+                                          uint8_t *out_r,
+                                          uint8_t *out_g,
+                                          uint8_t *out_b,
+                                          uint8_t *out_a) {
+    VisualSelectionState selection;
+    VisualPanelUiState panel_ui;
+    VisualCanvasInteractionState interaction;
+    VisualCanvasSheetMetrics metrics;
+    int screen_x = 0;
+    int screen_y = 0;
+    if (!renderer || !surface || !ctx || !theme_preset || !render_hooks || !out_r || !out_g || !out_b || !out_a) {
+        return 0;
+    }
+    if (!drawing_program_texture_workspace_active_sheet_metrics(ctx, canvas_pane, &metrics)) {
+        return 0;
+    }
+    screen_x = metrics.sheet_rect.x +
+               (int)(((uint64_t)sample_x * (uint64_t)metrics.sheet_rect.w) /
+                     (uint64_t)ctx->document.raster_width);
+    screen_y = metrics.sheet_rect.y +
+               (int)(((uint64_t)sample_y * (uint64_t)metrics.sheet_rect.h) /
+                     (uint64_t)ctx->document.raster_height);
+    screen_x += metrics.sheet_rect.w / (int)(ctx->document.raster_width * 2u);
+    screen_y += metrics.sheet_rect.h / (int)(ctx->document.raster_height * 2u);
+    memset(&selection, 0, sizeof(selection));
+    memset(&panel_ui, 0, sizeof(panel_ui));
+    memset(&interaction, 0, sizeof(interaction));
+    (void)SDL_SetRenderDrawColor(renderer, 0u, 0u, 0u, 255u);
+    (void)SDL_RenderClear(renderer);
+    drawing_program_visual_draw_canvas_world_view(
+        renderer, canvas_pane, ctx, theme_preset, &selection, &panel_ui, &interaction, render_hooks);
+    (void)SDL_RenderPresent(renderer);
+    return lifecycle_sample_surface_rgba(surface, screen_x, screen_y, out_r, out_g, out_b, out_a);
+}
+
+static int lifecycle_assert_layer_panel_clicks_affect_preview(void) {
+    static DrawingProgramAppContext ctx;
+    char arg0[] = "drawing_program_layer_panel_pipeline";
+    char arg1[] = "--headless";
+    char arg2[] = "--smoke-frames";
+    char arg3[] = "1";
+    char arg4[] = "--no-persist";
+    char *argv[] = { arg0, arg1, arg2, arg3, arg4, 0 };
+    SDL_Surface *surface = 0;
+    SDL_Renderer *renderer = 0;
+    CoreThemePreset theme_preset;
+    VisualCanvasInteractionState interaction;
+    VisualPanelUiState panel_ui;
+    SDL_Event event;
+    SDL_Rect left_pane = { 0, 0, 0, 0 };
+    SDL_Rect canvas_pane = { 0, 0, 620, 1050 };
+    SDL_Rect right_pane = { 620, 0, 360, 1050 };
+    DrawingProgramVisualCanvasWorldRenderHooks render_hooks;
+    const DrawingProgramVisualInputHandlersHooks *input_hooks = drawing_program_visual_input_handlers_hooks();
+    VisualPaneLayoutMetrics pane_metrics;
+    SDL_Rect tab_layer;
+    SDL_Rect visible_button;
+    SDL_Rect opacity_row;
+    SDL_Rect opacity_track;
+    uint32_t top_layer_id = 0u;
+    uint32_t sample_x = 8u;
+    uint32_t sample_y = 8u;
+    uint32_t object_sample_x = 24u;
+    uint32_t object_sample_y = 24u;
+    uint8_t r = 0u;
+    uint8_t g = 0u;
+    uint8_t b = 0u;
+    uint8_t a = 0u;
+    int status = 1;
+
+    if (!expect_ok(drawing_program_app_bootstrap(&ctx, 5, argv), "layer_panel_pipeline_bootstrap") ||
+        !expect_ok(drawing_program_app_config_load(&ctx), "layer_panel_pipeline_config") ||
+        !expect_ok(drawing_program_app_state_seed(&ctx), "layer_panel_pipeline_seed") ||
+        !expect_ok(drawing_program_app_subsystems_init(&ctx), "layer_panel_pipeline_subsystems") ||
+        !expect_ok(drawing_program_runtime_start(&ctx), "layer_panel_pipeline_runtime")) {
+        goto cleanup;
+    }
+    if (!expect_ok(drawing_program_texture_project_session_seed_blank(
+                       &ctx, 64u, 64u, DRAWING_PROGRAM_TEXTURE_QUALITY_PRESET_STANDARD),
+                   "layer_panel_pipeline_seed_blank")) {
+        goto cleanup;
+    }
+    if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                       &ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_ADD_LAYER),
+                   "layer_panel_pipeline_add_layer")) {
+        goto cleanup;
+    }
+    top_layer_id = ctx.editor.active_layer_id;
+    if (ctx.document.layer_count < 2u || top_layer_id == 0u) {
+        fprintf(stderr, "lifecycle_test: expected two layers for layer panel pipeline test\n");
+        goto cleanup;
+    }
+    if (!expect_ok(drawing_program_layer_raster_store_sample_write(&ctx.layer_rasters,
+                                                                   ctx.document.layers[0].layer_id,
+                                                                   sample_x,
+                                                                   sample_y,
+                                                                   drawing_program_color_value_from_rgba(
+                                                                       220u, 20u, 20u, 255u),
+                                                                   0),
+                   "layer_panel_pipeline_base_sample") ||
+        !expect_ok(drawing_program_layer_raster_store_sample_write(&ctx.layer_rasters,
+                                                                   top_layer_id,
+                                                                   sample_x,
+                                                                   sample_y,
+                                                                   drawing_program_color_value_from_rgba(
+                                                                       20u, 20u, 220u, 255u),
+                                                                   0),
+                   "layer_panel_pipeline_top_sample")) {
+        goto cleanup;
+    }
+    if (drawing_program_texture_project_session_commit_active_surface(&ctx).code != CORE_OK) {
+        fprintf(stderr, "lifecycle_test: expected active surface commit before layer panel pipeline clicks\n");
+        goto cleanup;
+    }
+    if (!drawing_program_texture_workspace_fit_all(&ctx, canvas_pane)) {
+        fprintf(stderr, "lifecycle_test: expected fit-all for layer panel pipeline render\n");
+        goto cleanup;
+    }
+    if (core_theme_get_preset(CORE_THEME_PRESET_DARK_DEFAULT, &theme_preset).code != CORE_OK) {
+        fprintf(stderr, "lifecycle_test: expected theme preset for layer panel pipeline test\n");
+        goto cleanup;
+    }
+    memset(&interaction, 0, sizeof(interaction));
+    memset(&panel_ui, 0, sizeof(panel_ui));
+    memset(&render_hooks, 0, sizeof(render_hooks));
+    render_hooks.compute_canvas_sheet_metrics = drawing_program_visual_compute_canvas_sheet_metrics;
+    render_hooks.draw_bitmap_text = drawing_program_visual_draw_bitmap_text;
+    render_hooks.draw_selection_overlay = lifecycle_render_noop_selection_overlay;
+    render_hooks.draw_object_overlay = drawing_program_visual_draw_object_overlay;
+    render_hooks.draw_shape_preview_overlay = lifecycle_render_noop_shape_preview_overlay;
+    surface = SDL_CreateRGBSurfaceWithFormat(0, 980, 1090, 32, SDL_PIXELFORMAT_RGBA8888);
+    if (!surface) {
+        fprintf(stderr, "lifecycle_test: expected software target surface for layer panel pipeline test\n");
+        goto cleanup;
+    }
+    renderer = SDL_CreateSoftwareRenderer(surface);
+    if (!renderer) {
+        fprintf(stderr, "lifecycle_test: expected software renderer for layer panel pipeline test\n");
+        goto cleanup;
+    }
+    drawing_program_visual_surface_cache_shutdown();
+    if (!lifecycle_render_active_sample(renderer,
+                                        surface,
+                                        canvas_pane,
+                                        &ctx,
+                                        &theme_preset,
+                                        &render_hooks,
+                                        sample_x,
+                                        sample_y,
+                                        &r,
+                                        &g,
+                                        &b,
+                                        &a) ||
+        b < 180u || r > 80u) {
+        fprintf(stderr,
+                "lifecycle_test: expected initial preview to show top layer got rgba=%u,%u,%u,%u\n",
+                (unsigned)r,
+                (unsigned)g,
+                (unsigned)b,
+                (unsigned)a);
+        goto cleanup;
+    }
+
+    pane_metrics = make_pane_layout_metrics(&ctx);
+    tab_layer = right_panel_slot_tab_rect(right_pane, pane_metrics, VISUAL_RIGHT_PANEL_SLOT_LAYER, VISUAL_RIGHT_PANEL_SLOT_COUNT);
+    lifecycle_mouse_down_event(&event, tab_layer.x + (tab_layer.w / 2), tab_layer.y + (tab_layer.h / 2));
+    if (!drawing_program_visual_input_handle_mouse_button_down_payload(&event,
+                                                                       1,
+                                                                       event.button.x,
+                                                                       event.button.y,
+                                                                       0,
+                                                                       left_pane,
+                                                                       1,
+                                                                       right_pane,
+                                                                       1,
+                                                                       canvas_pane,
+                                                                       &ctx,
+                                                                       &interaction,
+                                                                       &ctx.selection,
+                                                                       &panel_ui,
+                                                                       input_hooks) ||
+        ctx.ui.right_panel_slot != (uint8_t)VISUAL_RIGHT_PANEL_SLOT_LAYER) {
+        fprintf(stderr, "lifecycle_test: expected layer tab click through full input dispatcher\n");
+        goto cleanup;
+    }
+
+    visible_button = right_layer_action_button_rect(right_pane,
+                                                    pane_metrics,
+                                                    ctx.document.layer_count,
+                                                    VISUAL_LAYER_ACTION_TOGGLE_VISIBLE);
+    lifecycle_mouse_down_event(&event,
+                               visible_button.x + (visible_button.w / 2),
+                               visible_button.y + (visible_button.h / 2));
+    if (!drawing_program_visual_input_handle_mouse_button_down_payload(&event,
+                                                                       1,
+                                                                       event.button.x,
+                                                                       event.button.y,
+                                                                       0,
+                                                                       left_pane,
+                                                                       1,
+                                                                       right_pane,
+                                                                       1,
+                                                                       canvas_pane,
+                                                                       &ctx,
+                                                                       &interaction,
+                                                                       &ctx.selection,
+                                                                       &panel_ui,
+                                                                       input_hooks)) {
+        fprintf(stderr, "lifecycle_test: expected visible toggle click through full input dispatcher\n");
+        goto cleanup;
+    }
+    if (ctx.document.layers[1].visible) {
+        fprintf(stderr, "lifecycle_test: expected visible toggle click to hide active top layer\n");
+        goto cleanup;
+    }
+    if (!lifecycle_render_active_sample(renderer,
+                                        surface,
+                                        canvas_pane,
+                                        &ctx,
+                                        &theme_preset,
+                                        &render_hooks,
+                                        sample_x,
+                                        sample_y,
+                                        &r,
+                                        &g,
+                                        &b,
+                                        &a) ||
+        r < 180u || b > 80u) {
+        fprintf(stderr,
+                "lifecycle_test: expected hidden top layer preview to show base got rgba=%u,%u,%u,%u\n",
+                (unsigned)r,
+                (unsigned)g,
+                (unsigned)b,
+                (unsigned)a);
+        goto cleanup;
+    }
+
+    lifecycle_mouse_down_event(&event,
+                               visible_button.x + (visible_button.w / 2),
+                               visible_button.y + (visible_button.h / 2));
+    (void)drawing_program_visual_input_handle_mouse_button_down_payload(&event,
+                                                                        1,
+                                                                        event.button.x,
+                                                                        event.button.y,
+                                                                        0,
+                                                                        left_pane,
+                                                                        1,
+                                                                        right_pane,
+                                                                        1,
+                                                                        canvas_pane,
+                                                                        &ctx,
+                                                                        &interaction,
+                                                                        &ctx.selection,
+                                                                        &panel_ui,
+                                                                        input_hooks);
+    if (!ctx.document.layers[1].visible) {
+        fprintf(stderr, "lifecycle_test: expected second visible toggle click to show active top layer\n");
+        goto cleanup;
+    }
+    opacity_row = right_layer_opacity_row_rect(right_pane, pane_metrics, ctx.document.layer_count);
+    opacity_track = right_layer_opacity_track_rect(opacity_row, pane_metrics);
+    lifecycle_mouse_down_event(&event, opacity_track.x + (opacity_track.w / 2), opacity_track.y + (opacity_track.h / 2));
+    if (!drawing_program_visual_input_handle_mouse_button_down_payload(&event,
+                                                                       1,
+                                                                       event.button.x,
+                                                                       event.button.y,
+                                                                       0,
+                                                                       left_pane,
+                                                                       1,
+                                                                       right_pane,
+                                                                       1,
+                                                                       canvas_pane,
+                                                                       &ctx,
+                                                                       &interaction,
+                                                                       &ctx.selection,
+                                                                       &panel_ui,
+                                                                       input_hooks)) {
+        fprintf(stderr, "lifecycle_test: expected opacity click through full input dispatcher\n");
+        goto cleanup;
+    }
+    if (drawing_program_visual_layer_opacity_get(&ctx, top_layer_id) < 45u ||
+        drawing_program_visual_layer_opacity_get(&ctx, top_layer_id) > 55u) {
+        fprintf(stderr,
+                "lifecycle_test: expected opacity click to set active top layer near 50 got=%u\n",
+                (unsigned)drawing_program_visual_layer_opacity_get(&ctx, top_layer_id));
+        goto cleanup;
+    }
+    if (!lifecycle_render_active_sample(renderer,
+                                        surface,
+                                        canvas_pane,
+                                        &ctx,
+                                        &theme_preset,
+                                        &render_hooks,
+                                        sample_x,
+                                        sample_y,
+                                        &r,
+                                        &g,
+                                        &b,
+                                        &a) ||
+        r < 80u || r > 180u || b < 80u || b > 180u) {
+        fprintf(stderr,
+                "lifecycle_test: expected 50%% opacity preview to blend base/top got rgba=%u,%u,%u,%u\n",
+                (unsigned)r,
+                (unsigned)g,
+                (unsigned)b,
+                (unsigned)a);
+        goto cleanup;
+    }
+
+    {
+        DrawingProgramObjectRecord object_seed;
+        uint32_t object_id = 0u;
+        drawing_program_visual_layer_opacity_set(&ctx, top_layer_id, 100u);
+        if (!expect_ok(drawing_program_layer_raster_store_sample_write(&ctx.layer_rasters,
+                                                                       ctx.document.layers[0].layer_id,
+                                                                       object_sample_x,
+                                                                       object_sample_y,
+                                                                       drawing_program_color_value_from_rgba(
+                                                                           220u, 20u, 20u, 255u),
+                                                                       0),
+                       "layer_panel_pipeline_object_base_sample")) {
+            goto cleanup;
+        }
+        memset(&object_seed, 0, sizeof(object_seed));
+        object_seed.layer_id = top_layer_id;
+        object_seed.type = (uint8_t)DRAWING_PROGRAM_OBJECT_TYPE_RECT;
+        object_seed.visible = 1u;
+        object_seed.locked = 0u;
+        object_seed.origin_x = (int32_t)(object_sample_x - 2u);
+        object_seed.origin_y = (int32_t)(object_sample_y - 2u);
+        object_seed.width = 5u;
+        object_seed.height = 5u;
+        object_seed.style_mode = 1u;
+        object_seed.fill_color_value = drawing_program_color_value_from_rgba(20u, 20u, 220u, 255u);
+        object_seed.stroke_color_value = object_seed.fill_color_value;
+        if (!expect_ok(drawing_program_object_store_add(&ctx.object_store, &object_seed, &object_id),
+                       "layer_panel_pipeline_object_add")) {
+            goto cleanup;
+        }
+        drawing_program_object_selection_reset(&ctx.object_selection);
+        if (!lifecycle_render_active_sample(renderer,
+                                            surface,
+                                            canvas_pane,
+                                            &ctx,
+                                            &theme_preset,
+                                            &render_hooks,
+                                            object_sample_x,
+                                            object_sample_y,
+                                            &r,
+                                            &g,
+                                            &b,
+                                            &a) ||
+            b < 160u || r > 100u) {
+            fprintf(stderr,
+                    "lifecycle_test: expected retained object overlay to show top layer before hide got rgba=%u,%u,%u,%u\n",
+                    (unsigned)r,
+                    (unsigned)g,
+                    (unsigned)b,
+                    (unsigned)a);
+            goto cleanup;
+        }
+        lifecycle_mouse_down_event(&event,
+                                   visible_button.x + (visible_button.w / 2),
+                                   visible_button.y + (visible_button.h / 2));
+        (void)drawing_program_visual_input_handle_mouse_button_down_payload(&event,
+                                                                            1,
+                                                                            event.button.x,
+                                                                            event.button.y,
+                                                                            0,
+                                                                            left_pane,
+                                                                            1,
+                                                                            right_pane,
+                                                                            1,
+                                                                            canvas_pane,
+                                                                            &ctx,
+                                                                            &interaction,
+                                                                            &ctx.selection,
+                                                                            &panel_ui,
+                                                                            input_hooks);
+        if (ctx.document.layers[1].visible) {
+            fprintf(stderr, "lifecycle_test: expected retained-object visible toggle to hide active layer\n");
+            goto cleanup;
+        }
+        if (!lifecycle_render_active_sample(renderer,
+                                            surface,
+                                            canvas_pane,
+                                            &ctx,
+                                            &theme_preset,
+                                            &render_hooks,
+                                            object_sample_x,
+                                            object_sample_y,
+                                            &r,
+                                            &g,
+                                            &b,
+                                            &a) ||
+            r < 160u || b > 100u) {
+            fprintf(stderr,
+                    "lifecycle_test: expected hidden retained object layer to reveal base got rgba=%u,%u,%u,%u\n",
+                    (unsigned)r,
+                    (unsigned)g,
+                    (unsigned)b,
+                    (unsigned)a);
+            goto cleanup;
+        }
+    }
+
+    status = 0;
+
+cleanup:
+    if (renderer) {
+        SDL_DestroyRenderer(renderer);
+    }
+    if (surface) {
+        SDL_FreeSurface(surface);
+    }
+    drawing_program_visual_surface_cache_shutdown();
     return status;
 }
 
@@ -775,6 +1240,9 @@ int drawing_program_lifecycle_run_runtime_render_suite(DrawingProgramAppContext 
             return 1;
         }
         if (lifecycle_assert_canvas_world_cache_draw(&workflow_ctx) != 0) {
+            return 1;
+        }
+        if (lifecycle_assert_layer_panel_clicks_affect_preview() != 0) {
             return 1;
         }
 

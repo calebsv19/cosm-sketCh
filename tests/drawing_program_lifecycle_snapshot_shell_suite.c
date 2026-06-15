@@ -105,7 +105,15 @@ int drawing_program_lifecycle_run_snapshot_shell_suite(DrawingProgramAppContext 
                                                              base_sample_y,
                                                              base_sample_value,
                                                              0),
-                       "texture_project_seed_base_surface")) {
+                       "texture_project_seed_base_surface") ||
+            !expect_ok(drawing_program_layer_raster_store_sample_write(
+                           &texture_save_ctx.layer_rasters,
+                           texture_save_ctx.document.layers[0].layer_id,
+                           base_sample_x,
+                           base_sample_y,
+                           drawing_program_color_normalize_legacy_sample(base_sample_value),
+                           0),
+                       "texture_project_seed_base_layer_surface")) {
             return 1;
         }
         if (!expect_ok(drawing_program_texture_project_session_add_surface_from_active(&texture_save_ctx,
@@ -124,7 +132,15 @@ int drawing_program_lifecycle_run_snapshot_shell_suite(DrawingProgramAppContext 
                                                              extra_sample_y,
                                                              extra_sample_value,
                                                              0),
-                       "texture_project_seed_extra_surface")) {
+                       "texture_project_seed_extra_surface") ||
+            !expect_ok(drawing_program_layer_raster_store_sample_write(
+                           &texture_save_ctx.layer_rasters,
+                           texture_save_ctx.document.layers[0].layer_id,
+                           extra_sample_x,
+                           extra_sample_y,
+                           drawing_program_color_normalize_legacy_sample(extra_sample_value),
+                           0),
+                       "texture_project_seed_extra_layer_surface")) {
             return 1;
         }
         (void)snprintf(texture_save_ctx.texture_project.source_scene_id,
@@ -694,7 +710,15 @@ int drawing_program_lifecycle_run_snapshot_shell_suite(DrawingProgramAppContext 
                                                              sample_y,
                                                              168u,
                                                              0),
-                       "color_snapshot_seed_legacy_grayscale")) {
+                       "color_snapshot_seed_legacy_grayscale") ||
+            !expect_ok(drawing_program_layer_raster_store_sample_write(
+                           &color_migration_save_ctx.layer_rasters,
+                           color_migration_save_ctx.document.layers[0].layer_id,
+                           sample_x,
+                           sample_y,
+                           drawing_program_color_normalize_legacy_sample(168u),
+                           0),
+                       "color_snapshot_seed_legacy_grayscale_layer")) {
             return 1;
         }
         if (!expect_ok(drawing_program_snapshot_save(&color_migration_save_ctx, color_arg5), "color_snapshot_save")) {
@@ -839,7 +863,15 @@ int drawing_program_lifecycle_run_snapshot_shell_suite(DrawingProgramAppContext 
                                                              sample_y,
                                                              sample_value,
                                                              0),
-                       "legacy_dps2_fallback_seed_sample")) {
+                       "legacy_dps2_fallback_seed_sample") ||
+            !expect_ok(drawing_program_layer_raster_store_sample_write(
+                           &legacy_shell_save_ctx.layer_rasters,
+                           legacy_shell_save_ctx.document.layers[0].layer_id,
+                           sample_x,
+                           sample_y,
+                           drawing_program_color_normalize_legacy_sample(sample_value),
+                           0),
+                       "legacy_dps2_fallback_seed_layer_sample")) {
             return 1;
         }
         memset(&seed_object, 0, sizeof(seed_object));
@@ -957,7 +989,15 @@ int drawing_program_lifecycle_run_snapshot_shell_suite(DrawingProgramAppContext 
                                                              sample_y,
                                                              sample_value,
                                                              0),
-                       "legacy_dps3_fallback_seed_sample")) {
+                       "legacy_dps3_fallback_seed_sample") ||
+            !expect_ok(drawing_program_layer_raster_store_sample_write(
+                           &dps3_fallback_save_ctx.layer_rasters,
+                           dps3_fallback_save_ctx.document.layers[0].layer_id,
+                           sample_x,
+                           sample_y,
+                           drawing_program_color_normalize_legacy_sample(sample_value),
+                           0),
+                       "legacy_dps3_fallback_seed_layer_sample")) {
             return 1;
         }
         memset(&seed_object, 0, sizeof(seed_object));

@@ -314,7 +314,9 @@ void drawing_program_visual_draw_canvas_world_view(
             const DrawingProgramDocument *cache_document = &surface->storage->document;
             const DrawingProgramLayerRasterStore *cache_layer_rasters = &surface->storage->layer_rasters;
             SDL_Texture *surface_texture = 0;
+            uint8_t cache_layer_opacity[DRAWING_PROGRAM_MAX_LAYERS];
             uint8_t active_surface = (surface_index == ctx->texture_project.active_surface_index) ? 1u : 0u;
+            memcpy(cache_layer_opacity, layer_opacity, sizeof(cache_layer_opacity));
             memset(&cache_request, 0, sizeof(cache_request));
             cache_request.project_epoch = ctx->texture_project.runtime_cache_epoch;
             cache_request.content_revision = surface->content_revision;
@@ -329,12 +331,17 @@ void drawing_program_visual_draw_canvas_world_view(
                     drawing_program_render_revision_compose_active_surface_content(ctx);
                 ((DrawingProgramAppContext *)ctx)->runtime.render_active_surface_content_revision =
                     cache_request.content_revision;
+            } else {
+                drawing_program_texture_project_collect_surface_layer_opacity_by_index(&ctx->texture_project,
+                                                                                       surface_index,
+                                                                                       cache_layer_opacity,
+                                                                                       DRAWING_PROGRAM_MAX_LAYERS);
             }
             surface_texture = drawing_program_visual_surface_cache_sync(renderer,
                                                                        &cache_request,
                                                                        cache_document,
                                                                        cache_layer_rasters,
-                                                                       layer_opacity,
+                                                                       cache_layer_opacity,
                                                                        DRAWING_PROGRAM_MAX_LAYERS,
                                                                        &cache_telemetry);
             drawing_program_render_cache_note_surface_sync((DrawingProgramAppContext *)ctx,

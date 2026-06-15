@@ -8,6 +8,8 @@ int drawing_program_history_command_uses_raster_delta(const DrawingProgramComman
 uint32_t drawing_program_history_raster_delta_count_for_limit(const DrawingProgramHistory *history, uint32_t limit);
 void drawing_program_history_raster_delta_trim_to_count(DrawingProgramHistory *history, uint32_t kept_count);
 void drawing_program_history_raster_delta_drop_prefix(DrawingProgramHistory *history, uint32_t drop_count);
+void drawing_program_history_raster_delta_drop_prefix_known_delta_count(DrawingProgramHistory *history,
+                                                                        uint32_t drop_delta_count);
 CoreResult drawing_program_history_apply_raster_delta_command(const DrawingProgramHistory *history,
                                                               const DrawingProgramCommand *command,
                                                               DrawingProgramDocument *document,

@@ -59,6 +59,7 @@ int drawing_program_lifecycle_run_surface_cache_contract_suite(void) {
     static DrawingProgramAppContext ctx;
     SDL_Surface *surface = 0;
     SDL_Renderer *renderer = 0;
+    SDL_PixelFormat *read_format = 0;
     const DrawingProgramTextureSurface *active_surface = 0;
     const DrawingProgramTextureSurface *inactive_surface = 0;
     DrawingProgramVisualSurfaceCacheRequest request;
@@ -79,7 +80,14 @@ int drawing_program_lifecycle_run_surface_cache_contract_suite(void) {
     uint32_t sample_y = 9u;
     uint32_t top_band_sample_x = 11u;
     uint32_t top_band_sample_y = 13u;
+    uint32_t opacity_sample_x = 17u;
+    uint32_t opacity_sample_y = 19u;
     uint32_t pixel_index = 0u;
+    SDL_BlendMode texture_blend_mode = SDL_BLENDMODE_NONE;
+    uint8_t pixel_r = 0u;
+    uint8_t pixel_g = 0u;
+    uint8_t pixel_b = 0u;
+    uint8_t pixel_a = 0u;
     char arg0[] = "drawing_program_surface_cache_contract_test";
     char arg1[] = "--headless";
     char arg2[] = "--smoke-frames";
@@ -125,6 +133,11 @@ int drawing_program_lifecycle_run_surface_cache_contract_suite(void) {
     renderer = SDL_CreateSoftwareRenderer(surface);
     if (!renderer) {
         fprintf(stderr, "lifecycle_test: expected software renderer for cache contract suite\n");
+        goto cleanup;
+    }
+    read_format = SDL_AllocFormat(SDL_PIXELFORMAT_RGBA8888);
+    if (!read_format) {
+        fprintf(stderr, "lifecycle_test: expected RGBA read format for cache contract suite\n");
         goto cleanup;
     }
     drawing_program_visual_surface_cache_shutdown();
@@ -195,22 +208,16 @@ int drawing_program_lifecycle_run_surface_cache_contract_suite(void) {
                                                         active_opacity,
                                                         active_opacity_count,
                                                         &telemetry);
-    if (!texture || !telemetry.cache_miss || !telemetry.cache_deferred || !telemetry.cache_copy_ready ||
-        drawing_program_visual_surface_cache_pending_count() != 2u) {
-        fprintf(stderr, "lifecycle_test: expected active cache revision change to join pending queue\n");
+    if (!texture || !telemetry.cache_miss || !telemetry.cache_rebuilt || !telemetry.cache_copy_ready ||
+        drawing_program_visual_surface_cache_pending_count() != 1u) {
+        fprintf(stderr, "lifecycle_test: expected active cache revision change to rebuild immediately\n");
         goto cleanup;
     }
 
     memset(&telemetry, 0, sizeof(telemetry));
-    if (drawing_program_visual_surface_cache_process_pending_step(1u, &telemetry) != 1u ||
-        !telemetry.cache_rebuilt ||
-        drawing_program_visual_surface_cache_pending_count() != 1u) {
-        fprintf(stderr, "lifecycle_test: expected active-only queue step to rebuild exactly the active pending surface\n");
-        goto cleanup;
-    }
     if (drawing_program_visual_surface_cache_process_pending_step(1u, &telemetry) != 0u ||
         drawing_program_visual_surface_cache_pending_count() != 1u) {
-        fprintf(stderr, "lifecycle_test: expected active-only queue step to leave inactive pending work untouched\n");
+        fprintf(stderr, "lifecycle_test: expected active-only queue step to leave inactive-only pending work untouched\n");
         goto cleanup;
     }
 
@@ -226,7 +233,7 @@ int drawing_program_lifecycle_run_surface_cache_contract_suite(void) {
                                                         active_opacity_count,
                                                         &telemetry);
     if (!texture || !telemetry.cache_hit || !telemetry.cache_copy_ready) {
-        fprintf(stderr, "lifecycle_test: expected rebuilt active cache to become a direct hit after queue drain\n");
+        fprintf(stderr, "lifecycle_test: expected immediately rebuilt active cache to become a direct hit\n");
         goto cleanup;
     }
 
@@ -361,6 +368,10 @@ int drawing_program_lifecycle_run_surface_cache_contract_suite(void) {
         fprintf(stderr, "lifecycle_test: expected fresh active cache build for lower-band dirty-rect scenario\n");
         goto cleanup;
     }
+    if (SDL_GetTextureBlendMode(texture, &texture_blend_mode) != 0 || texture_blend_mode != SDL_BLENDMODE_BLEND) {
+        fprintf(stderr, "lifecycle_test: expected surface cache texture to preserve alpha blending\n");
+        goto cleanup;
+    }
     before_pixels = (uint32_t *)SDL_malloc((size_t)active_surface->storage->document.raster_sample_count *
                                            sizeof(*before_pixels));
     after_pixels = (uint32_t *)SDL_malloc((size_t)active_surface->storage->document.raster_sample_count *
@@ -392,15 +403,9 @@ int drawing_program_lifecycle_run_surface_cache_contract_suite(void) {
                                                         active_opacity,
                                                         active_opacity_count,
                                                         &telemetry);
-    if (!texture || !telemetry.cache_miss || !telemetry.cache_deferred || !telemetry.cache_copy_ready) {
-        fprintf(stderr, "lifecycle_test: expected active lower-band cache edit to defer rebuild while keeping live texture\n");
-        goto cleanup;
-    }
-    memset(&telemetry, 0, sizeof(telemetry));
-    if (drawing_program_visual_surface_cache_process_pending_step(1u, &telemetry) != 1u ||
-        !telemetry.cache_rebuilt ||
+    if (!texture || !telemetry.cache_miss || !telemetry.cache_rebuilt || !telemetry.cache_copy_ready ||
         drawing_program_visual_surface_cache_pending_count() != 0u) {
-        fprintf(stderr, "lifecycle_test: expected pending active lower-band cache rebuild to drain cleanly\n");
+        fprintf(stderr, "lifecycle_test: expected active lower-band cache edit to rebuild immediately\n");
         goto cleanup;
     }
     memset(&telemetry, 0, sizeof(telemetry));
@@ -416,7 +421,7 @@ int drawing_program_lifecycle_run_surface_cache_contract_suite(void) {
                                            active_surface->storage->document.raster_width,
                                            active_surface->storage->document.raster_height,
                                            after_pixels)) {
-        fprintf(stderr, "lifecycle_test: expected rebuilt active lower-band cache to become a direct hit\n");
+        fprintf(stderr, "lifecycle_test: expected immediately rebuilt active lower-band cache to become a direct hit\n");
         goto cleanup;
     }
     for (pixel_index = 0u; pixel_index < active_surface->storage->document.raster_sample_count; ++pixel_index) {
@@ -456,15 +461,9 @@ int drawing_program_lifecycle_run_surface_cache_contract_suite(void) {
                                                         active_opacity,
                                                         active_opacity_count,
                                                         &telemetry);
-    if (!texture || !telemetry.cache_miss || !telemetry.cache_deferred || !telemetry.cache_copy_ready) {
-        fprintf(stderr, "lifecycle_test: expected active top-band cache edit to defer rebuild while keeping live texture\n");
-        goto cleanup;
-    }
-    memset(&telemetry, 0, sizeof(telemetry));
-    if (drawing_program_visual_surface_cache_process_pending_step(1u, &telemetry) != 1u ||
-        !telemetry.cache_rebuilt ||
+    if (!texture || !telemetry.cache_miss || !telemetry.cache_rebuilt || !telemetry.cache_copy_ready ||
         drawing_program_visual_surface_cache_pending_count() != 0u) {
-        fprintf(stderr, "lifecycle_test: expected pending active top-band cache rebuild to drain cleanly\n");
+        fprintf(stderr, "lifecycle_test: expected active top-band cache edit to rebuild immediately\n");
         goto cleanup;
     }
     memset(&telemetry, 0, sizeof(telemetry));
@@ -480,7 +479,7 @@ int drawing_program_lifecycle_run_surface_cache_contract_suite(void) {
                                            active_surface->storage->document.raster_width,
                                            active_surface->storage->document.raster_height,
                                            after_pixels)) {
-        fprintf(stderr, "lifecycle_test: expected rebuilt active top-band cache to become a direct hit\n");
+        fprintf(stderr, "lifecycle_test: expected immediately rebuilt active top-band cache to become a direct hit\n");
         goto cleanup;
     }
     diff_count = 0u;
@@ -499,6 +498,70 @@ int drawing_program_lifecycle_run_surface_cache_contract_suite(void) {
         fprintf(stderr, "lifecycle_test: expected top-band dirty-rect cache rebuild to change the edited texture pixel\n");
         goto cleanup;
     }
+    if (!expect_ok(drawing_program_layer_raster_store_sample_write(&active_surface->storage->layer_rasters,
+                                                                   top_partial_layer_id,
+                                                                   opacity_sample_x,
+                                                                   opacity_sample_y,
+                                                                   drawing_program_color_value_from_rgba(
+                                                                       150u, 40u, 220u, 255u),
+                                                                   0),
+                   "surface_cache_contract_write_opacity_only_top")) {
+        goto cleanup;
+    }
+    active_opacity[1] = 0u;
+    active_opacity[2] = 0u;
+    active_opacity[3] = 100u;
+    request.content_revision = 9004u;
+    request.layer_opacity_revision = 88u;
+    memset(&telemetry, 0, sizeof(telemetry));
+    texture = drawing_program_visual_surface_cache_sync(renderer,
+                                                        &request,
+                                                        &active_surface->storage->document,
+                                                        &active_surface->storage->layer_rasters,
+                                                        active_opacity,
+                                                        active_opacity_count,
+                                                        &telemetry);
+    if (!texture || !telemetry.cache_miss || !telemetry.cache_rebuilt || !telemetry.cache_copy_ready ||
+        !surface_cache_copy_texture_pixels(texture,
+                                           active_surface->storage->document.raster_width,
+                                           active_surface->storage->document.raster_height,
+                                           before_pixels)) {
+        fprintf(stderr, "lifecycle_test: expected full-opacity top-only cache rebuild before opacity-only change\n");
+        goto cleanup;
+    }
+    pixel_index = opacity_sample_y * active_surface->storage->document.raster_width + opacity_sample_x;
+    SDL_GetRGBA(before_pixels[pixel_index], read_format, &pixel_r, &pixel_g, &pixel_b, &pixel_a);
+    if (pixel_a != 255u) {
+        fprintf(stderr,
+                "lifecycle_test: expected full-opacity top-only cache pixel alpha 255 got=%u\n",
+                (unsigned)pixel_a);
+        goto cleanup;
+    }
+    active_opacity[3] = 50u;
+    request.layer_opacity_revision = 89u;
+    memset(&telemetry, 0, sizeof(telemetry));
+    texture = drawing_program_visual_surface_cache_sync(renderer,
+                                                        &request,
+                                                        &active_surface->storage->document,
+                                                        &active_surface->storage->layer_rasters,
+                                                        active_opacity,
+                                                        active_opacity_count,
+                                                        &telemetry);
+    if (!texture || !telemetry.cache_miss || !telemetry.cache_rebuilt || !telemetry.cache_copy_ready ||
+        !surface_cache_copy_texture_pixels(texture,
+                                           active_surface->storage->document.raster_width,
+                                           active_surface->storage->document.raster_height,
+                                           after_pixels)) {
+        fprintf(stderr, "lifecycle_test: expected opacity-only cache rebuild to update texture pixels\n");
+        goto cleanup;
+    }
+    SDL_GetRGBA(after_pixels[pixel_index], read_format, &pixel_r, &pixel_g, &pixel_b, &pixel_a);
+    if (pixel_a < 120u || pixel_a > 140u || before_pixels[pixel_index] == after_pixels[pixel_index]) {
+        fprintf(stderr,
+                "lifecycle_test: expected top-only opacity cache pixel alpha near 128 after opacity-only change got=%u\n",
+                (unsigned)pixel_a);
+        goto cleanup;
+    }
 
     status = 0;
 
@@ -508,6 +571,9 @@ cleanup:
     }
     if (after_pixels) {
         SDL_free(after_pixels);
+    }
+    if (read_format) {
+        SDL_FreeFormat(read_format);
     }
     drawing_program_visual_surface_cache_shutdown();
     if (renderer) {

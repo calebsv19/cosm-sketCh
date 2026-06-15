@@ -334,7 +334,7 @@ int drawing_program_visual_canvas_texture_sync_with_signature(
         g_visual_canvas_texture.height = document->raster_height;
         g_visual_canvas_texture.has_sync_signature = 0u;
         force_full_upload = 1;
-        (void)SDL_SetTextureBlendMode(g_visual_canvas_texture.texture, SDL_BLENDMODE_NONE);
+        (void)SDL_SetTextureBlendMode(g_visual_canvas_texture.texture, SDL_BLENDMODE_BLEND);
     }
     signature_unchanged = (g_visual_canvas_texture.has_sync_signature &&
                            g_visual_canvas_texture.last_raster_hash32 == raster_hash32 &&

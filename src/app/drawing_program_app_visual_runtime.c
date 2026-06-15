@@ -73,19 +73,15 @@ static CoreResult active_layer_sample_read_visual(const DrawingProgramAppContext
                                                   uint32_t sample_x,
                                                   uint32_t sample_y,
                                                   DrawingProgramRasterSample *out_value) {
-    CoreResult result;
     if (!ctx || !out_value) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid active-layer sample read request" };
     }
-    result = drawing_program_layer_raster_store_raster_sample_read(&ctx->layer_rasters,
-                                                            ctx->editor.active_layer_id,
-                                                            sample_x,
-                                                            sample_y,
-                                                            out_value);
-    if (result.code == CORE_OK) {
-        return core_result_ok();
-    }
-    return drawing_program_document_raster_sample_read(&ctx->document, sample_x, sample_y, out_value);
+    return drawing_program_layer_raster_store_raster_sample_read_layer_or_legacy_base(&ctx->layer_rasters,
+                                                                                      &ctx->document,
+                                                                                      ctx->editor.active_layer_id,
+                                                                                      sample_x,
+                                                                                      sample_y,
+                                                                                      out_value);
 }
 
 static CoreResult visible_sample_read_visual(const DrawingProgramAppContext *ctx,

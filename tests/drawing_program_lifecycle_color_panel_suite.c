@@ -18,6 +18,7 @@
 #include "drawing_program/drawing_program_visual_input_panel_clicks.h"
 #include "drawing_program/drawing_program_visual_input_workspace_view.h"
 #include "drawing_program/drawing_program_visual_layout.h"
+#include "drawing_program/drawing_program_visual_layer_opacity.h"
 #include "drawing_program/drawing_program_visual_layer_roles.h"
 #include "drawing_program/drawing_program_visual_layout_color.h"
 #include "drawing_program/drawing_program_visual_pane_bindings.h"
@@ -140,6 +141,9 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
         SDL_Rect center_reset_rect;
         SDL_Rect canvas_delete_rect;
         SDL_Rect layer_add_rect;
+        SDL_Rect layer_opacity_row_rect;
+        SDL_Rect layer_opacity_track_rect;
+        SDL_Rect layer_visible_toggle_rect;
         SDL_Rect layer_role_grime_rect;
         SDL_Rect layer_role_damage_rect;
         SDL_Rect file_rect = { 0, 0, 220, 720 };
@@ -186,6 +190,83 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
             fprintf(stderr, "lifecycle_test: expected color tab click to select right COLOR slot\n");
             return 1;
         }
+        drawing_program_visual_input_handle_right_panel_click_payload(&workflow_ctx,
+                                                                      right_rect,
+                                                                      tab_layer.x + 2,
+                                                                      tab_layer.y + 2,
+                                                                      &workflow_ctx.selection,
+                                                                      &panel_ui,
+                                                                      &hooks);
+        if (workflow_ctx.ui.right_panel_slot != 1u) {
+            fprintf(stderr, "lifecycle_test: expected layer tab click to select right LAYER slot\n");
+            return 1;
+        }
+        layer_opacity_row_rect = right_layer_opacity_row_rect(right_rect, metrics, workflow_ctx.document.layer_count);
+        layer_opacity_track_rect = right_layer_opacity_track_rect(layer_opacity_row_rect, metrics);
+        drawing_program_visual_input_handle_right_panel_click_payload(
+            &workflow_ctx,
+            right_rect,
+            layer_opacity_track_rect.x + (layer_opacity_track_rect.w / 4),
+            layer_opacity_row_rect.y + 2,
+            &workflow_ctx.selection,
+            &panel_ui,
+            &hooks);
+        if (drawing_program_visual_layer_opacity_get(&workflow_ctx, workflow_ctx.editor.active_layer_id) < 20u ||
+            drawing_program_visual_layer_opacity_get(&workflow_ctx, workflow_ctx.editor.active_layer_id) > 30u) {
+            fprintf(stderr, "lifecycle_test: expected layer opacity row click to set active opacity near 25%%\n");
+            return 1;
+        }
+        drawing_program_visual_layer_opacity_sync_document(&workflow_ctx);
+        if (drawing_program_visual_layer_opacity_get(&workflow_ctx, workflow_ctx.editor.active_layer_id) < 20u ||
+            drawing_program_visual_layer_opacity_get(&workflow_ctx, workflow_ctx.editor.active_layer_id) > 30u) {
+            fprintf(stderr, "lifecycle_test: expected layer opacity sync to preserve active opacity\n");
+            return 1;
+        }
+        {
+            uint8_t stored_opacity[DRAWING_PROGRAM_MAX_LAYERS];
+            memset(stored_opacity, 0, sizeof(stored_opacity));
+            drawing_program_texture_project_collect_surface_layer_opacity_by_index(
+                &workflow_ctx.texture_project,
+                workflow_ctx.texture_project.active_surface_index,
+                stored_opacity,
+                workflow_ctx.document.layer_count);
+            if (stored_opacity[0] < 20u || stored_opacity[0] > 30u) {
+                fprintf(stderr, "lifecycle_test: expected active surface to store layer opacity near 25%%\n");
+                return 1;
+            }
+        }
+        layer_visible_toggle_rect =
+            right_layer_action_button_rect(right_rect, metrics, workflow_ctx.document.layer_count,
+                                           VISUAL_LAYER_ACTION_TOGGLE_VISIBLE);
+        drawing_program_visual_input_handle_right_panel_click_payload(&workflow_ctx,
+                                                                      right_rect,
+                                                                      layer_visible_toggle_rect.x + 2,
+                                                                      layer_visible_toggle_rect.y + 2,
+                                                                      &workflow_ctx.selection,
+                                                                      &panel_ui,
+                                                                      &hooks);
+        if (workflow_ctx.document.layers[0].visible) {
+            fprintf(stderr, "lifecycle_test: expected visible toggle to hide active layer after opacity edit\n");
+            return 1;
+        }
+        drawing_program_visual_input_handle_right_panel_click_payload(&workflow_ctx,
+                                                                      right_rect,
+                                                                      layer_visible_toggle_rect.x + 2,
+                                                                      layer_visible_toggle_rect.y + 2,
+                                                                      &workflow_ctx.selection,
+                                                                      &panel_ui,
+                                                                      &hooks);
+        if (!workflow_ctx.document.layers[0].visible) {
+            fprintf(stderr, "lifecycle_test: expected visible toggle to show active layer after opacity edit\n");
+            return 1;
+        }
+        drawing_program_visual_input_handle_right_panel_click_payload(&workflow_ctx,
+                                                                      right_rect,
+                                                                      tab_color.x + 2,
+                                                                      tab_color.y + 2,
+                                                                      &workflow_ctx.selection,
+                                                                      &panel_ui,
+                                                                      &hooks);
         font_zoom_before = workflow_ctx.ui.font_zoom_step;
         for (recent_slot = 0u; recent_slot < (uint8_t)DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT; ++recent_slot) {
             recent_rect = right_color_recent_swatch_rect(right_rect, metrics, recent_slot);

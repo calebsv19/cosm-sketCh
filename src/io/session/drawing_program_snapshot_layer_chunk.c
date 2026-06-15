@@ -268,15 +268,11 @@ CoreResult drawing_program_snapshot_write_layer_raster_chunk(
         cursor += sizeof(uint32_t);
         memcpy(cursor, &sample_count, sizeof(uint32_t));
         cursor += sizeof(uint32_t);
-        if (i == 0u) {
-            memcpy(cursor, ctx->document.raster_samples, (size_t)sample_bytes);
-            cursor += sample_bytes;
-            continue;
-        }
-        export_result = drawing_program_layer_raster_store_export_layer(&ctx->layer_rasters,
-                                                                        layer_id,
-                                                                        &samples,
-                                                                        &exported_sample_count);
+        export_result = drawing_program_layer_raster_store_export_layer_or_legacy_base(&ctx->layer_rasters,
+                                                                                       &ctx->document,
+                                                                                       layer_id,
+                                                                                       &samples,
+                                                                                       &exported_sample_count);
         if (export_result.code == CORE_OK &&
             samples &&
             exported_sample_count == sample_count) {
@@ -355,7 +351,7 @@ CoreResult drawing_program_snapshot_apply_layer_raster_chunk(
         if (drawing_program_snapshot_document_has_layer_id(&ctx->document, layer_id)) {
             CoreResult import_result;
             const uint32_t base_layer_id =
-                (ctx->document.layer_count > 0u) ? ctx->document.layers[0].layer_id : 0u;
+                drawing_program_layer_raster_legacy_surface_layer_id(&ctx->document);
             if (version == DRAWING_PROGRAM_LAYER_RASTER_CHUNK_VERSION_V2) {
                 import_result = drawing_program_layer_raster_store_import_layer(
                     &ctx->layer_rasters,

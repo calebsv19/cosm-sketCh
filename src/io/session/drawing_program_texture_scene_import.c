@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core_object.h"
+
 static CoreResult texture_scene_import_invalid(const char *message) {
     CoreResult r = { CORE_ERR_INVALID_ARG, message };
     return r;

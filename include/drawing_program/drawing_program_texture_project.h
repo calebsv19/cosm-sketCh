@@ -189,6 +189,11 @@ void drawing_program_texture_project_set_surface_layer_role(
     uint32_t surface_index,
     uint32_t layer_id,
     uint32_t role_kind);
+void drawing_program_texture_project_set_surface_layer_opacity(
+    DrawingProgramTextureProject *project,
+    uint32_t surface_index,
+    uint32_t layer_id,
+    uint32_t opacity_percent);
 void drawing_program_texture_project_set_surface_layer_material_intent(
     DrawingProgramTextureProject *project,
     uint32_t surface_index,

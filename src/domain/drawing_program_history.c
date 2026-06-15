@@ -44,26 +44,9 @@ static DrawingProgramPathPoint history_command_make_path_point(const DrawingProg
 }
 
 
-static uint32_t history_legacy_surface_layer_id(const DrawingProgramDocument *document) {
-    uint32_t i;
-    if (!document || document->layer_count == 0u) {
-        return 0u;
-    }
-    for (i = 0u; i < document->layer_count; ++i) {
-        if (document->layers[i].layer_id == 1u) {
-            return 1u;
-        }
-    }
-    return document->layers[0].layer_id;
-}
-
 static int history_layer_raster_store_usable(const DrawingProgramDocument *document,
                                              const DrawingProgramLayerRasterStore *layer_rasters) {
-    return document &&
-           layer_rasters &&
-           layer_rasters->sample_count == document->raster_sample_count &&
-           layer_rasters->raster_width == document->raster_width &&
-           layer_rasters->raster_height == document->raster_height;
+    return drawing_program_layer_raster_store_matches_document(layer_rasters, document);
 }
 
 static CoreResult history_sample_read(const DrawingProgramDocument *document,
@@ -72,17 +55,15 @@ static CoreResult history_sample_read(const DrawingProgramDocument *document,
                                       uint32_t sample_x,
                                       uint32_t sample_y,
                                       DrawingProgramRasterSample *out_value) {
-    CoreResult result;
     if (!document || !out_value || layer_id == 0u) {
         return drawing_program_history_invalid("invalid history sample read request");
     }
-    if (history_layer_raster_store_usable(document, layer_rasters)) {
-        result = drawing_program_layer_raster_store_raster_sample_read(layer_rasters, layer_id, sample_x, sample_y, out_value);
-        if (result.code == CORE_OK) {
-            return core_result_ok();
-        }
-    }
-    return drawing_program_document_raster_sample_read(document, sample_x, sample_y, out_value);
+    return drawing_program_layer_raster_store_raster_sample_read_layer_or_legacy_base(layer_rasters,
+                                                                                      document,
+                                                                                      layer_id,
+                                                                                      sample_x,
+                                                                                      sample_y,
+                                                                                      out_value);
 }
 
 static CoreResult history_sample_read_index(const DrawingProgramDocument *document,
@@ -109,27 +90,22 @@ static CoreResult history_compose_sample_from_layers(const DrawingProgramDocumen
                                                      uint32_t sample_y,
                                                      DrawingProgramRasterSample *out_value) {
     uint32_t i;
-    uint32_t legacy_layer_id;
     DrawingProgramRasterSample composed = drawing_program_color_eraser_value();
     if (!document || !out_value) {
         return drawing_program_history_invalid("invalid history compose sample request");
     }
-    legacy_layer_id = history_legacy_surface_layer_id(document);
     for (i = 0u; i < document->layer_count; ++i) {
         uint32_t layer_id = document->layers[i].layer_id;
         DrawingProgramRasterSample sample = drawing_program_color_eraser_value();
         if (!document->layers[i].visible) {
             continue;
         }
-        if (history_layer_raster_store_usable(document, layer_rasters) &&
-            drawing_program_layer_raster_store_raster_sample_read(layer_rasters, layer_id, sample_x, sample_y, &sample).code == CORE_OK) {
-            if (!drawing_program_color_sample_is_transparent(sample)) {
-                composed = sample;
-            }
-            continue;
-        }
-        if (layer_id == legacy_layer_id &&
-            drawing_program_document_raster_sample_read(document, sample_x, sample_y, &sample).code == CORE_OK &&
+        if (drawing_program_layer_raster_store_raster_sample_read_layer_or_legacy_base(layer_rasters,
+                                                                                       document,
+                                                                                       layer_id,
+                                                                                       sample_x,
+                                                                                       sample_y,
+                                                                                       &sample).code == CORE_OK &&
             !drawing_program_color_sample_is_transparent(sample)) {
             composed = sample;
         }
@@ -527,6 +503,7 @@ static uint32_t history_oldest_unit_end(const DrawingProgramHistory *history, ui
 }
 
 static void history_drop_prefix(DrawingProgramHistory *history, uint32_t drop_count) {
+    uint32_t drop_delta_count;
     uint32_t keep_count;
     if (!history || drop_count == 0u) {
         return;
@@ -537,6 +514,7 @@ static void history_drop_prefix(DrawingProgramHistory *history, uint32_t drop_co
         history->raster_delta_count = 0u;
         return;
     }
+    drop_delta_count = drawing_program_history_raster_delta_count_for_limit(history, drop_count);
     keep_count = history->count - drop_count;
     memmove(history->entries, history->entries + drop_count, keep_count * sizeof(history->entries[0]));
     history->count = keep_count;
@@ -545,7 +523,7 @@ static void history_drop_prefix(DrawingProgramHistory *history, uint32_t drop_co
     } else {
         history->cursor -= drop_count;
     }
-    drawing_program_history_raster_delta_drop_prefix(history, drop_count);
+    drawing_program_history_raster_delta_drop_prefix_known_delta_count(history, drop_delta_count);
 }
 
 static void history_ensure_push_headroom(DrawingProgramHistory *history) {

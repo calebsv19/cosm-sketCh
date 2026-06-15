@@ -66,6 +66,19 @@ static void drawing_program_ui_layer_opacity_set(DrawingProgramAppContext *ctx,
     ctx->ui.layer_opacity_entry_count += 1u;
 }
 
+static int drawing_program_ui_layer_opacity_has_entry(const DrawingProgramAppContext *ctx, uint32_t layer_id) {
+    uint8_t i;
+    if (!ctx || layer_id == 0u) {
+        return 0;
+    }
+    for (i = 0u; i < ctx->ui.layer_opacity_entry_count; ++i) {
+        if (ctx->ui.layer_opacity_layer_ids[i] == layer_id) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static void drawing_program_ui_layer_opacity_sync_with_document(DrawingProgramAppContext *ctx) {
     uint8_t compact_count = 0u;
     uint8_t i;
@@ -85,7 +98,9 @@ static void drawing_program_ui_layer_opacity_sync_with_document(DrawingProgramAp
     }
     ctx->ui.layer_opacity_entry_count = compact_count;
     for (i = 0u; i < ctx->document.layer_count; ++i) {
-        drawing_program_ui_layer_opacity_set(ctx, ctx->document.layers[i].layer_id, 100u);
+        if (!drawing_program_ui_layer_opacity_has_entry(ctx, ctx->document.layers[i].layer_id)) {
+            drawing_program_ui_layer_opacity_set(ctx, ctx->document.layers[i].layer_id, 100u);
+        }
     }
 }
 

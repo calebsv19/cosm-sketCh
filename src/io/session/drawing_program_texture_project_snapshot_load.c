@@ -148,8 +148,7 @@ CoreResult texture_project_snapshot_apply_surface_layer_chunk(
             if (import_result.code != CORE_OK) {
                 return import_result;
             }
-            if (storage->document.layer_count > 0u &&
-                layer_id == storage->document.layers[0].layer_id) {
+            if (layer_id == drawing_program_layer_raster_legacy_surface_layer_id(&storage->document)) {
                 memcpy(storage->document.raster_samples,
                        cursor,
                        (size_t)entry_sample_count * sizeof(storage->document.raster_samples[0]));

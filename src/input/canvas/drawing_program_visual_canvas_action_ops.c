@@ -126,14 +126,20 @@ CoreResult drawing_program_visual_apply_canvas_fill_at_screen(DrawingProgramAppC
     }
     replacement = hooks->sample_value_for_tool(ctx, ctx->editor.active_tool);
     tolerance_setting = hooks->tool_fill_tolerance_setting(ctx);
-    result = drawing_program_layer_raster_store_export_layer(&ctx->layer_rasters,
-                                                             active_layer_id,
-                                                             &active_layer_samples,
-                                                             &active_layer_sample_count);
+    result = drawing_program_layer_raster_store_export_layer_or_legacy_base(&ctx->layer_rasters,
+                                                                            &ctx->document,
+                                                                            active_layer_id,
+                                                                            &active_layer_samples,
+                                                                            &active_layer_sample_count);
     if (result.code != CORE_OK ||
         !active_layer_samples ||
         active_layer_sample_count != ctx->document.raster_sample_count) {
-        active_layer_samples = ctx->document.raster_samples;
+        uint32_t clear_i;
+        DrawingProgramRasterSample empty_sample = drawing_program_color_eraser_value();
+        for (clear_i = 0u; clear_i < ctx->document.raster_sample_count; ++clear_i) {
+            active_layer_snapshot[clear_i] = empty_sample;
+        }
+        active_layer_samples = active_layer_snapshot;
     }
     memcpy(active_layer_snapshot,
            active_layer_samples,

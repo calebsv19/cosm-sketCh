@@ -390,7 +390,7 @@ static int surface_cache_rebuild_entry(DrawingProgramVisualSurfaceCacheEntry *en
             return 0;
         }
     }
-    (void)SDL_SetTextureBlendMode(target_texture, SDL_BLENDMODE_NONE);
+    (void)SDL_SetTextureBlendMode(target_texture, SDL_BLENDMODE_BLEND);
     if (!surface_cache_sync_pixels(entry,
                                    target_texture,
                                    target_pixel_format,
@@ -489,6 +489,25 @@ SDL_Texture *drawing_program_visual_surface_cache_sync(
                 out_telemetry->cache_unavailable = 1u;
             }
             return 0;
+        }
+        if (out_telemetry) {
+            out_telemetry->cache_copy_ready = 1u;
+        }
+        return entry->texture;
+    }
+    if (request->active_surface) {
+        if (!surface_cache_rebuild_entry(entry,
+                                         renderer,
+                                         request,
+                                         document,
+                                         layer_rasters,
+                                         layer_opacity_percent,
+                                         layer_opacity_count,
+                                         out_telemetry)) {
+            if (out_telemetry) {
+                out_telemetry->cache_unavailable = 1u;
+            }
+            return surface_cache_has_live_texture(entry) ? entry->texture : 0;
         }
         if (out_telemetry) {
             out_telemetry->cache_copy_ready = 1u;

@@ -694,12 +694,14 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
             {
                 SDL_Rect fill_track = opacity_track;
                 int fill_w = (int)(((uint32_t)opacity_track.w * (uint32_t)active_opacity) / 100u);
-                if (fill_w < 1) {
+                if (active_opacity > 0u && fill_w < 1) {
                     fill_w = 1;
                 }
-                fill_track.w = fill_w;
-                SDL_SetRenderDrawColor(renderer, p.accent_primary.r, p.accent_primary.g, p.accent_primary.b, p.accent_primary.a);
-                (void)SDL_RenderFillRect(renderer, &fill_track);
+                if (fill_w > 0) {
+                    fill_track.w = fill_w;
+                    SDL_SetRenderDrawColor(renderer, p.accent_primary.r, p.accent_primary.g, p.accent_primary.b, p.accent_primary.a);
+                    (void)SDL_RenderFillRect(renderer, &fill_track);
+                }
             }
             SDL_SetRenderDrawColor(renderer, p.button_border.r, p.button_border.g, p.button_border.b, p.button_border.a);
             (void)SDL_RenderDrawRect(renderer, &opacity_track);

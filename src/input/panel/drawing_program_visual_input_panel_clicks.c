@@ -597,7 +597,7 @@ void drawing_program_visual_input_handle_right_panel_click_payload(
             active_layer_index < ctx->document.layer_count) {
             opacity_row = right_layer_opacity_row_rect(rect, m, ctx->document.layer_count);
             opacity_track = right_layer_opacity_track_rect(opacity_row, m);
-            if (hooks->point_in_rect(opacity_track, x, y)) {
+            if (hooks->point_in_rect(opacity_row, x, y)) {
                 int relative_x = x - opacity_track.x;
                 int opacity = 100;
                 if (relative_x < 0) {
@@ -607,7 +607,7 @@ void drawing_program_visual_input_handle_right_panel_click_payload(
                     relative_x = opacity_track.w;
                 }
                 if (opacity_track.w > 0) {
-                    opacity = (relative_x * 100) / opacity_track.w;
+                    opacity = ((relative_x * 100) + (opacity_track.w / 2)) / opacity_track.w;
                 }
                 if (opacity < 0) {
                     opacity = 0;

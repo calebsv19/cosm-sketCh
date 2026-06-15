@@ -14,16 +14,7 @@ static CoreResult render_invalid(const char *message) {
 }
 
 static uint32_t render_legacy_surface_layer_id(const DrawingProgramDocument *document) {
-    uint32_t i;
-    if (!document || document->layer_count == 0u) {
-        return 0u;
-    }
-    for (i = 0u; i < document->layer_count; ++i) {
-        if (document->layers[i].layer_id == 1u) {
-            return 1u;
-        }
-    }
-    return document->layers[0].layer_id;
+    return drawing_program_layer_raster_legacy_surface_layer_id(document);
 }
 
 static uint32_t render_layer_views_resolve(const DrawingProgramDocument *document,
@@ -40,23 +31,15 @@ static uint32_t render_layer_views_resolve(const DrawingProgramDocument *documen
     legacy_layer_id = render_legacy_surface_layer_id(document);
     for (i = 0u; i < document->layer_count; ++i) {
         uint32_t layer_id = document->layers[i].layer_id;
-        if (layer_rasters &&
-            layer_rasters->sample_count == document->raster_sample_count &&
-            layer_rasters->raster_width == document->raster_width &&
-            layer_rasters->raster_height == document->raster_height) {
-            const DrawingProgramRasterSample *samples = 0;
-            uint32_t sample_count = 0u;
-            CoreResult result = drawing_program_layer_raster_store_export_layer(layer_rasters,
-                                                                                layer_id,
-                                                                                &samples,
-                                                                                &sample_count);
-            if (result.code == CORE_OK && samples && sample_count == document->raster_sample_count) {
-                out_layer_views[i] = samples;
-                continue;
-            }
-        }
-        if (layer_id == legacy_layer_id) {
-            out_layer_views[i] = document->raster_samples;
+        const DrawingProgramRasterSample *samples = 0;
+        uint32_t sample_count = 0u;
+        CoreResult result = drawing_program_layer_raster_store_export_layer_or_legacy_base(layer_rasters,
+                                                                                          document,
+                                                                                          layer_id,
+                                                                                          &samples,
+                                                                                          &sample_count);
+        if (result.code == CORE_OK && samples && sample_count == document->raster_sample_count) {
+            out_layer_views[i] = samples;
         }
     }
     return legacy_layer_id;

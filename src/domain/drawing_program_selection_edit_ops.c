@@ -39,14 +39,6 @@ static uint32_t selection_resolve_target_layer_id(const DrawingProgramDocument *
     return 0u;
 }
 
-static int selection_history_layer_store_usable(const DrawingProgramDocument *document,
-                                                const DrawingProgramLayerRasterStore *layer_rasters) {
-    return document && layer_rasters &&
-           layer_rasters->raster_width == document->raster_width &&
-           layer_rasters->raster_height == document->raster_height &&
-           layer_rasters->sample_count == document->raster_sample_count;
-}
-
 static CoreResult selection_history_sample_read(const DrawingProgramDocument *document,
                                                 const DrawingProgramLayerRasterStore *layer_rasters,
                                                 uint32_t layer_id,
@@ -56,11 +48,12 @@ static CoreResult selection_history_sample_read(const DrawingProgramDocument *do
     if (!document || !out_value) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid selection history sample read request" };
     }
-    if (selection_history_layer_store_usable(document, layer_rasters) && layer_id != 0u) {
-        return drawing_program_layer_raster_store_raster_sample_read(
-            layer_rasters, layer_id, sample_x, sample_y, out_value);
-    }
-    return drawing_program_document_raster_sample_read(document, sample_x, sample_y, out_value);
+    return drawing_program_layer_raster_store_raster_sample_read_layer_or_legacy_base(layer_rasters,
+                                                                                      document,
+                                                                                      layer_id,
+                                                                                      sample_x,
+                                                                                      sample_y,
+                                                                                      out_value);
 }
 
 static int selection_history_find_pending_delta(const DrawingProgramSelectionHistoryBatch *batch,

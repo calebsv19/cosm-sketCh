@@ -28,6 +28,30 @@ static int layer_raster_document_shape_valid(const DrawingProgramDocument *docum
            document->raster_sample_count <= DRAWING_PROGRAM_MAX_RASTER_SAMPLES;
 }
 
+uint32_t drawing_program_layer_raster_legacy_surface_layer_id(
+    const DrawingProgramDocument *document) {
+    uint32_t i;
+    if (!document || document->layer_count == 0u) {
+        return 0u;
+    }
+    for (i = 0u; i < document->layer_count; ++i) {
+        if (document->layers[i].layer_id == 1u) {
+            return 1u;
+        }
+    }
+    return document->layers[0].layer_id;
+}
+
+int drawing_program_layer_raster_store_matches_document(
+    const DrawingProgramLayerRasterStore *store,
+    const DrawingProgramDocument *document) {
+    return document &&
+           store &&
+           store->sample_count == document->raster_sample_count &&
+           store->raster_width == document->raster_width &&
+           store->raster_height == document->raster_height;
+}
+
 static DrawingProgramRasterSample *layer_raster_slot_ptr(DrawingProgramLayerRasterStore *store,
                                                          uint32_t slot_index) {
     if (!store || !store->slot_samples || slot_index >= store->slot_capacity) {
@@ -272,6 +296,7 @@ CoreResult drawing_program_layer_raster_store_seed_from_legacy_surface(
     DrawingProgramLayerRasterStore *store,
     const DrawingProgramDocument *document) {
     uint32_t slot_index = 0u;
+    uint32_t layer_id = 0u;
     DrawingProgramRasterSample *slot_samples = 0;
     size_t copy_count = 0u;
     CoreResult result;
@@ -281,9 +306,10 @@ CoreResult drawing_program_layer_raster_store_seed_from_legacy_surface(
     if (document->layer_count == 0u) {
         return core_result_ok();
     }
-    result = layer_raster_find_slot_index(store, document->layers[0].layer_id, &slot_index);
+    layer_id = drawing_program_layer_raster_legacy_surface_layer_id(document);
+    result = layer_raster_find_slot_index(store, layer_id, &slot_index);
     if (result.code != CORE_OK) {
-        result = layer_raster_claim_slot(store, document->layers[0].layer_id, &slot_index);
+        result = layer_raster_claim_slot(store, layer_id, &slot_index);
         if (result.code != CORE_OK) {
             return result;
         }
@@ -368,6 +394,34 @@ CoreResult drawing_program_layer_raster_store_raster_sample_read(
     return core_result_ok();
 }
 
+CoreResult drawing_program_layer_raster_store_raster_sample_read_layer_or_legacy_base(
+    const DrawingProgramLayerRasterStore *store,
+    const DrawingProgramDocument *document,
+    uint32_t layer_id,
+    uint32_t sample_x,
+    uint32_t sample_y,
+    DrawingProgramRasterSample *out_value) {
+    CoreResult result;
+    if (!document || !out_value || layer_id == 0u) {
+        return layer_raster_invalid("invalid layer-or-legacy sample read request");
+    }
+    if (drawing_program_layer_raster_store_matches_document(store, document)) {
+        result = drawing_program_layer_raster_store_raster_sample_read(store,
+                                                                       layer_id,
+                                                                       sample_x,
+                                                                       sample_y,
+                                                                       out_value);
+        if (result.code == CORE_OK) {
+            return core_result_ok();
+        }
+    }
+    if (layer_id == drawing_program_layer_raster_legacy_surface_layer_id(document)) {
+        return drawing_program_document_raster_sample_read(document, sample_x, sample_y, out_value);
+    }
+    *out_value = drawing_program_color_eraser_value();
+    return core_result_ok();
+}
+
 CoreResult drawing_program_layer_raster_store_sample_write(
     DrawingProgramLayerRasterStore *store,
     uint32_t layer_id,
@@ -429,6 +483,37 @@ CoreResult drawing_program_layer_raster_store_export_layer(
     *out_samples = slot_samples;
     *out_sample_count = store->sample_count;
     return core_result_ok();
+}
+
+CoreResult drawing_program_layer_raster_store_export_layer_or_legacy_base(
+    const DrawingProgramLayerRasterStore *store,
+    const DrawingProgramDocument *document,
+    uint32_t layer_id,
+    const DrawingProgramRasterSample **out_samples,
+    uint32_t *out_sample_count) {
+    CoreResult result;
+    if (!document || !out_samples || !out_sample_count || layer_id == 0u) {
+        return layer_raster_invalid("invalid layer-or-legacy export request");
+    }
+    if (drawing_program_layer_raster_store_matches_document(store, document)) {
+        result = drawing_program_layer_raster_store_export_layer(store,
+                                                                 layer_id,
+                                                                 out_samples,
+                                                                 out_sample_count);
+        if (result.code == CORE_OK &&
+            *out_samples &&
+            *out_sample_count == document->raster_sample_count) {
+            return core_result_ok();
+        }
+    }
+    if (layer_id == drawing_program_layer_raster_legacy_surface_layer_id(document)) {
+        *out_samples = document->raster_samples;
+        *out_sample_count = document->raster_sample_count;
+        return core_result_ok();
+    }
+    *out_samples = 0;
+    *out_sample_count = 0u;
+    return (CoreResult){ CORE_ERR_NOT_FOUND, "upper layer raster unavailable" };
 }
 
 CoreResult drawing_program_layer_raster_store_export_layer_revision(

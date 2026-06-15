@@ -4,6 +4,7 @@
 #include "drawing_program/drawing_program_canvas_reflection.h"
 #include "drawing_program/drawing_program_color_model.h"
 #include "drawing_program/drawing_program_history.h"
+#include "drawing_program/drawing_program_render_domain.h"
 #include "drawing_program/drawing_program_runtime_orchestration.h"
 #include "drawing_program/drawing_program_ui_color_state.h"
 #include "drawing_program/drawing_program_visual_canvas_draw_action_ops.h"
@@ -230,6 +231,134 @@ int drawing_program_lifecycle_run_runtime_ui_suite(DrawingProgramAppContext *ctx
                 ctx.runtime.render_last_active_layer_id,
                 (unsigned)ctx.runtime.render_last_has_active_layer);
         return 1;
+    }
+    {
+        VisualCanvasInteractionState two_layer_brush_state;
+        DrawingProgramRasterSample base_sample =
+            drawing_program_color_value_from_rgba(192u, 32u, 24u, 255u);
+        DrawingProgramRasterSample top_sample =
+            drawing_program_color_value_from_rgba(24u, 72u, 224u, 255u);
+        DrawingProgramRasterSample read_base_sample = drawing_program_color_eraser_value();
+        DrawingProgramRasterSample read_top_sample = drawing_program_color_eraser_value();
+        DrawingProgramRasterSample visible_sample = drawing_program_color_eraser_value();
+        uint32_t base_layer_id = ctx.document.layers[0].layer_id;
+        uint32_t top_layer_id = 0u;
+        uint8_t layer_opacity[DRAWING_PROGRAM_MAX_LAYERS] = { 100u, 100u };
+        uint32_t sample_x = 24u;
+        uint32_t sample_y = 25u;
+        memset(&two_layer_brush_state, 0, sizeof(two_layer_brush_state));
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS),
+                       "s3_two_layer_brush_clear_canvas")) {
+            return 1;
+        }
+        drawing_program_history_clear(&ctx.history);
+        if (!expect_ok(drawing_program_history_apply_set_sample_value(&ctx.history,
+                                                                      &ctx.document,
+                                                                      &ctx.layer_rasters,
+                                                                      base_layer_id,
+                                                                      sample_x,
+                                                                      sample_y,
+                                                                      base_sample),
+                       "s3_two_layer_brush_seed_base")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_ADD_LAYER),
+                       "s3_two_layer_brush_add_top_layer")) {
+            return 1;
+        }
+        top_layer_id = ctx.editor.active_layer_id;
+        drawing_program_ui_color_set_active_paint_sample(&ctx, top_sample, 1u);
+        ctx.editor.active_tool = DRAWING_PROGRAM_TOOL_BRUSH;
+        ctx.ui.tool_brush_size = 1u;
+        ctx.ui.tool_brush_spacing = 1u;
+        ctx.ui.tool_brush_hardness = 100u;
+        if (!expect_ok(drawing_program_visual_apply_canvas_draw_at_screen(&ctx,
+                                                                          (SDL_Rect){ 0, 0, 128, 128 },
+                                                                          (int)sample_x,
+                                                                          (int)sample_y,
+                                                                          &two_layer_brush_state,
+                                                                          runtime_ui_draw_hooks()),
+                       "s3_two_layer_brush_draw_top")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_visual_flush_direct_stroke_history(
+                           &ctx, &two_layer_brush_state, two_layer_brush_state.direct_stroke_history_layer_id),
+                       "s3_two_layer_brush_flush_top")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_layer_raster_store_raster_sample_read(&ctx.layer_rasters,
+                                                                             base_layer_id,
+                                                                             sample_x,
+                                                                             sample_y,
+                                                                             &read_base_sample),
+                       "s3_two_layer_brush_read_base") ||
+            !expect_ok(drawing_program_layer_raster_store_raster_sample_read(&ctx.layer_rasters,
+                                                                             top_layer_id,
+                                                                             sample_x,
+                                                                             sample_y,
+                                                                             &read_top_sample),
+                       "s3_two_layer_brush_read_top")) {
+            return 1;
+        }
+        if (read_base_sample != base_sample || read_top_sample != top_sample) {
+            fprintf(stderr,
+                    "lifecycle_test: expected brush on selected top layer only got base=%08x top=%08x\n",
+                    (unsigned)read_base_sample,
+                    (unsigned)read_top_sample);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_render_compose_visible_sample_with_layer_opacity(&ctx.document,
+                                                                                       &ctx.layer_rasters,
+                                                                                       layer_opacity,
+                                                                                       DRAWING_PROGRAM_MAX_LAYERS,
+                                                                                       sample_x,
+                                                                                       sample_y,
+                                                                                       &visible_sample),
+                       "s3_two_layer_brush_compose_top_visible")) {
+            return 1;
+        }
+        if (visible_sample != top_sample) {
+            fprintf(stderr,
+                    "lifecycle_test: expected visible composition to show top brush sample got=%08x\n",
+                    (unsigned)visible_sample);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_TOGGLE_ACTIVE_LAYER_VISIBILITY),
+                       "s3_two_layer_brush_hide_top_layer")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_render_compose_visible_sample_with_layer_opacity(&ctx.document,
+                                                                                       &ctx.layer_rasters,
+                                                                                       layer_opacity,
+                                                                                       DRAWING_PROGRAM_MAX_LAYERS,
+                                                                                       sample_x,
+                                                                                       sample_y,
+                                                                                       &visible_sample),
+                       "s3_two_layer_brush_compose_top_hidden")) {
+            return 1;
+        }
+        if (visible_sample != base_sample) {
+            fprintf(stderr,
+                    "lifecycle_test: expected hiding selected top layer to reveal base sample got=%08x expected=%08x\n",
+                    (unsigned)visible_sample,
+                    (unsigned)base_sample);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_DELETE_ACTIVE_LAYER),
+                       "s3_two_layer_brush_delete_top_layer")) {
+            return 1;
+        }
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS),
+                       "s3_two_layer_brush_restore_single_layer_canvas")) {
+            return 1;
+        }
+        drawing_program_history_clear(&ctx.history);
+        drawing_program_ui_color_load_active_paint_from_swatch(&ctx, drawing_program_color_default_index());
     }
     {
         uint8_t sample = 0u;

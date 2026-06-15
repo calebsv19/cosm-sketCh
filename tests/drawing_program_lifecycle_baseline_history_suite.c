@@ -93,6 +93,57 @@ int drawing_program_lifecycle_run_baseline_history_suite(DrawingProgramAppContex
         }
     }
     {
+        DrawingProgramHistoryRasterDeltaEntry delta_entry;
+        memset(&ctx.history, 0, sizeof(ctx.history));
+        ctx.history.entries[0].type = DRAWING_PROGRAM_COMMAND_SET_RASTER_DELTA_BLOCK;
+        ctx.history.entries[0].layer_id = ctx.editor.active_layer_id;
+        ctx.history.entries[0].sample_x = 0u;
+        ctx.history.entries[0].sample_y = DRAWING_PROGRAM_HISTORY_RASTER_DELTA_CAPACITY - 1u;
+        ctx.history.entries[1].type = DRAWING_PROGRAM_COMMAND_SET_RASTER_DELTA_BLOCK;
+        ctx.history.entries[1].layer_id = ctx.editor.active_layer_id;
+        ctx.history.entries[1].sample_x = DRAWING_PROGRAM_HISTORY_RASTER_DELTA_CAPACITY - 1u;
+        ctx.history.entries[1].sample_y = 1u;
+        ctx.history.count = 2u;
+        ctx.history.cursor = 2u;
+        ctx.history.raster_delta_count = DRAWING_PROGRAM_HISTORY_RASTER_DELTA_CAPACITY;
+        delta_entry.sample_index = 0u;
+        delta_entry.previous_sample_value = expected_eraser_value;
+        delta_entry.new_sample_value = 129u;
+        if (!expect_ok(drawing_program_history_apply_raster_delta_block(&ctx.history,
+                                                                        &ctx.document,
+                                                                        &ctx.layer_rasters,
+                                                                        ctx.editor.active_layer_id,
+                                                                        &delta_entry,
+                                                                        1u),
+                       "history_raster_delta_prefix_eviction")) {
+            return 1;
+        }
+        if (ctx.history.count != 2u ||
+            ctx.history.entries[0].type != DRAWING_PROGRAM_COMMAND_SET_RASTER_DELTA_BLOCK ||
+            ctx.history.entries[0].sample_x != 0u ||
+            ctx.history.entries[0].sample_y != 1u ||
+            ctx.history.entries[1].type != DRAWING_PROGRAM_COMMAND_SET_RASTER_DELTA_BLOCK ||
+            ctx.history.entries[1].sample_x != 1u ||
+            ctx.history.entries[1].sample_y != 1u ||
+            ctx.history.raster_delta_count != 2u) {
+            fprintf(stderr,
+                    "lifecycle_test: raster-delta prefix eviction corrupted history bookkeeping count=%u delta_count=%u first=(%u,%u) second=(%u,%u)\n",
+                    (unsigned)ctx.history.count,
+                    (unsigned)ctx.history.raster_delta_count,
+                    (unsigned)ctx.history.entries[0].sample_x,
+                    (unsigned)ctx.history.entries[0].sample_y,
+                    (unsigned)ctx.history.entries[1].sample_x,
+                    (unsigned)ctx.history.entries[1].sample_y);
+            return 1;
+        }
+        if (!expect_ok(drawing_program_runtime_orchestration_apply_workflow_control(
+                           &ctx,
+                           DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_HISTORY),
+                       "history_raster_delta_prefix_eviction_clear_history")) {
+            return 1;
+        }
+    }
+    {
         DrawingProgramViewportTransform transform;
         DrawingProgramScreenPoint screen = { 10.0f, 20.0f };
         DrawingProgramCanvasPoint canvas;

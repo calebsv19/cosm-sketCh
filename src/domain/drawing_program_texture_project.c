@@ -49,11 +49,7 @@ static int texture_project_surface_index_valid(const DrawingProgramTextureProjec
 
 static int texture_project_layer_rasters_match_document(const DrawingProgramDocument *document,
                                                         const DrawingProgramLayerRasterStore *layer_rasters) {
-    return document &&
-           layer_rasters &&
-           layer_rasters->sample_count == document->raster_sample_count &&
-           layer_rasters->raster_width == document->raster_width &&
-           layer_rasters->raster_height == document->raster_height;
+    return drawing_program_layer_raster_store_matches_document(layer_rasters, document);
 }
 
 static CoreResult texture_project_storage_clone_from_state(DrawingProgramTextureSurfaceStorage **out_storage,
@@ -80,14 +76,15 @@ static CoreResult texture_project_storage_clone_from_state(DrawingProgramTexture
             const uint32_t layer_id = document->layers[layer_i].layer_id;
             const DrawingProgramRasterSample *samples = 0;
             uint32_t sample_count = 0u;
-            result = drawing_program_layer_raster_store_export_layer(layer_rasters, layer_id, &samples, &sample_count);
-            if (result.code != CORE_OK || !samples || sample_count != document->raster_sample_count) {
-                if (layer_i == 0u) {
-                    samples = document->raster_samples;
-                    sample_count = document->raster_sample_count;
-                } else {
-                    continue;
-                }
+            result = drawing_program_layer_raster_store_export_layer_or_legacy_base(layer_rasters,
+                                                                                    document,
+                                                                                    layer_id,
+                                                                                    &samples,
+                                                                                    &sample_count);
+            if (result.code != CORE_OK ||
+                !samples ||
+                sample_count != document->raster_sample_count) {
+                continue;
             }
             result = drawing_program_layer_raster_store_import_layer(&storage->layer_rasters,
                                                                      layer_id,
@@ -761,6 +758,38 @@ void drawing_program_texture_project_set_surface_layer_role(
     surface->layer_role_layer_ids[surface->layer_role_entry_count] = layer_id;
     surface->layer_role_values[surface->layer_role_entry_count] = (uint8_t)role_kind;
     surface->layer_role_entry_count += 1u;
+}
+
+void drawing_program_texture_project_set_surface_layer_opacity(
+    DrawingProgramTextureProject *project,
+    uint32_t surface_index,
+    uint32_t layer_id,
+    uint32_t opacity_percent) {
+    DrawingProgramTextureSurface *surface = 0;
+    uint32_t i;
+    uint8_t opacity = (opacity_percent > 100u) ? 100u : (uint8_t)opacity_percent;
+    if (!texture_project_surface_index_valid(project, surface_index) || layer_id == 0u) {
+        return;
+    }
+    surface = &project->surfaces[surface_index];
+    if (!surface->storage) {
+        return;
+    }
+    if (surface->layer_opacity_entry_count == 0u) {
+        texture_project_surface_seed_layer_opacity_defaults(surface);
+    }
+    for (i = 0u; i < surface->layer_opacity_entry_count; ++i) {
+        if (surface->layer_opacity_layer_ids[i] == layer_id) {
+            surface->layer_opacity_values[i] = opacity;
+            return;
+        }
+    }
+    if (surface->layer_opacity_entry_count >= DRAWING_PROGRAM_MAX_LAYERS) {
+        return;
+    }
+    surface->layer_opacity_layer_ids[surface->layer_opacity_entry_count] = layer_id;
+    surface->layer_opacity_values[surface->layer_opacity_entry_count] = opacity;
+    surface->layer_opacity_entry_count += 1u;
 }
 
 void drawing_program_texture_project_set_surface_layer_material_intent(

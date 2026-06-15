@@ -53,15 +53,11 @@ CoreResult texture_project_snapshot_write_surface_layer_chunk(
         cursor += sizeof(uint32_t);
         memcpy(cursor, &sample_count, sizeof(uint32_t));
         cursor += sizeof(uint32_t);
-        if (i == 0u) {
-            memcpy(cursor, document->raster_samples, (size_t)sample_bytes);
-            cursor += sample_bytes;
-            continue;
-        }
-        export_result = drawing_program_layer_raster_store_export_layer(layer_rasters,
-                                                                        layer_id,
-                                                                        &samples,
-                                                                        &exported_sample_count);
+        export_result = drawing_program_layer_raster_store_export_layer_or_legacy_base(layer_rasters,
+                                                                                       document,
+                                                                                       layer_id,
+                                                                                       &samples,
+                                                                                       &exported_sample_count);
         if (export_result.code == CORE_OK &&
             samples &&
             exported_sample_count == sample_count) {

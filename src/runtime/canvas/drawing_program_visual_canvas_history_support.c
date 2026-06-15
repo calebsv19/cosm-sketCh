@@ -12,19 +12,15 @@ CoreResult drawing_program_visual_layer_sample_read_local(const DrawingProgramAp
                                                           uint32_t sample_x,
                                                           uint32_t sample_y,
                                                           DrawingProgramRasterSample *out_value) {
-    CoreResult result;
     if (!ctx || !out_value || layer_id == 0u) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid layer sample read request" };
     }
-    result = drawing_program_layer_raster_store_raster_sample_read(&ctx->layer_rasters,
-                                                                   layer_id,
-                                                                   sample_x,
-                                                                   sample_y,
-                                                                   out_value);
-    if (result.code == CORE_OK) {
-        return core_result_ok();
-    }
-    return drawing_program_document_raster_sample_read(&ctx->document, sample_x, sample_y, out_value);
+    return drawing_program_layer_raster_store_raster_sample_read_layer_or_legacy_base(&ctx->layer_rasters,
+                                                                                      &ctx->document,
+                                                                                      layer_id,
+                                                                                      sample_x,
+                                                                                      sample_y,
+                                                                                      out_value);
 }
 
 static CoreResult apply_sample_if_changed_on_layer_local(DrawingProgramAppContext *ctx,

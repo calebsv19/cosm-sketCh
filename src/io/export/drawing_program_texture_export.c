@@ -427,16 +427,15 @@ static CoreResult texture_export_compose_surface_rgba(const DrawingProgramDocume
                                                           lane_kind)) {
                 continue;
             }
-            if (drawing_program_layer_raster_store_export_layer(layer_rasters,
-                                                                layer->layer_id,
-                                                                &layer_samples,
-                                                                &exported_sample_count)
+            if (drawing_program_layer_raster_store_export_layer_or_legacy_base(layer_rasters,
+                                                                               document,
+                                                                               layer->layer_id,
+                                                                               &layer_samples,
+                                                                               &exported_sample_count)
                     .code == CORE_OK &&
                 layer_samples &&
                 exported_sample_count == document->raster_sample_count) {
                 sample = layer_samples[sample_index];
-            } else if (layer_index == 0u) {
-                sample = document->raster_samples[sample_index];
             }
             if (drawing_program_color_sample_is_transparent(sample)) {
                 continue;

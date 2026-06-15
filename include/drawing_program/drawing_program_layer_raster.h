@@ -36,6 +36,11 @@ CoreResult drawing_program_layer_raster_store_sync_document_layers(
 CoreResult drawing_program_layer_raster_store_seed_from_legacy_surface(
     DrawingProgramLayerRasterStore *store,
     const DrawingProgramDocument *document);
+uint32_t drawing_program_layer_raster_legacy_surface_layer_id(
+    const DrawingProgramDocument *document);
+int drawing_program_layer_raster_store_matches_document(
+    const DrawingProgramLayerRasterStore *store,
+    const DrawingProgramDocument *document);
 CoreResult drawing_program_layer_raster_store_sample_read(
     const DrawingProgramLayerRasterStore *store,
     uint32_t layer_id,
@@ -44,6 +49,15 @@ CoreResult drawing_program_layer_raster_store_sample_read(
     uint8_t *out_value);
 CoreResult drawing_program_layer_raster_store_raster_sample_read(
     const DrawingProgramLayerRasterStore *store,
+    uint32_t layer_id,
+    uint32_t sample_x,
+    uint32_t sample_y,
+    DrawingProgramRasterSample *out_value);
+/* Layer-boundary read: upper layers never fall back to composed preview data.
+ * Only the resolved legacy/Base layer may read document->raster_samples. */
+CoreResult drawing_program_layer_raster_store_raster_sample_read_layer_or_legacy_base(
+    const DrawingProgramLayerRasterStore *store,
+    const DrawingProgramDocument *document,
     uint32_t layer_id,
     uint32_t sample_x,
     uint32_t sample_y,
@@ -57,6 +71,13 @@ CoreResult drawing_program_layer_raster_store_sample_write(
     DrawingProgramRasterSample *out_previous_value);
 CoreResult drawing_program_layer_raster_store_export_layer(
     const DrawingProgramLayerRasterStore *store,
+    uint32_t layer_id,
+    const DrawingProgramRasterSample **out_samples,
+    uint32_t *out_sample_count);
+/* Layer-boundary export with the same Base-only legacy fallback as sample reads. */
+CoreResult drawing_program_layer_raster_store_export_layer_or_legacy_base(
+    const DrawingProgramLayerRasterStore *store,
+    const DrawingProgramDocument *document,
     uint32_t layer_id,
     const DrawingProgramRasterSample **out_samples,
     uint32_t *out_sample_count);

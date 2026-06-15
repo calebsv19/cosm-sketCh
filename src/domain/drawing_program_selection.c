@@ -25,24 +25,15 @@ static CoreResult selection_sample_read_from_active_layer(const DrawingProgramDo
                                                           uint32_t sample_x,
                                                           uint32_t sample_y,
                                                           DrawingProgramRasterSample *out_value) {
-    CoreResult result;
     if (!document || !out_value || active_layer_id == 0u) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid active-layer selection sample read request" };
     }
-    if (layer_rasters &&
-        layer_rasters->sample_count == document->raster_sample_count &&
-        layer_rasters->raster_width == document->raster_width &&
-        layer_rasters->raster_height == document->raster_height) {
-        result = drawing_program_layer_raster_store_raster_sample_read(layer_rasters,
-                                                                active_layer_id,
-                                                                sample_x,
-                                                                sample_y,
-                                                                out_value);
-        if (result.code == CORE_OK) {
-            return core_result_ok();
-        }
-    }
-    return drawing_program_document_raster_sample_read(document, sample_x, sample_y, out_value);
+    return drawing_program_layer_raster_store_raster_sample_read_layer_or_legacy_base(layer_rasters,
+                                                                                      document,
+                                                                                      active_layer_id,
+                                                                                      sample_x,
+                                                                                      sample_y,
+                                                                                      out_value);
 }
 
 void drawing_program_selection_reset(DrawingProgramSelectionState *selection) {

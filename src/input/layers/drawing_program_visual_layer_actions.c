@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "drawing_program/drawing_program_runtime_orchestration.h"
+#include "drawing_program/drawing_program_texture_project_session.h"
 #include "drawing_program/drawing_program_visual_layer_opacity.h"
 
 static int active_layer_query(const DrawingProgramAppContext *ctx,
@@ -20,6 +21,14 @@ static int active_layer_query(const DrawingProgramAppContext *ctx,
     return (result.code == CORE_OK) ? 1 : 0;
 }
 
+static int workflow_control_changes_layer_surface(DrawingProgramWorkflowControl control) {
+    return control == DRAWING_PROGRAM_WORKFLOW_CONTROL_ADD_LAYER ||
+           control == DRAWING_PROGRAM_WORKFLOW_CONTROL_DELETE_ACTIVE_LAYER ||
+           control == DRAWING_PROGRAM_WORKFLOW_CONTROL_MOVE_ACTIVE_LAYER_UP ||
+           control == DRAWING_PROGRAM_WORKFLOW_CONTROL_MOVE_ACTIVE_LAYER_DOWN ||
+           control == DRAWING_PROGRAM_WORKFLOW_CONTROL_TOGGLE_ACTIVE_LAYER_VISIBILITY;
+}
+
 void drawing_program_visual_apply_workflow_control_if_valid(DrawingProgramAppContext *ctx,
                                                             DrawingProgramWorkflowControl control) {
     CoreResult control_result;
@@ -33,6 +42,14 @@ void drawing_program_visual_apply_workflow_control_if_valid(DrawingProgramAppCon
         control == DRAWING_PROGRAM_WORKFLOW_CONTROL_ADD_LAYER &&
         ctx->document.layer_count > layer_count_before) {
         drawing_program_visual_apply_layer_role_suggest_for_active_if_generic(ctx);
+    }
+    if (control_result.code == CORE_OK && workflow_control_changes_layer_surface(control)) {
+        CoreResult commit_result = drawing_program_texture_project_session_commit_active_surface(ctx);
+        if (commit_result.code != CORE_OK) {
+            fprintf(stderr,
+                    "drawing_program: active surface commit after layer control failed: %s\n",
+                    commit_result.message);
+        }
     }
     if (control_result.code != CORE_OK && control_result.code != CORE_ERR_NOT_FOUND) {
         fprintf(stderr, "drawing_program: workflow control failed: %s\n", control_result.message);
@@ -87,17 +104,16 @@ void drawing_program_visual_apply_layer_duplicate_active(DrawingProgramAppContex
     source_opacity = (uint32_t)drawing_program_visual_layer_opacity_get(ctx, source_layer_id);
     source_role_kind = drawing_program_visual_layer_role_detect_for_layer_id(ctx, source_layer_id);
     (void)snprintf(source_name, sizeof(source_name), "%s", ctx->document.layers[source_index].name);
-    result = drawing_program_layer_raster_store_export_layer(&ctx->layer_rasters,
-                                                             source_layer_id,
-                                                             &source_samples,
-                                                             &source_sample_count);
+    result = drawing_program_layer_raster_store_export_layer_or_legacy_base(&ctx->layer_rasters,
+                                                                            &ctx->document,
+                                                                            source_layer_id,
+                                                                            &source_samples,
+                                                                            &source_sample_count);
     if (result.code != CORE_OK ||
         !source_samples ||
         source_sample_count != ctx->document.raster_sample_count) {
-        if (source_layer_id == 1u) {
-            source_samples = ctx->document.raster_samples;
-            source_sample_count = ctx->document.raster_sample_count;
-        }
+        source_samples = 0;
+        source_sample_count = 0u;
     }
     if (source_samples &&
         source_sample_count == ctx->document.raster_sample_count &&
@@ -142,4 +158,8 @@ void drawing_program_visual_apply_layer_duplicate_active(DrawingProgramAppContex
         }
     }
     drawing_program_visual_layer_opacity_set(ctx, ctx->editor.active_layer_id, (uint8_t)source_opacity);
+    result = drawing_program_texture_project_session_commit_active_surface(ctx);
+    if (result.code != CORE_OK) {
+        fprintf(stderr, "drawing_program: duplicate layer active surface commit failed: %s\n", result.message);
+    }
 }

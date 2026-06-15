@@ -6,6 +6,7 @@
 #include "core_font.h"
 #include "core_layout.h"
 #include "core_pane_module.h"
+#include "kit_render.h"
 #include "drawing_program/drawing_program_authoring_host.h"
 #include "drawing_program/drawing_program_visual_text_render.h"
 #include "drawing_program/drawing_program_visual_layout.h"

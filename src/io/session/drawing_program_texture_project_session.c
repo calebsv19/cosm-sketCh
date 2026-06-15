@@ -47,6 +47,20 @@ static void texture_project_session_ui_layer_opacity_set(DrawingProgramAppContex
     ctx->ui.layer_opacity_entry_count += 1u;
 }
 
+static int texture_project_session_ui_layer_opacity_has_entry(const DrawingProgramAppContext *ctx,
+                                                              uint32_t layer_id) {
+    uint8_t i;
+    if (!ctx || layer_id == 0u) {
+        return 0;
+    }
+    for (i = 0u; i < ctx->ui.layer_opacity_entry_count; ++i) {
+        if (ctx->ui.layer_opacity_layer_ids[i] == layer_id) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static void texture_project_session_sync_layer_opacity(DrawingProgramAppContext *ctx) {
     uint8_t compact_count = 0u;
     uint8_t i;
@@ -66,7 +80,9 @@ static void texture_project_session_sync_layer_opacity(DrawingProgramAppContext 
     }
     ctx->ui.layer_opacity_entry_count = compact_count;
     for (i = 0u; i < ctx->document.layer_count; ++i) {
-        texture_project_session_ui_layer_opacity_set(ctx, ctx->document.layers[i].layer_id, 100u);
+        if (!texture_project_session_ui_layer_opacity_has_entry(ctx, ctx->document.layers[i].layer_id)) {
+            texture_project_session_ui_layer_opacity_set(ctx, ctx->document.layers[i].layer_id, 100u);
+        }
     }
 }
 
