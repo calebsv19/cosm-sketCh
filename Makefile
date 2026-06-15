@@ -8,6 +8,7 @@ include make/objects.mk
 
 .PHONY: all build clean run run-headless test visual-harness identity print-identity \
 	export-snapshot-json snapshot-bridge-check snapshot-bridge-import \
+	memory-check-build memory-check-run memory-check-audit \
 	shared-mode shared-subtree-check shared-subtree-prepare \
 	package-desktop package-desktop-smoke package-desktop-self-test \
 	package-desktop-copy-desktop package-desktop-sync package-desktop-open \
@@ -18,6 +19,7 @@ include make/objects.mk
 
 include make/rules-build.mk
 include make/rules-test.mk
+include make/rules-memory-check.mk
 include make/package-macos.mk
 include make/release.mk
 
