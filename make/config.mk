@@ -5,6 +5,9 @@ LAUNCHER_BIN := sketch-launcher
 APP_BIN := drawing-program-bin
 VERSION_FILE := VERSION
 RELEASE_CHANNEL ?= stable
+RELEASE_CODESIGN_IDENTITY ?= $(if $(strip $(APPLE_SIGN_IDENTITY)),$(APPLE_SIGN_IDENTITY),$(PACKAGE_ADHOC_SIGN_IDENTITY))
+STAPLE_MAX_ATTEMPTS ?= 6
+STAPLE_RETRY_DELAY_SEC ?= 15
 
 HOST_CC ?= cc
 FISICS_CC ?= /Users/calebsv/Desktop/CodeWork/fisiCs/fisics

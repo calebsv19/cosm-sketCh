@@ -1,6 +1,6 @@
 # sketCh Desktop Packaging
 
-Last updated: 2026-04-30
+Last updated: 2026-06-06
 
 ## Bundle Contract
 
@@ -33,10 +33,15 @@ Last updated: 2026-04-30
   - `make -C drawing_program release-contract`
   - `make -C drawing_program release-build`
   - `make -C drawing_program release-bundle-audit`
+  - `make -C drawing_program release-sign APPLE_SIGN_IDENTITY="Developer ID Application: <Name> (<TEAMID>)"`
   - `make -C drawing_program release-verify`
+  - `make -C drawing_program release-verify-signed`
+  - `make -C drawing_program release-notarize APPLE_SIGN_IDENTITY="Developer ID Application: <Name> (<TEAMID>)" APPLE_NOTARY_PROFILE="<profile>"`
+  - `make -C drawing_program release-staple`
+  - `make -C drawing_program release-verify-notarized`
   - `make -C drawing_program release-artifact TARGET_ARCH=arm64`
   - `make -C drawing_program release-artifact TARGET_ARCH=x86_64`
-  - `make -C drawing_program release-distribute`
+  - `make -C drawing_program release-distribute APPLE_SIGN_IDENTITY="Developer ID Application: <Name> (<TEAMID>)" APPLE_NOTARY_PROFILE="<profile>"`
 
 Current release-artifact output now matches the unified export lane:
 - `build/release/sketCh-<version>-macOS-arm64-stable.zip`
@@ -45,6 +50,9 @@ Current release-artifact output now matches the unified export lane:
 - `build/release/sketCh-<version>-macOS-x86_64-stable.zip`
 - `build/release/sketCh-<version>-macOS-x86_64-stable.zip.sha256`
 - `build/release/sketCh-<version>-macOS-x86_64-stable.manifest.txt`
+
+Current notarized pass:
+- the 2026-06-06 `release-distribute` lane completed with accepted Apple notarization for `sketCh-0.2.0-macOS-arm64-stable`
 
 ## Release Target Contract
 
@@ -100,6 +108,11 @@ Current release-artifact output now matches the unified export lane:
   - `drawing_program/tools/packaging/macos/local_app_icon/AppIcon.iconset`
   - plain `make -C drawing_program package-desktop-refresh` now consumes that local store by default when present
   - the local icon store is intentionally gitignored so icon refreshes do not pollute repo state
+- canonical local icon source:
+  - `/Users/<user>/Desktop/icns/sketch.icns`
+  - sync into the packaging lane with:
+    - `bin/sync_desktop_icns.sh sketch`
+    - `bin/sync_desktop_icns.sh --refresh sketch`
 - package step bundles an app icon when a source artifact is available:
   - preferred direct source: `PACKAGE_APP_ICON_SRC=<path-to-AppIcon.icns>`
   - fallback structured source: `PACKAGE_APP_ICONSET_SRC=<path-to-AppIcon.iconset>`
@@ -132,5 +145,5 @@ Current release-artifact output now matches the unified export lane:
 ## Current Limits
 
 - This doc describes the current local packaged-app workflow only.
-- It documents a scaffold release lane sufficient for local export/upload prep, not a final notarized public-release lane.
+- The 2026-06-06 pass did produce a fresh notarized artifact set for the current `0.2.0` macOS arm64 worktree.
 - It does not prove a fresh packaging rerun on its own; use current verification records and release docs for bounded milestone context.
