@@ -30,6 +30,7 @@ Last updated: 2026-06-06
   - `make -C drawing_program package-desktop-remove`
   - `make -C drawing_program package-desktop-refresh`
 - release/export prep:
+  - `make -C drawing_program release-secret-audit`
   - `make -C drawing_program release-contract`
   - `make -C drawing_program release-build`
   - `make -C drawing_program release-bundle-audit`
@@ -53,10 +54,14 @@ Current release-artifact output now matches the unified export lane:
 
 Current notarized pass:
 - the 2026-06-06 `release-distribute` lane completed with accepted Apple notarization for `sketCh-0.2.0-macOS-arm64-stable`
+- `release-sign` status output does not print the configured signing identity;
+  use `release-secret-audit` or `release-contract` for non-live source readback
+  before running any live signing/notary/distribution action
 
 ## Release Target Contract
 
 - shared helper: `/Users/calebsv/Desktop/CodeWork/bin/desktop_release_target_contract.sh`
+- local secret guard: `tools/packaging/macos/release-secret-audit.sh`
 - target vars:
   - `TARGET_OS=macOS`
   - `TARGET_ARCH=arm64 | x86_64`
@@ -139,8 +144,26 @@ Current notarized pass:
 6. `make -C drawing_program package-desktop-refresh PACKAGE_APP_ICON_SRC=<path-to-AppIcon.icns>`
 7. `/Users/<user>/Desktop/sketCh.app/Contents/MacOS/sketch-launcher --print-config`
 8. `open /Users/<user>/Desktop/sketCh.app`
-9. `make -C drawing_program release-contract TARGET_ARCH=x86_64`
-10. `make -C drawing_program release-bundle-audit TARGET_ARCH=x86_64`
+9. `make -C drawing_program release-secret-audit`
+10. `make -C drawing_program release-contract TARGET_ARCH=x86_64`
+11. `make -C drawing_program release-bundle-audit TARGET_ARCH=x86_64`
+
+## R6 Visual Proof Boundary
+
+- `make -C drawing_program visual-artifact` is the source-run first-frame
+  proof route and writes the ignored local artifact
+  `visual_artifacts/sketch_first_frame.bmp`.
+- `visual-harness` remains a build/readiness target; it is not the generated
+  image proof route.
+- Generated R6 proof images under `visual_artifacts/` are not package payloads.
+- R6 package proof is `make -C drawing_program package-desktop-self-test`.
+  That target rebuilds the package, runs package smoke checks for launcher,
+  runtime binary, `Info.plist`, architecture, optional icon payload, and then
+  runs launcher `--self-test` against the packaged runtime binary.
+- No `package-visual-artifact` target is currently justified. Add one only for
+  a release-gated follow-on where package/runtime mismatch risk is concrete,
+  a release candidate needs visual evidence from the `.app`, or launcher
+  resource paths/bundle sandbox behavior are the feature under review.
 
 ## Current Limits
 
