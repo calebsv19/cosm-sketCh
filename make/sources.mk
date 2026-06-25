@@ -1,4 +1,4 @@
-APP_LOCAL_SRCS := \
+DRAWING_PROGRAM_BASE_LOCAL_SRCS := \
 	src/domain/drawing_program_color_model.c \
 	src/domain/drawing_program_document.c \
 	src/domain/drawing_program_editor_state.c \
@@ -42,6 +42,7 @@ APP_LOCAL_SRCS := \
 	src/io/session/drawing_program_texture_project_session.c \
 	src/io/session/drawing_program_texture_project_snapshot.c \
 	src/io/session/drawing_program_texture_project_snapshot_load.c \
+	src/io/session/drawing_program_texture_scene_file_guard.c \
 	src/io/session/drawing_program_texture_scene_browser.c \
 	src/io/session/drawing_program_texture_scene_import.c \
 	src/io/session/drawing_program_snapshot_ui_settings.c \
@@ -55,6 +56,7 @@ APP_LOCAL_SRCS := \
 	src/runtime/render/drawing_program_render_backend.c \
 	src/runtime/render/drawing_program_render_cache_telemetry.c \
 	src/runtime/render/drawing_program_render_revision.c \
+	src/runtime/render/drawing_program_render_runtime_state.c \
 	src/runtime/render/drawing_program_render_zoom_bucket.c \
 	src/runtime/orchestration/drawing_program_runtime_orchestration.c \
 	src/runtime/canvas/drawing_program_visual_canvas_history_support.c \
@@ -80,6 +82,7 @@ APP_LOCAL_SRCS := \
 	src/input/canvas/drawing_program_texture_canvas_move.c \
 	src/input/canvas/drawing_program_visual_canvas_draw_action_ops.c \
 	src/input/panel/drawing_program_visual_input_panel_color.c \
+	src/input/panel/drawing_program_visual_panel_ui_state.c \
 	src/input/panel/drawing_program_visual_input_panel_workspace_modes.c \
 	src/input/panel/drawing_program_visual_input_workspace_view.c \
 	src/input/panel/drawing_program_visual_input_right_file_tabs.c \
@@ -111,8 +114,11 @@ APP_LOCAL_SRCS := \
 	src/ui/resources/drawing_program_visual_resources.c \
 	src/ui/resources/drawing_program_visual_surface_cache.c \
 	src/app/drawing_program_visual_runtime_debug.c \
+	src/app/drawing_program_visual_artifact.c \
 	src/app/drawing_program_visual_loop_diag.c \
-	src/app/drawing_program_visual_loop_policy.c \
+	src/app/drawing_program_visual_loop_policy.c
+
+APP_TARGET_LOCAL_SRCS := \
 	src/app/drawing_program_app_post_load.c \
 	src/app/drawing_program_app_session.c \
 	src/app/drawing_program_app_runtime.c \
@@ -125,121 +131,7 @@ APP_LOCAL_SRCS := \
 	src/app/drawing_program_app_visual_runtime_loop.c \
 	src/app/drawing_program_app_visual_main.c
 
-HEADLESS_LOCAL_SRCS := \
-	src/domain/drawing_program_color_model.c \
-	src/domain/drawing_program_document.c \
-	src/domain/drawing_program_editor_state.c \
-	src/domain/drawing_program_history.c \
-	src/domain/drawing_program_history_raster_deltas.c \
-	src/domain/drawing_program_history_object_commands.c \
-	src/domain/drawing_program_layer_raster.c \
-	src/domain/drawing_program_object_geometry.c \
-	src/domain/drawing_program_object_rasterize.c \
-	src/domain/drawing_program_object_store.c \
-	src/domain/drawing_program_object_store_path_hit_test.c \
-	src/domain/drawing_program_object_selection.c \
-	src/domain/drawing_program_texture_layer_material_intent.c \
-	src/domain/drawing_program_texture_layer_role.c \
-	src/domain/drawing_program_texture_net.c \
-	src/domain/drawing_program_texture_export_intent.c \
-	src/domain/drawing_program_texture_overlay_material_intent.c \
-	src/domain/drawing_program_texture_project.c \
-	src/domain/drawing_program_texture_project_template.c \
-	src/domain/drawing_program_texture_workspace.c \
-	src/domain/drawing_program_object_transform.c \
-	src/domain/drawing_program_selection.c \
-	src/domain/drawing_program_selection_edit_ops.c \
-	src/io/export/drawing_program_export_image.c \
-	src/io/export/drawing_program_icns_export.c \
-	src/io/export/drawing_program_iconset_export.c \
-	src/io/export/drawing_program_png_export.c \
-	src/io/export/drawing_program_texture_export.c \
-	src/io/session/drawing_program_project_state.c \
-	src/io/session/drawing_program_project_selection.c \
-	src/io/session/drawing_program_session_paths.c \
-	src/io/session/drawing_program_session_prefs.c \
-	src/io/session/drawing_program_native_dialogs.c \
-	src/io/session/drawing_program_snapshot.c \
-	src/io/session/drawing_program_snapshot_history_raster_delta_chunk.c \
-	src/io/session/drawing_program_snapshot_layer_chunk.c \
-	src/io/session/drawing_program_snapshot_object_chunk.c \
-	src/io/session/drawing_program_snapshot_shell.c \
-	src/io/session/drawing_program_snapshot_export_json.c \
-	src/io/session/drawing_program_texture_canvas_ops.c \
-	src/io/session/drawing_program_texture_project_session.c \
-	src/io/session/drawing_program_texture_project_snapshot.c \
-	src/io/session/drawing_program_texture_project_snapshot_load.c \
-	src/io/session/drawing_program_texture_scene_browser.c \
-	src/io/session/drawing_program_texture_scene_import.c \
-	src/io/session/drawing_program_snapshot_ui_settings.c \
-	src/io/session/drawing_program_snapshot_ui_settings_load.c \
-	src/io/session/drawing_program_snapshot_bridge.c \
-	src/domain/drawing_program_viewport.c \
-	src/runtime/render/drawing_program_render_composed_source.c \
-	src/runtime/render/drawing_program_render_composed_source_dirty_rect.c \
-	src/runtime/render/drawing_program_render_composed_source_plan.c \
-	src/runtime/render/drawing_program_render_domain.c \
-	src/runtime/render/drawing_program_render_backend.c \
-	src/runtime/render/drawing_program_render_cache_telemetry.c \
-	src/runtime/render/drawing_program_render_revision.c \
-	src/runtime/render/drawing_program_render_zoom_bucket.c \
-	src/runtime/orchestration/drawing_program_runtime_orchestration.c \
-	src/runtime/canvas/drawing_program_visual_canvas_history_support.c \
-	src/runtime/canvas/drawing_program_visual_canvas_stroke_ops.c \
-	src/runtime/canvas/drawing_program_reflection_state.c \
-	src/runtime/canvas/drawing_program_canvas_reflection.c \
-	src/runtime/adapters/drawing_program_authoring_host.c \
-	src/runtime/adapters/drawing_program_pane_host.c \
-	src/runtime/adapters/drawing_program_overlay_adapter.c \
-	src/render/canvas/drawing_program_visual_canvas_world_render.c \
-	src/render/canvas/drawing_program_texture_net_guides.c \
-	src/render/frame/drawing_program_visual_authoring_chrome.c \
-	src/render/frame/drawing_program_visual_frame_render.c \
-	src/render/overlay/drawing_program_visual_overlay_shared.c \
-	src/render/overlay/drawing_program_visual_object_overlay.c \
-	src/render/overlay/drawing_program_visual_object_overlay_shapes.c \
-	src/render/overlay/drawing_program_visual_object_overlay_path_controls.c \
-	src/render/overlay/drawing_program_visual_selection_overlay.c \
-	src/render/overlay/drawing_program_visual_overlay_render.c \
-	src/input/canvas/drawing_program_visual_canvas_action_ops.c \
-	src/input/canvas/drawing_program_visual_canvas_coords.c \
-	src/input/canvas/drawing_program_texture_canvas_resize.c \
-	src/input/canvas/drawing_program_texture_canvas_move.c \
-	src/input/canvas/drawing_program_visual_canvas_draw_action_ops.c \
-	src/input/panel/drawing_program_visual_input_panel_color.c \
-	src/input/panel/drawing_program_visual_input_panel_workspace_modes.c \
-	src/input/panel/drawing_program_visual_input_workspace_view.c \
-	src/input/panel/drawing_program_visual_input_right_file_tabs.c \
-	src/input/panel/drawing_program_visual_input_panel_clicks_left.c \
-	src/input/panel/drawing_program_visual_input_panel_clicks.c \
-	src/input/input_core/drawing_program_visual_input_workspace_browser.c \
-	src/input/input_core/drawing_program_visual_input_workspace_surface.c \
-	src/input/input_core/drawing_program_visual_input_selection_ops.c \
-	src/input/tools/drawing_program_visual_shape_ops.c \
-	src/input/tools/drawing_program_visual_transform_ops.c \
-	src/input/layers/drawing_program_visual_layer_actions.c \
-	src/input/layers/drawing_program_visual_layer_roles.c \
-	src/input/input_core/drawing_program_visual_input_core.c \
-	src/input/input_core/drawing_program_visual_input_keydown.c \
-	src/input/input_core/drawing_program_visual_input_keymap.c \
-	src/input/input_core/drawing_program_visual_input_handlers.c \
-	src/ui/layout/drawing_program_visual_layout.c \
-	src/ui/layout/drawing_program_visual_layout_color.c \
-	src/ui/layout/drawing_program_visual_reflector_geometry.c \
-	src/ui/layers/drawing_program_visual_layer_opacity.c \
-	src/ui/pane/drawing_program_visual_pane_bindings.c \
-	src/ui/panel/drawing_program_ui_button.c \
-	src/ui/panel/drawing_program_visual_panel_render_common.c \
-	src/ui/panel/drawing_program_visual_panel_render.c \
-	src/ui/panel/drawing_program_visual_right_panel_color_render.c \
-	src/ui/panel/drawing_program_visual_right_panel_file_tabs_render.c \
-	src/ui/panel/drawing_program_visual_right_panel_render.c \
-	src/ui/theme/drawing_program_visual_theme.c \
-	src/ui/resources/drawing_program_visual_resources.c \
-	src/ui/resources/drawing_program_visual_surface_cache.c \
-	src/app/drawing_program_visual_runtime_debug.c \
-	src/app/drawing_program_visual_loop_diag.c \
-	src/app/drawing_program_visual_loop_policy.c \
+HEADLESS_TARGET_LOCAL_SRCS := \
 	src/ui/tools/drawing_program_visual_tool_options.c \
 	src/ui/text/drawing_program_visual_text_render.c \
 	src/app/drawing_program_ui_color_state.c \
@@ -249,121 +141,7 @@ HEADLESS_LOCAL_SRCS := \
 	src/app/drawing_program_app_main.c \
 	src/app/drawing_program_app_headless_main.c
 
-TEST_LOCAL_SRCS := \
-	src/domain/drawing_program_color_model.c \
-	src/domain/drawing_program_document.c \
-	src/domain/drawing_program_editor_state.c \
-	src/domain/drawing_program_history.c \
-	src/domain/drawing_program_history_raster_deltas.c \
-	src/domain/drawing_program_history_object_commands.c \
-	src/domain/drawing_program_layer_raster.c \
-	src/domain/drawing_program_object_geometry.c \
-	src/domain/drawing_program_object_rasterize.c \
-	src/domain/drawing_program_object_store.c \
-	src/domain/drawing_program_object_store_path_hit_test.c \
-	src/domain/drawing_program_object_selection.c \
-	src/domain/drawing_program_texture_layer_material_intent.c \
-	src/domain/drawing_program_texture_layer_role.c \
-	src/domain/drawing_program_texture_net.c \
-	src/domain/drawing_program_texture_export_intent.c \
-	src/domain/drawing_program_texture_overlay_material_intent.c \
-	src/domain/drawing_program_texture_project.c \
-	src/domain/drawing_program_texture_project_template.c \
-	src/domain/drawing_program_texture_workspace.c \
-	src/domain/drawing_program_object_transform.c \
-	src/domain/drawing_program_selection.c \
-	src/domain/drawing_program_selection_edit_ops.c \
-	src/io/export/drawing_program_export_image.c \
-	src/io/export/drawing_program_icns_export.c \
-	src/io/export/drawing_program_iconset_export.c \
-	src/io/export/drawing_program_png_export.c \
-	src/io/export/drawing_program_texture_export.c \
-	src/io/session/drawing_program_project_state.c \
-	src/io/session/drawing_program_project_selection.c \
-	src/io/session/drawing_program_session_paths.c \
-	src/io/session/drawing_program_session_prefs.c \
-	src/io/session/drawing_program_native_dialogs.c \
-	src/io/session/drawing_program_snapshot.c \
-	src/io/session/drawing_program_snapshot_history_raster_delta_chunk.c \
-	src/io/session/drawing_program_snapshot_layer_chunk.c \
-	src/io/session/drawing_program_snapshot_object_chunk.c \
-	src/io/session/drawing_program_snapshot_shell.c \
-	src/io/session/drawing_program_snapshot_export_json.c \
-	src/io/session/drawing_program_texture_canvas_ops.c \
-	src/io/session/drawing_program_texture_project_session.c \
-	src/io/session/drawing_program_texture_project_snapshot.c \
-	src/io/session/drawing_program_texture_project_snapshot_load.c \
-	src/io/session/drawing_program_texture_scene_browser.c \
-	src/io/session/drawing_program_texture_scene_import.c \
-	src/io/session/drawing_program_snapshot_ui_settings.c \
-	src/io/session/drawing_program_snapshot_ui_settings_load.c \
-	src/io/session/drawing_program_snapshot_bridge.c \
-	src/domain/drawing_program_viewport.c \
-	src/runtime/render/drawing_program_render_composed_source.c \
-	src/runtime/render/drawing_program_render_composed_source_dirty_rect.c \
-	src/runtime/render/drawing_program_render_composed_source_plan.c \
-	src/runtime/render/drawing_program_render_domain.c \
-	src/runtime/render/drawing_program_render_backend.c \
-	src/runtime/render/drawing_program_render_cache_telemetry.c \
-	src/runtime/render/drawing_program_render_revision.c \
-	src/runtime/render/drawing_program_render_zoom_bucket.c \
-	src/runtime/orchestration/drawing_program_runtime_orchestration.c \
-	src/runtime/canvas/drawing_program_visual_canvas_history_support.c \
-	src/runtime/canvas/drawing_program_visual_canvas_stroke_ops.c \
-	src/runtime/canvas/drawing_program_reflection_state.c \
-	src/runtime/canvas/drawing_program_canvas_reflection.c \
-	src/runtime/adapters/drawing_program_authoring_host.c \
-	src/runtime/adapters/drawing_program_pane_host.c \
-	src/runtime/adapters/drawing_program_overlay_adapter.c \
-	src/render/canvas/drawing_program_visual_canvas_world_render.c \
-	src/render/canvas/drawing_program_texture_net_guides.c \
-	src/render/frame/drawing_program_visual_authoring_chrome.c \
-	src/render/frame/drawing_program_visual_frame_render.c \
-	src/render/overlay/drawing_program_visual_overlay_shared.c \
-	src/render/overlay/drawing_program_visual_object_overlay.c \
-	src/render/overlay/drawing_program_visual_object_overlay_shapes.c \
-	src/render/overlay/drawing_program_visual_object_overlay_path_controls.c \
-	src/render/overlay/drawing_program_visual_selection_overlay.c \
-	src/render/overlay/drawing_program_visual_overlay_render.c \
-	src/input/canvas/drawing_program_visual_canvas_action_ops.c \
-	src/input/canvas/drawing_program_visual_canvas_coords.c \
-	src/input/canvas/drawing_program_texture_canvas_resize.c \
-	src/input/canvas/drawing_program_texture_canvas_move.c \
-	src/input/canvas/drawing_program_visual_canvas_draw_action_ops.c \
-	src/input/panel/drawing_program_visual_input_panel_color.c \
-	src/input/panel/drawing_program_visual_input_panel_workspace_modes.c \
-	src/input/panel/drawing_program_visual_input_workspace_view.c \
-	src/input/panel/drawing_program_visual_input_right_file_tabs.c \
-	src/input/panel/drawing_program_visual_input_panel_clicks_left.c \
-	src/input/panel/drawing_program_visual_input_panel_clicks.c \
-	src/input/input_core/drawing_program_visual_input_workspace_browser.c \
-	src/input/input_core/drawing_program_visual_input_workspace_surface.c \
-	src/input/input_core/drawing_program_visual_input_selection_ops.c \
-	src/input/tools/drawing_program_visual_shape_ops.c \
-	src/input/tools/drawing_program_visual_transform_ops.c \
-	src/input/layers/drawing_program_visual_layer_actions.c \
-	src/input/layers/drawing_program_visual_layer_roles.c \
-	src/input/input_core/drawing_program_visual_input_core.c \
-	src/input/input_core/drawing_program_visual_input_keydown.c \
-	src/input/input_core/drawing_program_visual_input_keymap.c \
-	src/input/input_core/drawing_program_visual_input_handlers.c \
-	src/ui/layout/drawing_program_visual_layout.c \
-	src/ui/layout/drawing_program_visual_layout_color.c \
-	src/ui/layout/drawing_program_visual_reflector_geometry.c \
-	src/ui/layers/drawing_program_visual_layer_opacity.c \
-	src/ui/pane/drawing_program_visual_pane_bindings.c \
-	src/ui/panel/drawing_program_ui_button.c \
-	src/ui/panel/drawing_program_visual_panel_render_common.c \
-	src/ui/panel/drawing_program_visual_panel_render.c \
-	src/ui/panel/drawing_program_visual_right_panel_color_render.c \
-	src/ui/panel/drawing_program_visual_right_panel_file_tabs_render.c \
-	src/ui/panel/drawing_program_visual_right_panel_render.c \
-	src/ui/theme/drawing_program_visual_theme.c \
-	src/ui/resources/drawing_program_visual_resources.c \
-	src/ui/resources/drawing_program_visual_surface_cache.c \
-	src/app/drawing_program_visual_runtime_debug.c \
-	src/app/drawing_program_visual_loop_diag.c \
-	src/app/drawing_program_visual_loop_policy.c \
+TEST_TARGET_LOCAL_SRCS := \
 	src/app/drawing_program_app_post_load.c \
 	src/app/drawing_program_app_session.c \
 	src/app/drawing_program_app_runtime.c \
@@ -404,3 +182,9 @@ TEST_LOCAL_SRCS := \
 	tests/drawing_program_lifecycle_color_panel_suite.c \
 	tests/drawing_program_lifecycle_test_support.c \
 	tests/drawing_program_lifecycle_test.c
+
+APP_LOCAL_SRCS := $(DRAWING_PROGRAM_BASE_LOCAL_SRCS) $(APP_TARGET_LOCAL_SRCS)
+
+HEADLESS_LOCAL_SRCS := $(DRAWING_PROGRAM_BASE_LOCAL_SRCS) $(HEADLESS_TARGET_LOCAL_SRCS)
+
+TEST_LOCAL_SRCS := $(DRAWING_PROGRAM_BASE_LOCAL_SRCS) $(TEST_TARGET_LOCAL_SRCS)

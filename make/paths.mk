@@ -8,6 +8,9 @@ PROGRAM_OBJ_DIR := $(PROGRAM_BUILD_DIR)/obj
 PROGRAM_BIN_DIR := $(PROGRAM_BUILD_DIR)/bin
 PROGRAM_CC_STAMP := $(PROGRAM_BUILD_DIR)/compiler.stamp
 SHARED_BUILD_DIR := $(TARGET_BUILD_DIR)/shared
+HEADLESS_PROBE_DIR := $(TARGET_BUILD_DIR)/headless_probe_matrix
+VISUAL_ARTIFACT_DIR := visual_artifacts
+VISUAL_ARTIFACT_SDL_VIDEODRIVER ?= dummy
 
 ifeq ($(BUILD_TOOLCHAIN),clang)
 PROGRAM_CC := $(HOST_CC)
@@ -45,6 +48,9 @@ DESKTOP_APP_DIR ?= $(HOME)/Desktop/$(PACKAGE_APP_NAME)
 EXPORT_PRESET ?= data/last_session.pack
 EXPORT_JSON ?= /tmp/drawing_program_snapshot_debug.json
 WORKSPACE_PRESET ?= ../workspace_sandbox/data/presets/sketch_layout_v1.pack
+HEADLESS_PROBE_PRESET ?= $(HEADLESS_PROBE_DIR)/session.pack
+HEADLESS_PROBE_JSON ?= $(HEADLESS_PROBE_DIR)/snapshot_debug.json
+VISUAL_ARTIFACT_PATH ?= $(VISUAL_ARTIFACT_DIR)/sketch_first_frame.bmp
 PACKAGE_FONTS_SRC_PRIMARY := $(SHARED_VENDOR_DIR)/assets/fonts
 PACKAGE_FONTS_SRC_WORKSPACE := $(SHARED_WORKSPACE_DIR)/assets/fonts
 RELEASE_VERSION := $(strip $(shell cat "$(VERSION_FILE)" 2>/dev/null))

@@ -23,6 +23,7 @@
 #include "drawing_program/drawing_program_visual_transform_ops.h"
 #include "drawing_program_lifecycle_test_support.h"
 
+#include "drawing_program_lifecycle_snapshot_suite_internal.h"
 #include "drawing_program_lifecycle_snapshot_suite.h"
 #include "drawing_program_lifecycle_selection_layer_suite.h"
 #include "drawing_program_lifecycle_authoring_host_suite.h"
@@ -621,11 +622,106 @@ static int lifecycle_maybe_inspect_pack(void) {
     return 1;
 }
 
-int main(void) {
+typedef int (*LifecycleStandaloneSuiteFn)(void);
+
+typedef struct LifecycleStandaloneSuiteEntry {
+    const char *name;
+    const char *description;
+    LifecycleStandaloneSuiteFn run;
+} LifecycleStandaloneSuiteEntry;
+
+static int lifecycle_run_test_support_contract_suite(void) {
+    char artifact_path[512];
+    if (!lifecycle_test_artifact_path(artifact_path, sizeof(artifact_path), "r5s1_test_support_probe.tmp")) {
+        return 1;
+    }
+    if (strstr(artifact_path, "r5s1_test_support_probe.tmp") == 0) {
+        fprintf(stderr, "lifecycle_test: expected artifact leaf in path got=%s\n", artifact_path);
+        return 1;
+    }
+    return 0;
+}
+
+static const LifecycleStandaloneSuiteEntry g_lifecycle_standalone_suites[] = {
+    { "test-support", "test support artifact-root contract", lifecycle_run_test_support_contract_suite },
+    { "export", "image/export model contracts", drawing_program_lifecycle_run_export_suite },
+    { "composed-source", "composed source cache/dirty-rect contracts", drawing_program_lifecycle_run_composed_source_suite },
+    { "composed-source-rcp1", "RCP1 composed source contracts", drawing_program_lifecycle_run_composed_source_rcp1_suite },
+    { "composed-source-rws1", "RWS1 composed source contracts", drawing_program_lifecycle_run_composed_source_rws1_suite },
+    { "persistence", "root/session persistence contracts", drawing_program_lifecycle_run_persistence_contract_suite },
+    { "render-domain", "render-domain model contracts", drawing_program_lifecycle_run_render_domain_suite },
+    { "snapshot-layer", "snapshot layer fixture/root contracts", drawing_program_lifecycle_run_snapshot_layer_suite },
+    { "texture-export", "authored texture export contracts", drawing_program_lifecycle_run_texture_export_suite },
+    { "texture-import", "authored texture import contracts", drawing_program_lifecycle_run_texture_import_suite },
+    { "surface-cache", "surface-cache contract checks", drawing_program_lifecycle_run_surface_cache_contract_suite },
+    { "authoring-host", "workspace authoring host contracts", drawing_program_lifecycle_run_authoring_host_suite },
+};
+
+static size_t lifecycle_standalone_suite_count(void) {
+    return sizeof(g_lifecycle_standalone_suites) / sizeof(g_lifecycle_standalone_suites[0]);
+}
+
+static void lifecycle_print_suite_list(FILE *stream) {
+    size_t i;
+    fprintf(stream, "available lifecycle suites:\n");
+    fprintf(stream, "  all - full lifecycle suite\n");
+    for (i = 0u; i < lifecycle_standalone_suite_count(); ++i) {
+        fprintf(stream,
+                "  %s - %s\n",
+                g_lifecycle_standalone_suites[i].name,
+                g_lifecycle_standalone_suites[i].description);
+    }
+}
+
+static int lifecycle_run_named_standalone_suite(const char *suite_name) {
+    size_t i;
+    if (!suite_name || !suite_name[0] || strcmp(suite_name, "all") == 0) {
+        return -1;
+    }
+    for (i = 0u; i < lifecycle_standalone_suite_count(); ++i) {
+        if (strcmp(suite_name, g_lifecycle_standalone_suites[i].name) == 0) {
+            return g_lifecycle_standalone_suites[i].run();
+        }
+    }
+    fprintf(stderr, "lifecycle_test: unknown suite '%s'\n", suite_name);
+    lifecycle_print_suite_list(stderr);
+    return 2;
+}
+
+static int lifecycle_parse_selected_suite(int argc, char **test_argv, const char **out_suite_name) {
+    int i;
+    if (!out_suite_name) {
+        return 2;
+    }
+    *out_suite_name = 0;
+    for (i = 1; i < argc; ++i) {
+        if (strcmp(test_argv[i], "--list-suites") == 0) {
+            lifecycle_print_suite_list(stdout);
+            return 1;
+        }
+        if (strcmp(test_argv[i], "--suite") == 0) {
+            if (i + 1 >= argc || !test_argv[i + 1][0]) {
+                fprintf(stderr, "lifecycle_test: missing value for --suite\n");
+                return 2;
+            }
+            *out_suite_name = test_argv[i + 1];
+            i += 1;
+            continue;
+        }
+        fprintf(stderr, "lifecycle_test: unknown test option '%s'\n", test_argv[i]);
+        lifecycle_print_suite_list(stderr);
+        return 2;
+    }
+    return 0;
+}
+
+int main(int argc, char **test_argv) {
     static DrawingProgramAppContext ctx;
     static DrawingProgramAppContext workflow_ctx;
     static DrawingProgramAppContext size_ctx;
+    static DrawingProgramAppContext bad_arg_ctx;
     static DrawingProgramClipboardState workflow_clipboard;
+    CoreResult bad_arg_result;
     uint32_t center_x;
     uint32_t center_y;
     uint32_t workflow_center_x;
@@ -639,15 +735,53 @@ int main(void) {
     char arg4[] = "--no-persist";
     char arg5[] = "--canvas-size";
     char arg6[] = "640x360";
+    char bad_arg1[] = "--definitely-unknown";
     char *argv[] = { arg0, arg1, arg2, arg3, arg4, 0 };
     char *size_argv[] = { arg0, arg1, arg2, arg3, arg4, arg5, arg6, 0 };
+    char *unknown_argv[] = { arg0, bad_arg1, 0 };
+    char *missing_canvas_size_argv[] = { arg0, arg5, 0 };
     uint8_t expected_draw_value = 0u;
     uint8_t expected_eraser_value =
         drawing_program_color_legacy_sample_from_sample(drawing_program_color_eraser_value());
+    const char *selected_suite = 0;
+    int parse_result = lifecycle_parse_selected_suite(argc, test_argv, &selected_suite);
+    int suite_result = 0;
     drawing_program_clipboard_reset(&workflow_clipboard);
+
+    if (parse_result == 1) {
+        return 0;
+    }
+    if (parse_result != 0) {
+        return parse_result;
+    }
+    if (selected_suite && strcmp(selected_suite, "all") != 0) {
+        suite_result = lifecycle_run_named_standalone_suite(selected_suite);
+        return suite_result < 0 ? 2 : suite_result;
+    }
 
     if (lifecycle_maybe_inspect_pack() != 0) {
         return 0;
+    }
+
+    bad_arg_result = drawing_program_app_bootstrap(&bad_arg_ctx, 2, unknown_argv);
+    if (bad_arg_result.code != CORE_ERR_INVALID_ARG ||
+        !bad_arg_result.message ||
+        strstr(bad_arg_result.message, "unknown command-line option: --definitely-unknown") == 0) {
+        fprintf(stderr,
+                "lifecycle_test: expected unknown option diagnostic got code=%d message=%s\n",
+                (int)bad_arg_result.code,
+                bad_arg_result.message ? bad_arg_result.message : "(null)");
+        return 1;
+    }
+    bad_arg_result = drawing_program_app_bootstrap(&bad_arg_ctx, 2, missing_canvas_size_argv);
+    if (bad_arg_result.code != CORE_ERR_INVALID_ARG ||
+        !bad_arg_result.message ||
+        strstr(bad_arg_result.message, "missing value for --canvas-size") == 0) {
+        fprintf(stderr,
+                "lifecycle_test: expected missing option value diagnostic got code=%d message=%s\n",
+                (int)bad_arg_result.code,
+                bad_arg_result.message ? bad_arg_result.message : "(null)");
+        return 1;
     }
 
     if (!expect_ok(drawing_program_app_bootstrap(&ctx, 5, argv), "bootstrap")) {

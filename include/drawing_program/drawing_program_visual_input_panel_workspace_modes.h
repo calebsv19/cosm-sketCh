@@ -10,8 +10,6 @@
 extern "C" {
 #endif
 
-void drawing_program_visual_input_disarm_right_canvas_workspace_modes(VisualPanelUiState *ui);
-
 int drawing_program_visual_input_handle_right_canvas_workspace_mode_payload(
     DrawingProgramAppContext *ctx,
     SDL_Rect rect,

@@ -4,6 +4,7 @@
 #include "drawing_program/drawing_program_object_store.h"
 #include "drawing_program/drawing_program_selection.h"
 #include "drawing_program/drawing_program_visual_layout.h"
+#include "drawing_program/drawing_program_visual_tool_options.h"
 
 enum {
     VISUAL_LEFT_PANEL_SLOT_TOOLS_VALUE = 0,
@@ -47,12 +48,12 @@ void drawing_program_visual_input_handle_left_panel_click_payload(
         SDL_Rect tab_tools = left_panel_slot_tab_rect(rect, m, VISUAL_LEFT_PANEL_SLOT_TOOLS_VALUE, 2u);
         SDL_Rect tab_objects = left_panel_slot_tab_rect(rect, m, VISUAL_LEFT_PANEL_SLOT_OBJECTS_VALUE, 2u);
         if (hooks->point_in_rect(tab_tools, x, y)) {
-            ctx->ui.left_panel_slot = (uint8_t)VISUAL_LEFT_PANEL_SLOT_TOOLS_VALUE;
+            drawing_program_visual_set_left_panel_slot(ctx, (uint8_t)VISUAL_LEFT_PANEL_SLOT_TOOLS_VALUE);
             hooks->sync_panel_ui_from_app(ctx, ui);
             return;
         }
         if (hooks->point_in_rect(tab_objects, x, y)) {
-            ctx->ui.left_panel_slot = (uint8_t)VISUAL_LEFT_PANEL_SLOT_OBJECTS_VALUE;
+            drawing_program_visual_set_left_panel_slot(ctx, (uint8_t)VISUAL_LEFT_PANEL_SLOT_OBJECTS_VALUE);
             hooks->sync_panel_ui_from_app(ctx, ui);
             return;
         }

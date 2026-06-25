@@ -5,6 +5,7 @@
 #include "drawing_program/drawing_program_texture_workspace.h"
 #include "drawing_program/drawing_program_visual_pane_bindings.h"
 #include "drawing_program/drawing_program_visual_right_panel_defs.h"
+#include "drawing_program/drawing_program_visual_tool_options.h"
 #include "drawing_program/drawing_program_viewport.h"
 
 static int visual_input_workspace_canvas_pane_rect(const DrawingProgramAppContext *ctx, SDL_Rect *out_rect) {
@@ -45,6 +46,6 @@ int drawing_program_visual_input_workspace_view_show_canvas_fit_all(DrawingProgr
     if (!ctx) {
         return 0;
     }
-    ctx->ui.right_panel_slot = (uint8_t)VISUAL_RIGHT_PANEL_SLOT_CANVAS;
+    drawing_program_visual_set_right_panel_slot(ctx, (uint8_t)VISUAL_RIGHT_PANEL_SLOT_CANVAS);
     return drawing_program_visual_input_workspace_view_fit_all(ctx);
 }

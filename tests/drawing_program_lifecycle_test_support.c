@@ -1,6 +1,10 @@
 #include "drawing_program_lifecycle_test_support.h"
 
+#include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
 
 uint32_t g_test_apply_workflow_calls = 0u;
 DrawingProgramWorkflowControl g_test_last_workflow_control = DRAWING_PROGRAM_WORKFLOW_CONTROL_NONE;
@@ -34,6 +38,64 @@ int expect_overlay_error_code(DrawingProgramOverlayAdapterResult result,
                 (unsigned)result.ok,
                 (int)result.error_code,
                 result.reason ? result.reason : "n/a");
+        return 0;
+    }
+    return 1;
+}
+
+const char *lifecycle_test_artifact_root(void) {
+    const char *configured_root = getenv("DRAWING_PROGRAM_TEST_ARTIFACT_ROOT");
+    const char *tmp_root = getenv("TMPDIR");
+    static char default_root[512];
+    int written = 0;
+    if (configured_root && configured_root[0]) {
+        return configured_root;
+    }
+    if (!tmp_root || !tmp_root[0]) {
+        tmp_root = "/tmp";
+    }
+    written = snprintf(default_root, sizeof(default_root), "%s/%s", tmp_root, "drawing_program_lifecycle_tests");
+    if (written < 0 || (size_t)written >= sizeof(default_root)) {
+        return "/tmp/drawing_program_lifecycle_tests";
+    }
+    return default_root;
+}
+
+int lifecycle_test_artifact_path(char *buffer, size_t buffer_size, const char *leaf_name) {
+    const char *root = lifecycle_test_artifact_root();
+    int written = 0;
+    if (!buffer || buffer_size == 0u || !root || !leaf_name || !leaf_name[0]) {
+        return 0;
+    }
+    if (mkdir(root, 0700) != 0 && errno != EEXIST) {
+        fprintf(stderr, "lifecycle_test: failed to create artifact root %s: %s\n", root, strerror(errno));
+        return 0;
+    }
+    written = snprintf(buffer, buffer_size, "%s/%s", root, leaf_name);
+    if (written < 0 || (size_t)written >= buffer_size) {
+        fprintf(stderr,
+                "lifecycle_test: artifact path too long root=%s leaf=%s\n",
+                root,
+                leaf_name);
+        return 0;
+    }
+    return 1;
+}
+
+int lifecycle_test_artifact_child_path(char *buffer,
+                                       size_t buffer_size,
+                                       const char *parent_path,
+                                       const char *leaf_name) {
+    int written = 0;
+    if (!buffer || buffer_size == 0u || !parent_path || !parent_path[0] || !leaf_name || !leaf_name[0]) {
+        return 0;
+    }
+    written = snprintf(buffer, buffer_size, "%s/%s", parent_path, leaf_name);
+    if (written < 0 || (size_t)written >= buffer_size) {
+        fprintf(stderr,
+                "lifecycle_test: artifact child path too long parent=%s leaf=%s\n",
+                parent_path,
+                leaf_name);
         return 0;
     }
     return 1;

@@ -2,6 +2,21 @@ all: build
 
 build: $(APP_TARGET) $(HEADLESS_TARGET)
 
+fisics-compiler:
+	$(MAKE) -C "$(FISICS_DIR)" all
+
+fisics-build: fisics-compiler
+	$(MAKE) BUILD_TOOLCHAIN=fisics -B build
+
+fisics-run: fisics-build
+	$(MAKE) BUILD_TOOLCHAIN=fisics run
+
+fisics-run-headless: fisics-build
+	$(MAKE) BUILD_TOOLCHAIN=fisics run-headless
+
+fisics-package-desktop-refresh: fisics-compiler
+	$(MAKE) BUILD_TOOLCHAIN=fisics PACKAGE_TOOLCHAIN=fisics package-desktop-refresh
+
 $(SHARED_BUILD_DIR):
 	@mkdir -p "$@"
 
@@ -97,7 +112,7 @@ $(APP_OBJS) $(HEADLESS_OBJS): $(PROGRAM_CC_STAMP)
 
 $(PROGRAM_OBJ_DIR)/%.c.o: %.c $(PROGRAM_CC_STAMP)
 	@mkdir -p "$(dir $@)"
-	$(PROGRAM_CC) $(PROGRAM_CFLAGS) $(PROGRAM_DEPFLAGS) -c "$<" -o "$@"
+	FISICS_MAX_PROCS="$(FISICS_MAX_PROCS)" $(PROGRAM_CC) $(PROGRAM_CFLAGS) $(PROGRAM_DEPFLAGS) -c "$<" -o "$@"
 
 $(TEST_OBJ_DIR)/%.c.o: %.c
 	@mkdir -p "$(dir $@)"

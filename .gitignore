@@ -1,6 +1,7 @@
 build/
 dist/
 tmp/
+visual_artifacts/
 ide_files/
 .DS_Store
 **/.DS_Store

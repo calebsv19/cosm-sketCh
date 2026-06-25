@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -33,6 +34,8 @@ int drawing_program_lifecycle_run_persistence_contract_suite(void) {
     static DrawingProgramAppContext prefs_ctx;
     static DrawingProgramAppContext load_ctx;
     static DrawingProgramAppContext override_ctx;
+    static DrawingProgramAppContext bad_root_ctx;
+    static DrawingProgramAppContext long_env_root_ctx;
     char suite_root[] = "/tmp/drawing_program_persistence_contract_suite";
     char runtime_root[] = "/tmp/drawing_program_persistence_contract_suite/runtime";
     char input_root[] = "/tmp/drawing_program_persistence_contract_suite/input";
@@ -44,6 +47,7 @@ int drawing_program_lifecycle_run_persistence_contract_suite(void) {
     char expected_project_path[] = "/tmp/drawing_program_persistence_contract_suite/input/icon_project_001.pack";
     char expected_preset_path[] = "/tmp/drawing_program_persistence_contract_suite/runtime/last_session.pack";
     char expected_alt_project_path[] = "/tmp/drawing_program_persistence_contract_suite/alt_input/persisted_current.pack";
+    char blocked_runtime_root[] = "/tmp/drawing_program_persistence_contract_suite/blocked_runtime_root";
     char arg0[] = "drawing_program_persistence_contract_save";
     char arg1[] = "--headless";
     char arg2[] = "--smoke-frames";
@@ -64,6 +68,20 @@ int drawing_program_lifecycle_run_persistence_contract_suite(void) {
     char *runtime_only_argv[] = {
         runtime_only_arg0, runtime_only_arg1, runtime_only_arg2, runtime_only_arg3, runtime_only_arg4, runtime_only_arg5, 0
     };
+    char bad_arg0[] = "drawing_program_persistence_contract_bad_root";
+    char bad_arg1[] = "--headless";
+    char bad_arg2[] = "--runtime-root";
+    char bad_arg3[] = "/tmp/drawing_program_persistence_contract_suite/blocked_runtime_root";
+    char bad_arg4[] = "--no-persist";
+    char *bad_root_argv[] = { bad_arg0, bad_arg1, bad_arg2, bad_arg3, bad_arg4, 0 };
+    char long_env_arg0[] = "drawing_program_persistence_contract_long_env_root";
+    char long_env_arg1[] = "--headless";
+    char long_env_arg2[] = "--no-persist";
+    char *long_env_argv[] = { long_env_arg0, long_env_arg1, long_env_arg2, 0 };
+    char long_runtime_root[640];
+    FILE *blocked_file = 0;
+    CoreResult bad_root_result;
+    CoreResult long_env_root_result;
     uint32_t project_sample_x = 13u;
     uint32_t project_sample_y = 17u;
     uint32_t active_surface_sample_x = 7u;
@@ -91,6 +109,60 @@ int drawing_program_lifecycle_run_persistence_contract_suite(void) {
     (void)unlink(expected_preset_path);
     (void)unlink(expected_alt_project_path);
     (void)unlink("/tmp/drawing_program_persistence_contract_suite/runtime/session_prefs_v1.txt");
+    (void)unlink(blocked_runtime_root);
+
+    blocked_file = fopen(blocked_runtime_root, "wb");
+    if (!blocked_file) {
+        fprintf(stderr, "lifecycle_test: failed to seed blocked runtime root file %s\n", blocked_runtime_root);
+        return 1;
+    }
+    (void)fputs("not a directory\n", blocked_file);
+    (void)fclose(blocked_file);
+    if (!expect_ok(drawing_program_app_bootstrap(&bad_root_ctx, 5, bad_root_argv),
+                   "persistence_contract_bad_root_bootstrap")) {
+        return 1;
+    }
+    bad_root_result = drawing_program_app_config_load(&bad_root_ctx);
+    if (bad_root_result.code != CORE_ERR_IO ||
+        !bad_root_result.message ||
+        strstr(bad_root_result.message, "role=runtime_root") == 0 ||
+        strstr(bad_root_result.message, blocked_runtime_root) == 0 ||
+        strstr(bad_root_result.message, "not a directory") == 0) {
+        fprintf(stderr,
+                "lifecycle_test: expected runtime root diagnostic with role/path got code=%d message=%s\n",
+                (int)bad_root_result.code,
+                bad_root_result.message ? bad_root_result.message : "(null)");
+        return 1;
+    }
+    (void)unlink(blocked_runtime_root);
+
+    (void)snprintf(long_runtime_root,
+                   sizeof(long_runtime_root),
+                   "/tmp/drawing_program_persistence_contract_suite/%0560d",
+                   1);
+    if (setenv("DRAWING_PROGRAM_RUNTIME_DIR", long_runtime_root, 1) != 0) {
+        fprintf(stderr, "lifecycle_test: failed to seed long runtime env root\n");
+        return 1;
+    }
+    if (!expect_ok(drawing_program_app_bootstrap(&long_env_root_ctx,
+                                                 3,
+                                                 long_env_argv),
+                   "persistence_contract_long_env_root_bootstrap")) {
+        unsetenv("DRAWING_PROGRAM_RUNTIME_DIR");
+        return 1;
+    }
+    long_env_root_result = drawing_program_app_config_load(&long_env_root_ctx);
+    unsetenv("DRAWING_PROGRAM_RUNTIME_DIR");
+    if (long_env_root_result.code != CORE_ERR_INVALID_ARG ||
+        !long_env_root_result.message ||
+        strstr(long_env_root_result.message, "role=runtime_root") == 0 ||
+        strstr(long_env_root_result.message, "too long") == 0) {
+        fprintf(stderr,
+                "lifecycle_test: expected long runtime root to fail closed got code=%d message=%s\n",
+                (int)long_env_root_result.code,
+                long_env_root_result.message ? long_env_root_result.message : "(null)");
+        return 1;
+    }
 
     if (!expect_ok(drawing_program_app_bootstrap(&save_ctx, 10, argv), "persistence_contract_bootstrap_save")) {
         return 1;

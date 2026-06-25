@@ -30,6 +30,7 @@
 #include "drawing_program/drawing_program_visual_tool_options.h"
 #include "drawing_program_app_visual_runtime.h"
 #include "drawing_program_app_visual_runtime_support.h"
+#include "drawing_program_visual_artifact.h"
 
 enum {
     DRAWING_PROGRAM_LOOP_INPUT_RESPONSE_BOOST_MS = 180
@@ -376,6 +377,25 @@ static int drawing_program_visual_loop_event_requires_runtime_tick(const SDL_Eve
     return event->type == SDL_MOUSEMOTION ? 0 : 1;
 }
 
+static void drawing_program_visual_runtime_print_stage_failure(const char *stage,
+                                                               CoreResult result) {
+    fprintf(stderr,
+            "drawing_program: stage=%s failed code=%d message=%s\n",
+            stage ? stage : "(unknown)",
+            (int)result.code,
+            result.message ? result.message : "(null)");
+}
+
+static void drawing_program_visual_runtime_print_sdl_failure(const char *stage,
+                                                             const char *detail) {
+    fprintf(stderr,
+            "drawing_program: stage=%s failed code=%d message=%s: %s\n",
+            stage ? stage : "(unknown)",
+            (int)CORE_ERR_IO,
+            detail ? detail : "SDL failure",
+            SDL_GetError());
+}
+
 int drawing_program_app_visual_run_mode(int argc, char **argv) {
     CoreResult result = core_result_ok();
     DrawingProgramRenderBackendKind backend_kind = DRAWING_PROGRAM_RENDER_BACKEND_SDL_DEBUG;
@@ -386,6 +406,9 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
     DrawingProgramAppContext *app_ptr = 0;
     SDL_Window *window = 0;
     SDL_Renderer *renderer = 0;
+    char **app_argv = argv;
+    char **filtered_argv = 0;
+    int app_argc = argc;
     int quit = 0;
     int exit_code = 1;
     Uint64 perf_freq = 0u;
@@ -393,6 +416,7 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
     uint32_t last_input_event_ms = 0u;
     uint64_t present_count = 0u;
     uint8_t layer_rasters_initialized = 0u;
+    DrawingProgramVisualArtifactRequest visual_artifact_request;
     VisualCanvasInteractionState canvas_interaction;
     VisualPanelUiState panel_ui;
     DrawingProgramVisualLoopWaitPolicyInput wait_policy_input = {0};
@@ -401,21 +425,38 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
 #define app_ctx (*app_ptr)
 #define selection_state app_ctx.selection
 
+    visual_artifact_request = drawing_program_visual_artifact_parse_request(argc, argv);
+    if (visual_artifact_request.enabled) {
+        filtered_argv = (char **)calloc((size_t)argc + 1u, sizeof(*filtered_argv));
+        if (!filtered_argv) {
+            fprintf(stderr, "drawing_program: failed to allocate visual artifact argv filter\n");
+            return 1;
+        }
+        app_argc = drawing_program_visual_artifact_filter_app_args(argc, argv, filtered_argv, argc + 1);
+        app_argv = filtered_argv;
+    }
     result = drawing_program_render_backend_parse_flag(argc, argv, &backend_kind);
     if (result.code != CORE_OK) {
-        fprintf(stderr, "drawing_program: %s\n", result.message);
+        drawing_program_visual_runtime_print_stage_failure("render_backend", result);
+        free(filtered_argv);
         return 1;
     }
     if (!drawing_program_render_backend_is_supported_now(backend_kind)) {
+        result = (CoreResult){CORE_ERR_INVALID_ARG,
+                              "render backend is defined but not implemented in P4-S1 (use --render-backend sdl-debug)"};
         fprintf(stderr,
-                "drawing_program: render backend '%s' is defined but not implemented in P4-S1 (use --render-backend sdl-debug)\n",
-                drawing_program_render_backend_kind_string(backend_kind));
+                "drawing_program: stage=render_backend failed code=%d backend=%s message=%s\n",
+                (int)result.code,
+                drawing_program_render_backend_kind_string(backend_kind),
+                result.message);
+        free(filtered_argv);
         return 2;
     }
     theme_env_result = core_theme_apply_env_override("CORE_THEME_PRESET", &selected_theme);
 
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
-        fprintf(stderr, "drawing_program: SDL_Init failed: %s\n", SDL_GetError());
+        drawing_program_visual_runtime_print_sdl_failure("sdl_init", "SDL_Init failed");
+        free(filtered_argv);
         return 1;
     }
 
@@ -426,8 +467,9 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
                               800,
                               SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
     if (!window) {
-        fprintf(stderr, "drawing_program: SDL_CreateWindow failed: %s\n", SDL_GetError());
+        drawing_program_visual_runtime_print_sdl_failure("sdl_create_window", "SDL_CreateWindow failed");
         SDL_Quit();
+        free(filtered_argv);
         return 1;
     }
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
@@ -435,9 +477,10 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
         renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
     }
     if (!renderer) {
-        fprintf(stderr, "drawing_program: SDL_CreateRenderer failed: %s\n", SDL_GetError());
+        drawing_program_visual_runtime_print_sdl_failure("sdl_create_renderer", "SDL_CreateRenderer failed");
         SDL_DestroyWindow(window);
         SDL_Quit();
+        free(filtered_argv);
         return 1;
     }
     app_ptr = (DrawingProgramAppContext *)calloc(1u, sizeof(*app_ptr));
@@ -446,30 +489,30 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
         goto cleanup;
     }
 
-    result = drawing_program_app_bootstrap(&app_ctx, argc, argv);
+    result = drawing_program_app_bootstrap(&app_ctx, app_argc, app_argv);
     if (result.code != CORE_OK) {
-        fprintf(stderr, "drawing_program: bootstrap failed: %s\n", result.message);
+        drawing_program_visual_runtime_print_stage_failure("bootstrap", result);
         goto cleanup;
     }
     result = drawing_program_app_config_load(&app_ctx);
     if (result.code != CORE_OK) {
-        fprintf(stderr, "drawing_program: config_load failed: %s\n", result.message);
+        drawing_program_visual_runtime_print_stage_failure("config_load", result);
         goto cleanup;
     }
     result = drawing_program_app_state_seed(&app_ctx);
     if (result.code != CORE_OK) {
-        fprintf(stderr, "drawing_program: state_seed failed: %s\n", result.message);
+        drawing_program_visual_runtime_print_stage_failure("state_seed", result);
         goto cleanup;
     }
     result = drawing_program_app_subsystems_init(&app_ctx);
     if (result.code != CORE_OK) {
-        fprintf(stderr, "drawing_program: subsystems_init failed: %s\n", result.message);
+        drawing_program_visual_runtime_print_stage_failure("subsystems_init", result);
         goto cleanup;
     }
     layer_rasters_initialized = 1u;
     result = drawing_program_runtime_start(&app_ctx);
     if (result.code != CORE_OK) {
-        fprintf(stderr, "drawing_program: runtime_start failed: %s\n", result.message);
+        drawing_program_visual_runtime_print_stage_failure("runtime_start", result);
         goto cleanup;
     }
     drawing_program_visual_trace_after_runtime_start(&app_ctx);
@@ -482,8 +525,8 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
         selected_theme = CORE_THEME_PRESET_DARK_DEFAULT;
         app_ctx.ui.theme_preset_id = (uint32_t)selected_theme;
         if (core_theme_get_preset(selected_theme, &theme_preset).code != CORE_OK) {
-            fprintf(stderr, "drawing_program: failed to resolve core theme preset\n");
             result = (CoreResult){CORE_ERR_INVALID_ARG, "failed to resolve core theme preset"};
+            drawing_program_visual_runtime_print_stage_failure("theme_resolve", result);
             goto cleanup;
         }
     }
@@ -512,7 +555,7 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
             initial_w > 0 && initial_h > 0) {
             result = drawing_program_app_set_pane_host_bounds(&app_ctx, (float)initial_w, (float)initial_h);
             if (result.code != CORE_OK) {
-                fprintf(stderr, "drawing_program: set pane host bounds failed: %s\n", result.message);
+                drawing_program_visual_runtime_print_stage_failure("pane_host_bounds", result);
                 goto cleanup;
             }
         }
@@ -590,7 +633,7 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
                 current_w > 0 && current_h > 0) {
                 result = drawing_program_app_set_pane_host_bounds(&app_ctx, (float)current_w, (float)current_h);
                 if (result.code != CORE_OK) {
-                    fprintf(stderr, "drawing_program: set pane host bounds failed: %s\n", result.message);
+                    drawing_program_visual_runtime_print_stage_failure("pane_host_bounds", result);
                     break;
                 }
             }
@@ -631,7 +674,7 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
             if (should_run_runtime_tick) {
                 result = drawing_program_app_run_loop(&app_ctx);
                 if (result.code != CORE_OK) {
-                    fprintf(stderr, "drawing_program: run_loop failed: %s\n", result.message);
+                    drawing_program_visual_runtime_print_stage_failure("run_loop", result);
                     break;
                 }
             }
@@ -644,9 +687,17 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
                                                          &panel_ui,
                                                          &selection_state,
                                                          &canvas_interaction)) {
-                fprintf(stderr, "drawing_program: visual debug frame draw failed\n");
                 result = (CoreResult){CORE_ERR_IO, "visual debug frame draw failed"};
+                drawing_program_visual_runtime_print_stage_failure("render_frame", result);
                 break;
+            }
+            if (visual_artifact_request.enabled && present_count == 0u) {
+                if (!drawing_program_visual_artifact_write(renderer, visual_artifact_request.path)) {
+                    result = (CoreResult){CORE_ERR_IO, "visual artifact write failed"};
+                    drawing_program_visual_runtime_print_stage_failure("visual_artifact", result);
+                    break;
+                }
+                quit = 1;
             }
             SDL_RenderPresent(renderer);
             background_present_dirty = 0;
@@ -676,7 +727,7 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
 
     result = drawing_program_app_shutdown(&app_ctx);
     if (result.code != CORE_OK) {
-        fprintf(stderr, "drawing_program: shutdown failed: %s\n", result.message);
+        drawing_program_visual_runtime_print_stage_failure("shutdown", result);
     }
     layer_rasters_initialized = 0u;
     exit_code = (result.code == CORE_OK) ? 0 : 1;
@@ -698,6 +749,7 @@ cleanup:
     if (window) {
         SDL_DestroyWindow(window);
     }
+    free(filtered_argv);
     SDL_Quit();
     return exit_code;
 }

@@ -15,81 +15,16 @@
 #include "drawing_program/drawing_program_texture_project.h"
 #include "drawing_program/drawing_program_texture_project_template.h"
 #include "drawing_program/drawing_program_texture_scene_import.h"
+#include "drawing_program/drawing_program_visual_layer_opacity.h"
 
 static CoreResult texture_project_session_invalid(const char *message) {
     CoreResult r = { CORE_ERR_INVALID_ARG, message };
     return r;
 }
 
-static uint8_t texture_project_session_clamp_percent(uint8_t value) {
-    return (value > 100u) ? 100u : value;
-}
-
-static void texture_project_session_ui_layer_opacity_set(DrawingProgramAppContext *ctx,
-                                                         uint32_t layer_id,
-                                                         uint8_t opacity_percent) {
-    uint8_t i;
-    if (!ctx || layer_id == 0u) {
-        return;
-    }
-    for (i = 0u; i < ctx->ui.layer_opacity_entry_count; ++i) {
-        if (ctx->ui.layer_opacity_layer_ids[i] == layer_id) {
-            ctx->ui.layer_opacity_values[i] = texture_project_session_clamp_percent(opacity_percent);
-            return;
-        }
-    }
-    if (ctx->ui.layer_opacity_entry_count >= DRAWING_PROGRAM_MAX_LAYERS) {
-        return;
-    }
-    ctx->ui.layer_opacity_layer_ids[ctx->ui.layer_opacity_entry_count] = layer_id;
-    ctx->ui.layer_opacity_values[ctx->ui.layer_opacity_entry_count] =
-        texture_project_session_clamp_percent(opacity_percent);
-    ctx->ui.layer_opacity_entry_count += 1u;
-}
-
-static int texture_project_session_ui_layer_opacity_has_entry(const DrawingProgramAppContext *ctx,
-                                                              uint32_t layer_id) {
-    uint8_t i;
-    if (!ctx || layer_id == 0u) {
-        return 0;
-    }
-    for (i = 0u; i < ctx->ui.layer_opacity_entry_count; ++i) {
-        if (ctx->ui.layer_opacity_layer_ids[i] == layer_id) {
-            return 1;
-        }
-    }
-    return 0;
-}
-
-static void texture_project_session_sync_layer_opacity(DrawingProgramAppContext *ctx) {
-    uint8_t compact_count = 0u;
-    uint8_t i;
-    if (!ctx) {
-        return;
-    }
-    for (i = 0u; i < ctx->ui.layer_opacity_entry_count; ++i) {
-        uint32_t layer_id = ctx->ui.layer_opacity_layer_ids[i];
-        uint32_t ignored = 0u;
-        if (layer_id != 0u &&
-            drawing_program_document_layer_index_for_id(&ctx->document, layer_id, &ignored).code == CORE_OK) {
-            ctx->ui.layer_opacity_layer_ids[compact_count] = layer_id;
-            ctx->ui.layer_opacity_values[compact_count] =
-                texture_project_session_clamp_percent(ctx->ui.layer_opacity_values[i]);
-            compact_count += 1u;
-        }
-    }
-    ctx->ui.layer_opacity_entry_count = compact_count;
-    for (i = 0u; i < ctx->document.layer_count; ++i) {
-        if (!texture_project_session_ui_layer_opacity_has_entry(ctx, ctx->document.layers[i].layer_id)) {
-            texture_project_session_ui_layer_opacity_set(ctx, ctx->document.layers[i].layer_id, 100u);
-        }
-    }
-}
-
 static void texture_project_session_load_surface_layer_opacity(DrawingProgramAppContext *ctx,
                                                                uint32_t surface_index) {
     uint8_t opacity_values[DRAWING_PROGRAM_MAX_LAYERS];
-    uint32_t i;
     if (!ctx) {
         return;
     }
@@ -98,15 +33,7 @@ static void texture_project_session_load_surface_layer_opacity(DrawingProgramApp
                                                                            surface_index,
                                                                            opacity_values,
                                                                            DRAWING_PROGRAM_MAX_LAYERS);
-    ctx->ui.layer_opacity_entry_count = 0u;
-    memset(ctx->ui.layer_opacity_layer_ids, 0, sizeof(ctx->ui.layer_opacity_layer_ids));
-    memset(ctx->ui.layer_opacity_values, 0, sizeof(ctx->ui.layer_opacity_values));
-    for (i = 0u; i < ctx->document.layer_count && i < DRAWING_PROGRAM_MAX_LAYERS; ++i) {
-        texture_project_session_ui_layer_opacity_set(ctx,
-                                                     ctx->document.layers[i].layer_id,
-                                                     opacity_values[i]);
-    }
-    drawing_program_render_revision_mark_layer_opacity_changed(ctx);
+    drawing_program_visual_layer_opacity_replace_by_index(ctx, opacity_values, DRAWING_PROGRAM_MAX_LAYERS);
 }
 
 static CoreResult texture_project_session_init_blank_document_from_source(
@@ -197,7 +124,7 @@ static CoreResult texture_project_session_apply_surface(DrawingProgramAppContext
     drawing_program_history_init(&ctx->history);
     drawing_program_selection_reset(&ctx->selection);
     drawing_program_clipboard_reset(&ctx->clipboard);
-    texture_project_session_sync_layer_opacity(ctx);
+    drawing_program_visual_layer_opacity_sync_document(ctx);
     texture_project_session_load_surface_layer_opacity(ctx, surface_index);
     drawing_program_app_rearm_after_document_swap(ctx);
     return core_result_ok();
@@ -619,7 +546,7 @@ CoreResult drawing_program_texture_project_session_resize_active_blank_surface(
             ctx->editor.active_layer_id = (ctx->document.layer_count > 0u) ? ctx->document.layers[0].layer_id : 0u;
         }
     }
-    texture_project_session_sync_layer_opacity(ctx);
+    drawing_program_visual_layer_opacity_sync_document(ctx);
     drawing_program_app_rearm_after_document_swap(ctx);
     result = drawing_program_texture_project_capture_surface(&ctx->texture_project,
                                                              ctx->texture_project.active_surface_index,

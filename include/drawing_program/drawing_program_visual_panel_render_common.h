@@ -3,7 +3,9 @@
 
 #include <SDL2/SDL.h>
 
+#include "drawing_program/drawing_program_visual_layout.h"
 #include "drawing_program/drawing_program_visual_panel_render.h"
+#include "drawing_program/drawing_program_visual_theme.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,6 +41,16 @@ void drawing_program_visual_panel_draw_tab_button_variant(SDL_Renderer *renderer
                                                           int hovered,
                                                           int positive,
                                                           const DrawingProgramVisualPanelRenderHooks *hooks);
+void drawing_program_visual_panel_draw_themed_button(SDL_Renderer *renderer,
+                                                     SDL_Rect clip_rect,
+                                                     SDL_Rect rect,
+                                                     const char *label,
+                                                     SDL_Color text_color,
+                                                     int selected,
+                                                     const VisualPanelUiState *ui,
+                                                     VisualPaneLayoutMetrics metrics,
+                                                     VisualThemePalette palette,
+                                                     const DrawingProgramVisualPanelRenderHooks *hooks);
 void drawing_program_visual_panel_draw_row_button_variant(SDL_Renderer *renderer,
                                                           SDL_Rect clip_rect,
                                                           SDL_Rect rect,

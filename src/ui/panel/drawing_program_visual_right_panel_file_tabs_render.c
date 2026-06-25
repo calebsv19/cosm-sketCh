@@ -14,15 +14,7 @@
 #include "drawing_program/drawing_program_texture_scene_browser.h"
 #include "drawing_program/drawing_program_visual_layout.h"
 #include "drawing_program/drawing_program_visual_panel_render_common.h"
-
-enum {
-    VISUAL_RIGHT_FILE_ACTION_COUNT = 8,
-    VISUAL_RIGHT_FILE_FOOTER_LINE_COUNT = 4,
-    VISUAL_RIGHT_ASSET_ACTION_COUNT = 2,
-    VISUAL_RIGHT_ASSET_FOOTER_LINE_COUNT = 4,
-    VISUAL_RIGHT_EXPORT_ACTION_COUNT = 7,
-    VISUAL_RIGHT_EXPORT_FOOTER_LINE_COUNT = 6
-};
+#include "drawing_program/drawing_program_visual_right_panel_defs.h"
 
 static void visual_right_panel_format_path_line(char *out_line,
                                                 size_t out_cap,
@@ -186,30 +178,6 @@ static void visual_right_panel_draw_queue_row(SDL_Renderer *renderer,
                                                          hooks);
 }
 
-static void visual_right_panel_draw_button(SDL_Renderer *renderer,
-                                           SDL_Rect rect,
-                                           SDL_Rect button_rect,
-                                           const char *label,
-                                           SDL_Color text_color,
-                                           const VisualPanelUiState *ui,
-                                           VisualPaneLayoutMetrics m,
-                                           VisualThemePalette p,
-                                           const DrawingProgramVisualPanelRenderHooks *hooks) {
-    drawing_program_visual_panel_draw_tab_button(renderer,
-                                                 rect,
-                                                 button_rect,
-                                                 label,
-                                                 p.button_fill,
-                                                 p.button_fill_hover,
-                                                 p.button_fill_active,
-                                                 p.button_border,
-                                                 text_color,
-                                                 m.body_scale,
-                                                 0,
-                                                 drawing_program_visual_panel_ui_hovered(ui, button_rect, hooks),
-                                                 hooks);
-}
-
 void drawing_program_visual_render_right_file_tab(SDL_Renderer *renderer,
                                                   SDL_Rect rect,
                                                   const DrawingProgramAppContext *ctx,
@@ -219,16 +187,19 @@ void drawing_program_visual_render_right_file_tab(SDL_Renderer *renderer,
                                                   const DrawingProgramVisualPanelRenderHooks *hooks) {
     char line[160];
     uint32_t target_slot_count = right_file_target_queue_slot_count(ctx);
-    SDL_Rect new_project_button = right_file_action_button_rect(rect, m, 0u, VISUAL_RIGHT_FILE_ACTION_COUNT);
-    SDL_Rect open_project_button = right_file_action_button_rect(rect, m, 1u, VISUAL_RIGHT_FILE_ACTION_COUNT);
-    SDL_Rect save_project_button = right_file_action_button_rect(rect, m, 2u, VISUAL_RIGHT_FILE_ACTION_COUNT);
-    SDL_Rect save_as_button = right_file_action_button_rect(rect, m, 3u, VISUAL_RIGHT_FILE_ACTION_COUNT);
-    SDL_Rect load_project_button = right_file_action_button_rect(rect, m, 4u, VISUAL_RIGHT_FILE_ACTION_COUNT);
-    SDL_Rect pick_input_root_button = right_file_action_button_rect(rect, m, 5u, VISUAL_RIGHT_FILE_ACTION_COUNT);
-    SDL_Rect save_session_button = right_file_action_button_rect(rect, m, 6u, VISUAL_RIGHT_FILE_ACTION_COUNT);
-    SDL_Rect reload_session_button = right_file_action_button_rect(rect, m, 7u, VISUAL_RIGHT_FILE_ACTION_COUNT);
+    SDL_Rect new_project_button = right_file_action_button_rect(rect, m, 0u, VISUAL_RIGHT_PANEL_FILE_TAB_ACTION_COUNT);
+    SDL_Rect open_project_button = right_file_action_button_rect(rect, m, 1u, VISUAL_RIGHT_PANEL_FILE_TAB_ACTION_COUNT);
+    SDL_Rect save_project_button = right_file_action_button_rect(rect, m, 2u, VISUAL_RIGHT_PANEL_FILE_TAB_ACTION_COUNT);
+    SDL_Rect save_as_button = right_file_action_button_rect(rect, m, 3u, VISUAL_RIGHT_PANEL_FILE_TAB_ACTION_COUNT);
+    SDL_Rect load_project_button = right_file_action_button_rect(rect, m, 4u, VISUAL_RIGHT_PANEL_FILE_TAB_ACTION_COUNT);
+    SDL_Rect pick_input_root_button = right_file_action_button_rect(rect, m, 5u, VISUAL_RIGHT_PANEL_FILE_TAB_ACTION_COUNT);
+    SDL_Rect save_session_button = right_file_action_button_rect(rect, m, 6u, VISUAL_RIGHT_PANEL_FILE_TAB_ACTION_COUNT);
+    SDL_Rect reload_session_button = right_file_action_button_rect(rect, m, 7u, VISUAL_RIGHT_PANEL_FILE_TAB_ACTION_COUNT);
     SDL_Rect target_queue_rect =
-        right_file_project_queue_rect(rect, m, VISUAL_RIGHT_FILE_ACTION_COUNT, VISUAL_RIGHT_FILE_FOOTER_LINE_COUNT);
+        right_file_project_queue_rect(rect,
+                                      m,
+                                      VISUAL_RIGHT_PANEL_FILE_TAB_ACTION_COUNT,
+                                      VISUAL_RIGHT_PANEL_FILE_TAB_FOOTER_LINE_COUNT);
     int target_scroll_y =
         ui ? right_file_target_queue_clamp_scroll(target_queue_rect,
                                                   m,
@@ -243,35 +214,27 @@ void drawing_program_visual_render_right_file_tab(SDL_Renderer *renderer,
     hooks->draw_bitmap_text(renderer,
                             rect,
                             rect.x + m.pad_x,
-                            right_file_target_queue_label_y(rect, m, VISUAL_RIGHT_FILE_ACTION_COUNT),
+                            right_file_target_queue_label_y(rect, m, VISUAL_RIGHT_PANEL_FILE_TAB_ACTION_COUNT),
                             "SAVED DRAWING.PACK TARGETS",
                             p.text_primary,
                             m.body_scale);
 
-    visual_right_panel_draw_button(renderer, rect, new_project_button, "NEW BLANK", p.text_primary, ui, m, p, hooks);
-    visual_right_panel_draw_button(renderer, rect, open_project_button, "OPEN PROJECT", p.text_primary, ui, m, p, hooks);
-    visual_right_panel_draw_button(renderer, rect, save_project_button, "SAVE", p.text_primary, ui, m, p, hooks);
-    visual_right_panel_draw_button(renderer, rect, save_as_button, "SAVE AS", p.text_primary, ui, m, p, hooks);
-    visual_right_panel_draw_button(renderer, rect, load_project_button, "LOAD SELECTED", p.text_primary, ui, m, p, hooks);
-    visual_right_panel_draw_button(renderer,
-                                   rect,
-                                   pick_input_root_button,
-                                   "PICK INPUT ROOT",
-                                   p.text_primary,
-                                   ui,
-                                   m,
-                                   p,
-                                   hooks);
-    visual_right_panel_draw_button(renderer, rect, save_session_button, "SAVE SESSION", p.text_primary, ui, m, p, hooks);
-    visual_right_panel_draw_button(renderer,
-                                   rect,
-                                   reload_session_button,
-                                   "RELOAD SESSION",
-                                   p.text_primary,
-                                   ui,
-                                   m,
-                                   p,
-                                   hooks);
+    drawing_program_visual_panel_draw_themed_button(
+        renderer, rect, new_project_button, "NEW BLANK", p.text_primary, 0, ui, m, p, hooks);
+    drawing_program_visual_panel_draw_themed_button(
+        renderer, rect, open_project_button, "OPEN PROJECT", p.text_primary, 0, ui, m, p, hooks);
+    drawing_program_visual_panel_draw_themed_button(
+        renderer, rect, save_project_button, "SAVE", p.text_primary, 0, ui, m, p, hooks);
+    drawing_program_visual_panel_draw_themed_button(
+        renderer, rect, save_as_button, "SAVE AS", p.text_primary, 0, ui, m, p, hooks);
+    drawing_program_visual_panel_draw_themed_button(
+        renderer, rect, load_project_button, "LOAD SELECTED", p.text_primary, 0, ui, m, p, hooks);
+    drawing_program_visual_panel_draw_themed_button(
+        renderer, rect, pick_input_root_button, "PICK INPUT ROOT", p.text_primary, 0, ui, m, p, hooks);
+    drawing_program_visual_panel_draw_themed_button(
+        renderer, rect, save_session_button, "SAVE SESSION", p.text_primary, 0, ui, m, p, hooks);
+    drawing_program_visual_panel_draw_themed_button(
+        renderer, rect, reload_session_button, "RELOAD SESSION", p.text_primary, 0, ui, m, p, hooks);
 
     SDL_SetRenderDrawColor(renderer,
                            p.pane_background_alt.r,
@@ -312,7 +275,7 @@ void drawing_program_visual_render_right_file_tab(SDL_Renderer *renderer,
                                       p.button_fill,
                                       p.button_border);
 
-    y = right_file_state_start_y(rect, m, VISUAL_RIGHT_FILE_FOOTER_LINE_COUNT);
+    y = right_file_state_start_y(rect, m, VISUAL_RIGHT_PANEL_FILE_TAB_FOOTER_LINE_COUNT);
     visual_right_panel_format_path_line(line, sizeof(line), "PROJECT", ctx->session.project_path);
     hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
     y += m.line_h;
@@ -346,17 +309,20 @@ void drawing_program_visual_render_right_asset_tab(SDL_Renderer *renderer,
     SDL_Rect browser_scenes_tab = right_asset_browser_mode_tab_rect(rect, m, 0u, 2u);
     SDL_Rect browser_objects_tab = right_asset_browser_mode_tab_rect(rect, m, 1u, 2u);
     SDL_Rect target_queue_rect =
-        right_asset_target_queue_rect(rect, m, VISUAL_RIGHT_ASSET_FOOTER_LINE_COUNT, VISUAL_RIGHT_ASSET_ACTION_COUNT);
+        right_asset_target_queue_rect(rect,
+                                      m,
+                                      VISUAL_RIGHT_PANEL_ASSET_TAB_FOOTER_LINE_COUNT,
+                                      VISUAL_RIGHT_PANEL_ASSET_TAB_ACTION_COUNT);
     SDL_Rect pick_scene_root_button = right_file_route_action_button_rect(rect,
                                                                           m,
-                                                                          VISUAL_RIGHT_ASSET_FOOTER_LINE_COUNT,
+                                                                          VISUAL_RIGHT_PANEL_ASSET_TAB_FOOTER_LINE_COUNT,
                                                                           0u,
-                                                                          VISUAL_RIGHT_ASSET_ACTION_COUNT);
+                                                                          VISUAL_RIGHT_PANEL_ASSET_TAB_ACTION_COUNT);
     SDL_Rect open_object_button = right_file_route_action_button_rect(rect,
                                                                       m,
-                                                                      VISUAL_RIGHT_ASSET_FOOTER_LINE_COUNT,
+                                                                      VISUAL_RIGHT_PANEL_ASSET_TAB_FOOTER_LINE_COUNT,
                                                                       1u,
-                                                                      VISUAL_RIGHT_ASSET_ACTION_COUNT);
+                                                                      VISUAL_RIGHT_PANEL_ASSET_TAB_ACTION_COUNT);
     int target_scroll_y = 0;
     int target_scroll_max = 0;
     int y = right_file_content_start_y(rect, m);
@@ -455,29 +421,23 @@ void drawing_program_visual_render_right_asset_tab(SDL_Renderer *renderer,
                                       p.button_fill,
                                       p.button_border);
 
-    visual_right_panel_draw_button(renderer,
-                                   rect,
-                                   pick_scene_root_button,
-                                   "PICK SCENE ROOT",
-                                   p.text_primary,
-                                   ui,
-                                   m,
-                                   p,
-                                   hooks);
-    visual_right_panel_draw_button(renderer,
-                                   rect,
-                                   open_object_button,
-                                   "OPEN OBJECT AS PACK",
-                                   (ctx->session.selected_scene_path[0] != '\0' &&
-                                    ctx->session.selected_scene_object_id[0] != '\0')
-                                       ? p.text_primary
-                                       : p.text_muted,
-                                   ui,
-                                   m,
-                                   p,
-                                   hooks);
+    drawing_program_visual_panel_draw_themed_button(
+        renderer, rect, pick_scene_root_button, "PICK SCENE ROOT", p.text_primary, 0, ui, m, p, hooks);
+    drawing_program_visual_panel_draw_themed_button(
+        renderer,
+        rect,
+        open_object_button,
+        "OPEN OBJECT AS PACK",
+        (ctx->session.selected_scene_path[0] != '\0' && ctx->session.selected_scene_object_id[0] != '\0')
+            ? p.text_primary
+            : p.text_muted,
+        0,
+        ui,
+        m,
+        p,
+        hooks);
 
-    y = right_file_state_start_y(rect, m, VISUAL_RIGHT_ASSET_FOOTER_LINE_COUNT);
+    y = right_file_state_start_y(rect, m, VISUAL_RIGHT_PANEL_ASSET_TAB_FOOTER_LINE_COUNT);
     visual_right_panel_format_path_line(line, sizeof(line), "SCENE ROOT", ctx->session.scene_authored_root_path);
     hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
     y += m.line_h;
@@ -507,39 +467,39 @@ void drawing_program_visual_render_right_export_tab(SDL_Renderer *renderer,
     int y = right_file_content_start_y(rect, m);
     SDL_Rect pick_output_root_button = right_file_route_action_button_rect(rect,
                                                                            m,
-                                                                           VISUAL_RIGHT_EXPORT_FOOTER_LINE_COUNT,
+                                                                           VISUAL_RIGHT_PANEL_EXPORT_TAB_FOOTER_LINE_COUNT,
                                                                            0u,
-                                                                           VISUAL_RIGHT_EXPORT_ACTION_COUNT);
+                                                                           VISUAL_RIGHT_PANEL_EXPORT_TAB_ACTION_COUNT);
     SDL_Rect export_intent_button = right_file_route_action_button_rect(rect,
                                                                         m,
-                                                                        VISUAL_RIGHT_EXPORT_FOOTER_LINE_COUNT,
+                                                                        VISUAL_RIGHT_PANEL_EXPORT_TAB_FOOTER_LINE_COUNT,
                                                                         1u,
-                                                                        VISUAL_RIGHT_EXPORT_ACTION_COUNT);
+                                                                        VISUAL_RIGHT_PANEL_EXPORT_TAB_ACTION_COUNT);
     SDL_Rect overlay_material_intent_button = right_file_route_action_button_rect(rect,
                                                                                   m,
-                                                                                  VISUAL_RIGHT_EXPORT_FOOTER_LINE_COUNT,
+                                                                                  VISUAL_RIGHT_PANEL_EXPORT_TAB_FOOTER_LINE_COUNT,
                                                                                   2u,
-                                                                                  VISUAL_RIGHT_EXPORT_ACTION_COUNT);
+                                                                                  VISUAL_RIGHT_PANEL_EXPORT_TAB_ACTION_COUNT);
     SDL_Rect export_png_button = right_file_route_action_button_rect(rect,
                                                                      m,
-                                                                     VISUAL_RIGHT_EXPORT_FOOTER_LINE_COUNT,
+                                                                     VISUAL_RIGHT_PANEL_EXPORT_TAB_FOOTER_LINE_COUNT,
                                                                      3u,
-                                                                     VISUAL_RIGHT_EXPORT_ACTION_COUNT);
+                                                                     VISUAL_RIGHT_PANEL_EXPORT_TAB_ACTION_COUNT);
     SDL_Rect export_textures_button = right_file_route_action_button_rect(rect,
                                                                           m,
-                                                                          VISUAL_RIGHT_EXPORT_FOOTER_LINE_COUNT,
+                                                                          VISUAL_RIGHT_PANEL_EXPORT_TAB_FOOTER_LINE_COUNT,
                                                                           4u,
-                                                                          VISUAL_RIGHT_EXPORT_ACTION_COUNT);
+                                                                          VISUAL_RIGHT_PANEL_EXPORT_TAB_ACTION_COUNT);
     SDL_Rect export_iconset_button = right_file_route_action_button_rect(rect,
                                                                          m,
-                                                                         VISUAL_RIGHT_EXPORT_FOOTER_LINE_COUNT,
+                                                                         VISUAL_RIGHT_PANEL_EXPORT_TAB_FOOTER_LINE_COUNT,
                                                                          5u,
-                                                                         VISUAL_RIGHT_EXPORT_ACTION_COUNT);
+                                                                         VISUAL_RIGHT_PANEL_EXPORT_TAB_ACTION_COUNT);
     SDL_Rect export_icns_button = right_file_route_action_button_rect(rect,
                                                                       m,
-                                                                      VISUAL_RIGHT_EXPORT_FOOTER_LINE_COUNT,
+                                                                      VISUAL_RIGHT_PANEL_EXPORT_TAB_FOOTER_LINE_COUNT,
                                                                       6u,
-                                                                      VISUAL_RIGHT_EXPORT_ACTION_COUNT);
+                                                                      VISUAL_RIGHT_PANEL_EXPORT_TAB_ACTION_COUNT);
     if (drawing_program_png_export_default_path(ctx, export_path, sizeof(export_path)).code != CORE_OK) {
         export_path[0] = '\0';
     }
@@ -549,57 +509,40 @@ void drawing_program_visual_render_right_export_tab(SDL_Renderer *renderer,
     }
 
     hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, "EXPORT ACTIONS", p.text_primary, m.body_scale);
-    visual_right_panel_draw_button(renderer,
-                                   rect,
-                                   pick_output_root_button,
-                                   "PICK OUTPUT ROOT",
-                                   p.text_primary,
-                                   ui,
-                                   m,
-                                   p,
-                                   hooks);
-    visual_right_panel_draw_button(renderer,
-                                   rect,
-                                   export_intent_button,
-                                   drawing_program_texture_export_intent_button_label(
-                                       ctx->texture_project.export_intent_kind),
-                                   p.text_primary,
-                                   ui,
-                                   m,
-                                   p,
-                                   hooks);
-    visual_right_panel_draw_button(renderer,
-                                   rect,
-                                   overlay_material_intent_button,
-                                   drawing_program_texture_overlay_material_intent_button_label(
-                                       ctx->texture_project.overlay_material_intent_kind),
-                                   p.text_primary,
-                                   ui,
-                                   m,
-                                   p,
-                                   hooks);
-    visual_right_panel_draw_button(renderer, rect, export_png_button, "EXPORT PNG", p.text_primary, ui, m, p, hooks);
-    visual_right_panel_draw_button(renderer,
-                                   rect,
-                                   export_textures_button,
-                                   "EXPORT TEXTURES",
-                                   p.text_primary,
-                                   ui,
-                                   m,
-                                   p,
-                                   hooks);
-    visual_right_panel_draw_button(renderer,
-                                   rect,
-                                   export_iconset_button,
-                                   "EXPORT ICONSET",
-                                   p.text_primary,
-                                   ui,
-                                   m,
-                                   p,
-                                   hooks);
-    visual_right_panel_draw_button(renderer, rect, export_icns_button, "EXPORT ICNS", p.text_primary, ui, m, p, hooks);
+    drawing_program_visual_panel_draw_themed_button(
+        renderer, rect, pick_output_root_button, "PICK OUTPUT ROOT", p.text_primary, 0, ui, m, p, hooks);
+    drawing_program_visual_panel_draw_themed_button(renderer,
+                                                    rect,
+                                                    export_intent_button,
+                                                    drawing_program_texture_export_intent_button_label(
+                                                        ctx->texture_project.export_intent_kind),
+                                                    p.text_primary,
+                                                    0,
+                                                    ui,
+                                                    m,
+                                                    p,
+                                                    hooks);
+    drawing_program_visual_panel_draw_themed_button(renderer,
+                                                    rect,
+                                                    overlay_material_intent_button,
+                                                    drawing_program_texture_overlay_material_intent_button_label(
+                                                        ctx->texture_project.overlay_material_intent_kind),
+                                                    p.text_primary,
+                                                    0,
+                                                    ui,
+                                                    m,
+                                                    p,
+                                                    hooks);
+    drawing_program_visual_panel_draw_themed_button(
+        renderer, rect, export_png_button, "EXPORT PNG", p.text_primary, 0, ui, m, p, hooks);
+    drawing_program_visual_panel_draw_themed_button(
+        renderer, rect, export_textures_button, "EXPORT TEXTURES", p.text_primary, 0, ui, m, p, hooks);
+    drawing_program_visual_panel_draw_themed_button(
+        renderer, rect, export_iconset_button, "EXPORT ICONSET", p.text_primary, 0, ui, m, p, hooks);
+    drawing_program_visual_panel_draw_themed_button(
+        renderer, rect, export_icns_button, "EXPORT ICNS", p.text_primary, 0, ui, m, p, hooks);
 
-    y = right_file_state_start_y(rect, m, VISUAL_RIGHT_EXPORT_FOOTER_LINE_COUNT);
+    y = right_file_state_start_y(rect, m, VISUAL_RIGHT_PANEL_EXPORT_TAB_FOOTER_LINE_COUNT);
     visual_right_panel_format_path_line(line, sizeof(line), "OUTPUT", ctx->session.output_root_path);
     hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
     y += m.line_h;

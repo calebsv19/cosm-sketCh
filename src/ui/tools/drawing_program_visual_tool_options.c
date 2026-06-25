@@ -396,6 +396,31 @@ void drawing_program_visual_tool_option_adjust_raw(DrawingProgramAppContext *ctx
     visual_tool_option_adjust(ctx, (VisualToolOptionKind)option_kind_raw, delta);
 }
 
+void drawing_program_visual_tool_options_normalize_ui(DrawingProgramAppContext *ctx) {
+    if (!ctx) {
+        return;
+    }
+    ctx->ui.tool_brush_size = drawing_program_visual_clamp_setting_u8(ctx->ui.tool_brush_size, 1u, 16u);
+    ctx->ui.tool_brush_opacity = drawing_program_visual_clamp_setting_u8(ctx->ui.tool_brush_opacity, 1u, 100u);
+    ctx->ui.tool_brush_spacing = drawing_program_visual_clamp_setting_u8(ctx->ui.tool_brush_spacing, 1u, 16u);
+    ctx->ui.tool_brush_hardness = drawing_program_visual_clamp_setting_u8(ctx->ui.tool_brush_hardness, 1u, 100u);
+    ctx->ui.tool_eraser_size = drawing_program_visual_clamp_setting_u8(ctx->ui.tool_eraser_size, 1u, 16u);
+    ctx->ui.tool_shape_stroke_width =
+        drawing_program_visual_clamp_setting_u8(ctx->ui.tool_shape_stroke_width, 1u, 16u);
+    if (ctx->ui.tool_shape_mode > 2u) {
+        ctx->ui.tool_shape_mode = 0u;
+    }
+    if (ctx->ui.tool_shape_target_mode > (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_OBJECT) {
+        ctx->ui.tool_shape_target_mode = (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_PIXEL;
+    }
+    if (ctx->ui.tool_fill_tolerance > DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX) {
+        ctx->ui.tool_fill_tolerance = DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX;
+    }
+    if (ctx->ui.tool_select_mode > (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_SUBTRACT) {
+        ctx->ui.tool_select_mode = (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_REPLACE;
+    }
+}
+
 const char *drawing_program_visual_tool_option_label_raw(uint32_t option_kind_raw) {
     return visual_tool_option_label((VisualToolOptionKind)option_kind_raw);
 }
@@ -413,6 +438,20 @@ uint8_t drawing_program_visual_clamp_left_slot(uint8_t slot) {
 
 uint8_t drawing_program_visual_clamp_right_slot(uint8_t slot) {
     return (slot < (uint8_t)VISUAL_RIGHT_PANEL_SLOT_COUNT) ? slot : 0u;
+}
+
+void drawing_program_visual_set_left_panel_slot(DrawingProgramAppContext *ctx, uint8_t slot) {
+    if (!ctx) {
+        return;
+    }
+    ctx->ui.left_panel_slot = drawing_program_visual_clamp_left_slot(slot);
+}
+
+void drawing_program_visual_set_right_panel_slot(DrawingProgramAppContext *ctx, uint8_t slot) {
+    if (!ctx) {
+        return;
+    }
+    ctx->ui.right_panel_slot = drawing_program_visual_clamp_right_slot(slot);
 }
 
 void drawing_program_visual_sync_panel_ui_from_app(const DrawingProgramAppContext *ctx, VisualPanelUiState *ui) {

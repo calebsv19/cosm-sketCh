@@ -285,6 +285,50 @@ static int texture_export_manifest_expect_missing_key(json_object *object,
     return 1;
 }
 
+static int texture_export_manifest_expect_no_private_path_strings(json_object *value,
+                                                                  const char *forbidden_root,
+                                                                  const char *label) {
+    if (!value || !forbidden_root || !label) {
+        fprintf(stderr, "lifecycle_test: expected valid private-path manifest check\n");
+        return 0;
+    }
+    switch (json_object_get_type(value)) {
+        case json_type_object: {
+            json_object_object_foreach(value, key, child) {
+                (void)key;
+                if (!texture_export_manifest_expect_no_private_path_strings(child, forbidden_root, label)) {
+                    return 0;
+                }
+            }
+            return 1;
+        }
+        case json_type_array: {
+            size_t i;
+            size_t count = json_object_array_length(value);
+            for (i = 0u; i < count; ++i) {
+                if (!texture_export_manifest_expect_no_private_path_strings(
+                        json_object_array_get_idx(value, (int)i), forbidden_root, label)) {
+                    return 0;
+                }
+            }
+            return 1;
+        }
+        case json_type_string: {
+            const char *text = json_object_get_string(value);
+            if (text && (text[0] == '/' || strstr(text, forbidden_root) != 0)) {
+                fprintf(stderr,
+                        "lifecycle_test: manifest %s leaked private path string %s\n",
+                        label,
+                        text);
+                return 0;
+            }
+            return 1;
+        }
+        default:
+            return 1;
+    }
+}
+
 static int texture_export_manifest_expect_shared_contract(
     json_object *manifest,
     CoreAuthoredTexturePrimitiveKind expected_primitive_kind,
@@ -445,59 +489,44 @@ int drawing_program_lifecycle_run_texture_export_suite(void) {
     static DrawingProgramAppContext reload_ctx;
     static DrawingProgramAppContext legacy_ctx;
     static DrawingProgramAppContext cli_ctx;
-    const char *suite_root = "/tmp/drawing_program_texture_export_suite";
-    const char *runtime_root = "/tmp/drawing_program_texture_export_suite/runtime";
-    const char *input_root = "/tmp/drawing_program_texture_export_suite/input";
-    const char *output_root = "/tmp/drawing_program_texture_export_suite/output";
-    const char *scene_path = "/tmp/drawing_program_texture_export_suite/scene_fixture.json";
-    const char *project_pack_path = "/tmp/drawing_program_texture_export_suite/input/texture_export_project.pack";
-    const char *legacy_v5_pack_path = "/tmp/drawing_program_texture_export_suite/input/texture_export_project_v5.pack";
-    const char *direct_export_dir = "/tmp/drawing_program_texture_export_suite/output/obj_prism_texture_set";
-    const char *direct_manifest_path =
-        "/tmp/drawing_program_texture_export_suite/output/obj_prism_texture_set/obj_prism_texture_manifest.json";
-    const char *direct_front_png =
-        "/tmp/drawing_program_texture_export_suite/output/obj_prism_texture_set/obj_prism_front_base.png";
-    const char *direct_back_png =
-        "/tmp/drawing_program_texture_export_suite/output/obj_prism_texture_set/obj_prism_back_base.png";
-    const char *direct_front_overlay_png =
-        "/tmp/drawing_program_texture_export_suite/output/obj_prism_texture_set/obj_prism_front_overlay.png";
-    const char *direct_top_png =
-        "/tmp/drawing_program_texture_export_suite/output/obj_prism_texture_set/obj_prism_top_base.png";
-    const char *hidden_overlay_export_dir =
-        "/tmp/drawing_program_texture_export_suite/output/obj_prism_texture_set_hidden_overlay";
-    const char *hidden_overlay_manifest_path =
-        "/tmp/drawing_program_texture_export_suite/output/obj_prism_texture_set_hidden_overlay/obj_prism_texture_manifest.json";
-    const char *reload_export_dir = "/tmp/drawing_program_texture_export_suite/output/obj_prism_texture_set_reload";
-    const char *reload_front_png =
-        "/tmp/drawing_program_texture_export_suite/output/obj_prism_texture_set_reload/obj_prism_front_base.png";
-    const char *reload_front_overlay_png =
-        "/tmp/drawing_program_texture_export_suite/output/obj_prism_texture_set_reload/obj_prism_front_overlay.png";
-    const char *reload_back_png =
-        "/tmp/drawing_program_texture_export_suite/output/obj_prism_texture_set_reload/obj_prism_back_base.png";
-    const char *cli_export_dir = "/tmp/drawing_program_texture_export_suite/output/cli_plane_texture_set";
-    const char *cli_manifest_path =
-        "/tmp/drawing_program_texture_export_suite/output/cli_plane_texture_set/obj_plane_texture_manifest.json";
-    const char *cli_front_png =
-        "/tmp/drawing_program_texture_export_suite/output/cli_plane_texture_set/obj_plane_front.png";
-    const char *legacy_export_dir = "/tmp/drawing_program_texture_export_suite/output/obj_prism_texture_set_legacy_v5";
-    const char *legacy_manifest_path =
-        "/tmp/drawing_program_texture_export_suite/output/obj_prism_texture_set_legacy_v5/obj_prism_texture_manifest.json";
-    const char *legacy_front_png =
-        "/tmp/drawing_program_texture_export_suite/output/obj_prism_texture_set_legacy_v5/obj_prism_front.png";
+    char suite_root[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    char runtime_root[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    char input_root[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    char output_root[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    char scene_path[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    char project_pack_path[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    char legacy_v5_pack_path[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    char direct_export_dir[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    char direct_manifest_path[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    char direct_front_png[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    char direct_back_png[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    char direct_front_overlay_png[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    char direct_top_png[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    char hidden_overlay_export_dir[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    char hidden_overlay_manifest_path[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    char reload_export_dir[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    char reload_front_png[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    char reload_front_overlay_png[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    char reload_back_png[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    char cli_export_dir[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    char cli_manifest_path[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    char cli_front_png[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    char legacy_export_dir[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    char legacy_manifest_path[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    char legacy_front_png[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    char blocked_export_parent[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    char blocked_export_dir[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
     char direct_arg0[] = "drawing_program_texture_export";
     char direct_arg1[] = "--headless";
     char direct_arg2[] = "--smoke-frames";
     char direct_arg3[] = "1";
     char direct_arg4[] = "--no-persist";
     char direct_arg5[] = "--runtime-root";
-    char direct_arg6[] = "/tmp/drawing_program_texture_export_suite/runtime";
     char direct_arg7[] = "--input-root";
-    char direct_arg8[] = "/tmp/drawing_program_texture_export_suite/input";
     char direct_arg9[] = "--output-root";
-    char direct_arg10[] = "/tmp/drawing_program_texture_export_suite/output";
     char *direct_argv[] = {
         direct_arg0, direct_arg1, direct_arg2, direct_arg3, direct_arg4, direct_arg5,
-        direct_arg6, direct_arg7, direct_arg8, direct_arg9, direct_arg10, 0
+        runtime_root, direct_arg7, input_root, direct_arg9, output_root, 0
     };
     char cli_arg0[] = "drawing_program_texture_export_cli";
     char cli_arg1[] = "--headless";
@@ -505,22 +534,17 @@ int drawing_program_lifecycle_run_texture_export_suite(void) {
     char cli_arg3[] = "1";
     char cli_arg4[] = "--no-persist";
     char cli_arg5[] = "--runtime-root";
-    char cli_arg6[] = "/tmp/drawing_program_texture_export_suite/runtime";
     char cli_arg7[] = "--input-root";
-    char cli_arg8[] = "/tmp/drawing_program_texture_export_suite/input";
     char cli_arg9[] = "--output-root";
-    char cli_arg10[] = "/tmp/drawing_program_texture_export_suite/output";
     char cli_arg11[] = "--texture-scene-import";
-    char cli_arg12[] = "/tmp/drawing_program_texture_export_suite/scene_fixture.json";
     char cli_arg13[] = "--texture-scene-object";
     char cli_arg14[] = "obj_plane";
     char cli_arg15[] = "--texture-export";
     char cli_arg16[] = "--texture-export-dir";
-    char cli_arg17[] = "/tmp/drawing_program_texture_export_suite/output/cli_plane_texture_set";
     char *cli_argv[] = {
         cli_arg0,  cli_arg1,  cli_arg2,  cli_arg3,  cli_arg4,  cli_arg5,
-        cli_arg6,  cli_arg7,  cli_arg8,  cli_arg9,  cli_arg10, cli_arg11,
-        cli_arg12, cli_arg13, cli_arg14, cli_arg15, cli_arg16, cli_arg17, 0
+        runtime_root, cli_arg7,  input_root, cli_arg9,  output_root, cli_arg11,
+        scene_path, cli_arg13, cli_arg14, cli_arg15, cli_arg16, cli_export_dir, 0
     };
     json_object *manifest = 0;
     json_object *surfaces = 0;
@@ -530,6 +554,104 @@ int drawing_program_lifecycle_run_texture_export_suite(void) {
     uint8_t png_g = 0u;
     uint8_t png_b = 0u;
     uint8_t png_a = 0u;
+    CoreResult blocked_export_result;
+
+    if (!lifecycle_test_artifact_path(suite_root, sizeof(suite_root), "texture_export_suite") ||
+        !lifecycle_test_artifact_child_path(runtime_root, sizeof(runtime_root), suite_root, "runtime") ||
+        !lifecycle_test_artifact_child_path(input_root, sizeof(input_root), suite_root, "input") ||
+        !lifecycle_test_artifact_child_path(output_root, sizeof(output_root), suite_root, "output") ||
+        !lifecycle_test_artifact_child_path(scene_path, sizeof(scene_path), suite_root, "scene_fixture.json") ||
+        !lifecycle_test_artifact_child_path(project_pack_path,
+                                            sizeof(project_pack_path),
+                                            input_root,
+                                            "texture_export_project.pack") ||
+        !lifecycle_test_artifact_child_path(legacy_v5_pack_path,
+                                            sizeof(legacy_v5_pack_path),
+                                            input_root,
+                                            "texture_export_project_v5.pack") ||
+        !lifecycle_test_artifact_child_path(direct_export_dir,
+                                            sizeof(direct_export_dir),
+                                            output_root,
+                                            "obj_prism_texture_set") ||
+        !lifecycle_test_artifact_child_path(direct_manifest_path,
+                                            sizeof(direct_manifest_path),
+                                            direct_export_dir,
+                                            "obj_prism_texture_manifest.json") ||
+        !lifecycle_test_artifact_child_path(direct_front_png,
+                                            sizeof(direct_front_png),
+                                            direct_export_dir,
+                                            "obj_prism_front_base.png") ||
+        !lifecycle_test_artifact_child_path(direct_back_png,
+                                            sizeof(direct_back_png),
+                                            direct_export_dir,
+                                            "obj_prism_back_base.png") ||
+        !lifecycle_test_artifact_child_path(direct_front_overlay_png,
+                                            sizeof(direct_front_overlay_png),
+                                            direct_export_dir,
+                                            "obj_prism_front_overlay.png") ||
+        !lifecycle_test_artifact_child_path(direct_top_png,
+                                            sizeof(direct_top_png),
+                                            direct_export_dir,
+                                            "obj_prism_top_base.png") ||
+        !lifecycle_test_artifact_child_path(hidden_overlay_export_dir,
+                                            sizeof(hidden_overlay_export_dir),
+                                            output_root,
+                                            "obj_prism_texture_set_hidden_overlay") ||
+        !lifecycle_test_artifact_child_path(hidden_overlay_manifest_path,
+                                            sizeof(hidden_overlay_manifest_path),
+                                            hidden_overlay_export_dir,
+                                            "obj_prism_texture_manifest.json") ||
+        !lifecycle_test_artifact_child_path(reload_export_dir,
+                                            sizeof(reload_export_dir),
+                                            output_root,
+                                            "obj_prism_texture_set_reload") ||
+        !lifecycle_test_artifact_child_path(reload_front_png,
+                                            sizeof(reload_front_png),
+                                            reload_export_dir,
+                                            "obj_prism_front_base.png") ||
+        !lifecycle_test_artifact_child_path(reload_front_overlay_png,
+                                            sizeof(reload_front_overlay_png),
+                                            reload_export_dir,
+                                            "obj_prism_front_overlay.png") ||
+        !lifecycle_test_artifact_child_path(reload_back_png,
+                                            sizeof(reload_back_png),
+                                            reload_export_dir,
+                                            "obj_prism_back_base.png") ||
+        !lifecycle_test_artifact_child_path(cli_export_dir,
+                                            sizeof(cli_export_dir),
+                                            output_root,
+                                            "cli_plane_texture_set") ||
+        !lifecycle_test_artifact_child_path(cli_manifest_path,
+                                            sizeof(cli_manifest_path),
+                                            cli_export_dir,
+                                            "obj_plane_texture_manifest.json") ||
+        !lifecycle_test_artifact_child_path(cli_front_png,
+                                            sizeof(cli_front_png),
+                                            cli_export_dir,
+                                            "obj_plane_front.png") ||
+        !lifecycle_test_artifact_child_path(legacy_export_dir,
+                                            sizeof(legacy_export_dir),
+                                            output_root,
+                                            "obj_prism_texture_set_legacy_v5") ||
+        !lifecycle_test_artifact_child_path(legacy_manifest_path,
+                                            sizeof(legacy_manifest_path),
+                                            legacy_export_dir,
+                                            "obj_prism_texture_manifest.json") ||
+        !lifecycle_test_artifact_child_path(legacy_front_png,
+                                            sizeof(legacy_front_png),
+                                            legacy_export_dir,
+                                            "obj_prism_front.png") ||
+        !lifecycle_test_artifact_child_path(blocked_export_parent,
+                                            sizeof(blocked_export_parent),
+                                            output_root,
+                                            "blocked_export_parent") ||
+        !lifecycle_test_artifact_child_path(blocked_export_dir,
+                                            sizeof(blocked_export_dir),
+                                            blocked_export_parent,
+                                            "child_texture_set")) {
+        fprintf(stderr, "lifecycle_test: failed to build texture export fixture paths\n");
+        return 1;
+    }
 
     if (!texture_export_expect_material_intent_contract()) {
         return 1;
@@ -557,6 +679,7 @@ int drawing_program_lifecycle_run_texture_export_suite(void) {
     (void)unlink(cli_manifest_path);
     (void)unlink(legacy_front_png);
     (void)unlink(legacy_manifest_path);
+    (void)unlink(blocked_export_parent);
     (void)rmdir(direct_export_dir);
     (void)rmdir(hidden_overlay_export_dir);
     (void)rmdir(reload_export_dir);
@@ -716,6 +839,28 @@ int drawing_program_lifecycle_run_texture_export_suite(void) {
             return 1;
         }
     }
+    {
+        FILE *blocked_file = fopen(blocked_export_parent, "wb");
+        if (!blocked_file) {
+            fprintf(stderr, "lifecycle_test: failed to seed blocked texture export parent %s\n", blocked_export_parent);
+            return 1;
+        }
+        fputs("blocked", blocked_file);
+        fclose(blocked_file);
+    }
+    blocked_export_result = drawing_program_texture_export_current_project(&direct_ctx, blocked_export_dir);
+    if (blocked_export_result.code != CORE_ERR_IO ||
+        !blocked_export_result.message ||
+        strstr(blocked_export_result.message, blocked_export_dir) == 0 ||
+        strstr(blocked_export_result.message, blocked_export_parent) == 0 ||
+        strstr(blocked_export_result.message, "not a directory") == 0) {
+        fprintf(stderr,
+                "lifecycle_test: expected blocked texture export diagnostic with export/output path got code=%d message=%s\n",
+                (int)blocked_export_result.code,
+                blocked_export_result.message ? blocked_export_result.message : "(null)");
+        return 1;
+    }
+    (void)unlink(blocked_export_parent);
     if (!expect_ok(drawing_program_texture_export_default_directory(&direct_ctx,
                                                                     resolved_export_dir,
                                                                     sizeof(resolved_export_dir)),
@@ -788,6 +933,10 @@ int drawing_program_lifecycle_run_texture_export_suite(void) {
         return 1;
     }
     if (!texture_export_manifest_expect_int(manifest, "schema_version", 5)) {
+        json_object_put(manifest);
+        return 1;
+    }
+    if (!texture_export_manifest_expect_no_private_path_strings(manifest, suite_root, "direct")) {
         json_object_put(manifest);
         return 1;
     }
@@ -1041,6 +1190,10 @@ int drawing_program_lifecycle_run_texture_export_suite(void) {
         json_object_put(manifest);
         return 1;
     }
+    if (!texture_export_manifest_expect_no_private_path_strings(manifest, suite_root, "legacy")) {
+        json_object_put(manifest);
+        return 1;
+    }
     if (!texture_export_manifest_expect_string(manifest, "export_intent_kind", "FLATTENED_ONLY") ||
         !texture_export_manifest_expect_string(manifest, "overlay_material_intent_kind", "none") ||
         !texture_export_manifest_expect_string(manifest, "emitted_output_kind", "FLATTENED_ONLY") ||
@@ -1099,6 +1252,10 @@ int drawing_program_lifecycle_run_texture_export_suite(void) {
         return 1;
     }
     if (!texture_export_manifest_expect_int(manifest, "schema_version", 5)) {
+        json_object_put(manifest);
+        return 1;
+    }
+    if (!texture_export_manifest_expect_no_private_path_strings(manifest, suite_root, "cli")) {
         json_object_put(manifest);
         return 1;
     }

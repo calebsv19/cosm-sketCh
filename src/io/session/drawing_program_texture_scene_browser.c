@@ -7,10 +7,25 @@
 #include <string.h>
 
 #include "core_scene.h"
+#include "drawing_program_texture_scene_file_guard.h"
 
 static CoreResult texture_scene_browser_invalid(const char *message) {
     CoreResult r = { CORE_ERR_INVALID_ARG, message };
     return r;
+}
+
+static CoreResult texture_scene_browser_context_error(CoreError code,
+                                                      const char *path,
+                                                      const char *field,
+                                                      const char *detail) {
+    static char message[512];
+    (void)snprintf(message,
+                   sizeof(message),
+                   "texture scene browser failure path=%s field=%s detail=%s",
+                   path ? path : "(null)",
+                   field ? field : "(unknown)",
+                   detail ? detail : "unknown");
+    return (CoreResult){ code, message };
 }
 
 static int texture_scene_browser_has_json_extension(const char *name) {
@@ -20,6 +35,22 @@ static int texture_scene_browser_has_json_extension(const char *name) {
     }
     dot = strrchr(name, '.');
     return (dot && strcmp(dot, ".json") == 0) ? 1 : 0;
+}
+
+static CoreResult texture_scene_browser_join_path(char *out,
+                                                  size_t out_cap,
+                                                  const char *root_path,
+                                                  const char *file_name) {
+    int written;
+    if (!out || out_cap == 0u || !root_path || !file_name || root_path[0] == '\0' || file_name[0] == '\0') {
+        return texture_scene_browser_invalid("invalid scene browser path join request");
+    }
+    written = snprintf(out, out_cap, "%s/%s", root_path, file_name);
+    if (written < 0 || (size_t)written >= out_cap) {
+        return texture_scene_browser_context_error(
+            CORE_ERR_INVALID_ARG, root_path, "scene_file", "scene browser path too long");
+    }
+    return core_result_ok();
 }
 
 static int texture_scene_browser_get_required_string(json_object *object,
@@ -107,6 +138,7 @@ static int texture_scene_browser_fill_object_entry(json_object *object_json,
     double width = 0.0;
     double height = 0.0;
     double depth = 0.0;
+    int written = 0;
     if (!object_json ||
         !entry ||
         !texture_scene_browser_get_required_string(object_json, "object_id", &object_id) ||
@@ -118,31 +150,43 @@ static int texture_scene_browser_fill_object_entry(json_object *object_json,
         return 0;
     }
     memset(entry, 0, sizeof(*entry));
-    (void)snprintf(entry->object_id, sizeof(entry->object_id), "%s", object_id);
-    (void)snprintf(entry->object_type, sizeof(entry->object_type), "%s", object_type);
+    if (drawing_program_texture_scene_file_guard_copy_text(entry->object_id,
+                                                           sizeof(entry->object_id),
+                                                           object_id,
+                                                           0,
+                                                           "object_id")
+                .code != CORE_OK ||
+        drawing_program_texture_scene_file_guard_copy_text(entry->object_type,
+                                                           sizeof(entry->object_type),
+                                                           object_type,
+                                                           0,
+                                                           "object_type")
+                .code != CORE_OK) {
+        return 0;
+    }
     if (kind == CORE_SCENE_OBJECT_KIND_PLANE_PRIMITIVE &&
         texture_scene_browser_get_required_number(primitive, "width", &width) &&
         texture_scene_browser_get_required_number(primitive, "height", &height)) {
-        (void)snprintf(entry->summary,
-                       sizeof(entry->summary),
-                       "%s plane %.2fx%.2f",
-                       object_id,
-                       width,
-                       height);
-        return 1;
+        written = snprintf(entry->summary,
+                           sizeof(entry->summary),
+                           "%s plane %.2fx%.2f",
+                           entry->object_id,
+                           width,
+                           height);
+        return (written >= 0 && (size_t)written < sizeof(entry->summary)) ? 1 : 0;
     }
     if (kind == CORE_SCENE_OBJECT_KIND_RECT_PRISM_PRIMITIVE &&
         texture_scene_browser_get_required_number(primitive, "width", &width) &&
         texture_scene_browser_get_required_number(primitive, "height", &height) &&
         texture_scene_browser_get_required_number(primitive, "depth", &depth)) {
-        (void)snprintf(entry->summary,
-                       sizeof(entry->summary),
-                       "%s prism %.2fx%.2fx%.2f",
-                       object_id,
-                       width,
-                       height,
-                       depth);
-        return 1;
+        written = snprintf(entry->summary,
+                           sizeof(entry->summary),
+                           "%s prism %.2fx%.2fx%.2f",
+                           entry->object_id,
+                           width,
+                           height,
+                           depth);
+        return (written >= 0 && (size_t)written < sizeof(entry->summary)) ? 1 : 0;
     }
     return 0;
 }
@@ -164,7 +208,8 @@ CoreResult drawing_program_texture_scene_browser_list_scene_files(
     }
     dir = opendir(scene_root_path);
     if (!dir) {
-        return (CoreResult){ CORE_ERR_IO, "failed to open scene authored root" };
+        return texture_scene_browser_context_error(
+            CORE_ERR_IO, scene_root_path, "scene_root", "failed to open scene authored root");
     }
     while ((dir_entry = readdir(dir)) != 0) {
         json_object *root = 0;
@@ -178,7 +223,14 @@ CoreResult drawing_program_texture_scene_browser_list_scene_files(
         if (count >= entry_capacity) {
             break;
         }
-        (void)snprintf(scene_path, sizeof(scene_path), "%s/%s", scene_root_path, dir_entry->d_name);
+        if (texture_scene_browser_join_path(scene_path,
+                                            sizeof(scene_path),
+                                            scene_root_path,
+                                            dir_entry->d_name)
+                .code != CORE_OK ||
+            drawing_program_texture_scene_file_guard_check_json_file(scene_path).code != CORE_OK) {
+            continue;
+        }
         root = json_object_from_file(scene_path);
         if (!root) {
             continue;
@@ -187,11 +239,35 @@ CoreResult drawing_program_texture_scene_browser_list_scene_files(
             json_object_put(root);
             continue;
         }
+        if (drawing_program_texture_scene_file_guard_check_object_count(
+                json_object_array_length(objects), scene_path, "objects")
+                .code != CORE_OK) {
+            json_object_put(root);
+            continue;
+        }
         entry = &out_entries[count];
         memset(entry, 0, sizeof(*entry));
-        (void)snprintf(entry->scene_id, sizeof(entry->scene_id), "%s", scene_id);
-        (void)snprintf(entry->file_name, sizeof(entry->file_name), "%s", dir_entry->d_name);
-        (void)snprintf(entry->scene_path, sizeof(entry->scene_path), "%s", scene_path);
+        if (drawing_program_texture_scene_file_guard_copy_text(entry->scene_id,
+                                                               sizeof(entry->scene_id),
+                                                               scene_id,
+                                                               scene_path,
+                                                               "scene_id")
+                    .code != CORE_OK ||
+            drawing_program_texture_scene_file_guard_copy_text(entry->file_name,
+                                                               sizeof(entry->file_name),
+                                                               dir_entry->d_name,
+                                                               scene_path,
+                                                               "file_name")
+                    .code != CORE_OK ||
+            drawing_program_texture_scene_file_guard_copy_text(entry->scene_path,
+                                                               sizeof(entry->scene_path),
+                                                               scene_path,
+                                                               scene_path,
+                                                               "scene_path")
+                    .code != CORE_OK) {
+            json_object_put(root);
+            continue;
+        }
         json_object_put(root);
         count += 1u;
     }
@@ -221,16 +297,45 @@ CoreResult drawing_program_texture_scene_browser_list_supported_objects(
     if (out_scene_id && out_scene_id_capacity > 0u) {
         out_scene_id[0] = '\0';
     }
+    {
+        CoreResult guard_result = drawing_program_texture_scene_file_guard_check_json_file(scene_json_path);
+        if (guard_result.code != CORE_OK) {
+            return texture_scene_browser_context_error(
+                guard_result.code, scene_json_path, "scene_file", guard_result.message);
+        }
+    }
     root = json_object_from_file(scene_json_path);
     if (!root) {
-        return (CoreResult){ CORE_ERR_FORMAT, "failed to parse authored scene JSON" };
+        return texture_scene_browser_context_error(
+            CORE_ERR_FORMAT, scene_json_path, "scene", "failed to parse authored scene JSON");
     }
     if (!texture_scene_browser_parse_scene_root(root, &objects, &scene_id)) {
         json_object_put(root);
-        return (CoreResult){ CORE_ERR_FORMAT, "scene JSON is missing scene root fields" };
+        return texture_scene_browser_context_error(
+            CORE_ERR_FORMAT, scene_json_path, "scene_id|objects", "scene JSON is missing scene root fields");
+    }
+    {
+        CoreResult guard_result =
+            drawing_program_texture_scene_file_guard_check_object_count(json_object_array_length(objects),
+                                                                        scene_json_path,
+                                                                        "objects");
+        if (guard_result.code != CORE_OK) {
+            json_object_put(root);
+            return texture_scene_browser_context_error(
+                guard_result.code, scene_json_path, "objects", guard_result.message);
+        }
     }
     if (out_scene_id && out_scene_id_capacity > 0u) {
-        (void)snprintf(out_scene_id, out_scene_id_capacity, "%s", scene_id);
+        CoreResult copy_result = drawing_program_texture_scene_file_guard_copy_text(out_scene_id,
+                                                                                   out_scene_id_capacity,
+                                                                                   scene_id,
+                                                                                   scene_json_path,
+                                                                                   "scene_id");
+        if (copy_result.code != CORE_OK) {
+            json_object_put(root);
+            return texture_scene_browser_context_error(
+                copy_result.code, scene_json_path, "scene_id", copy_result.message);
+        }
     }
     object_count = json_object_array_length(objects);
     for (i = 0u; i < object_count && count < entry_capacity; ++i) {

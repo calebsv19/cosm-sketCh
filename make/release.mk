@@ -1,4 +1,7 @@
-release-contract:
+release-secret-audit:
+	@tools/packaging/macos/release-secret-audit.sh
+
+release-contract: release-secret-audit
 	@echo "PROGRAM_KEY=$(PROGRAM_KEY)"
 	@echo "RELEASE_PRODUCT_NAME=$(RELEASE_PRODUCT_NAME)"
 	@echo "RELEASE_BUNDLE_ID=$(RELEASE_BUNDLE_ID)"
@@ -31,7 +34,11 @@ release-bundle-audit: release-build
 
 release-sign: release-bundle-audit
 	@test -n "$(RELEASE_CODESIGN_IDENTITY)" || (echo "Missing signing identity"; exit 1)
-	@echo "Signing with identity: $(RELEASE_CODESIGN_IDENTITY)"
+	@if [ "$(RELEASE_CODESIGN_IDENTITY)" = "-" ]; then \
+		echo "Signing with configured identity: ad-hoc"; \
+	else \
+		echo "Signing with configured Developer ID identity"; \
+	fi
 	@if [ "$(RELEASE_CODESIGN_IDENTITY)" = "-" ]; then \
 		for dylib in "$(PACKAGE_FRAMEWORKS_DIR)"/*.dylib; do \
 			[ -f "$$dylib" ] || continue; \

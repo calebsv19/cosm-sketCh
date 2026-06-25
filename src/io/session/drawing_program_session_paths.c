@@ -15,31 +15,121 @@ static CoreResult drawing_program_session_paths_invalid(const char *message) {
     return r;
 }
 
-static void drawing_program_session_paths_seed_data_roots(struct DrawingProgramAppContext *ctx) {
+static CoreResult drawing_program_session_paths_copy(char *out,
+                                                     size_t out_cap,
+                                                     const char *path,
+                                                     const char *role) {
+    int written;
+    if (!out || out_cap == 0u || !path) {
+        return drawing_program_session_paths_invalid("invalid session path copy request");
+    }
+    written = snprintf(out, out_cap, "%s", path);
+    if (written < 0 || (size_t)written >= out_cap) {
+        return drawing_program_session_paths_invalid(role ? role : "session path too long");
+    }
+    return core_result_ok();
+}
+
+static CoreResult drawing_program_session_paths_join_child(char *out,
+                                                           size_t out_cap,
+                                                           const char *root,
+                                                           const char *child,
+                                                           const char *role) {
+    int written;
+    if (!out || out_cap == 0u || !root || !child || root[0] == '\0' || child[0] == '\0') {
+        return drawing_program_session_paths_invalid("invalid session child path request");
+    }
+    written = snprintf(out, out_cap, "%s/%s", root, child);
+    if (written < 0 || (size_t)written >= out_cap) {
+        return drawing_program_session_paths_invalid(role ? role : "session child path too long");
+    }
+    return core_result_ok();
+}
+
+static CoreResult drawing_program_session_paths_context_result(const char *role,
+                                                               const char *path,
+                                                               CoreResult cause) {
+    static char message[768];
+    (void)snprintf(message,
+                   sizeof(message),
+                   "session path failure role=%s path=%s detail=%s",
+                   role ? role : "unknown",
+                   path ? path : "(null)",
+                   cause.message ? cause.message : "unknown");
+    return (CoreResult){ cause.code, message };
+}
+
+static CoreResult drawing_program_session_paths_mkdir_one(const char *dir_path, const char *kind) {
+    struct stat st;
+    if (mkdir(dir_path, 0775) == 0 || errno == EEXIST) {
+        if (stat(dir_path, &st) != 0) {
+            return (CoreResult){ CORE_ERR_IO, "directory path exists but cannot be inspected" };
+        }
+        if (!S_ISDIR(st.st_mode)) {
+            return (CoreResult){ CORE_ERR_IO,
+                                 kind && strcmp(kind, "segment") == 0
+                                     ? "directory segment exists but is not a directory"
+                                     : "directory path exists but is not a directory" };
+        }
+        return core_result_ok();
+    }
+    return (CoreResult){ CORE_ERR_IO,
+                         kind && strcmp(kind, "segment") == 0
+                             ? "failed to create directory segment"
+                             : "failed to create directory" };
+}
+
+static CoreResult drawing_program_session_paths_seed_data_roots(struct DrawingProgramAppContext *ctx) {
     const char *runtime_env;
     if (!ctx) {
-        return;
+        return drawing_program_session_paths_invalid("null app context");
     }
     runtime_env = getenv("DRAWING_PROGRAM_RUNTIME_DIR");
     if (runtime_env && runtime_env[0] != '\0') {
         if (!ctx->session.runtime_root_cli_override) {
-            (void)snprintf(ctx->session.runtime_root_path, sizeof(ctx->session.runtime_root_path), "%s", runtime_env);
+            CoreResult result = drawing_program_session_paths_copy(ctx->session.runtime_root_path,
+                                                                   sizeof(ctx->session.runtime_root_path),
+                                                                   runtime_env,
+                                                                   "runtime root path too long");
+            if (result.code != CORE_OK) {
+                return drawing_program_session_paths_context_result("runtime_root", runtime_env, result);
+            }
         }
         if (!ctx->session.input_root_cli_override) {
-            (void)snprintf(
-                ctx->session.input_root_path, sizeof(ctx->session.input_root_path), "%s/input", ctx->session.runtime_root_path);
+            CoreResult result = drawing_program_session_paths_join_child(ctx->session.input_root_path,
+                                                                         sizeof(ctx->session.input_root_path),
+                                                                         ctx->session.runtime_root_path,
+                                                                         "input",
+                                                                         "input root path too long");
+            if (result.code != CORE_OK) {
+                return drawing_program_session_paths_context_result(
+                    "input_root", ctx->session.runtime_root_path, result);
+            }
         }
         if (!ctx->session.output_root_cli_override) {
-            (void)snprintf(
-                ctx->session.output_root_path, sizeof(ctx->session.output_root_path), "%s/output", ctx->session.runtime_root_path);
+            CoreResult result = drawing_program_session_paths_join_child(ctx->session.output_root_path,
+                                                                         sizeof(ctx->session.output_root_path),
+                                                                         ctx->session.runtime_root_path,
+                                                                         "output",
+                                                                         "output root path too long");
+            if (result.code != CORE_OK) {
+                return drawing_program_session_paths_context_result(
+                    "output_root", ctx->session.runtime_root_path, result);
+            }
         }
         if (!ctx->session.scene_authored_root_path[0]) {
-            (void)snprintf(ctx->session.scene_authored_root_path,
-                           sizeof(ctx->session.scene_authored_root_path),
-                           "%s/scene_authored",
-                           ctx->session.runtime_root_path);
+            CoreResult result = drawing_program_session_paths_join_child(ctx->session.scene_authored_root_path,
+                                                                         sizeof(ctx->session.scene_authored_root_path),
+                                                                         ctx->session.runtime_root_path,
+                                                                         "scene_authored",
+                                                                         "scene authored root path too long");
+            if (result.code != CORE_OK) {
+                return drawing_program_session_paths_context_result(
+                    "scene_authored_root", ctx->session.runtime_root_path, result);
+            }
         }
     }
+    return core_result_ok();
 }
 
 static CoreResult drawing_program_session_paths_mkdirs_if_needed(const char *dir_path) {
@@ -60,16 +150,14 @@ static CoreResult drawing_program_session_paths_mkdirs_if_needed(const char *dir
         }
         buffer[i] = '\0';
         if (buffer[0] != '\0') {
-            if (mkdir(buffer, 0775) != 0 && errno != EEXIST) {
-                return (CoreResult){ CORE_ERR_IO, "failed to create runtime directory segment" };
+            CoreResult segment_result = drawing_program_session_paths_mkdir_one(buffer, "segment");
+            if (segment_result.code != CORE_OK) {
+                return segment_result;
             }
         }
         buffer[i] = '/';
     }
-    if (mkdir(buffer, 0775) != 0 && errno != EEXIST) {
-        return (CoreResult){ CORE_ERR_IO, "failed to create runtime directory" };
-    }
-    return core_result_ok();
+    return drawing_program_session_paths_mkdir_one(buffer, "directory");
 }
 
 CoreResult drawing_program_session_paths_ensure_parent_dir(const char *file_path) {
@@ -98,38 +186,55 @@ CoreResult drawing_program_session_paths_configure(struct DrawingProgramAppConte
     if (!ctx) {
         return drawing_program_session_paths_invalid("null app context");
     }
-    drawing_program_session_paths_seed_data_roots(ctx);
-    result = drawing_program_session_paths_mkdirs_if_needed(ctx->session.runtime_root_path);
+    result = drawing_program_session_paths_seed_data_roots(ctx);
     if (result.code != CORE_OK) {
         return result;
+    }
+    result = drawing_program_session_paths_mkdirs_if_needed(ctx->session.runtime_root_path);
+    if (result.code != CORE_OK) {
+        return drawing_program_session_paths_context_result("runtime_root", ctx->session.runtime_root_path, result);
     }
     if (ctx->session.persist_enabled) {
         result = drawing_program_session_prefs_load(ctx);
         if (result.code != CORE_OK) {
-            return result;
+            return drawing_program_session_paths_context_result("session_prefs", ctx->session.runtime_root_path, result);
         }
     }
     if (!ctx->session.scene_authored_root_path[0]) {
-        (void)snprintf(ctx->session.scene_authored_root_path,
-                       sizeof(ctx->session.scene_authored_root_path),
-                       "%s/scene_authored",
-                       ctx->session.runtime_root_path);
+        result = drawing_program_session_paths_join_child(ctx->session.scene_authored_root_path,
+                                                          sizeof(ctx->session.scene_authored_root_path),
+                                                          ctx->session.runtime_root_path,
+                                                          "scene_authored",
+                                                          "scene authored root path too long");
+        if (result.code != CORE_OK) {
+            return drawing_program_session_paths_context_result(
+                "scene_authored_root", ctx->session.runtime_root_path, result);
+        }
     }
     result = drawing_program_session_paths_mkdirs_if_needed(ctx->session.input_root_path);
     if (result.code != CORE_OK) {
-        return result;
+        return drawing_program_session_paths_context_result("input_root", ctx->session.input_root_path, result);
     }
     result = drawing_program_session_paths_mkdirs_if_needed(ctx->session.output_root_path);
     if (result.code != CORE_OK) {
-        return result;
+        return drawing_program_session_paths_context_result("output_root", ctx->session.output_root_path, result);
     }
     result = drawing_program_session_paths_mkdirs_if_needed(ctx->session.scene_authored_root_path);
     if (result.code != CORE_OK) {
-        return result;
+        return drawing_program_session_paths_context_result(
+            "scene_authored_root", ctx->session.scene_authored_root_path, result);
     }
     if (!ctx->session.preset_path_cli_override) {
-        (void)snprintf(
-            ctx->session.preset_path_buffer, sizeof(ctx->session.preset_path_buffer), "%s/last_session.pack", ctx->session.runtime_root_path);
+        result = drawing_program_session_paths_join_child(ctx->session.preset_path_buffer,
+                                                          sizeof(ctx->session.preset_path_buffer),
+                                                          ctx->session.runtime_root_path,
+                                                          "last_session.pack",
+                                                          "preset path too long");
+        if (result.code != CORE_OK) {
+            return drawing_program_session_paths_context_result("preset_path",
+                                                               ctx->session.runtime_root_path,
+                                                               result);
+        }
         ctx->session.preset_path = ctx->session.preset_path_buffer;
     }
     result = drawing_program_project_state_configure_defaults(ctx);
@@ -138,7 +243,7 @@ CoreResult drawing_program_session_paths_configure(struct DrawingProgramAppConte
     }
     result = drawing_program_session_paths_ensure_parent_dir(ctx->session.preset_path);
     if (result.code != CORE_OK) {
-        return result;
+        return drawing_program_session_paths_context_result("preset_path_parent", ctx->session.preset_path, result);
     }
     if (getenv("DRAWING_PROGRAM_TRACE_UI_STATE")) {
         fprintf(stderr,
@@ -154,7 +259,8 @@ CoreResult drawing_program_session_paths_configure(struct DrawingProgramAppConte
     if (ctx->session.export_json_path) {
         result = drawing_program_session_paths_ensure_parent_dir(ctx->session.export_json_path);
         if (result.code != CORE_OK) {
-            return result;
+            return drawing_program_session_paths_context_result(
+                "export_json_parent", ctx->session.export_json_path, result);
         }
     }
     return core_result_ok();

@@ -1,6 +1,8 @@
 #ifndef DRAWING_PROGRAM_LIFECYCLE_TEST_SUPPORT_H
 #define DRAWING_PROGRAM_LIFECYCLE_TEST_SUPPORT_H
 
+#include <stddef.h>
+
 #include "drawing_program/drawing_program_app_main.h"
 #include "drawing_program/drawing_program_visual_input_handlers.h"
 
@@ -14,6 +16,12 @@ int expect_overlay_ok(DrawingProgramOverlayAdapterResult result, const char *lab
 int expect_overlay_error_code(DrawingProgramOverlayAdapterResult result,
                               DrawingProgramOverlayAdapterErrorCode code,
                               const char *label);
+const char *lifecycle_test_artifact_root(void);
+int lifecycle_test_artifact_path(char *buffer, size_t buffer_size, const char *leaf_name);
+int lifecycle_test_artifact_child_path(char *buffer,
+                                       size_t buffer_size,
+                                       const char *parent_path,
+                                       const char *leaf_name);
 
 void lifecycle_test_reset_input_handler_counters(void);
 void lifecycle_test_apply_workflow_control(DrawingProgramAppContext *ctx,

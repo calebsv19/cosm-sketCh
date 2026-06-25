@@ -17,7 +17,9 @@
 #include "drawing_program/drawing_program_texture_export.h"
 #include "drawing_program/drawing_program_texture_project_session.h"
 #include "drawing_program/drawing_program_ui_color_state.h"
+#include "drawing_program/drawing_program_visual_layer_opacity.h"
 #include "drawing_program/drawing_program_visual_right_panel_defs.h"
+#include "drawing_program/drawing_program_visual_tool_options.h"
 
 static CoreResult drawing_program_invalid(const char *message) {
     CoreResult r = { CORE_ERR_INVALID_ARG, message };
@@ -40,70 +42,6 @@ static int drawing_program_trace_ui_state_enabled(void) {
     return 1;
 }
 
-static uint8_t drawing_program_clamp_percent(uint8_t value) {
-    return (value > 100u) ? 100u : value;
-}
-
-static void drawing_program_ui_layer_opacity_set(DrawingProgramAppContext *ctx,
-                                                 uint32_t layer_id,
-                                                 uint8_t opacity_percent) {
-    uint8_t i;
-    uint8_t opacity = drawing_program_clamp_percent(opacity_percent);
-    if (!ctx || layer_id == 0u) {
-        return;
-    }
-    for (i = 0u; i < ctx->ui.layer_opacity_entry_count; ++i) {
-        if (ctx->ui.layer_opacity_layer_ids[i] == layer_id) {
-            ctx->ui.layer_opacity_values[i] = opacity;
-            return;
-        }
-    }
-    if (ctx->ui.layer_opacity_entry_count >= DRAWING_PROGRAM_MAX_LAYERS) {
-        return;
-    }
-    ctx->ui.layer_opacity_layer_ids[ctx->ui.layer_opacity_entry_count] = layer_id;
-    ctx->ui.layer_opacity_values[ctx->ui.layer_opacity_entry_count] = opacity;
-    ctx->ui.layer_opacity_entry_count += 1u;
-}
-
-static int drawing_program_ui_layer_opacity_has_entry(const DrawingProgramAppContext *ctx, uint32_t layer_id) {
-    uint8_t i;
-    if (!ctx || layer_id == 0u) {
-        return 0;
-    }
-    for (i = 0u; i < ctx->ui.layer_opacity_entry_count; ++i) {
-        if (ctx->ui.layer_opacity_layer_ids[i] == layer_id) {
-            return 1;
-        }
-    }
-    return 0;
-}
-
-static void drawing_program_ui_layer_opacity_sync_with_document(DrawingProgramAppContext *ctx) {
-    uint8_t compact_count = 0u;
-    uint8_t i;
-    if (!ctx) {
-        return;
-    }
-    for (i = 0u; i < ctx->ui.layer_opacity_entry_count; ++i) {
-        uint32_t layer_id = ctx->ui.layer_opacity_layer_ids[i];
-        uint32_t ignored = 0u;
-        if (layer_id != 0u &&
-            drawing_program_document_layer_index_for_id(&ctx->document, layer_id, &ignored).code == CORE_OK) {
-            ctx->ui.layer_opacity_layer_ids[compact_count] = layer_id;
-            ctx->ui.layer_opacity_values[compact_count] =
-                drawing_program_clamp_percent(ctx->ui.layer_opacity_values[i]);
-            compact_count += 1u;
-        }
-    }
-    ctx->ui.layer_opacity_entry_count = compact_count;
-    for (i = 0u; i < ctx->document.layer_count; ++i) {
-        if (!drawing_program_ui_layer_opacity_has_entry(ctx, ctx->document.layers[i].layer_id)) {
-            drawing_program_ui_layer_opacity_set(ctx, ctx->document.layers[i].layer_id, 100u);
-        }
-    }
-}
-
 static void drawing_program_normalize_ui_state(DrawingProgramAppContext *ctx) {
     if (!ctx) {
         return;
@@ -121,58 +59,17 @@ static void drawing_program_normalize_ui_state(DrawingProgramAppContext *ctx) {
         ctx->ui.font_zoom_step = 4;
     }
     if (ctx->ui.left_panel_slot > 1u) {
-        ctx->ui.left_panel_slot = 0u;
+        drawing_program_visual_set_left_panel_slot(ctx, 0u);
     }
     if (ctx->ui.right_panel_slot >= (uint8_t)VISUAL_RIGHT_PANEL_SLOT_COUNT) {
-        ctx->ui.right_panel_slot = 0u;
+        drawing_program_visual_set_right_panel_slot(ctx, 0u);
     }
     drawing_program_ui_color_normalize_state(ctx);
-    if (ctx->ui.tool_brush_size < 1u) {
-        ctx->ui.tool_brush_size = 1u;
-    } else if (ctx->ui.tool_brush_size > 16u) {
-        ctx->ui.tool_brush_size = 16u;
-    }
-    if (ctx->ui.tool_brush_opacity < 1u) {
-        ctx->ui.tool_brush_opacity = 1u;
-    } else if (ctx->ui.tool_brush_opacity > 100u) {
-        ctx->ui.tool_brush_opacity = 100u;
-    }
-    if (ctx->ui.tool_brush_spacing < 1u) {
-        ctx->ui.tool_brush_spacing = 1u;
-    } else if (ctx->ui.tool_brush_spacing > 16u) {
-        ctx->ui.tool_brush_spacing = 16u;
-    }
-    if (ctx->ui.tool_brush_hardness < 1u) {
-        ctx->ui.tool_brush_hardness = 1u;
-    } else if (ctx->ui.tool_brush_hardness > 100u) {
-        ctx->ui.tool_brush_hardness = 100u;
-    }
-    if (ctx->ui.tool_eraser_size < 1u) {
-        ctx->ui.tool_eraser_size = 1u;
-    } else if (ctx->ui.tool_eraser_size > 16u) {
-        ctx->ui.tool_eraser_size = 16u;
-    }
-    if (ctx->ui.tool_shape_stroke_width < 1u) {
-        ctx->ui.tool_shape_stroke_width = 1u;
-    } else if (ctx->ui.tool_shape_stroke_width > 16u) {
-        ctx->ui.tool_shape_stroke_width = 16u;
-    }
-    if (ctx->ui.tool_shape_mode > 2u) {
-        ctx->ui.tool_shape_mode = 0u;
-    }
-    if (ctx->ui.tool_shape_target_mode > (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_OBJECT) {
-        ctx->ui.tool_shape_target_mode = (uint8_t)DRAWING_PROGRAM_UI_SHAPE_TARGET_MODE_PIXEL;
-    }
+    drawing_program_visual_tool_options_normalize_ui(ctx);
     if (ctx->ui.canvas_guide_mode > (uint8_t)DRAWING_PROGRAM_UI_CANVAS_GUIDE_MODE_CORNERS_AND_EDGES) {
         ctx->ui.canvas_guide_mode = (uint8_t)DRAWING_PROGRAM_UI_CANVAS_GUIDE_MODE_OFF;
     }
-    if (ctx->ui.tool_fill_tolerance > DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX) {
-        ctx->ui.tool_fill_tolerance = DRAWING_PROGRAM_UI_FILL_TOLERANCE_MAX;
-    }
-    if (ctx->ui.tool_select_mode > (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_SUBTRACT) {
-        ctx->ui.tool_select_mode = (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_REPLACE;
-    }
-    drawing_program_ui_layer_opacity_sync_with_document(ctx);
+    drawing_program_visual_layer_opacity_sync_document(ctx);
 }
 
 static void drawing_program_input_intake(uint64_t frame_index,
@@ -380,7 +277,7 @@ CoreResult drawing_program_app_state_seed(DrawingProgramAppContext *ctx) {
     drawing_program_object_selection_reset(&ctx->object_selection);
     drawing_program_editor_state_init(&ctx->editor, &ctx->document);
     drawing_program_history_init(&ctx->history);
-    drawing_program_ui_layer_opacity_sync_with_document(ctx);
+    drawing_program_visual_layer_opacity_sync_document(ctx);
     drawing_program_selection_reset(&ctx->selection);
     adapter_result = drawing_program_overlay_adapter_init(ctx);
     if (!adapter_result.ok) {

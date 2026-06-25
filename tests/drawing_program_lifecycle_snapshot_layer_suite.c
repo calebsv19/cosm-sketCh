@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "drawing_program/drawing_program_app_main.h"
@@ -17,9 +18,10 @@ int drawing_program_lifecycle_run_snapshot_layer_suite(void) {
         char layer_arg2[] = "--smoke-frames";
         char layer_arg3[] = "1";
         char layer_arg4[] = "--preset";
-        char layer_arg5[] = "/tmp/drawing_program_layer_roundtrip.pack";
-        char *layer_argv[] = { layer_arg0, layer_arg1, layer_arg2, layer_arg3, layer_arg4, layer_arg5, 0 };
-        const char *legacy_pack_path = "/tmp/drawing_program_layer_roundtrip_legacy.pack";
+        char suite_root[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+        char layer_pack_path[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+        char legacy_pack_path[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+        char *layer_argv[] = { layer_arg0, layer_arg1, layer_arg2, layer_arg3, layer_arg4, layer_pack_path, 0 };
         uint32_t layer_sample_x = 13u;
         uint32_t layer_sample_y = 17u;
         uint8_t layer_sample_value = 173u;
@@ -35,7 +37,20 @@ int drawing_program_lifecycle_run_snapshot_layer_suite(void) {
         DrawingProgramRasterSample loaded_top_layer_sample = drawing_program_color_eraser_value();
         DrawingProgramRasterSample loaded_surface_base_layer_sample = drawing_program_color_eraser_value();
         uint32_t new_layer_id = 0u;
-        (void)unlink(layer_arg5);
+        if (!lifecycle_test_artifact_path(suite_root, sizeof(suite_root), "snapshot_layer_suite") ||
+            !lifecycle_test_artifact_child_path(layer_pack_path,
+                                                sizeof(layer_pack_path),
+                                                suite_root,
+                                                "drawing_program_layer_roundtrip.pack") ||
+            !lifecycle_test_artifact_child_path(legacy_pack_path,
+                                                sizeof(legacy_pack_path),
+                                                suite_root,
+                                                "drawing_program_layer_roundtrip_legacy.pack")) {
+            fprintf(stderr, "lifecycle_test: failed to build snapshot layer fixture paths\n");
+            return 1;
+        }
+        (void)mkdir(suite_root, 0775);
+        (void)unlink(layer_pack_path);
         (void)unlink(legacy_pack_path);
         if (!expect_ok(drawing_program_app_bootstrap(&layer_save_ctx, 6, layer_argv), "layer_snapshot_bootstrap_save")) {
             return 1;
@@ -97,10 +112,10 @@ int drawing_program_lifecycle_run_snapshot_layer_suite(void) {
                        "layer_snapshot_seed_composed_document_surface")) {
             return 1;
         }
-        if (!expect_ok(drawing_program_snapshot_save(&layer_save_ctx, layer_arg5), "layer_snapshot_save")) {
+        if (!expect_ok(drawing_program_snapshot_save(&layer_save_ctx, layer_pack_path), "layer_snapshot_save")) {
             return 1;
         }
-        if (!write_legacy_snapshot_without_layer_chunk(layer_arg5, legacy_pack_path)) {
+        if (!write_legacy_snapshot_without_layer_chunk(layer_pack_path, legacy_pack_path)) {
             return 1;
         }
         if (!expect_ok(drawing_program_app_bootstrap(&layer_load_ctx, 6, layer_argv), "layer_snapshot_bootstrap_load")) {
@@ -112,7 +127,7 @@ int drawing_program_lifecycle_run_snapshot_layer_suite(void) {
         if (!expect_ok(drawing_program_app_state_seed(&layer_load_ctx), "layer_snapshot_state_seed_load")) {
             return 1;
         }
-        if (!expect_ok(drawing_program_snapshot_load(&layer_load_ctx, layer_arg5), "layer_snapshot_load")) {
+        if (!expect_ok(drawing_program_snapshot_load(&layer_load_ctx, layer_pack_path), "layer_snapshot_load")) {
             return 1;
         }
         if (!expect_ok(drawing_program_layer_raster_store_sample_read(&layer_load_ctx.layer_rasters,
@@ -212,7 +227,7 @@ int drawing_program_lifecycle_run_snapshot_layer_suite(void) {
         if (!expect_ok(drawing_program_app_shutdown(&legacy_load_ctx), "legacy_layer_shutdown_load")) {
             return 1;
         }
-        (void)unlink(layer_arg5);
+        (void)unlink(layer_pack_path);
         (void)unlink(legacy_pack_path);
     }
 

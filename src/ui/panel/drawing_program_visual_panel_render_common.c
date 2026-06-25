@@ -74,6 +74,31 @@ void drawing_program_visual_panel_draw_tab_button_variant(SDL_Renderer *renderer
                                          hooks);
 }
 
+void drawing_program_visual_panel_draw_themed_button(SDL_Renderer *renderer,
+                                                     SDL_Rect clip_rect,
+                                                     SDL_Rect rect,
+                                                     const char *label,
+                                                     SDL_Color text_color,
+                                                     int selected,
+                                                     const VisualPanelUiState *ui,
+                                                     VisualPaneLayoutMetrics metrics,
+                                                     VisualThemePalette palette,
+                                                     const DrawingProgramVisualPanelRenderHooks *hooks) {
+    drawing_program_visual_panel_draw_tab_button(renderer,
+                                                 clip_rect,
+                                                 rect,
+                                                 label,
+                                                 palette.button_fill,
+                                                 palette.button_fill_hover,
+                                                 palette.button_fill_active,
+                                                 palette.button_border,
+                                                 text_color,
+                                                 metrics.body_scale,
+                                                 selected,
+                                                 drawing_program_visual_panel_ui_hovered(ui, rect, hooks),
+                                                 hooks);
+}
+
 void drawing_program_visual_panel_draw_row_button_variant(SDL_Renderer *renderer,
                                                           SDL_Rect clip_rect,
                                                           SDL_Rect rect,

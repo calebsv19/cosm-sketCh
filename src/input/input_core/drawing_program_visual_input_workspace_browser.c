@@ -6,6 +6,7 @@
 #include "drawing_program/drawing_program_texture_workspace.h"
 #include "drawing_program/drawing_program_visual_reflector_geometry.h"
 #include "drawing_program/drawing_program_visual_input_workspace_surface.h"
+#include "drawing_program/drawing_program_visual_panel_ui_state.h"
 
 enum {
     DRAWING_PROGRAM_REFLECTOR_DRAG_NONE = 0,
@@ -117,7 +118,7 @@ int drawing_program_visual_input_handle_workspace_canvas_click(
             hooks->cancel_all_transient_interactions(app, canvas_interaction, selection_state, 0);
             (void)drawing_program_canvas_reflection_set_active_center(app, sample_x, sample_y);
         }
-        panel_ui->right_canvas_reflection_center_pick_pending = 0u;
+        drawing_program_visual_panel_ui_disarm_reflection_center_pick(panel_ui);
         return 1;
     }
     if (begin_reflector_drag_if_hit(

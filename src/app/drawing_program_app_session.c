@@ -16,6 +16,27 @@ static CoreResult drawing_program_invalid(const char *message) {
     return r;
 }
 
+static CoreResult drawing_program_invalid_option(const char *prefix, const char *option) {
+    static char message[192];
+    (void)snprintf(message, sizeof(message), "%s%s", prefix ? prefix : "invalid option: ", option ? option : "(null)");
+    return drawing_program_invalid(message);
+}
+
+static CoreResult drawing_program_copy_path_option(char *out,
+                                                   size_t out_cap,
+                                                   const char *value,
+                                                   const char *option_name) {
+    int written;
+    if (!out || out_cap == 0u || !value) {
+        return drawing_program_invalid_option("invalid value for ", option_name);
+    }
+    written = snprintf(out, out_cap, "%s", value);
+    if (written < 0 || (size_t)written >= out_cap) {
+        return drawing_program_invalid_option("path too long for ", option_name);
+    }
+    return core_result_ok();
+}
+
 static int drawing_program_parse_u32_strict(const char *text, uint32_t *out_value) {
     char *end = 0;
     unsigned long parsed = 0ul;
@@ -146,14 +167,21 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
             ctx->session.print_lifecycle = 1u;
             continue;
         }
-        if (strcmp(argv[i], "--smoke-frames") == 0 && i + 1 < argc) {
-            unsigned long parsed = strtoul(argv[++i], 0, 10);
+        if (strcmp(argv[i], "--smoke-frames") == 0) {
+            unsigned long parsed = 0ul;
+            if (i + 1 >= argc) {
+                return drawing_program_invalid_option("missing value for ", "--smoke-frames");
+            }
+            parsed = strtoul(argv[++i], 0, 10);
             ctx->session.smoke_frames = (parsed > 0ul) ? (uint32_t)parsed : 1u;
             continue;
         }
-        if (strcmp(argv[i], "--canvas-size") == 0 && i + 1 < argc) {
+        if (strcmp(argv[i], "--canvas-size") == 0) {
             uint32_t parsed_w = 0u;
             uint32_t parsed_h = 0u;
+            if (i + 1 >= argc) {
+                return drawing_program_invalid_option("missing value for ", "--canvas-size");
+            }
             if (!drawing_program_parse_canvas_size(argv[++i], &parsed_w, &parsed_h)) {
                 return drawing_program_invalid("invalid --canvas-size (expected WxH)");
             }
@@ -162,8 +190,11 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
             ctx->session.canvas_size_cli_override = 1u;
             continue;
         }
-        if (strcmp(argv[i], "--canvas-width") == 0 && i + 1 < argc) {
+        if (strcmp(argv[i], "--canvas-width") == 0) {
             uint32_t parsed_w = 0u;
+            if (i + 1 >= argc) {
+                return drawing_program_invalid_option("missing value for ", "--canvas-width");
+            }
             if (!drawing_program_parse_u32_strict(argv[++i], &parsed_w)) {
                 return drawing_program_invalid("invalid --canvas-width");
             }
@@ -171,8 +202,11 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
             ctx->session.canvas_size_cli_override = 1u;
             continue;
         }
-        if (strcmp(argv[i], "--canvas-height") == 0 && i + 1 < argc) {
+        if (strcmp(argv[i], "--canvas-height") == 0) {
             uint32_t parsed_h = 0u;
+            if (i + 1 >= argc) {
+                return drawing_program_invalid_option("missing value for ", "--canvas-height");
+            }
             if (!drawing_program_parse_u32_strict(argv[++i], &parsed_h)) {
                 return drawing_program_invalid("invalid --canvas-height");
             }
@@ -180,7 +214,10 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
             ctx->session.canvas_size_cli_override = 1u;
             continue;
         }
-        if (strcmp(argv[i], "--preset") == 0 && i + 1 < argc) {
+        if (strcmp(argv[i], "--preset") == 0) {
+            if (i + 1 >= argc) {
+                return drawing_program_invalid_option("missing value for ", "--preset");
+            }
             ctx->session.preset_path = argv[++i];
             ctx->session.preset_path_cli_override = 1u;
             continue;
@@ -189,12 +226,18 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
             ctx->session.persist_enabled = 0u;
             continue;
         }
-        if (strcmp(argv[i], "--export-json") == 0 && i + 1 < argc) {
+        if (strcmp(argv[i], "--export-json") == 0) {
+            if (i + 1 >= argc) {
+                return drawing_program_invalid_option("missing value for ", "--export-json");
+            }
             ctx->session.export_json_path = argv[++i];
             ctx->session.export_json_requested = 1u;
             continue;
         }
-        if (strcmp(argv[i], "--bridge-workspace-preset") == 0 && i + 1 < argc) {
+        if (strcmp(argv[i], "--bridge-workspace-preset") == 0) {
+            if (i + 1 >= argc) {
+                return drawing_program_invalid_option("missing value for ", "--bridge-workspace-preset");
+            }
             ctx->session.bridge_workspace_preset_path = argv[++i];
             ctx->session.bridge_workspace_check_requested = 1u;
             continue;
@@ -203,7 +246,10 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
             ctx->session.bridge_workspace_import_requested = 1u;
             continue;
         }
-        if (strcmp(argv[i], "--texture-scene-import") == 0 && i + 1 < argc) {
+        if (strcmp(argv[i], "--texture-scene-import") == 0) {
+            if (i + 1 >= argc) {
+                return drawing_program_invalid_option("missing value for ", "--texture-scene-import");
+            }
             (void)snprintf(ctx->session.texture_scene_import_path,
                            sizeof(ctx->session.texture_scene_import_path),
                            "%s",
@@ -211,15 +257,21 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
             ctx->session.texture_scene_import_requested = 1u;
             continue;
         }
-        if (strcmp(argv[i], "--texture-scene-object") == 0 && i + 1 < argc) {
+        if (strcmp(argv[i], "--texture-scene-object") == 0) {
+            if (i + 1 >= argc) {
+                return drawing_program_invalid_option("missing value for ", "--texture-scene-object");
+            }
             (void)snprintf(ctx->session.texture_scene_import_object_id,
                            sizeof(ctx->session.texture_scene_import_object_id),
                            "%s",
                            argv[++i]);
             continue;
         }
-        if (strcmp(argv[i], "--texture-scene-quality") == 0 && i + 1 < argc) {
+        if (strcmp(argv[i], "--texture-scene-quality") == 0) {
             uint32_t quality_preset = 0u;
+            if (i + 1 >= argc) {
+                return drawing_program_invalid_option("missing value for ", "--texture-scene-quality");
+            }
             if (!drawing_program_parse_texture_quality_preset(argv[++i], &quality_preset)) {
                 return drawing_program_invalid("invalid --texture-scene-quality");
             }
@@ -230,29 +282,77 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
             ctx->session.texture_export_requested = 1u;
             continue;
         }
-        if (strcmp(argv[i], "--texture-export-dir") == 0 && i + 1 < argc) {
-            (void)snprintf(ctx->session.texture_export_dir_path,
-                           sizeof(ctx->session.texture_export_dir_path),
-                           "%s",
-                           argv[++i]);
+        if (strcmp(argv[i], "--texture-export-dir") == 0) {
+            CoreResult copy_result;
+            if (i + 1 >= argc) {
+                return drawing_program_invalid_option("missing value for ", "--texture-export-dir");
+            }
+            copy_result = drawing_program_copy_path_option(ctx->session.texture_export_dir_path,
+                                                           sizeof(ctx->session.texture_export_dir_path),
+                                                           argv[++i],
+                                                           "--texture-export-dir");
+            if (copy_result.code != CORE_OK) {
+                return copy_result;
+            }
             ctx->session.texture_export_requested = 1u;
             continue;
         }
-        if (strcmp(argv[i], "--runtime-root") == 0 && i + 1 < argc) {
-            (void)snprintf(ctx->session.runtime_root_path, sizeof(ctx->session.runtime_root_path), "%s", argv[++i]);
+        if (strcmp(argv[i], "--runtime-root") == 0) {
+            CoreResult copy_result;
+            if (i + 1 >= argc) {
+                return drawing_program_invalid_option("missing value for ", "--runtime-root");
+            }
+            copy_result = drawing_program_copy_path_option(ctx->session.runtime_root_path,
+                                                           sizeof(ctx->session.runtime_root_path),
+                                                           argv[++i],
+                                                           "--runtime-root");
+            if (copy_result.code != CORE_OK) {
+                return copy_result;
+            }
             ctx->session.runtime_root_cli_override = 1u;
             continue;
         }
-        if (strcmp(argv[i], "--input-root") == 0 && i + 1 < argc) {
-            (void)snprintf(ctx->session.input_root_path, sizeof(ctx->session.input_root_path), "%s", argv[++i]);
+        if (strcmp(argv[i], "--input-root") == 0) {
+            CoreResult copy_result;
+            if (i + 1 >= argc) {
+                return drawing_program_invalid_option("missing value for ", "--input-root");
+            }
+            copy_result = drawing_program_copy_path_option(ctx->session.input_root_path,
+                                                           sizeof(ctx->session.input_root_path),
+                                                           argv[++i],
+                                                           "--input-root");
+            if (copy_result.code != CORE_OK) {
+                return copy_result;
+            }
             ctx->session.input_root_cli_override = 1u;
             continue;
         }
-        if (strcmp(argv[i], "--output-root") == 0 && i + 1 < argc) {
-            (void)snprintf(ctx->session.output_root_path, sizeof(ctx->session.output_root_path), "%s", argv[++i]);
+        if (strcmp(argv[i], "--output-root") == 0) {
+            CoreResult copy_result;
+            if (i + 1 >= argc) {
+                return drawing_program_invalid_option("missing value for ", "--output-root");
+            }
+            copy_result = drawing_program_copy_path_option(ctx->session.output_root_path,
+                                                           sizeof(ctx->session.output_root_path),
+                                                           argv[++i],
+                                                           "--output-root");
+            if (copy_result.code != CORE_OK) {
+                return copy_result;
+            }
             ctx->session.output_root_cli_override = 1u;
             continue;
         }
+        if (strcmp(argv[i], "--render-backend") == 0) {
+            if (i + 1 >= argc) {
+                return drawing_program_invalid_option("missing value for ", "--render-backend");
+            }
+            ++i;
+            continue;
+        }
+        if (argv[i][0] == '-') {
+            return drawing_program_invalid_option("unknown command-line option: ", argv[i]);
+        }
+        return drawing_program_invalid_option("unexpected command-line argument: ", argv[i]);
     }
 
     if (ctx->session.texture_scene_import_requested &&

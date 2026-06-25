@@ -32,9 +32,39 @@ static CoreResult texture_export_invalid(const char *message) {
     return r;
 }
 
-static CoreResult texture_export_io_error(const char *message) {
-    CoreResult r = { CORE_ERR_IO, message };
-    return r;
+static CoreResult texture_export_join_child(char *out,
+                                            size_t out_cap,
+                                            const char *root,
+                                            const char *child,
+                                            const char *suffix,
+                                            const char *role) {
+    int written;
+    if (!out || out_cap == 0u || !root || !child || root[0] == '\0' || child[0] == '\0') {
+        return texture_export_invalid("invalid texture export child path request");
+    }
+    written = snprintf(out, out_cap, "%s/%s%s", root, child, suffix ? suffix : "");
+    if (written < 0 || (size_t)written >= out_cap) {
+        return texture_export_invalid(role ? role : "texture export child path too long");
+    }
+    return core_result_ok();
+}
+
+static CoreResult texture_export_context_error(CoreError code,
+                                               const char *export_dir,
+                                               const char *manifest_path,
+                                               const char *output_path,
+                                               const char *surface_name,
+                                               const char *detail) {
+    static char message[768];
+    (void)snprintf(message,
+                   sizeof(message),
+                   "texture export failure export_dir=%s manifest=%s output=%s surface=%s detail=%s",
+                   export_dir ? export_dir : "(null)",
+                   manifest_path ? manifest_path : "(none)",
+                   output_path ? output_path : "(none)",
+                   surface_name ? surface_name : "(none)",
+                   detail ? detail : "unknown");
+    return (CoreResult){ code, message };
 }
 
 static CoreResult texture_export_mkdirs_if_needed(const char *dir_path) {
@@ -50,19 +80,56 @@ static CoreResult texture_export_mkdirs_if_needed(const char *dir_path) {
     }
     (void)snprintf(buffer, sizeof(buffer), "%s", dir_path);
     for (i = 1u; i < len; ++i) {
+        int mkdir_result;
         if (buffer[i] != '/') {
             continue;
         }
         buffer[i] = '\0';
         if (buffer[0] != '\0') {
-            if (mkdir(buffer, 0775) != 0 && errno != EEXIST) {
-                return texture_export_io_error("failed to create texture export directory segment");
+            mkdir_result = mkdir(buffer, 0775);
+            if (mkdir_result != 0 && errno != EEXIST) {
+                char detail[128];
+                (void)snprintf(detail,
+                               sizeof(detail),
+                               "failed to create texture export directory segment errno=%d",
+                               errno);
+                return texture_export_context_error(CORE_ERR_IO, dir_path, 0, buffer, 0, detail);
+            }
+            if (mkdir_result != 0 && errno == EEXIST) {
+                struct stat st;
+                if (stat(buffer, &st) != 0 || !S_ISDIR(st.st_mode)) {
+                    return texture_export_context_error(CORE_ERR_IO,
+                                                        dir_path,
+                                                        0,
+                                                        buffer,
+                                                        0,
+                                                        "texture export directory segment is not a directory");
+                }
             }
         }
         buffer[i] = '/';
     }
-    if (mkdir(buffer, 0775) != 0 && errno != EEXIST) {
-        return texture_export_io_error("failed to create texture export directory");
+    {
+        int mkdir_result = mkdir(buffer, 0775);
+        if (mkdir_result != 0 && errno != EEXIST) {
+            char detail[128];
+            (void)snprintf(detail,
+                           sizeof(detail),
+                           "failed to create texture export directory errno=%d",
+                           errno);
+            return texture_export_context_error(CORE_ERR_IO, dir_path, 0, buffer, 0, detail);
+        }
+        if (mkdir_result != 0 && errno == EEXIST) {
+            struct stat st;
+            if (stat(buffer, &st) != 0 || !S_ISDIR(st.st_mode)) {
+                return texture_export_context_error(CORE_ERR_IO,
+                                                    dir_path,
+                                                    0,
+                                                    buffer,
+                                                    0,
+                                                    "texture export directory is not a directory");
+            }
+        }
     }
     return core_result_ok();
 }
@@ -551,8 +618,12 @@ CoreResult drawing_program_texture_export_default_directory(const DrawingProgram
     if (result.code != CORE_OK) {
         return result;
     }
-    (void)snprintf(out_path, out_cap, "%s/%s_texture_set", ctx->session.output_root_path, project_stem);
-    return core_result_ok();
+    return texture_export_join_child(out_path,
+                                     out_cap,
+                                     ctx->session.output_root_path,
+                                     project_stem,
+                                     "_texture_set",
+                                     "texture export default directory path too long");
 }
 
 CoreResult drawing_program_texture_export_current_project(DrawingProgramAppContext *ctx,
@@ -735,8 +806,26 @@ CoreResult drawing_program_texture_export_current_project(DrawingProgramAppConte
             (void)snprintf(overlay_png_name, sizeof(overlay_png_name), "%s_%s%s.png", project_stem, face_stem,
                            texture_export_lane_file_suffix(DRAWING_PROGRAM_TEXTURE_EXPORT_LANE_KIND_OVERLAY));
         }
-        (void)snprintf(png_path, sizeof(png_path), "%s/%s", export_dir, png_name);
-        (void)snprintf(overlay_png_path, sizeof(overlay_png_path), "%s/%s", export_dir, overlay_png_name);
+        result = texture_export_join_child(png_path,
+                                           sizeof(png_path),
+                                           export_dir,
+                                           png_name,
+                                           0,
+                                           "texture export PNG path too long");
+        if (result.code != CORE_OK) {
+            json_object_put(manifest);
+            return texture_export_context_error(result.code, export_dir, 0, 0, 0, result.message);
+        }
+        result = texture_export_join_child(overlay_png_path,
+                                           sizeof(overlay_png_path),
+                                           export_dir,
+                                           overlay_png_name,
+                                           0,
+                                           "texture export overlay PNG path too long");
+        if (result.code != CORE_OK) {
+            json_object_put(manifest);
+            return texture_export_context_error(result.code, export_dir, 0, 0, 0, result.message);
+        }
         document = &surface->storage->document;
         layer_rasters = &surface->storage->layer_rasters;
         memset(surface_layer_opacity, 0, sizeof(surface_layer_opacity));
@@ -833,14 +922,24 @@ CoreResult drawing_program_texture_export_current_project(DrawingProgramAppConte
         if (result.code != CORE_OK) {
             json_object_put(manifest);
             core_free(rgba);
-            return result;
+            return texture_export_context_error(result.code,
+                                                export_dir,
+                                                0,
+                                                png_path,
+                                                surface->name,
+                                                result.message);
         }
         result = drawing_program_export_image_write_png_rgba(png_path, rgba, width, height);
         core_free(rgba);
         rgba = 0;
         if (result.code != CORE_OK) {
             json_object_put(manifest);
-            return result;
+            return texture_export_context_error(result.code,
+                                                export_dir,
+                                                0,
+                                                png_path,
+                                                surface->name,
+                                                result.message);
         }
         if (emitted_output_kind == CORE_AUTHORED_TEXTURE_OUTPUT_KIND_BASE_PLUS_OVERLAY) {
             result = texture_export_compose_surface_rgba(document,
@@ -857,14 +956,24 @@ CoreResult drawing_program_texture_export_current_project(DrawingProgramAppConte
             if (result.code != CORE_OK) {
                 json_object_put(manifest);
                 core_free(rgba);
-                return result;
+                return texture_export_context_error(result.code,
+                                                    export_dir,
+                                                    0,
+                                                    overlay_png_path,
+                                                    surface->name,
+                                                    result.message);
             }
             result = drawing_program_export_image_write_png_rgba(overlay_png_path, rgba, width, height);
             core_free(rgba);
             rgba = 0;
             if (result.code != CORE_OK) {
                 json_object_put(manifest);
-                return result;
+                return texture_export_context_error(result.code,
+                                                    export_dir,
+                                                    0,
+                                                    overlay_png_path,
+                                                    surface->name,
+                                                    result.message);
             }
         }
         base_surface_json = texture_export_build_surface_json(surface,
@@ -895,10 +1004,24 @@ CoreResult drawing_program_texture_export_current_project(DrawingProgramAppConte
         }
     }
 
-    (void)snprintf(manifest_path, sizeof(manifest_path), "%s/%s_texture_manifest.json", export_dir, project_stem);
+    result = texture_export_join_child(manifest_path,
+                                       sizeof(manifest_path),
+                                       export_dir,
+                                       project_stem,
+                                       "_texture_manifest.json",
+                                       "texture export manifest path too long");
+    if (result.code != CORE_OK) {
+        json_object_put(manifest);
+        return texture_export_context_error(result.code, export_dir, 0, 0, 0, result.message);
+    }
     if (json_object_to_file_ext(manifest_path, manifest, JSON_C_TO_STRING_PRETTY) != 0) {
         json_object_put(manifest);
-        return texture_export_io_error("failed to write texture export manifest");
+        return texture_export_context_error(CORE_ERR_IO,
+                                            export_dir,
+                                            manifest_path,
+                                            0,
+                                            0,
+                                            "failed to write texture export manifest");
     }
     json_object_put(manifest);
     return core_result_ok();

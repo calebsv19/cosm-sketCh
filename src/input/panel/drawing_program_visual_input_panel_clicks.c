@@ -24,7 +24,9 @@
 #include "drawing_program/drawing_program_visual_layout.h"
 #include "drawing_program/drawing_program_visual_layer_roles.h"
 #include "drawing_program/drawing_program_visual_layer_opacity.h"
+#include "drawing_program/drawing_program_visual_panel_ui_state.h"
 #include "drawing_program/drawing_program_visual_right_panel_defs.h"
+#include "drawing_program/drawing_program_visual_tool_options.h"
 
 enum {
     VISUAL_RIGHT_PANEL_SLOT_CANVAS_VALUE = VISUAL_RIGHT_PANEL_SLOT_CANVAS,
@@ -546,32 +548,32 @@ void drawing_program_visual_input_handle_right_panel_click_payload(
     tab_asset = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_ASSET, VISUAL_RIGHT_PANEL_SLOT_COUNT);
     tab_export = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_EXPORT, VISUAL_RIGHT_PANEL_SLOT_COUNT);
     if (hooks->point_in_rect(tab_canvas, x, y)) {
-        ctx->ui.right_panel_slot = (uint8_t)VISUAL_RIGHT_PANEL_SLOT_CANVAS;
+        drawing_program_visual_set_right_panel_slot(ctx, (uint8_t)VISUAL_RIGHT_PANEL_SLOT_CANVAS);
         hooks->sync_panel_ui_from_app(ctx, ui);
         return;
     }
     if (hooks->point_in_rect(tab_layer, x, y)) {
-        ctx->ui.right_panel_slot = (uint8_t)VISUAL_RIGHT_PANEL_SLOT_LAYER;
+        drawing_program_visual_set_right_panel_slot(ctx, (uint8_t)VISUAL_RIGHT_PANEL_SLOT_LAYER);
         hooks->sync_panel_ui_from_app(ctx, ui);
         return;
     }
     if (hooks->point_in_rect(tab_color, x, y)) {
-        ctx->ui.right_panel_slot = (uint8_t)VISUAL_RIGHT_PANEL_SLOT_COLOR;
+        drawing_program_visual_set_right_panel_slot(ctx, (uint8_t)VISUAL_RIGHT_PANEL_SLOT_COLOR);
         hooks->sync_panel_ui_from_app(ctx, ui);
         return;
     }
     if (hooks->point_in_rect(tab_file, x, y)) {
-        ctx->ui.right_panel_slot = (uint8_t)VISUAL_RIGHT_PANEL_SLOT_FILE;
+        drawing_program_visual_set_right_panel_slot(ctx, (uint8_t)VISUAL_RIGHT_PANEL_SLOT_FILE);
         hooks->sync_panel_ui_from_app(ctx, ui);
         return;
     }
     if (hooks->point_in_rect(tab_asset, x, y)) {
-        ctx->ui.right_panel_slot = (uint8_t)VISUAL_RIGHT_PANEL_SLOT_ASSET;
+        drawing_program_visual_set_right_panel_slot(ctx, (uint8_t)VISUAL_RIGHT_PANEL_SLOT_ASSET);
         hooks->sync_panel_ui_from_app(ctx, ui);
         return;
     }
     if (hooks->point_in_rect(tab_export, x, y)) {
-        ctx->ui.right_panel_slot = (uint8_t)VISUAL_RIGHT_PANEL_SLOT_EXPORT;
+        drawing_program_visual_set_right_panel_slot(ctx, (uint8_t)VISUAL_RIGHT_PANEL_SLOT_EXPORT);
         hooks->sync_panel_ui_from_app(ctx, ui);
         return;
     }
@@ -696,7 +698,7 @@ void drawing_program_visual_input_handle_right_panel_click_payload(
         uint32_t surface_index = 0u;
         add_surface_button = right_canvas_add_surface_button_rect(rect, m);
         if (hooks->point_in_rect(add_surface_button, x, y)) {
-            drawing_program_visual_input_disarm_right_canvas_workspace_modes(ui);
+            drawing_program_visual_panel_ui_disarm_right_canvas_transients(ui);
             if (drawing_program_texture_canvas_add_blank_from_active(ctx, &surface_index).code == CORE_OK) {
                 (void)drawing_program_visual_input_workspace_view_fit_surface(ctx, surface_index);
             }
@@ -704,7 +706,7 @@ void drawing_program_visual_input_handle_right_panel_click_payload(
         }
         duplicate_surface_button = right_canvas_duplicate_surface_button_rect(rect, m);
         if (hooks->point_in_rect(duplicate_surface_button, x, y)) {
-            drawing_program_visual_input_disarm_right_canvas_workspace_modes(ui);
+            drawing_program_visual_panel_ui_disarm_right_canvas_transients(ui);
             if (drawing_program_texture_canvas_duplicate_active(ctx, &surface_index).code == CORE_OK) {
                 (void)drawing_program_visual_input_workspace_view_fit_surface(ctx, surface_index);
             }
@@ -712,26 +714,26 @@ void drawing_program_visual_input_handle_right_panel_click_payload(
         }
         canvas_mode_button = right_canvas_mode_toggle_button_rect(rect, m);
         if (hooks->point_in_rect(canvas_mode_button, x, y)) {
-            drawing_program_visual_input_disarm_right_canvas_workspace_modes(ui);
+            drawing_program_visual_panel_ui_disarm_right_canvas_transients(ui);
             drawing_program_texture_canvas_toggle_control_mode(ctx);
             return;
         }
         canvas_guide_button = right_canvas_guide_mode_button_rect(rect, m);
         if (hooks->point_in_rect(canvas_guide_button, x, y)) {
-            drawing_program_visual_input_disarm_right_canvas_workspace_modes(ui);
+            drawing_program_visual_panel_ui_disarm_right_canvas_transients(ui);
             drawing_program_texture_canvas_cycle_guide_mode(ctx);
             return;
         }
         reflect_horizontal_button = right_canvas_reflect_horizontal_button_rect(rect, m);
         if (hooks->point_in_rect(reflect_horizontal_button, x, y)) {
-            drawing_program_visual_input_disarm_right_canvas_workspace_modes(ui);
+            drawing_program_visual_panel_ui_disarm_right_canvas_transients(ui);
             (void)drawing_program_canvas_reflection_set_crosshair_enabled(
                 ctx, ctx->editor.symmetry_horizontal ? 0u : 1u, ctx->editor.symmetry_vertical);
             return;
         }
         reflect_vertical_button = right_canvas_reflect_vertical_button_rect(rect, m);
         if (hooks->point_in_rect(reflect_vertical_button, x, y)) {
-            drawing_program_visual_input_disarm_right_canvas_workspace_modes(ui);
+            drawing_program_visual_panel_ui_disarm_right_canvas_transients(ui);
             (void)drawing_program_canvas_reflection_set_crosshair_enabled(
                 ctx, ctx->editor.symmetry_horizontal, ctx->editor.symmetry_vertical ? 0u : 1u);
             return;
@@ -742,7 +744,7 @@ void drawing_program_visual_input_handle_right_panel_click_payload(
         }
         reset_layout_button = right_canvas_reset_object_layout_button_rect(rect, m);
         if (hooks->point_in_rect(reset_layout_button, x, y)) {
-            drawing_program_visual_input_disarm_right_canvas_workspace_modes(ui);
+            drawing_program_visual_panel_ui_disarm_right_canvas_transients(ui);
             if (drawing_program_texture_canvas_reset_object_layout(ctx).code == CORE_OK) {
                 (void)drawing_program_visual_input_workspace_view_fit_all(ctx);
             }
@@ -750,19 +752,19 @@ void drawing_program_visual_input_handle_right_panel_click_payload(
         }
         reset_view_button = right_canvas_reset_view_button_rect(rect, m);
         if (hooks->point_in_rect(reset_view_button, x, y)) {
-            drawing_program_visual_input_disarm_right_canvas_workspace_modes(ui);
+            drawing_program_visual_panel_ui_disarm_right_canvas_transients(ui);
             (void)drawing_program_visual_input_workspace_view_fit_all_or_reset(ctx);
             return;
         }
         clear_canvas_button = right_canvas_clear_canvas_button_rect(rect, m);
         if (hooks->point_in_rect(clear_canvas_button, x, y)) {
-            drawing_program_visual_input_disarm_right_canvas_workspace_modes(ui);
+            drawing_program_visual_panel_ui_disarm_right_canvas_transients(ui);
             hooks->apply_workflow_control_if_valid(ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_CANVAS);
             return;
         }
         clear_objects_button = right_canvas_clear_objects_button_rect(rect, m);
         if (hooks->point_in_rect(clear_objects_button, x, y)) {
-            drawing_program_visual_input_disarm_right_canvas_workspace_modes(ui);
+            drawing_program_visual_panel_ui_disarm_right_canvas_transients(ui);
             hooks->apply_workflow_control_if_valid(ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_OBJECTS);
             visual_panel_clear_object_target_ui(ui);
             return;
@@ -772,12 +774,12 @@ void drawing_program_visual_input_handle_right_panel_click_payload(
             selection &&
             hooks->delete_active_selection_payload_or_objects &&
             hooks->delete_active_selection_payload_or_objects(ctx, selection, hooks)) {
-            drawing_program_visual_input_disarm_right_canvas_workspace_modes(ui);
+            drawing_program_visual_panel_ui_disarm_right_canvas_transients(ui);
             return;
         }
         clear_history_button = right_canvas_clear_history_button_rect(rect, m);
         if (hooks->point_in_rect(clear_history_button, x, y)) {
-            drawing_program_visual_input_disarm_right_canvas_workspace_modes(ui);
+            drawing_program_visual_panel_ui_disarm_right_canvas_transients(ui);
             hooks->apply_workflow_control_if_valid(ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_HISTORY);
             return;
         }

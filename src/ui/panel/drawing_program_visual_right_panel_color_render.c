@@ -120,19 +120,8 @@ void drawing_program_visual_render_right_panel_color_tab(SDL_Renderer *renderer,
                             p.text_muted,
                             m.body_scale);
     (void)snprintf(line, sizeof(line), "SAVE PAINT TO C%u", (unsigned)active_color_index + 1u);
-    drawing_program_visual_panel_draw_tab_button(renderer,
-                                                 rect,
-                                                 save_button_rect,
-                                                 line,
-                                                 p.button_fill,
-                                                 p.button_fill_hover,
-                                                 p.button_fill_active,
-                                                 p.button_border,
-                                                 p.text_primary,
-                                                 m.body_scale,
-                                                 0,
-                                                 drawing_program_visual_panel_ui_hovered(ui, save_button_rect, hooks),
-                                                 hooks);
+    drawing_program_visual_panel_draw_themed_button(
+        renderer, rect, save_button_rect, line, p.text_primary, 0, ui, m, p, hooks);
     hsv_line_y = save_button_rect.y + save_button_rect.h + m.section_gap;
     (void)snprintf(line,
                    sizeof(line),

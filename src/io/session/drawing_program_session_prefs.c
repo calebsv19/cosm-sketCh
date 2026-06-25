@@ -17,6 +17,20 @@ static CoreResult drawing_program_session_prefs_invalid(const char *message) {
     return r;
 }
 
+static CoreResult drawing_program_session_prefs_path_error(CoreError code,
+                                                           const char *prefix,
+                                                           const char *path,
+                                                           int errnum) {
+    static char message[768];
+    (void)snprintf(message,
+                   sizeof(message),
+                   "%s path=%s detail=%s",
+                   prefix ? prefix : "session prefs error",
+                   path ? path : "(null)",
+                   errnum != 0 ? strerror(errnum) : "unknown");
+    return (CoreResult){ code, message };
+}
+
 static void drawing_program_session_prefs_trim_newline(char *text) {
     size_t len = 0u;
     if (!text) {
@@ -105,7 +119,8 @@ CoreResult drawing_program_session_prefs_load(struct DrawingProgramAppContext *c
         if (errno == ENOENT) {
             return core_result_ok();
         }
-        return (CoreResult){ CORE_ERR_IO, "failed to open session prefs file" };
+        return drawing_program_session_prefs_path_error(
+            CORE_ERR_IO, "failed to open session prefs file", prefs_path, errno);
     }
     while (fgets(line, (int)sizeof(line), prefs)) {
         drawing_program_session_prefs_trim_newline(line);
@@ -175,7 +190,8 @@ CoreResult drawing_program_session_prefs_save(const struct DrawingProgramAppCont
     }
     prefs = fopen(prefs_path, "wb");
     if (!prefs) {
-        return (CoreResult){ CORE_ERR_IO, "failed to write session prefs file" };
+        return drawing_program_session_prefs_path_error(
+            CORE_ERR_IO, "failed to write session prefs file", prefs_path, errno);
     }
     (void)fprintf(prefs, "version=%u\n", (unsigned)DRAWING_PROGRAM_SESSION_PREFS_VERSION);
     (void)fprintf(prefs, "input_root=%s\n", ctx->session.input_root_path);
@@ -186,7 +202,8 @@ CoreResult drawing_program_session_prefs_save(const struct DrawingProgramAppCont
     (void)fprintf(prefs, "ui_font_preset_id=%u\n", (unsigned)ctx->ui.font_preset_id);
     (void)fprintf(prefs, "ui_font_zoom_step=%d\n", (int)ctx->ui.font_zoom_step);
     if (fclose(prefs) != 0) {
-        return (CoreResult){ CORE_ERR_IO, "failed to finalize session prefs file" };
+        return drawing_program_session_prefs_path_error(
+            CORE_ERR_IO, "failed to finalize session prefs file", prefs_path, errno);
     }
     return core_result_ok();
 }

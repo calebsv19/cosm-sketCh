@@ -10,7 +10,9 @@ STAPLE_MAX_ATTEMPTS ?= 6
 STAPLE_RETRY_DELAY_SEC ?= 15
 
 HOST_CC ?= cc
+FISICS_DIR ?= /Users/calebsv/Desktop/CodeWork/fisiCs
 FISICS_CC ?= /Users/calebsv/Desktop/CodeWork/fisiCs/fisics
+FISICS_MAX_PROCS ?= 0
 BUILD_TOOLCHAIN ?= clang
 PACKAGE_TOOLCHAIN ?= $(BUILD_TOOLCHAIN)
 TEST_TOOLCHAIN := clang

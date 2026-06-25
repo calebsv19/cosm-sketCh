@@ -1,5 +1,7 @@
 #include "drawing_program/drawing_program_visual_layer_opacity.h"
 
+#include <string.h>
+
 #include "drawing_program/drawing_program_render_revision.h"
 #include "drawing_program/drawing_program_texture_project.h"
 
@@ -63,6 +65,28 @@ static int visual_layer_opacity_has_entry(const DrawingProgramAppContext *ctx, u
     return 0;
 }
 
+static void visual_layer_opacity_set_ui_only(DrawingProgramAppContext *ctx,
+                                             uint32_t layer_id,
+                                             uint8_t opacity_percent) {
+    uint32_t i;
+    uint8_t opacity = clamp_percent_u8(opacity_percent);
+    if (!ctx || layer_id == 0u) {
+        return;
+    }
+    for (i = 0u; i < ctx->ui.layer_opacity_entry_count; ++i) {
+        if (ctx->ui.layer_opacity_layer_ids[i] == layer_id) {
+            ctx->ui.layer_opacity_values[i] = opacity;
+            return;
+        }
+    }
+    if (ctx->ui.layer_opacity_entry_count >= DRAWING_PROGRAM_MAX_LAYERS) {
+        return;
+    }
+    ctx->ui.layer_opacity_layer_ids[ctx->ui.layer_opacity_entry_count] = layer_id;
+    ctx->ui.layer_opacity_values[ctx->ui.layer_opacity_entry_count] = opacity;
+    ctx->ui.layer_opacity_entry_count += 1u;
+}
+
 uint8_t drawing_program_visual_layer_opacity_get(const DrawingProgramAppContext *ctx, uint32_t layer_id) {
     uint32_t i;
     if (!ctx) {
@@ -122,6 +146,23 @@ void drawing_program_visual_layer_opacity_sync_document(DrawingProgramAppContext
             drawing_program_visual_layer_opacity_set(ctx, ctx->document.layers[i].layer_id, 100u);
         }
     }
+}
+
+void drawing_program_visual_layer_opacity_replace_by_index(DrawingProgramAppContext *ctx,
+                                                           const uint8_t *opacity_values,
+                                                           uint32_t opacity_count) {
+    uint32_t i;
+    if (!ctx) {
+        return;
+    }
+    ctx->ui.layer_opacity_entry_count = 0u;
+    memset(ctx->ui.layer_opacity_layer_ids, 0, sizeof(ctx->ui.layer_opacity_layer_ids));
+    memset(ctx->ui.layer_opacity_values, 0, sizeof(ctx->ui.layer_opacity_values));
+    for (i = 0u; i < ctx->document.layer_count && i < DRAWING_PROGRAM_MAX_LAYERS; ++i) {
+        uint8_t opacity = (opacity_values && i < opacity_count) ? opacity_values[i] : 100u;
+        visual_layer_opacity_set_ui_only(ctx, ctx->document.layers[i].layer_id, opacity);
+    }
+    drawing_program_render_revision_mark_layer_opacity_changed(ctx);
 }
 
 void drawing_program_visual_collect_layer_opacity_by_index(const DrawingProgramAppContext *ctx,

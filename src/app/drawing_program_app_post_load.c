@@ -1,9 +1,8 @@
 #include "drawing_program/drawing_program_app_post_load.h"
 
-#include <string.h>
-
 #include "drawing_program/drawing_program_canvas_reflection.h"
-#include "drawing_program/drawing_program_render_revision.h"
+#include "drawing_program/drawing_program_render_runtime_state.h"
+#include "drawing_program/drawing_program_visual_layer_opacity.h"
 
 void drawing_program_app_rearm_after_document_swap(DrawingProgramAppContext *ctx) {
     uint32_t active_index = 0u;
@@ -20,11 +19,20 @@ void drawing_program_app_rearm_after_document_swap(DrawingProgramAppContext *ctx
     drawing_program_canvas_reflection_sync_editor_from_active_surface(ctx);
 
     drawing_program_selection_cancel_transient(&ctx->selection);
-    memset(&ctx->runtime.render_projection, 0, sizeof(ctx->runtime.render_projection));
-    ctx->runtime.render_canvas_last_raster_hash = 0u;
-    ctx->runtime.render_canvas_last_nonzero_samples = 0u;
-    ctx->runtime.render_last_active_layer_id = 0u;
-    ctx->runtime.render_last_has_active_layer = 0u;
-    drawing_program_render_revision_refresh(ctx);
-    drawing_program_render_revision_mark_layer_opacity_changed(ctx);
+    drawing_program_render_runtime_reset_document_derived_state(ctx);
+}
+
+void drawing_program_app_rearm_after_snapshot_load(DrawingProgramAppContext *ctx,
+                                                   DrawingProgramSelectionState *selection,
+                                                   int preserve_project_clean_state) {
+    if (!ctx) {
+        return;
+    }
+
+    drawing_program_selection_reset(selection ? selection : &ctx->selection);
+    drawing_program_object_selection_reset(&ctx->object_selection);
+    if (!preserve_project_clean_state) {
+        ctx->session.project_has_saved_state = 0u;
+    }
+    drawing_program_visual_layer_opacity_sync_document(ctx);
 }

@@ -15,6 +15,41 @@
 #include "drawing_program_lifecycle_snapshot_suite_internal.h"
 #include "drawing_program_lifecycle_test_support.h"
 
+static int snapshot_shell_file_contains_text(const char *path, const char *needle) {
+    FILE *file = 0;
+    char buffer[4096];
+    size_t needle_len;
+    size_t carry_len = 0u;
+    if (!path || !needle || needle[0] == '\0') {
+        return 0;
+    }
+    needle_len = strlen(needle);
+    file = fopen(path, "rb");
+    if (!file) {
+        return 0;
+    }
+    while (!feof(file)) {
+        size_t read_len = fread(buffer + carry_len, 1u, sizeof(buffer) - carry_len - 1u, file);
+        size_t total_len = carry_len + read_len;
+        buffer[total_len] = '\0';
+        if (strstr(buffer, needle) != 0) {
+            fclose(file);
+            return 1;
+        }
+        if (needle_len > 1u && total_len >= needle_len - 1u) {
+            carry_len = needle_len - 1u;
+            memmove(buffer, buffer + total_len - carry_len, carry_len);
+        } else {
+            carry_len = total_len;
+        }
+        if (read_len == 0u) {
+            break;
+        }
+    }
+    fclose(file);
+    return 0;
+}
+
 int drawing_program_lifecycle_run_snapshot_shell_suite(DrawingProgramAppContext *ctx) {
     {
         const char *pack_path = "/tmp/drawing_program_test_snapshot.pack";
@@ -46,6 +81,12 @@ int drawing_program_lifecycle_run_snapshot_shell_suite(DrawingProgramAppContext 
         }
         if (access(json_path, F_OK) != 0) {
             fprintf(stderr, "lifecycle_test: expected debug json output at %s\n", json_path);
+            return 1;
+        }
+        if (snapshot_shell_file_contains_text(json_path, "/tmp/") ||
+            snapshot_shell_file_contains_text(json_path, json_path) ||
+            snapshot_shell_file_contains_text(json_path, "drawing_program_test_snapshot")) {
+            fprintf(stderr, "lifecycle_test: snapshot debug json should not serialize local export paths\n");
             return 1;
         }
     }

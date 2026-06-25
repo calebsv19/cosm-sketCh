@@ -22,6 +22,7 @@ uint32_t drawing_program_visual_tool_option_kind_for_index_raw(const DrawingProg
 int drawing_program_visual_tool_option_is_action_button_raw(uint32_t option_kind_raw);
 int drawing_program_visual_tool_option_is_select_delete_raw(uint32_t option_kind_raw);
 void drawing_program_visual_tool_option_adjust_raw(DrawingProgramAppContext *ctx, uint32_t option_kind_raw, int delta);
+void drawing_program_visual_tool_options_normalize_ui(DrawingProgramAppContext *ctx);
 const char *drawing_program_visual_tool_option_label_raw(uint32_t option_kind_raw);
 void drawing_program_visual_tool_option_value_text_raw(const DrawingProgramAppContext *ctx,
                                                        uint32_t option_kind_raw,
@@ -29,6 +30,8 @@ void drawing_program_visual_tool_option_value_text_raw(const DrawingProgramAppCo
                                                        size_t out_cap);
 uint8_t drawing_program_visual_clamp_left_slot(uint8_t slot);
 uint8_t drawing_program_visual_clamp_right_slot(uint8_t slot);
+void drawing_program_visual_set_left_panel_slot(DrawingProgramAppContext *ctx, uint8_t slot);
+void drawing_program_visual_set_right_panel_slot(DrawingProgramAppContext *ctx, uint8_t slot);
 void drawing_program_visual_sync_panel_ui_from_app(const DrawingProgramAppContext *ctx, VisualPanelUiState *ui);
 
 #ifdef __cplusplus
