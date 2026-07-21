@@ -90,7 +90,9 @@ CoreResult drawing_program_texture_project_snapshot_write(
         return texture_project_snapshot_invalid("invalid texture project snapshot write request");
     }
     memset(&header, 0, sizeof(header));
-    header.version = DRAWING_PROGRAM_TEXTURE_PROJECT_CHUNK_VERSION_V12;
+    header.version = project->profile_kind == DRAWING_PROGRAM_TEXTURE_PROJECT_PROFILE_INDEXED_ATLAS_V1
+        ? DRAWING_PROGRAM_TEXTURE_PROJECT_CHUNK_VERSION_V13
+        : DRAWING_PROGRAM_TEXTURE_PROJECT_CHUNK_VERSION_V12;
     header.primitive_kind = project->primitive_kind;
     header.net_layout_kind = project->net_layout_kind;
     header.quality_preset = project->quality_preset;
@@ -194,5 +196,9 @@ CoreResult drawing_program_texture_project_snapshot_write(
         free(payload);
     }
     free(records);
+    if (result.code == CORE_OK &&
+        project->profile_kind == DRAWING_PROGRAM_TEXTURE_PROJECT_PROFILE_INDEXED_ATLAS_V1) {
+        result = drawing_program_indexed_project_snapshot_write(writer, project);
+    }
     return result;
 }

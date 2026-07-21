@@ -5,6 +5,9 @@
 
 #include "core_base.h"
 #include "drawing_program/drawing_program_document.h"
+#include "drawing_program/drawing_program_indexed_history.h"
+#include "drawing_program/drawing_program_indexed_layer_raster.h"
+#include "drawing_program/drawing_program_indexed_tileset_profile.h"
 #include "drawing_program/drawing_program_texture_export_intent.h"
 #include "drawing_program/drawing_program_layer_raster.h"
 #include "drawing_program/drawing_program_reflection_state.h"
@@ -17,7 +20,7 @@
 extern "C" {
 #endif
 
-#define DRAWING_PROGRAM_TEXTURE_PROJECT_SCHEMA_VERSION 9u
+#define DRAWING_PROGRAM_TEXTURE_PROJECT_SCHEMA_VERSION 10u
 #define DRAWING_PROGRAM_TEXTURE_PROJECT_NAME_CAPACITY 64u
 #define DRAWING_PROGRAM_TEXTURE_PROJECT_ID_CAPACITY 64u
 #define DRAWING_PROGRAM_TEXTURE_PROJECT_PATH_CAPACITY 512u
@@ -50,6 +53,11 @@ typedef enum DrawingProgramTextureBindingKind {
     DRAWING_PROGRAM_TEXTURE_BINDING_KIND_SEPARATE_FACES = 1u,
     DRAWING_PROGRAM_TEXTURE_BINDING_KIND_ATLAS = 2u
 } DrawingProgramTextureBindingKind;
+
+typedef enum DrawingProgramTextureProjectProfileKind {
+    DRAWING_PROGRAM_TEXTURE_PROJECT_PROFILE_STANDARD_RGBA = 0u,
+    DRAWING_PROGRAM_TEXTURE_PROJECT_PROFILE_INDEXED_ATLAS_V1 = 1u
+} DrawingProgramTextureProjectProfileKind;
 
 typedef struct DrawingProgramTextureSurfaceStorage {
     DrawingProgramDocument document;
@@ -87,6 +95,7 @@ typedef struct DrawingProgramTextureSurface {
 
 typedef struct DrawingProgramTextureProject {
     uint32_t schema_version;
+    uint32_t profile_kind;
     uint32_t primitive_kind;
     uint32_t net_layout_kind;
     uint32_t quality_preset;
@@ -101,6 +110,9 @@ typedef struct DrawingProgramTextureProject {
     char source_scene_id[DRAWING_PROGRAM_TEXTURE_PROJECT_ID_CAPACITY];
     char source_object_id[DRAWING_PROGRAM_TEXTURE_PROJECT_ID_CAPACITY];
     char source_scene_path[DRAWING_PROGRAM_TEXTURE_PROJECT_PATH_CAPACITY];
+    DrawingProgramIndexedTilesetProfile indexed_profile;
+    DrawingProgramIndexedLayerRaster indexed_raster;
+    DrawingProgramIndexedHistory indexed_history;
     DrawingProgramTextureSurface *surfaces;
 } DrawingProgramTextureProject;
 
@@ -112,6 +124,12 @@ CoreResult drawing_program_texture_project_init_single_surface(
     const DrawingProgramLayerRasterStore *layer_rasters,
     const char *surface_name,
     uint32_t quality_preset);
+CoreResult drawing_program_texture_project_enable_indexed_atlas(
+    DrawingProgramTextureProject *project,
+    const DrawingProgramIndexedTilesetProfile *profile,
+    uint8_t fill_index);
+CoreResult drawing_program_texture_project_validate_indexed_atlas(
+    const DrawingProgramTextureProject *project);
 CoreResult drawing_program_texture_project_add_surface(
     DrawingProgramTextureProject *project,
     const char *surface_name,

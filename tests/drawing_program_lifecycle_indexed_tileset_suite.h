@@ -1,0 +1,6 @@
+#ifndef DRAWING_PROGRAM_LIFECYCLE_INDEXED_TILESET_SUITE_H
+#define DRAWING_PROGRAM_LIFECYCLE_INDEXED_TILESET_SUITE_H
+
+int drawing_program_lifecycle_run_indexed_tileset_suite(void);
+
+#endif

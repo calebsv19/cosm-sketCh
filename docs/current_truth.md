@@ -1,6 +1,6 @@
 # drawing_program Current Truth
 
-Last updated: 2026-06-25
+Last updated: 2026-07-20
 
 ## Program Identity
 - Repository directory: `drawing_program/`
@@ -42,6 +42,23 @@ Last updated: 2026-06-25
 - The texture-project workspace remains one-active-surface-at-a-time for real
   editing even though the atlas shell can display multiple surfaces at once.
 
+## Indexed Tileset Foundation
+
+- Current source has a separate `INDEXED_ATLAS_V1` texture-project profile.
+  It owns fixed named source/preview RGBA slots, an exact one-byte-per-logical-
+  pixel raster, and typed byte-delta undo/redo without changing the standard
+  RGBA model.
+- Indexed projects use DPTP v13 with required `DPIP` v1 profile and `DPIL` v1
+  raw-index chunks. Standard projects continue to write and load DPTP v12.
+- Indexed load rejects missing/malformed chunks, non-density-one surfaces,
+  geometry mismatch, unknown profile revisions, and out-of-range indices.
+- This is a data/roundtrip foundation only. Indexed painting UI, named atlas
+  cell editing, indexed PNG/export generation, Dungeon asset changes, final
+  artwork, and renderer cutover are not implemented.
+- Workspace-linked proof against `core_authored_texture` 0.2.0 passes. The
+  default/package build is not ready because the managed Drawing Program copy
+  remains 0.1.3 pending an authorized shared commit and subtree rollout.
+
 ## Renderer And Cache Truth
 - Atlas rendering is feature-capable and structurally narrower than earlier
   builds:
@@ -80,9 +97,9 @@ Last updated: 2026-06-25
 - The most important remaining product-facing renderer question is no longer
   the two named whole-raster seam contracts; those are now closed and validated
   through both composed-source and live surface-cache coverage.
-- The next renderer decision is whether broader mixed partial-opacity scenes
-  still justify another fresh bounded optimization lane, not whether the
-  just-closed seam-lowering work is stable.
+- Future renderer/cache work should reopen only if broader mixed
+  partial-opacity scenes provide new measured evidence for another bounded
+  optimization lane; the closed seam-lowering work is not an active blocker.
 
 ## Current Structure Baseline
 - The 2026-06-24 R0 structure audit and R1 duplication/ownership pass are
@@ -157,6 +174,16 @@ Last updated: 2026-06-25
   - invalid render-backend values provide a deterministic GUI-route diagnostic
 
 ## Current Verification Baseline
+- DPT1 workspace-linked gates passed on 2026-07-20:
+  - clean Clang build
+  - `test-suite TEST_SUITE=indexed-tileset`
+  - full `test`
+  - `run-headless`
+  - shared `core_authored_texture` tests
+- The current `fisics-run-headless` gate is blocked before DPT1 compilation
+  because the installed fisiCs binary rejects the Makefile's existing `-Wall`
+  option. Default/package gates are separately blocked by vendored
+  `core_authored_texture` 0.1.3.
 - Recent bounded lanes have passed:
   - `make -C /Users/calebsv/Desktop/CodeWork/drawing_program`
   - `make -C /Users/calebsv/Desktop/CodeWork/drawing_program test`
@@ -170,10 +197,16 @@ Last updated: 2026-06-25
   - `make -C /Users/calebsv/Desktop/CodeWork/drawing_program package-desktop-refresh`
 
 ## Next Boundary
-- The R0-R6 refinement sequence is complete at this checkpoint. The program is
-  not currently in an active named refinement slice.
-- The next decision is whether to stop at the current renderer/cache risk state
-  or open a fresh bounded renderer/cache follow-on from new measured evidence.
+- First commit and roll the already-developed shared `core_authored_texture`
+  0.2.0 through the managed Drawing Program subtree, then rerun default,
+  package, and installed-app proof. DPT2 UI work starts only after that gate.
+- The R0-R6 refinement sequence is complete and the post-R0-R6 renderer/cache
+  decision checkpoint is closed. The program is not currently in an active named
+  refinement slice.
+- The current renderer/cache decision is to stop at the bounded medium-risk
+  state. Do not open a fresh renderer/cache follow-on unless broader mixed
+  partial-opacity scenes produce new measured evidence that justifies a new
+  bounded optimization lane.
 - The R0 build-target reconciliation is complete: the fisiCs helper targets are
   part of this R0 lane and `fisics-run-headless` now passes with an explicit
   `FISICS_MAX_PROCS` build contract.

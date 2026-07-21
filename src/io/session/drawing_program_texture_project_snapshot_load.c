@@ -214,6 +214,7 @@ CoreResult drawing_program_texture_project_snapshot_load(
     uint8_t is_v10 = 0u;
     uint8_t is_v11 = 0u;
     uint8_t is_v12 = 0u;
+    uint8_t is_v13 = 0u;
     uint32_t root_surface_count = 0u;
     uint32_t root_active_surface_index = 0u;
     uint32_t root_primitive_kind = 0u;
@@ -341,7 +342,8 @@ CoreResult drawing_program_texture_project_snapshot_load(
     is_v9 = (header_v9.version == DRAWING_PROGRAM_TEXTURE_PROJECT_CHUNK_VERSION_V9) ? 1u : 0u;
     is_v10 = (header_v10.version == DRAWING_PROGRAM_TEXTURE_PROJECT_CHUNK_VERSION_V10) ? 1u : 0u;
     is_v11 = (header_v11.version == DRAWING_PROGRAM_TEXTURE_PROJECT_CHUNK_VERSION_V11) ? 1u : 0u;
-    is_v12 = (header_v12.version == DRAWING_PROGRAM_TEXTURE_PROJECT_CHUNK_VERSION_V12) ? 1u : 0u;
+    is_v13 = (header_v12.version == DRAWING_PROGRAM_TEXTURE_PROJECT_CHUNK_VERSION_V13) ? 1u : 0u;
+    is_v12 = (header_v12.version == DRAWING_PROGRAM_TEXTURE_PROJECT_CHUNK_VERSION_V12 || is_v13) ? 1u : 0u;
     if (is_v12) {
         root_surface_count = header_v12.surface_count;
         root_active_surface_index = header_v12.active_surface_index;
@@ -499,7 +501,8 @@ CoreResult drawing_program_texture_project_snapshot_load(
         header_v9.version != DRAWING_PROGRAM_TEXTURE_PROJECT_CHUNK_VERSION_V9 &&
         header_v10.version != DRAWING_PROGRAM_TEXTURE_PROJECT_CHUNK_VERSION_V10 &&
         header_v11.version != DRAWING_PROGRAM_TEXTURE_PROJECT_CHUNK_VERSION_V11 &&
-        header_v12.version != DRAWING_PROGRAM_TEXTURE_PROJECT_CHUNK_VERSION_V12) ||
+        header_v12.version != DRAWING_PROGRAM_TEXTURE_PROJECT_CHUNK_VERSION_V12 &&
+        header_v12.version != DRAWING_PROGRAM_TEXTURE_PROJECT_CHUNK_VERSION_V13) ||
         (root_surface_count == 0u) ||
         (root_active_surface_index >= root_surface_count) ||
         root_chunk.size != expected_root_size) {
@@ -922,6 +925,14 @@ CoreResult drawing_program_texture_project_snapshot_load(
         }
         if (!is_v2) {
             drawing_program_texture_project_refresh_surface_flags(project, surface_index);
+        }
+    }
+    if (is_v13) {
+        result = drawing_program_indexed_project_snapshot_load(reader, project);
+        if (result.code != CORE_OK) {
+            drawing_program_texture_project_dispose(project);
+            free(root_data);
+            return result;
         }
     }
     free(root_data);

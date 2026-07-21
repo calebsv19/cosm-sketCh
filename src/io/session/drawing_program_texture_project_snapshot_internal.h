@@ -18,6 +18,7 @@ enum {
     DRAWING_PROGRAM_TEXTURE_PROJECT_CHUNK_VERSION_V10 = 10u,
     DRAWING_PROGRAM_TEXTURE_PROJECT_CHUNK_VERSION_V11 = 11u,
     DRAWING_PROGRAM_TEXTURE_PROJECT_CHUNK_VERSION_V12 = 12u,
+    DRAWING_PROGRAM_TEXTURE_PROJECT_CHUNK_VERSION_V13 = 13u,
     DRAWING_PROGRAM_TEXTURE_SURFACE_DOCUMENT_CHUNK_VERSION_V1 = 1u,
     DRAWING_PROGRAM_TEXTURE_SURFACE_LAYER_CHUNK_VERSION_V2 = 2u
 };
@@ -99,6 +100,7 @@ typedef DrawingProgramTextureProjectChunkHeaderV7 DrawingProgramTextureProjectCh
 typedef DrawingProgramTextureProjectChunkHeaderV7 DrawingProgramTextureProjectChunkHeaderV10;
 typedef DrawingProgramTextureProjectChunkHeaderV7 DrawingProgramTextureProjectChunkHeaderV11;
 typedef DrawingProgramTextureProjectChunkHeaderV7 DrawingProgramTextureProjectChunkHeaderV12;
+typedef DrawingProgramTextureProjectChunkHeaderV7 DrawingProgramTextureProjectChunkHeaderV13;
 
 typedef struct DrawingProgramTextureProjectSurfaceRecordV1 {
     uint32_t surface_id;
@@ -351,5 +353,11 @@ CoreResult texture_project_snapshot_apply_surface_layer_chunk(
     DrawingProgramTextureSurfaceStorage *storage,
     const void *chunk_data,
     uint64_t chunk_size);
+CoreResult drawing_program_indexed_project_snapshot_write(
+    CorePackWriter *writer,
+    const DrawingProgramTextureProject *project);
+CoreResult drawing_program_indexed_project_snapshot_load(
+    CorePackReader *reader,
+    DrawingProgramTextureProject *project);
 
 #endif

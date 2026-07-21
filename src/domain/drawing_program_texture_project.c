@@ -406,6 +406,8 @@ void drawing_program_texture_project_dispose(DrawingProgramTextureProject *proje
         texture_project_surface_storage_dispose(project->surfaces[i].storage);
         project->surfaces[i].storage = 0;
     }
+    drawing_program_indexed_history_dispose(&project->indexed_history);
+    drawing_program_indexed_layer_raster_dispose(&project->indexed_raster);
     free(project->surfaces);
     memset(project, 0, sizeof(*project));
 }
@@ -416,6 +418,7 @@ CoreResult drawing_program_texture_project_init_empty(DrawingProgramTextureProje
     }
     drawing_program_texture_project_dispose(project);
     project->schema_version = DRAWING_PROGRAM_TEXTURE_PROJECT_SCHEMA_VERSION;
+    project->profile_kind = DRAWING_PROGRAM_TEXTURE_PROJECT_PROFILE_STANDARD_RGBA;
     project->net_layout_kind = DRAWING_PROGRAM_TEXTURE_NET_LAYOUT_KIND_NONE;
     project->quality_preset = DRAWING_PROGRAM_TEXTURE_QUALITY_PRESET_STANDARD;
     project->export_intent_kind = DRAWING_PROGRAM_TEXTURE_EXPORT_INTENT_KIND_FLATTENED_ONLY;
@@ -423,6 +426,73 @@ CoreResult drawing_program_texture_project_init_empty(DrawingProgramTextureProje
     project->next_surface_id = 1u;
     project->runtime_cache_epoch = texture_project_next_runtime_epoch();
     return core_result_ok();
+}
+
+CoreResult drawing_program_texture_project_validate_indexed_atlas(
+    const DrawingProgramTextureProject *project) {
+    const DrawingProgramTextureSurface *surface;
+    CoreResult result;
+    if (!project || project->profile_kind != DRAWING_PROGRAM_TEXTURE_PROJECT_PROFILE_INDEXED_ATLAS_V1 ||
+        project->surface_count != 1u) {
+        return texture_project_invalid("invalid indexed texture project profile");
+    }
+    surface = drawing_program_texture_project_surface_at(project, 0u);
+    if (!surface || !surface->storage || surface->storage->document.sample_density != 1u ||
+        surface->storage->document.logical_width != project->indexed_profile.atlas_width ||
+        surface->storage->document.logical_height != project->indexed_profile.atlas_height) {
+        return texture_project_invalid("indexed texture project surface mismatch");
+    }
+    result = drawing_program_indexed_tileset_profile_validate(&project->indexed_profile);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    result = drawing_program_indexed_layer_raster_validate(&project->indexed_raster);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    if (project->indexed_raster.width != project->indexed_profile.atlas_width ||
+        project->indexed_raster.height != project->indexed_profile.atlas_height ||
+        project->indexed_raster.slot_count != project->indexed_profile.slot_count) {
+        return texture_project_invalid("indexed texture project raster/profile mismatch");
+    }
+    return core_result_ok();
+}
+
+CoreResult drawing_program_texture_project_enable_indexed_atlas(
+    DrawingProgramTextureProject *project,
+    const DrawingProgramIndexedTilesetProfile *profile,
+    uint8_t fill_index) {
+    const DrawingProgramTextureSurface *surface;
+    DrawingProgramIndexedLayerRaster next_raster;
+    CoreResult result;
+    if (!project || !profile || project->surface_count != 1u) {
+        return texture_project_invalid("invalid indexed texture project enable request");
+    }
+    result = drawing_program_indexed_tileset_profile_validate(profile);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    surface = drawing_program_texture_project_surface_at(project, 0u);
+    if (!surface || !surface->storage || surface->storage->document.sample_density != 1u ||
+        surface->storage->document.logical_width != profile->atlas_width ||
+        surface->storage->document.logical_height != profile->atlas_height) {
+        return texture_project_invalid("indexed texture project requires one matching density-one surface");
+    }
+    memset(&next_raster, 0, sizeof(next_raster));
+    result = drawing_program_indexed_layer_raster_init(&next_raster,
+                                                       profile->atlas_width,
+                                                       profile->atlas_height,
+                                                       profile->slot_count,
+                                                       fill_index);
+    if (result.code != CORE_OK) {
+        return result;
+    }
+    drawing_program_indexed_history_clear(&project->indexed_history);
+    drawing_program_indexed_layer_raster_dispose(&project->indexed_raster);
+    project->indexed_profile = *profile;
+    project->indexed_raster = next_raster;
+    project->profile_kind = DRAWING_PROGRAM_TEXTURE_PROJECT_PROFILE_INDEXED_ATLAS_V1;
+    return drawing_program_texture_project_validate_indexed_atlas(project);
 }
 
 CoreResult drawing_program_texture_project_init_single_surface(

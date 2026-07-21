@@ -35,6 +35,7 @@
 #include "drawing_program_lifecycle_object_path_suite.h"
 #include "drawing_program_lifecycle_persistence_contract_suite.h"
 #include "drawing_program_lifecycle_render_domain_suite.h"
+#include "drawing_program_lifecycle_indexed_tileset_suite.h"
 #include "drawing_program_lifecycle_runtime_render_suite.h"
 #include "drawing_program_lifecycle_surface_cache_contract_suite.h"
 #include "drawing_program_lifecycle_texture_export_suite.h"
@@ -650,6 +651,7 @@ static const LifecycleStandaloneSuiteEntry g_lifecycle_standalone_suites[] = {
     { "composed-source-rws1", "RWS1 composed source contracts", drawing_program_lifecycle_run_composed_source_rws1_suite },
     { "persistence", "root/session persistence contracts", drawing_program_lifecycle_run_persistence_contract_suite },
     { "render-domain", "render-domain model contracts", drawing_program_lifecycle_run_render_domain_suite },
+    { "indexed-tileset", "exact indexed tileset model/history/persistence contracts", drawing_program_lifecycle_run_indexed_tileset_suite },
     { "snapshot-layer", "snapshot layer fixture/root contracts", drawing_program_lifecycle_run_snapshot_layer_suite },
     { "texture-export", "authored texture export contracts", drawing_program_lifecycle_run_texture_export_suite },
     { "texture-import", "authored texture import contracts", drawing_program_lifecycle_run_texture_import_suite },
@@ -936,6 +938,9 @@ int main(int argc, char **test_argv) {
         return 1;
     }
     if (drawing_program_lifecycle_run_render_domain_suite() != 0) {
+        return 1;
+    }
+    if (drawing_program_lifecycle_run_indexed_tileset_suite() != 0) {
         return 1;
     }
     if (drawing_program_lifecycle_run_texture_export_suite() != 0) {

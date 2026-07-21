@@ -1,6 +1,6 @@
 # Future Intent
 
-Last updated: 2026-06-25
+Last updated: 2026-07-20
 
 ## Near-term
 - The R0-R6 refinement sequence is complete at this checkpoint:
@@ -29,14 +29,23 @@ Last updated: 2026-06-25
 - Vulkan or another new live backend should remain deferred unless the current
   renderer/compose state proves unacceptable even after bounded SDL/cache work.
 - Any new authored-texture or mixed-material semantics work should start as its
-  own bounded roadmap rather than being folded into the renderer lane.
-- Any renderer follow-on should remain bounded and target one named residual
-  seam at a time rather than reopening broad cache architecture work.
+  own bounded roadmap rather than being folded into the renderer lane. The next
+  such roadmap is the indexed tileset authoring profile documented under the
+  Drawing Program private active bucket. Its DPT1 exact model/history/
+  persistence foundation is implemented and workspace-linked proven; DPT2
+  waits on the managed `core_authored_texture` 0.2.0 rollout and package gate.
+- The post-R0-R6 renderer/cache decision is to stop at the current bounded
+  medium-risk state. Any renderer follow-on should require new measured
+  evidence from broader mixed partial-opacity scenes, remain bounded, and
+  target one named seam or measured cost center rather than reopening broad
+  cache architecture work.
 
 ## Expected Next Outcomes
-- After the R0-R6 refinement sequence reaches renderer/cache decision points,
-  decide whether the current renderer/cache state is good enough to stop at
-  this checkpoint or whether a fresh bounded follow-on is justified for broader
-  mixed partial-opacity CPU compose cost.
+- Roll shared `core_authored_texture` 0.2.0 into Drawing Program through the
+  managed subtree workflow, prove default/package behavior, then implement the
+  profile-routed DPT2 pixel editing UI without changing standard RGBA UX.
+- Treat the R0-R6 refinement loop as closed. If renderer/cache work resumes,
+  start from fresh measurement and a new bounded plan rather than the archived
+  R0-R6 or seam-lowering records.
 - Keep the same contract style if renderer work resumes: frozen hot paths,
   bounded optimization, and focused cache-drift validation.

@@ -5,6 +5,9 @@ DRAWING_PROGRAM_BASE_LOCAL_SRCS := \
 	src/domain/drawing_program_history.c \
 	src/domain/drawing_program_history_raster_deltas.c \
 	src/domain/drawing_program_history_object_commands.c \
+	src/model/indexed_tileset/drawing_program_indexed_tileset_profile.c \
+	src/model/indexed_tileset/drawing_program_indexed_layer_raster.c \
+	src/model/indexed_tileset/drawing_program_indexed_history.c \
 	src/domain/drawing_program_layer_raster.c \
 	src/domain/drawing_program_object_geometry.c \
 	src/domain/drawing_program_object_rasterize.c \
@@ -40,6 +43,7 @@ DRAWING_PROGRAM_BASE_LOCAL_SRCS := \
 	src/io/session/drawing_program_snapshot_export_json.c \
 	src/io/session/drawing_program_texture_canvas_ops.c \
 	src/io/session/drawing_program_texture_project_session.c \
+	src/io/session/drawing_program_indexed_project_snapshot.c \
 	src/io/session/drawing_program_texture_project_snapshot.c \
 	src/io/session/drawing_program_texture_project_snapshot_load.c \
 	src/io/session/drawing_program_texture_scene_file_guard.c \
@@ -162,6 +166,7 @@ TEST_TARGET_LOCAL_SRCS := \
 	tests/drawing_program_lifecycle_composed_source_rws1_suite.c \
 	tests/drawing_program_lifecycle_persistence_contract_suite.c \
 	tests/drawing_program_lifecycle_render_domain_suite.c \
+	tests/drawing_program_lifecycle_indexed_tileset_suite.c \
 	tests/drawing_program_lifecycle_texture_export_suite.c \
 	tests/drawing_program_lifecycle_snapshot_helpers.c \
 	tests/drawing_program_lifecycle_snapshot_object_helpers.c \
