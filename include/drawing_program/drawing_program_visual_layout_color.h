@@ -16,6 +16,7 @@ SDL_Rect right_color_recent_swatch_rect(SDL_Rect rect, VisualPaneLayoutMetrics m
 SDL_Rect right_color_hue_slider_rect(SDL_Rect rect, VisualPaneLayoutMetrics m);
 SDL_Rect right_color_sv_grid_rect(SDL_Rect rect, VisualPaneLayoutMetrics m);
 SDL_Rect right_color_palette_swatch_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, uint8_t color_index);
+SDL_Rect right_color_indexed_slot_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, uint8_t slot_index);
 
 #ifdef __cplusplus
 }

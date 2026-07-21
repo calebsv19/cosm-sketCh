@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 #include "drawing_program/drawing_program_color_model.h"
+#include "drawing_program/drawing_program_indexed_editor.h"
 #include "drawing_program/drawing_program_visual_panel_render_common.h"
 
 static void draw_color_swatch(SDL_Renderer *renderer, SDL_Rect rect, uint8_t r, uint8_t g, uint8_t b) {
@@ -74,6 +75,48 @@ void drawing_program_visual_render_right_panel_color_tab(SDL_Renderer *renderer,
     uint8_t palette_i;
 
     if (!renderer || !ctx || !hooks || !hooks->draw_bitmap_text || !hooks->color_index_clamp || !hooks->color_rgb_from_index) {
+        return;
+    }
+
+    if (drawing_program_indexed_editor_is_active(ctx)) {
+        const DrawingProgramIndexedTilesetProfile *profile = &ctx->texture_project.indexed_profile;
+        uint32_t slot_index;
+        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y,
+                                "INDEXED PALETTE", p.text_primary, m.body_scale);
+        y += m.line_h;
+        (void)snprintf(line, sizeof(line), "SOURCE: EXACT BYTE INDICES");
+        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y,
+                                line, p.text_muted, m.body_scale);
+        y += m.line_h;
+        (void)snprintf(line,
+                       sizeof(line),
+                       "ACTIVE %u  %s",
+                       (unsigned)ctx->ui.indexed_selected_slot,
+                       profile->slots[ctx->ui.indexed_selected_slot].id);
+        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y,
+                                line, p.text_primary, m.body_scale);
+        y += m.line_h;
+        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y,
+                                "RGB/HSV EDITING DISABLED", p.text_muted, m.body_scale);
+        for (slot_index = 0u; slot_index < profile->slot_count; ++slot_index) {
+            SDL_Rect slot_rect = right_color_indexed_slot_rect(rect, m, (uint8_t)slot_index);
+            CoreAuthoredTextureRgba8 rgba = profile->slots[slot_index].preview_rgba;
+            draw_color_swatch(renderer, slot_rect, rgba.r, rgba.g, rgba.b);
+            SDL_SetRenderDrawColor(renderer,
+                                   slot_index == ctx->ui.indexed_selected_slot ? p.accent_primary.r : p.button_border.r,
+                                   slot_index == ctx->ui.indexed_selected_slot ? p.accent_primary.g : p.button_border.g,
+                                   slot_index == ctx->ui.indexed_selected_slot ? p.accent_primary.b : p.button_border.b,
+                                   255u);
+            (void)SDL_RenderDrawRect(renderer, &slot_rect);
+            (void)snprintf(line, sizeof(line), "%u %s", (unsigned)slot_index, profile->slots[slot_index].id);
+            hooks->draw_bitmap_text(renderer,
+                                    rect,
+                                    slot_rect.x + 4,
+                                    slot_rect.y + ((slot_rect.h - m.body_glyph_h) / 2),
+                                    line,
+                                    p.text_primary,
+                                    m.body_scale);
+        }
         return;
     }
 

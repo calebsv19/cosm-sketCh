@@ -98,3 +98,17 @@ SDL_Rect right_color_palette_swatch_rect(SDL_Rect rect, VisualPaneLayoutMetrics 
         swatch_h
     };
 }
+
+SDL_Rect right_color_indexed_slot_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, uint8_t slot_index) {
+    const int cols = 2;
+    int y = right_color_content_start_y(rect, m) + (4 * m.line_h) + m.section_gap;
+    int swatch_w = (rect.w - (2 * m.pad_x) - m.tab_gap) / cols;
+    int row = (int)(slot_index / (uint8_t)cols);
+    int col = (int)(slot_index % (uint8_t)cols);
+    return (SDL_Rect){
+        rect.x + m.pad_x + col * (swatch_w + m.tab_gap),
+        y + row * (m.row_h + m.section_gap),
+        swatch_w,
+        m.row_h
+    };
+}

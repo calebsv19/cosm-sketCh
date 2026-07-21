@@ -138,6 +138,7 @@ typedef struct DrawingProgramAppUiState {
     uint8_t layer_opacity_entry_count;
     uint8_t recent_color_count;
     uint8_t selected_recent_color_index;
+    uint8_t indexed_selected_slot;
     int8_t font_zoom_step;
     uint8_t layer_opacity_values[DRAWING_PROGRAM_MAX_LAYERS];
     uint32_t layer_opacity_layer_ids[DRAWING_PROGRAM_MAX_LAYERS];
@@ -203,6 +204,8 @@ typedef struct DrawingProgramAppSessionState {
     char file_action_status_message[160];
     uint32_t project_saved_history_count;
     uint32_t project_saved_history_cursor;
+    uint32_t project_saved_indexed_history_count;
+    uint32_t project_saved_indexed_history_cursor;
     uint8_t project_has_saved_state;
     uint16_t recent_project_count;
     uint8_t ui_prefs_loaded;

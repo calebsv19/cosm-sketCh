@@ -4,8 +4,11 @@
 
 #include "core_pack.h"
 #include "drawing_program/drawing_program_document.h"
+#include "drawing_program/drawing_program_indexed_editor.h"
 #include "drawing_program/drawing_program_layer_raster.h"
+#include "drawing_program/drawing_program_runtime_orchestration.h"
 #include "drawing_program/drawing_program_texture_project.h"
+#include "drawing_program/drawing_program_visual_indexed_canvas.h"
 #include "drawing_program_lifecycle_indexed_tileset_suite.h"
 #include "drawing_program_lifecycle_test_support.h"
 #include "../src/io/session/drawing_program_snapshot_internal.h"
@@ -256,6 +259,94 @@ cleanup:
     return status ? 0 : 1;
 }
 
+static int indexed_assert_editor_profile_routing(void) {
+    DrawingProgramIndexedTilesetProfile profile;
+    DrawingProgramAppContext ctx;
+    SDL_Surface *surface = 0;
+    SDL_Renderer *renderer = 0;
+    VisualCanvasSheetMetrics metrics = { { 0, 0, 320, 160 }, 10.0f };
+    uint8_t before_preview[512];
+    uint32_t command_count;
+    int status = 1;
+    indexed_seed_profile(&profile);
+    memset(&ctx, 0, sizeof(ctx));
+    if (!indexed_init_project(&ctx.texture_project, &profile) ||
+        !indexed_expect_ok(drawing_program_indexed_editor_select_slot(&ctx, 4u),
+                           "indexed_editor_select_slot") ||
+        !indexed_expect_ok(drawing_program_indexed_editor_apply_at(
+                               &ctx, DRAWING_PROGRAM_TOOL_BRUSH, 1u, 1u),
+                           "indexed_editor_brush") ||
+        ctx.texture_project.indexed_raster.indices[33u] != 4u ||
+        ctx.texture_project.indexed_history.commands[0].kind !=
+            DRAWING_PROGRAM_INDEXED_HISTORY_COMMAND_BRUSH) {
+        status = 0;
+        goto cleanup;
+    }
+    if (!indexed_expect_ok(drawing_program_indexed_editor_select_slot(&ctx, 5u),
+                           "indexed_editor_select_fill_slot") ||
+        !indexed_expect_ok(drawing_program_indexed_editor_apply_at(
+                               &ctx, DRAWING_PROGRAM_TOOL_FILL, 0u, 0u),
+                           "indexed_editor_fill") ||
+        ctx.texture_project.indexed_raster.indices[0u] != 5u ||
+        ctx.texture_project.indexed_raster.indices[33u] != 4u ||
+        ctx.texture_project.indexed_history.commands[1].kind !=
+            DRAWING_PROGRAM_INDEXED_HISTORY_COMMAND_FILL ||
+        !indexed_expect_ok(drawing_program_indexed_editor_apply_at(
+                               &ctx, DRAWING_PROGRAM_TOOL_ERASER, 1u, 1u),
+                           "indexed_editor_eraser") ||
+        ctx.texture_project.indexed_raster.indices[33u] != 0u ||
+        ctx.texture_project.indexed_history.commands[2].kind !=
+            DRAWING_PROGRAM_INDEXED_HISTORY_COMMAND_ERASER) {
+        status = 0;
+        goto cleanup;
+    }
+    if (!indexed_expect_ok(drawing_program_indexed_editor_undo(&ctx), "indexed_editor_undo") ||
+        ctx.texture_project.indexed_raster.indices[33u] != 4u ||
+        !indexed_expect_ok(drawing_program_indexed_editor_redo(&ctx), "indexed_editor_redo") ||
+        ctx.texture_project.indexed_raster.indices[33u] != 0u) {
+        status = 0;
+        goto cleanup;
+    }
+    command_count = ctx.texture_project.indexed_history.command_count;
+    if (!indexed_expect_error(drawing_program_indexed_editor_apply_at(
+                                  &ctx, DRAWING_PROGRAM_TOOL_LINE, 2u, 2u),
+                              "indexed_editor_reject_line") ||
+        !indexed_expect_error(drawing_program_runtime_orchestration_apply_workflow_control(
+                                  &ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_SET_TOOL_RECT),
+                              "indexed_editor_reject_rect_control") ||
+        ctx.texture_project.indexed_history.command_count != command_count) {
+        status = 0;
+        goto cleanup;
+    }
+    memcpy(before_preview,
+           ctx.texture_project.indexed_raster.indices,
+           ctx.texture_project.indexed_raster.index_count);
+    surface = SDL_CreateRGBSurfaceWithFormat(0, 320, 160, 32, SDL_PIXELFORMAT_RGBA32);
+    renderer = surface ? SDL_CreateSoftwareRenderer(surface) : 0;
+    if (!renderer) {
+        fprintf(stderr, "lifecycle_test: failed to create indexed preview renderer\n");
+        status = 0;
+        goto cleanup;
+    }
+    drawing_program_visual_draw_indexed_canvas(
+        renderer, (SDL_Rect){0, 0, 320, 160}, &ctx, &metrics, 0);
+    if (memcmp(before_preview,
+               ctx.texture_project.indexed_raster.indices,
+               ctx.texture_project.indexed_raster.index_count) != 0) {
+        fprintf(stderr, "lifecycle_test: indexed preview mutated source bytes\n");
+        status = 0;
+    }
+cleanup:
+    if (renderer) {
+        SDL_DestroyRenderer(renderer);
+    }
+    if (surface) {
+        SDL_FreeSurface(surface);
+    }
+    drawing_program_texture_project_dispose(&ctx.texture_project);
+    return status ? 0 : 1;
+}
+
 static int indexed_assert_malformed_inputs_fail_closed(void) {
     DrawingProgramIndexedTilesetProfile profile;
     DrawingProgramTextureProject project;
@@ -478,6 +569,7 @@ cleanup:
 
 int drawing_program_lifecycle_run_indexed_tileset_suite(void) {
     if (indexed_assert_model_and_history() != 0 ||
+        indexed_assert_editor_profile_routing() != 0 ||
         indexed_assert_roundtrip() != 0 ||
         indexed_assert_malformed_inputs_fail_closed() != 0 ||
         indexed_assert_density_other_than_one_rejected() != 0 ||

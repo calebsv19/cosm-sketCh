@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 #include "drawing_program/drawing_program_canvas_reflection.h"
+#include "drawing_program/drawing_program_indexed_editor.h"
 #include "drawing_program/drawing_program_object_store.h"
 #include "drawing_program/drawing_program_texture_net_guides.h"
 #include "drawing_program/drawing_program_texture_project.h"
@@ -173,6 +174,33 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                                            : 0;
         (void)drawing_program_canvas_reflection_active_center(ctx, &reflection_center_x, &reflection_center_y);
         y = right_canvas_metrics_start_y(rect, m);
+        if (drawing_program_indexed_editor_is_active(ctx)) {
+            const DrawingProgramIndexedTilesetProfile *profile = &ctx->texture_project.indexed_profile;
+            const DrawingProgramIndexedLayerRaster *raster = &ctx->texture_project.indexed_raster;
+            hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y,
+                                    "PROFILE  INDEXED_ATLAS_V1", p.accent_primary, m.body_scale);
+            y += m.line_h;
+            (void)snprintf(line,
+                           sizeof(line),
+                           "GEOMETRY %ux%u  CELL %ux%u",
+                           (unsigned)raster->width,
+                           (unsigned)raster->height,
+                           (unsigned)profile->logical_cell_width,
+                           (unsigned)profile->logical_cell_height);
+            hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y,
+                                    line, p.text_primary, m.body_scale);
+            y += m.line_h;
+            (void)snprintf(line,
+                           sizeof(line),
+                           "TOOL %s  ONE LOGICAL PIXEL",
+                           hooks->tool_name(ctx->editor.active_tool));
+            hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y,
+                                    line, p.text_primary, m.body_scale);
+            y += m.line_h;
+            hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y,
+                                    "BLEND / SOFTNESS / RGB INFERENCE OFF", p.text_muted, m.body_scale);
+            return;
+        }
         if (ctx->editor.active_tool == DRAWING_PROGRAM_TOOL_BRUSH) {
             (void)snprintf(line,
                            sizeof(line),

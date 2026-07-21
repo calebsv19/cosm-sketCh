@@ -8,6 +8,8 @@
 #include "drawing_program/drawing_program_render_zoom_bucket.h"
 #include "drawing_program/drawing_program_render_revision.h"
 #include "drawing_program/drawing_program_texture_project.h"
+#include "drawing_program/drawing_program_indexed_editor.h"
+#include "drawing_program/drawing_program_visual_indexed_canvas.h"
 #include "drawing_program/drawing_program_texture_canvas_resize.h"
 #include "drawing_program/drawing_program_texture_net_guides.h"
 #include "drawing_program/drawing_program_texture_workspace.h"
@@ -308,7 +310,11 @@ void drawing_program_visual_draw_canvas_world_view(
         }
         SDL_SetRenderDrawColor(renderer, sheet_fill.r, sheet_fill.g, sheet_fill.b, sheet_fill.a);
         (void)SDL_RenderFillRect(renderer, &clip_sheet);
-        if (surface->storage) {
+        if (drawing_program_indexed_editor_is_active(ctx) &&
+            surface_index == ctx->texture_project.active_surface_index) {
+            drawing_program_visual_draw_indexed_canvas(
+                renderer, pane_rect, ctx, &metrics, hooks->draw_bitmap_text);
+        } else if (surface->storage) {
             DrawingProgramVisualSurfaceCacheRequest cache_request;
             DrawingProgramVisualSurfaceCacheTelemetry cache_telemetry;
             const DrawingProgramDocument *cache_document = &surface->storage->document;
@@ -382,6 +388,10 @@ void drawing_program_visual_draw_canvas_world_view(
             renderer, pane_rect, surface, &metrics, surface_label, hooks);
     }
     if (!drawing_program_texture_workspace_active_sheet_metrics(ctx, pane_rect, &metrics)) {
+        (void)SDL_RenderSetClipRect(renderer, 0);
+        return;
+    }
+    if (drawing_program_indexed_editor_is_active(ctx)) {
         (void)SDL_RenderSetClipRect(renderer, 0);
         return;
     }

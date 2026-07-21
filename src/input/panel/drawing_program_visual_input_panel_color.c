@@ -1,4 +1,5 @@
 #include "drawing_program/drawing_program_color_panel_internal.h"
+#include "drawing_program/drawing_program_indexed_editor.h"
 
 static SDL_Rect visual_color_panel_swatch_hit_rect(SDL_Rect rect) {
     rect.x -= 1;
@@ -50,6 +51,18 @@ int drawing_program_visual_input_handle_right_color_panel_click_payload(
         return 0;
     }
     m = make_pane_layout_metrics(ctx);
+    if (drawing_program_indexed_editor_is_active(ctx)) {
+        uint32_t slot_index;
+        for (slot_index = 0u; slot_index < ctx->texture_project.indexed_profile.slot_count; ++slot_index) {
+            SDL_Rect slot_rect = visual_color_panel_swatch_hit_rect(
+                right_color_indexed_slot_rect(rect, m, (uint8_t)slot_index));
+            if (hooks->point_in_rect(slot_rect, x, y)) {
+                (void)drawing_program_indexed_editor_select_slot(ctx, (uint8_t)slot_index);
+                return 1;
+            }
+        }
+        return 0;
+    }
     save_button_rect = right_color_save_preset_button_rect(rect, m);
     hue_rect = right_color_hue_slider_rect(rect, m);
     sv_rect = right_color_sv_grid_rect(rect, m);

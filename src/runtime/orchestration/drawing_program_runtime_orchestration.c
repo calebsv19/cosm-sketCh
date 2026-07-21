@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "drawing_program/drawing_program_indexed_editor.h"
 #include "drawing_program/drawing_program_ui_color_state.h"
 
 #include "drawing_program/drawing_program_color_model.h"
@@ -255,6 +256,28 @@ CoreResult drawing_program_runtime_orchestration_apply_workflow_control(
     uint32_t i;
     if (!ctx) {
         return orchestration_invalid("null app context for workflow control");
+    }
+    if (drawing_program_indexed_editor_is_active(ctx)) {
+        switch (control) {
+            case DRAWING_PROGRAM_WORKFLOW_CONTROL_SET_TOOL_BRUSH:
+                return set_active_tool(ctx, DRAWING_PROGRAM_TOOL_BRUSH);
+            case DRAWING_PROGRAM_WORKFLOW_CONTROL_SET_TOOL_ERASER:
+                return set_active_tool(ctx, DRAWING_PROGRAM_TOOL_ERASER);
+            case DRAWING_PROGRAM_WORKFLOW_CONTROL_SET_TOOL_FILL:
+                return set_active_tool(ctx, DRAWING_PROGRAM_TOOL_FILL);
+            case DRAWING_PROGRAM_WORKFLOW_CONTROL_UNDO:
+                return drawing_program_indexed_editor_undo(ctx);
+            case DRAWING_PROGRAM_WORKFLOW_CONTROL_REDO:
+                return drawing_program_indexed_editor_redo(ctx);
+            case DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_HISTORY:
+                drawing_program_indexed_history_clear(&ctx->texture_project.indexed_history);
+                return core_result_ok();
+            case DRAWING_PROGRAM_WORKFLOW_CONTROL_NONE:
+                return core_result_ok();
+            default:
+                return (CoreResult){ CORE_ERR_INVALID_ARG,
+                                     "workflow control is unavailable in indexed profile" };
+        }
     }
     switch (control) {
         case DRAWING_PROGRAM_WORKFLOW_CONTROL_SET_TOOL_BRUSH:

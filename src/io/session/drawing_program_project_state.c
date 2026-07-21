@@ -385,6 +385,8 @@ void drawing_program_project_state_mark_clean(struct DrawingProgramAppContext *c
     }
     ctx->session.project_saved_history_count = ctx->history.count;
     ctx->session.project_saved_history_cursor = ctx->history.cursor;
+    ctx->session.project_saved_indexed_history_count = ctx->texture_project.indexed_history.command_count;
+    ctx->session.project_saved_indexed_history_cursor = ctx->texture_project.indexed_history.command_cursor;
     ctx->session.project_has_saved_state = 1u;
 }
 
@@ -399,6 +401,12 @@ uint8_t drawing_program_project_state_current_is_dirty(const struct DrawingProgr
         return 1u;
     }
     if (ctx->session.project_saved_history_cursor != ctx->history.cursor) {
+        return 1u;
+    }
+    if (ctx->session.project_saved_indexed_history_count !=
+            ctx->texture_project.indexed_history.command_count ||
+        ctx->session.project_saved_indexed_history_cursor !=
+            ctx->texture_project.indexed_history.command_cursor) {
         return 1u;
     }
     return 0u;

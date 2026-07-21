@@ -74,10 +74,22 @@ CoreResult drawing_program_indexed_history_apply_delta_block(
     DrawingProgramIndexedLayerRaster *raster,
     const DrawingProgramIndexedHistoryDelta *deltas,
     uint32_t delta_count) {
+    return drawing_program_indexed_history_apply_delta_block_typed(
+        history, raster, deltas, delta_count, DRAWING_PROGRAM_INDEXED_HISTORY_COMMAND_BRUSH);
+}
+
+CoreResult drawing_program_indexed_history_apply_delta_block_typed(
+    DrawingProgramIndexedHistory *history,
+    DrawingProgramIndexedLayerRaster *raster,
+    const DrawingProgramIndexedHistoryDelta *deltas,
+    uint32_t delta_count,
+    DrawingProgramIndexedHistoryCommandKind kind) {
     DrawingProgramIndexedHistoryCommand command;
     uint32_t i;
     CoreResult result;
     if (!history || !raster || !deltas || delta_count == 0u ||
+        kind < DRAWING_PROGRAM_INDEXED_HISTORY_COMMAND_BRUSH ||
+        kind > DRAWING_PROGRAM_INDEXED_HISTORY_COMMAND_FILL ||
         drawing_program_indexed_layer_raster_validate(raster).code != CORE_OK) {
         return indexed_history_invalid("invalid indexed history delta request");
     }
@@ -109,6 +121,7 @@ CoreResult drawing_program_indexed_history_apply_delta_block(
     }
     command.delta_offset = history->delta_count;
     command.delta_count = delta_count;
+    command.kind = (uint32_t)kind;
     for (i = 0u; i < delta_count; ++i) {
         raster->indices[deltas[i].index_offset] = deltas[i].new_index;
         history->deltas[history->delta_count + i] = deltas[i];

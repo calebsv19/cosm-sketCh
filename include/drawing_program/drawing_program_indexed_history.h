@@ -17,9 +17,16 @@ typedef struct DrawingProgramIndexedHistoryDelta {
     uint16_t reserved0;
 } DrawingProgramIndexedHistoryDelta;
 
+typedef enum DrawingProgramIndexedHistoryCommandKind {
+    DRAWING_PROGRAM_INDEXED_HISTORY_COMMAND_BRUSH = 1u,
+    DRAWING_PROGRAM_INDEXED_HISTORY_COMMAND_ERASER = 2u,
+    DRAWING_PROGRAM_INDEXED_HISTORY_COMMAND_FILL = 3u
+} DrawingProgramIndexedHistoryCommandKind;
+
 typedef struct DrawingProgramIndexedHistoryCommand {
     uint32_t delta_offset;
     uint32_t delta_count;
+    uint32_t kind;
 } DrawingProgramIndexedHistoryCommand;
 
 typedef struct DrawingProgramIndexedHistory {
@@ -45,6 +52,12 @@ CoreResult drawing_program_indexed_history_apply_delta_block(
     DrawingProgramIndexedLayerRaster *raster,
     const DrawingProgramIndexedHistoryDelta *deltas,
     uint32_t delta_count);
+CoreResult drawing_program_indexed_history_apply_delta_block_typed(
+    DrawingProgramIndexedHistory *history,
+    DrawingProgramIndexedLayerRaster *raster,
+    const DrawingProgramIndexedHistoryDelta *deltas,
+    uint32_t delta_count,
+    DrawingProgramIndexedHistoryCommandKind kind);
 CoreResult drawing_program_indexed_history_undo(
     DrawingProgramIndexedHistory *history,
     DrawingProgramIndexedLayerRaster *raster);

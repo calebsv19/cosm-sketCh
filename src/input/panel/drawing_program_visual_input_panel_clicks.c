@@ -4,6 +4,7 @@
 
 #include "drawing_program/drawing_program_icns_export.h"
 #include "drawing_program/drawing_program_canvas_reflection.h"
+#include "drawing_program/drawing_program_indexed_editor.h"
 #include "drawing_program/drawing_program_native_dialogs.h"
 #include "drawing_program/drawing_program_iconset_export.h"
 #include "drawing_program/drawing_program_png_export.h"
@@ -553,6 +554,9 @@ void drawing_program_visual_input_handle_right_panel_click_payload(
         return;
     }
     if (hooks->point_in_rect(tab_layer, x, y)) {
+        if (drawing_program_indexed_editor_is_active(ctx)) {
+            return;
+        }
         drawing_program_visual_set_right_panel_slot(ctx, (uint8_t)VISUAL_RIGHT_PANEL_SLOT_LAYER);
         hooks->sync_panel_ui_from_app(ctx, ui);
         return;
@@ -578,6 +582,9 @@ void drawing_program_visual_input_handle_right_panel_click_payload(
         return;
     }
     if (hooks->clamp_right_slot(ctx->ui.right_panel_slot) == (uint8_t)VISUAL_RIGHT_PANEL_SLOT_LAYER_VALUE) {
+        if (drawing_program_indexed_editor_is_active(ctx)) {
+            return;
+        }
         uint32_t display_i;
         uint32_t role_i;
         SDL_Rect action;
@@ -683,6 +690,9 @@ void drawing_program_visual_input_handle_right_panel_click_payload(
             }
         }
     } else if (hooks->clamp_right_slot(ctx->ui.right_panel_slot) == (uint8_t)VISUAL_RIGHT_PANEL_SLOT_CANVAS_VALUE) {
+        if (drawing_program_indexed_editor_is_active(ctx)) {
+            return;
+        }
         SDL_Rect add_surface_button;
         SDL_Rect duplicate_surface_button;
         SDL_Rect canvas_mode_button;

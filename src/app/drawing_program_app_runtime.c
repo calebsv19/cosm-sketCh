@@ -65,6 +65,11 @@ static void drawing_program_normalize_ui_state(DrawingProgramAppContext *ctx) {
         drawing_program_visual_set_right_panel_slot(ctx, 0u);
     }
     drawing_program_ui_color_normalize_state(ctx);
+    if (ctx->texture_project.profile_kind == DRAWING_PROGRAM_TEXTURE_PROJECT_PROFILE_INDEXED_ATLAS_V1 &&
+        ctx->texture_project.indexed_profile.slot_count > 0u &&
+        (uint32_t)ctx->ui.indexed_selected_slot >= ctx->texture_project.indexed_profile.slot_count) {
+        ctx->ui.indexed_selected_slot = ctx->texture_project.indexed_profile.transparent_slot_index;
+    }
     drawing_program_visual_tool_options_normalize_ui(ctx);
     if (ctx->ui.canvas_guide_mode > (uint8_t)DRAWING_PROGRAM_UI_CANVAS_GUIDE_MODE_CORNERS_AND_EDGES) {
         ctx->ui.canvas_guide_mode = (uint8_t)DRAWING_PROGRAM_UI_CANVAS_GUIDE_MODE_OFF;

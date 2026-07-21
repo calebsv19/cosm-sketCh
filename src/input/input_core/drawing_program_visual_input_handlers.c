@@ -5,6 +5,7 @@
 
 #include "drawing_program/drawing_program_object_geometry.h"
 #include "drawing_program/drawing_program_canvas_reflection.h"
+#include "drawing_program/drawing_program_indexed_editor.h"
 #include "drawing_program/drawing_program_texture_canvas_move.h"
 #include "drawing_program/drawing_program_texture_project_session.h"
 #include "drawing_program/drawing_program_texture_canvas_resize.h"
@@ -300,6 +301,11 @@ int drawing_program_visual_input_handle_mouse_button_up_payload(const SDL_Event 
         drawing_program_visual_clear_reflector_drag(canvas_interaction);
         return 1;
     }
+    if (drawing_program_indexed_editor_is_active(app)) {
+        canvas_interaction->drawing_active = 0u;
+        canvas_interaction->has_last_sample = 0u;
+        return 1;
+    }
     if (app->editor.active_tool == DRAWING_PROGRAM_TOOL_PATH) {
         canvas_interaction->path_draft_drag_active = 0u;
         canvas_interaction->path_draft_drag_point_index = 0u;
@@ -470,6 +476,22 @@ int drawing_program_visual_input_handle_mouse_motion_payload(const SDL_Event *ev
         }
         return 1;
     }
+    if (drawing_program_indexed_editor_is_active(app)) {
+        if (canvas_interaction->drawing_active) {
+            uint32_t indexed_x = 0u;
+            uint32_t indexed_y = 0u;
+            if (hooks->screen_to_canvas_sample(app,
+                                               canvas_pane,
+                                               panel_ui->mouse_x,
+                                               panel_ui->mouse_y,
+                                               &indexed_x,
+                                               &indexed_y)) {
+                (void)drawing_program_indexed_editor_apply_at(
+                    app, app->editor.active_tool, indexed_x, indexed_y);
+            }
+        }
+        return canvas_interaction->drawing_active ? 1 : 0;
+    }
     if (selection_state->selecting && app->editor.active_tool == DRAWING_PROGRAM_TOOL_SELECT) {
         uint32_t sample_x = 0u;
         uint32_t sample_y = 0u;
@@ -633,6 +655,20 @@ int drawing_program_visual_input_handle_mouse_button_down_payload(const SDL_Even
                                                                        selection_state,
                                                                        panel_ui,
                                                                        hooks)) {
+            return 1;
+        }
+        if (drawing_program_indexed_editor_is_active(app)) {
+            if (hooks->screen_to_canvas_sample(
+                    app, canvas_pane, click_x, click_y, &sample_x, &sample_y) &&
+                drawing_program_indexed_editor_tool_allowed(app->editor.active_tool)) {
+                (void)drawing_program_indexed_editor_apply_at(
+                    app, app->editor.active_tool, sample_x, sample_y);
+                canvas_interaction->drawing_active =
+                    app->editor.active_tool == DRAWING_PROGRAM_TOOL_BRUSH ||
+                    app->editor.active_tool == DRAWING_PROGRAM_TOOL_ERASER;
+            } else {
+                canvas_interaction->drawing_active = 0u;
+            }
             return 1;
         }
         if (app->editor.active_tool == DRAWING_PROGRAM_TOOL_SELECT &&
