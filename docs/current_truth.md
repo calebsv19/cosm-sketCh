@@ -52,12 +52,19 @@ Last updated: 2026-07-20
   raw-index chunks. Standard projects continue to write and load DPTP v12.
 - Indexed load rejects missing/malformed chunks, non-density-one surfaces,
   geometry mismatch, unknown profile revisions, and out-of-range indices.
-- This is a data/roundtrip foundation only. Indexed painting UI, named atlas
-  cell editing, indexed PNG/export generation, Dungeon asset changes, final
-  artwork, and renderer cutover are not implemented.
-- Workspace-linked proof against `core_authored_texture` 0.2.0 passes. The
-  default/package build is not ready because the managed Drawing Program copy
-  remains 0.1.3 pending an authorized shared commit and subtree rollout.
+- Indexed projects now route through a minimum exact-pixel editor surface:
+  fixed named slot selection, one-index brush, transparent-slot eraser,
+  exact-index fill, typed indexed undo/redo, nearest-neighbor preview, logical
+  grid, and profile/geometry status. Standard RGBA projects keep their existing
+  UI and data paths.
+- Indexed mode rejects tools and controls that could introduce antialiasing,
+  opacity blending, brush softness, layer/canvas mutation, or RGB/HSV
+  inference.
+- Named atlas-cell editing, indexed PNG/manifest export, Dungeon source/create
+  integration, Dungeon asset changes, final artwork, and renderer cutover are
+  not implemented.
+- Drawing Program now carries managed `core_authored_texture` 0.2.0 and is
+  packaged as version 0.3.0.
 
 ## Renderer And Cache Truth
 - Atlas rendering is feature-capable and structurally narrower than earlier
@@ -174,16 +181,16 @@ Last updated: 2026-07-20
   - invalid render-backend values provide a deterministic GUI-route diagnostic
 
 ## Current Verification Baseline
-- DPT1 workspace-linked gates passed on 2026-07-20:
+- DPT1-DPT2 gates passed on 2026-07-20:
   - clean Clang build
   - `test-suite TEST_SUITE=indexed-tileset`
   - full `test`
   - `run-headless`
+  - `fisics-run-headless`
   - shared `core_authored_texture` tests
-- The current `fisics-run-headless` gate is blocked before DPT1 compilation
-  because the installed fisiCs binary rejects the Makefile's existing `-Wall`
-  option. Default/package gates are separately blocked by vendored
-  `core_authored_texture` 0.1.3.
+  - `package-desktop-self-test`
+  - `package-desktop-refresh`
+  - installed `/Users/calebsv/Desktop/sketCh.app` headless smoke
 - Recent bounded lanes have passed:
   - `make -C /Users/calebsv/Desktop/CodeWork/drawing_program`
   - `make -C /Users/calebsv/Desktop/CodeWork/drawing_program test`
@@ -197,9 +204,9 @@ Last updated: 2026-07-20
   - `make -C /Users/calebsv/Desktop/CodeWork/drawing_program package-desktop-refresh`
 
 ## Next Boundary
-- First commit and roll the already-developed shared `core_authored_texture`
-  0.2.0 through the managed Drawing Program subtree, then rerun default,
-  package, and installed-app proof. DPT2 UI work starts only after that gate.
+- DPT3 is next: stable named atlas-cell model, persistence, history,
+  validation, ASSET-panel editing, and non-raster overlays. DPT4 export and
+  DPT5 Dungeon integration remain separate later gates.
 - The R0-R6 refinement sequence is complete and the post-R0-R6 renderer/cache
   decision checkpoint is closed. The program is not currently in an active named
   refinement slice.

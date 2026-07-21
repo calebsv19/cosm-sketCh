@@ -32,8 +32,8 @@ Last updated: 2026-07-20
   own bounded roadmap rather than being folded into the renderer lane. The next
   such roadmap is the indexed tileset authoring profile documented under the
   Drawing Program private active bucket. Its DPT1 exact model/history/
-  persistence foundation is implemented and workspace-linked proven; DPT2
-  waits on the managed `core_authored_texture` 0.2.0 rollout and package gate.
+  persistence foundation and DPT2 profile-routed pixel editing surface are
+  implemented and packaged at 0.3.0; DPT3 stable named atlas cells are next.
 - The post-R0-R6 renderer/cache decision is to stop at the current bounded
   medium-risk state. Any renderer follow-on should require new measured
   evidence from broader mixed partial-opacity scenes, remain bounded, and
@@ -41,9 +41,10 @@ Last updated: 2026-07-20
   cache architecture work.
 
 ## Expected Next Outcomes
-- Roll shared `core_authored_texture` 0.2.0 into Drawing Program through the
-  managed subtree workflow, prove default/package behavior, then implement the
-  profile-routed DPT2 pixel editing UI without changing standard RGBA UX.
+- Implement DPT3 stable named atlas cells through a bounded model,
+  persistence/history, ASSET-panel, and overlay slice. Keep DPT4 transactional
+  indexed export and DPT5 Dungeon consumer roundtrip separate, and keep
+  standard RGBA UX unchanged.
 - Treat the R0-R6 refinement loop as closed. If renderer/cache work resumes,
   start from fresh measurement and a new bounded plan rather than the archived
   R0-R6 or seam-lowering records.
