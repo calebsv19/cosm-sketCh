@@ -100,6 +100,16 @@ $(KIT_WORKSPACE_AUTHORING_LIB): $(KIT_WORKSPACE_AUTHORING_LOCAL_SRCS) $(KIT_REND
 	@$(MAKE) -C "$(KIT_WORKSPACE_AUTHORING_DIR)" CC="$(SHARED_CC)" CORE_BASE_DIR="../../core/core_base" CORE_PANE_DIR="../../core/core_pane" CORE_THEME_DIR="../../core/core_theme" CORE_FONT_DIR="../../core/core_font" KIT_RENDER_DIR="../kit_render"
 	@cp "$(KIT_WORKSPACE_AUTHORING_DIR)/build/libkit_workspace_authoring.a" "$@"
 
+$(VK_RUNTIME_LIB): $(VK_RUNTIME_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
+	@$(MAKE) -C "$(VK_RUNTIME_DIR)" clean CC="$(SHARED_CC)"
+	@$(MAKE) -C "$(VK_RUNTIME_DIR)" CC="$(SHARED_CC)"
+	@cp "$(VK_RUNTIME_DIR)/build/lib/libvkruntime.a" "$@"
+
+$(VK_RENDERER_LIB): $(VK_RENDERER_LOCAL_SRCS) $(VK_RUNTIME_LIB) | $(SHARED_BUILD_DIR)
+	@$(MAKE) -C "$(VK_RENDERER_DIR)" clean CC="$(SHARED_CC)" VK_RUNTIME_ROOT="../vk_runtime"
+	@$(MAKE) -C "$(VK_RENDERER_DIR)" CC="$(SHARED_CC)" VK_RUNTIME_ROOT="../vk_runtime"
+	@cp "$(VK_RENDERER_DIR)/build/lib/libvkrenderer.a" "$@"
+
 $(TARGET_BUILD_DIR) $(PROGRAM_BUILD_DIR) $(PROGRAM_BIN_DIR) $(HOST_TEST_DIR) $(TEST_OBJ_DIR) $(TEST_BIN_DIR):
 	@mkdir -p "$@"
 

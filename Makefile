@@ -10,6 +10,7 @@ include make/objects.mk
 	fisics-compiler fisics-build fisics-run fisics-run-headless \
 	fisics-package-desktop-refresh \
 	export-snapshot-json snapshot-bridge-check snapshot-bridge-import headless-probe-matrix \
+	vulkan-rollout-contract vulkan-rollout-self-test \
 	memory-check-build memory-check-run memory-check-audit \
 	shared-mode shared-subtree-check shared-subtree-prepare \
 	package-desktop package-desktop-smoke package-desktop-self-test \

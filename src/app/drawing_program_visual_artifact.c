@@ -7,6 +7,8 @@
 #include <string.h>
 #include <sys/stat.h>
 
+#include "drawing_program/drawing_program_render_backend.h"
+
 static const char *default_visual_artifact_path(void) {
     return "visual_artifacts/sketch_first_frame.bmp";
 }
@@ -125,7 +127,8 @@ int drawing_program_visual_artifact_write(SDL_Renderer *renderer, const char *pa
     if (!path || !path[0]) {
         path = default_visual_artifact_path();
     }
-    if (SDL_GetRendererOutputSize(renderer, &width, &height) != 0 || width <= 0 || height <= 0) {
+    if (drawing_program_render_backend_output_size(renderer, &width, &height) != 0 ||
+        width <= 0 || height <= 0) {
         fprintf(stderr, "drawing_program: visual artifact failed: invalid renderer output size: %s\n", SDL_GetError());
         return 0;
     }
@@ -135,12 +138,32 @@ int drawing_program_visual_artifact_write(SDL_Renderer *renderer, const char *pa
         fprintf(stderr, "drawing_program: visual artifact failed: out of memory\n");
         return 0;
     }
-    if (SDL_RenderReadPixels(renderer, 0, SDL_PIXELFORMAT_ARGB8888, pixels, pitch) != 0) {
-        fprintf(stderr, "drawing_program: visual artifact failed: SDL_RenderReadPixels: %s\n", SDL_GetError());
-        goto cleanup;
+    {
+        SDL_Rect read_rect = {0, 0, width, height};
+        if (SDL_RenderReadPixels(renderer,
+                                &read_rect,
+                                SDL_PIXELFORMAT_ARGB8888,
+                                pixels,
+                                pitch) != 0) {
+            fprintf(stderr,
+                    "drawing_program: visual artifact failed: SDL_RenderReadPixels: %s\n",
+                    SDL_GetError());
+            goto cleanup;
+        }
     }
     if (!visual_artifact_pixels_are_nonblank(pixels, width, height)) {
         fprintf(stderr, "drawing_program: visual artifact failed: first frame was blank\n");
+        goto cleanup;
+    }
+    if (drawing_program_render_backend_active_kind(renderer) ==
+        DRAWING_PROGRAM_RENDER_BACKEND_VULKAN_KIT) {
+        if (!visual_artifact_mkdir_if_needed(path) ||
+            !drawing_program_render_backend_request_capture(renderer, path)) {
+            fprintf(stderr, "drawing_program: visual artifact failed: Vulkan capture request failed\n");
+            goto cleanup;
+        }
+        printf("Drawing Vulkan visual artifact requested: %s\n", path);
+        ok = 1;
         goto cleanup;
     }
     if (!visual_artifact_mkdir_if_needed(path)) {

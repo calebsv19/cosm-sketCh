@@ -1,7 +1,7 @@
 package-desktop:
 	@$(MAKE) BUILD_TOOLCHAIN="$(PACKAGE_TOOLCHAIN)" "$(PACKAGE_SOURCE_BIN)"
 	@rm -rf "$(PACKAGE_APP_DIR)"
-	@mkdir -p "$(PACKAGE_MACOS_DIR)" "$(PACKAGE_RESOURCES_DIR)" "$(PACKAGE_FRAMEWORKS_DIR)" "$(PACKAGE_SHARED_FONTS_DIR)"
+	@mkdir -p "$(PACKAGE_MACOS_DIR)" "$(PACKAGE_RESOURCES_DIR)" "$(PACKAGE_FRAMEWORKS_DIR)" "$(PACKAGE_SHARED_FONTS_DIR)" "$(PACKAGE_RESOURCES_DIR)/vk_renderer"
 	@cp "$(PACKAGE_INFO_PLIST_SRC)" "$(PACKAGE_CONTENTS_DIR)/Info.plist"
 	@/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $(RELEASE_VERSION)" "$(PACKAGE_CONTENTS_DIR)/Info.plist"
 	@/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(RELEASE_VERSION)" "$(PACKAGE_CONTENTS_DIR)/Info.plist"
@@ -24,6 +24,7 @@ package-desktop:
 	else \
 		echo "warning: no app icon source found at $(PACKAGE_APP_ICON_SRC) or $(PACKAGE_APP_ICONSET_SRC)"; \
 	fi
+	@cp -R "$(VK_RENDERER_DIR)/shaders" "$(PACKAGE_RESOURCES_DIR)/vk_renderer/"
 	@PACKAGE_DEP_SEARCH_ROOTS="$(TARGET_DEP_SEARCH_ROOTS)" \
 		"$(PACKAGE_DYLIB_BUNDLER)" "$(PACKAGE_MACOS_DIR)/$(APP_BIN)" "$(PACKAGE_FRAMEWORKS_DIR)"
 	@for dylib in "$(PACKAGE_FRAMEWORKS_DIR)"/*.dylib; do \
@@ -59,10 +60,24 @@ package-desktop-smoke: package-desktop
 	@if [ -f "$(PACKAGE_APP_ICON_SRC)" ] || [ -d "$(PACKAGE_APP_ICONSET_SRC)" ]; then \
 		test -f "$(PACKAGE_BUNDLED_ICON_PATH)" || (echo "Missing bundled AppIcon.icns"; exit 1); \
 	fi
+	@test -f "$(PACKAGE_FRAMEWORKS_DIR)/libvulkan.1.dylib" || (echo "Missing bundled libvulkan"; exit 1)
+	@test -f "$(PACKAGE_FRAMEWORKS_DIR)/libMoltenVK.dylib" || (echo "Missing bundled libMoltenVK"; exit 1)
+	@test -f "$(PACKAGE_RESOURCES_DIR)/vk_renderer/shaders/textured.vert.spv" || (echo "Missing bundled Vulkan shader"; exit 1)
 	@echo "package-desktop-smoke passed."
 
 package-desktop-self-test: package-desktop-smoke
 	@"$(PACKAGE_MACOS_DIR)/$(LAUNCHER_BIN)" --self-test || (echo "package-desktop self-test failed."; exit 1)
+	@mkdir -p "$(VULKAN_ROLLOUT_PACKAGE_DIR)"
+	@PYTHONDONTWRITEBYTECODE=1 python3 tools/verify-vulkan-rollout.py \
+		--shared-root "$(SHARED_VENDOR_DIR)" \
+		--app "$(PACKAGE_MACOS_DIR)/$(APP_BIN)" \
+		--shader-root "$(PACKAGE_RESOURCES_DIR)/vk_renderer" \
+		--moltenvk "$(PACKAGE_FRAMEWORKS_DIR)/libMoltenVK.dylib" \
+		--initial-capture "$(VULKAN_ROLLOUT_PACKAGE_DIR)/initial.bmp" \
+		--resized-capture "$(VULKAN_ROLLOUT_PACKAGE_DIR)/resized.bmp" \
+		--log "$(VULKAN_ROLLOUT_PACKAGE_DIR)/rollout.log" \
+		--actual-app-capture "$(VULKAN_ROLLOUT_PACKAGE_DIR)/application.bmp" \
+		--actual-app-log "$(VULKAN_ROLLOUT_PACKAGE_DIR)/application.log"
 	@echo "package-desktop-self-test passed."
 
 package-desktop-copy-desktop: package-desktop

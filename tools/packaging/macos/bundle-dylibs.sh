@@ -26,13 +26,8 @@ QUEUE_FILE="$WORK_TMP_DIR/queue.txt"
 SEEN_FILE="$WORK_TMP_DIR/seen.txt"
 touch "$QUEUE_FILE" "$SEEN_FILE"
 
-resolve_rpath_dep() {
+resolve_search_root_dep() {
     dep_base="$1"
-    if [ -f "$FRAMEWORKS_DIR/$dep_base" ]; then
-        printf '%s\n' "$FRAMEWORKS_DIR/$dep_base"
-        return 0
-    fi
-
     old_ifs="${IFS}"
     IFS=":"
     for search_root in $SEARCH_ROOTS_LIST; do
@@ -75,7 +70,11 @@ while IFS= read -r current_file; do
 
         case "$dep" in
             @rpath/*)
-                if ! dep_src="$(resolve_rpath_dep "$dep_base")"; then
+                if [ -f "$FRAMEWORKS_DIR/$dep_base" ]; then
+                    dep_src="$FRAMEWORKS_DIR/$dep_base"
+                elif dep_src="$(resolve_search_root_dep "$dep_base")"; then
+                    :
+                else
                     echo "warning: unable to resolve $dep for $current_file" >&2
                     continue
                 fi
@@ -97,5 +96,17 @@ while IFS= read -r current_file; do
         "$INSTALL_NAME_TOOL_BIN" -change "$dep" "$replacement" "$current_file"
     done
 done <"$QUEUE_FILE"
+
+# Vulkan ICDs are discovered from JSON manifests rather than loader linkage,
+# so dependency walking cannot discover MoltenVK on its own.
+MOLTENVK_SRC="$(resolve_search_root_dep libMoltenVK.dylib || true)"
+if [ -n "$MOLTENVK_SRC" ]; then
+    MOLTENVK_DST="$FRAMEWORKS_DIR/libMoltenVK.dylib"
+    if [ ! -f "$MOLTENVK_DST" ]; then
+        "$CP_BIN" -fL "$MOLTENVK_SRC" "$MOLTENVK_DST"
+        "$CHMOD_BIN" u+w "$MOLTENVK_DST"
+    fi
+    "$INSTALL_NAME_TOOL_BIN" -id "@loader_path/libMoltenVK.dylib" "$MOLTENVK_DST" || true
+fi
 
 exit 0

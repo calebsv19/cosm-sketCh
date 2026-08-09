@@ -63,6 +63,7 @@ DRAWING_PROGRAM_BASE_LOCAL_SRCS := \
 	src/runtime/render/drawing_program_render_composed_source_plan.c \
 	src/runtime/render/drawing_program_render_domain.c \
 	src/runtime/render/drawing_program_render_backend.c \
+	src/runtime/render/drawing_program_render_backend_lifecycle.c \
 	src/runtime/render/drawing_program_render_cache_telemetry.c \
 	src/runtime/render/drawing_program_render_revision.c \
 	src/runtime/render/drawing_program_render_runtime_state.c \
@@ -131,6 +132,7 @@ DRAWING_PROGRAM_BASE_LOCAL_SRCS := \
 	src/app/drawing_program_visual_loop_policy.c
 
 APP_TARGET_LOCAL_SRCS := \
+	src/runtime/render/drawing_program_vulkan_rollout.c \
 	src/app/drawing_program_app_post_load.c \
 	src/app/drawing_program_app_session.c \
 	src/app/drawing_program_app_runtime.c \
@@ -154,6 +156,7 @@ HEADLESS_TARGET_LOCAL_SRCS := \
 	src/app/drawing_program_app_headless_main.c
 
 TEST_TARGET_LOCAL_SRCS := \
+	src/runtime/render/drawing_program_vulkan_rollout.c \
 	src/app/drawing_program_app_post_load.c \
 	src/app/drawing_program_app_session.c \
 	src/app/drawing_program_app_runtime.c \

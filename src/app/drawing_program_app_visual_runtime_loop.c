@@ -237,7 +237,9 @@ static void drawing_program_visual_loop_handle_event(DrawingProgramVisualLoopEve
         int viewport_w = 0;
         int viewport_h = 0;
         DrawingProgramAuthoringChromeAction action = DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_NONE;
-        if (SDL_GetRendererOutputSize(ctx->renderer, &viewport_w, &viewport_h) == 0) {
+        if (drawing_program_render_backend_output_size(ctx->renderer,
+                                                       &viewport_w,
+                                                       &viewport_h) == 0) {
             action = drawing_program_visual_authoring_chrome_hit_test(viewport_w,
                                                                       viewport_h,
                                                                       ctx->app,
@@ -397,9 +399,15 @@ static void drawing_program_visual_runtime_print_sdl_failure(const char *stage,
             SDL_GetError());
 }
 
+static int drawing_program_visual_runtime_env_enabled(const char *name) {
+    const char *value = getenv(name);
+    return value && (strcmp(value, "1") == 0 || strcmp(value, "true") == 0 ||
+                     strcmp(value, "yes") == 0);
+}
+
 int drawing_program_app_visual_run_mode(int argc, char **argv) {
     CoreResult result = core_result_ok();
-    DrawingProgramRenderBackendKind backend_kind = DRAWING_PROGRAM_RENDER_BACKEND_SDL_DEBUG;
+    DrawingProgramRenderBackendKind backend_kind = DRAWING_PROGRAM_RENDER_BACKEND_VULKAN_KIT;
     CoreThemePreset theme_preset;
     CoreResult theme_env_result;
     CoreThemePresetId selected_theme = CORE_THEME_PRESET_DARK_DEFAULT;
@@ -443,8 +451,7 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
         return 1;
     }
     if (!drawing_program_render_backend_is_supported_now(backend_kind)) {
-        result = (CoreResult){CORE_ERR_INVALID_ARG,
-                              "render backend is defined but not implemented in P4-S1 (use --render-backend sdl-debug)"};
+        result = (CoreResult){CORE_ERR_INVALID_ARG, "render backend is unavailable in this build"};
         fprintf(stderr,
                 "drawing_program: stage=render_backend failed code=%d backend=%s message=%s\n",
                 (int)result.code,
@@ -466,23 +473,33 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
                               SDL_WINDOWPOS_CENTERED,
                               1280,
                               800,
-                              SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+                              drawing_program_render_backend_window_flags(backend_kind));
     if (!window) {
         drawing_program_visual_runtime_print_sdl_failure("sdl_create_window", "SDL_CreateWindow failed");
         SDL_Quit();
         free(filtered_argv);
         return 1;
     }
-    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-    if (!renderer) {
-        renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
-    }
+    renderer = drawing_program_render_backend_create(window, backend_kind);
     if (!renderer) {
         drawing_program_visual_runtime_print_sdl_failure("sdl_create_renderer", "SDL_CreateRenderer failed");
         SDL_DestroyWindow(window);
         SDL_Quit();
         free(filtered_argv);
         return 1;
+    }
+    if (drawing_program_render_backend_active_kind(renderer) ==
+            DRAWING_PROGRAM_RENDER_BACKEND_VULKAN_KIT &&
+        drawing_program_visual_runtime_env_enabled("DRAWING_PROGRAM_REQUIRE_VULKAN") &&
+        !drawing_program_render_backend_verify_runtime(
+            renderer,
+            "application-startup",
+            drawing_program_visual_runtime_env_enabled(
+                "DRAWING_PROGRAM_REQUIRE_VK_VALIDATION"))) {
+        drawing_program_visual_runtime_print_stage_failure(
+            "vulkan_runtime",
+            (CoreResult){CORE_ERR_IO, "Vulkan runtime verification failed at application startup"});
+        goto cleanup;
     }
     app_ptr = (DrawingProgramAppContext *)calloc(1u, sizeof(*app_ptr));
     if (!app_ptr) {
@@ -552,7 +569,7 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
     {
         int initial_w = 0;
         int initial_h = 0;
-        if (SDL_GetRendererOutputSize(renderer, &initial_w, &initial_h) == 0 &&
+        if (drawing_program_render_backend_output_size(renderer, &initial_w, &initial_h) == 0 &&
             initial_w > 0 && initial_h > 0) {
             result = drawing_program_app_set_pane_host_bounds(&app_ctx, (float)initial_w, (float)initial_h);
             if (result.code != CORE_OK) {
@@ -634,7 +651,7 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
             high_intensity_mode = drawing_program_visual_loop_has_continuous_interaction(&canvas_interaction);
             require_window_sync = resize_pending || high_intensity_mode || present_count == 0u;
             if (require_window_sync &&
-                SDL_GetRendererOutputSize(renderer, &current_w, &current_h) == 0 &&
+                drawing_program_render_backend_output_size(renderer, &current_w, &current_h) == 0 &&
                 current_w > 0 && current_h > 0) {
                 result = drawing_program_app_set_pane_host_bounds(&app_ctx, (float)current_w, (float)current_h);
                 if (result.code != CORE_OK) {
@@ -704,7 +721,11 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
                 }
                 quit = 1;
             }
-            SDL_RenderPresent(renderer);
+            if (!drawing_program_render_backend_present(renderer)) {
+                result = (CoreResult){CORE_ERR_IO, "renderer backend present failed"};
+                drawing_program_visual_runtime_print_stage_failure("present", result);
+                break;
+            }
             background_present_dirty = 0;
             {
                 DrawingProgramVisualSurfaceCacheTelemetry cache_telemetry;
@@ -730,6 +751,18 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
         }
     }
 
+    if (drawing_program_render_backend_active_kind(renderer) ==
+            DRAWING_PROGRAM_RENDER_BACKEND_VULKAN_KIT &&
+        drawing_program_visual_runtime_env_enabled("DRAWING_PROGRAM_REQUIRE_VULKAN") &&
+        !drawing_program_render_backend_verify_runtime(
+            renderer,
+            "application-frame",
+            drawing_program_visual_runtime_env_enabled(
+                "DRAWING_PROGRAM_REQUIRE_VK_VALIDATION"))) {
+        result = (CoreResult){CORE_ERR_IO, "Vulkan runtime verification failed after application frame"};
+        drawing_program_visual_runtime_print_stage_failure("vulkan_runtime", result);
+        goto cleanup;
+    }
     result = drawing_program_app_shutdown(&app_ctx);
     if (result.code != CORE_OK) {
         drawing_program_visual_runtime_print_stage_failure("shutdown", result);
@@ -749,7 +782,7 @@ cleanup:
     }
     free(app_ptr);
     if (renderer) {
-        SDL_DestroyRenderer(renderer);
+        drawing_program_render_backend_destroy(renderer);
     }
     if (window) {
         SDL_DestroyWindow(window);

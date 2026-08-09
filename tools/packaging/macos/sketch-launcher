@@ -4,6 +4,7 @@ set -eu
 SELF_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 CONTENTS_DIR="$(CDPATH= cd -- "$SELF_DIR/.." && pwd)"
 RES_DIR="$CONTENTS_DIR/Resources"
+FRAMEWORKS_DIR="$CONTENTS_DIR/Frameworks"
 APP_BIN="$SELF_DIR/drawing-program-bin"
 DEFAULT_RUNTIME_BASE="${HOME}/Library/Application Support/sketCh/runtime"
 RUNTIME_BASE="${DRAWING_PROGRAM_RUNTIME_DIR:-$DEFAULT_RUNTIME_BASE}"
@@ -13,12 +14,34 @@ if ! mkdir -p "$RUNTIME_BASE" 2>/dev/null; then
   mkdir -p "$RUNTIME_BASE" 2>/dev/null || true
 fi
 mkdir -p "$RUNTIME_BASE/input" "$RUNTIME_BASE/output" 2>/dev/null || true
+VK_RUNTIME_DIR="$RUNTIME_BASE/vk"
+mkdir -p "$VK_RUNTIME_DIR" 2>/dev/null || true
+MOLTENVK_DYLIB="$FRAMEWORKS_DIR/libMoltenVK.dylib"
+ICD_JSON="$VK_RUNTIME_DIR/MoltenVK_icd.json"
+if [ -f "$MOLTENVK_DYLIB" ]; then
+  cat >"$ICD_JSON" <<EOF
+{
+  "file_format_version": "1.0.0",
+  "ICD": {
+    "library_path": "$MOLTENVK_DYLIB",
+    "api_version": "1.4.0",
+    "is_portability_driver": true
+  }
+}
+EOF
+fi
 export DRAWING_PROGRAM_RUNTIME_DIR="$RUNTIME_BASE"
+export DRAWING_PROGRAM_RESOURCES_DIR="$RES_DIR"
+export VK_ICD_FILENAMES="${VK_ICD_FILENAMES:-$ICD_JSON}"
+export VK_DRIVER_FILES="${VK_DRIVER_FILES:-$ICD_JSON}"
 
 if [ "${1-}" = "--print-config" ]; then
   echo "DRAWING_PROGRAM_RUNTIME_DIR=$DRAWING_PROGRAM_RUNTIME_DIR"
   echo "DRAWING_PROGRAM_RESOURCES_DIR=$RES_DIR"
   echo "DRAWING_PROGRAM_APP_BIN=$APP_BIN"
+  echo "VK_ICD_FILENAMES=$VK_ICD_FILENAMES"
+  echo "VK_DRIVER_FILES=$VK_DRIVER_FILES"
+  echo "MOLTENVK_DYLIB=$MOLTENVK_DYLIB"
   exit 0
 fi
 

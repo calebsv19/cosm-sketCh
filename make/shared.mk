@@ -19,6 +19,8 @@ KIT_RENDER_DIR ?= $(SHARED_VENDOR_DIR)/kit/kit_render
 KIT_PANE_DIR ?= $(SHARED_VENDOR_DIR)/kit/kit_pane
 KIT_UI_DIR ?= $(SHARED_VENDOR_DIR)/kit/kit_ui
 KIT_WORKSPACE_AUTHORING_DIR ?= $(SHARED_VENDOR_DIR)/kit/kit_workspace_authoring
+VK_RENDERER_DIR ?= $(SHARED_VENDOR_DIR)/vk_renderer
+VK_RUNTIME_DIR ?= $(SHARED_VENDOR_DIR)/vk_runtime
 
 ifeq ($(SHARED_MODE),workspace-linked)
 CORE_BASE_DIR := $(SHARED_WORKSPACE_DIR)/core/core_base
@@ -38,6 +40,8 @@ KIT_RENDER_DIR := $(SHARED_WORKSPACE_DIR)/kit/kit_render
 KIT_PANE_DIR := $(SHARED_WORKSPACE_DIR)/kit/kit_pane
 KIT_UI_DIR := $(SHARED_WORKSPACE_DIR)/kit/kit_ui
 KIT_WORKSPACE_AUTHORING_DIR := $(SHARED_WORKSPACE_DIR)/kit/kit_workspace_authoring
+VK_RENDERER_DIR := $(SHARED_WORKSPACE_DIR)/vk_renderer
+VK_RUNTIME_DIR := $(SHARED_WORKSPACE_DIR)/vk_runtime
 endif
 
 ifeq ($(wildcard $(CORE_AUTHORED_TEXTURE_DIR)/include/core_authored_texture.h),)

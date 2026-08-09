@@ -4,6 +4,7 @@
 #include <stdlib.h>
 
 #include "drawing_program/drawing_program_visual_authoring_chrome.h"
+#include "drawing_program/drawing_program_render_backend.h"
 #include "drawing_program/drawing_program_visual_theme.h"
 
 static int frame_trace_enabled(void) {
@@ -86,7 +87,7 @@ int drawing_program_visual_draw_frame(SDL_Window *window,
     }
 
     (void)window;
-    if (SDL_GetRendererOutputSize(renderer, &width, &height) != 0) {
+    if (drawing_program_render_backend_output_size(renderer, &width, &height) != 0) {
         return 0;
     }
     if (width <= 0 || height <= 0) {

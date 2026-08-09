@@ -20,6 +20,22 @@ visual-artifact: $(APP_TARGET)
 	@test -s "$(VISUAL_ARTIFACT_PATH)"
 	@echo "Drawing visual artifact ready: $(VISUAL_ARTIFACT_PATH)"
 
+vulkan-rollout-contract:
+	@PYTHONDONTWRITEBYTECODE=1 python3 tools/verify-vulkan-rollout.py \
+		--shared-root "$(SHARED_VENDOR_DIR)"
+
+vulkan-rollout-self-test: $(APP_TARGET) vulkan-rollout-contract
+	@mkdir -p "$(VULKAN_ROLLOUT_DIR)"
+	@PYTHONDONTWRITEBYTECODE=1 python3 tools/verify-vulkan-rollout.py \
+		--shared-root "$(SHARED_VENDOR_DIR)" \
+		--app "$(APP_TARGET)" \
+		--shader-root "$(VK_RENDERER_DIR)" \
+		--initial-capture "$(VULKAN_ROLLOUT_DIR)/initial.bmp" \
+		--resized-capture "$(VULKAN_ROLLOUT_DIR)/resized.bmp" \
+		--log "$(VULKAN_ROLLOUT_DIR)/rollout.log" \
+		--actual-app-capture "$(VULKAN_ROLLOUT_DIR)/application.bmp" \
+		--actual-app-log "$(VULKAN_ROLLOUT_DIR)/application.log"
+
 export-snapshot-json: $(HEADLESS_TARGET)
 	"$(HEADLESS_TARGET)" --headless --smoke-frames 1 --preset "$(EXPORT_PRESET)" --export-json "$(EXPORT_JSON)"
 	@echo "Drawing snapshot debug JSON exported: $(EXPORT_JSON)"

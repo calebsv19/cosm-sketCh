@@ -2,6 +2,7 @@
 
 #include <math.h>
 
+#include "drawing_program/drawing_program_render_backend.h"
 #include "drawing_program/drawing_program_viewport.h"
 
 static int point_in_rect(SDL_Rect r, int x, int y) {
@@ -33,7 +34,7 @@ static void map_input_to_render_coords(SDL_Window *window,
     int mapped_y = input_y;
 
     if (renderer &&
-        SDL_GetRendererOutputSize(renderer, &render_w, &render_h) == 0 &&
+        drawing_program_render_backend_output_size(renderer, &render_w, &render_h) == 0 &&
         render_w > 0 && render_h > 0 &&
         window) {
         SDL_GetWindowSize(window, &window_w, &window_h);

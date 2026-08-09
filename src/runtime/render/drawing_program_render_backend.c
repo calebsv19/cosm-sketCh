@@ -19,7 +19,8 @@ const char *drawing_program_render_backend_kind_string(DrawingProgramRenderBacke
 }
 
 int drawing_program_render_backend_is_supported_now(DrawingProgramRenderBackendKind kind) {
-    return kind == DRAWING_PROGRAM_RENDER_BACKEND_SDL_DEBUG ? 1 : 0;
+    return kind == DRAWING_PROGRAM_RENDER_BACKEND_SDL_DEBUG ||
+           kind == DRAWING_PROGRAM_RENDER_BACKEND_VULKAN_KIT;
 }
 
 CoreResult drawing_program_render_backend_parse_flag(int argc,
@@ -29,7 +30,7 @@ CoreResult drawing_program_render_backend_parse_flag(int argc,
     if (!argv || !out_kind) {
         return render_backend_invalid("invalid render backend parse request");
     }
-    *out_kind = DRAWING_PROGRAM_RENDER_BACKEND_SDL_DEBUG;
+    *out_kind = DRAWING_PROGRAM_RENDER_BACKEND_VULKAN_KIT;
     for (i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--render-backend") == 0 && i + 1 < argc) {
             const char *value = argv[++i];
@@ -46,4 +47,3 @@ CoreResult drawing_program_render_backend_parse_flag(int argc,
     }
     return core_result_ok();
 }
-
