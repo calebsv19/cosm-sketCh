@@ -8,17 +8,16 @@ FRAMEWORKS_DIR="$CONTENTS_DIR/Frameworks"
 APP_BIN="$SELF_DIR/drawing-program-bin"
 DEFAULT_RUNTIME_BASE="${HOME}/Library/Application Support/sketCh/runtime"
 RUNTIME_BASE="${DRAWING_PROGRAM_RUNTIME_DIR:-$DEFAULT_RUNTIME_BASE}"
-
-if ! mkdir -p "$RUNTIME_BASE" 2>/dev/null; then
-  RUNTIME_BASE="${TMPDIR:-/tmp}/sketch-runtime"
-  mkdir -p "$RUNTIME_BASE" 2>/dev/null || true
-fi
-mkdir -p "$RUNTIME_BASE/input" "$RUNTIME_BASE/output" 2>/dev/null || true
 VK_RUNTIME_DIR="$RUNTIME_BASE/vk"
-mkdir -p "$VK_RUNTIME_DIR" 2>/dev/null || true
+
+if ! mkdir -p "$RUNTIME_BASE/input" "$RUNTIME_BASE/output" "$VK_RUNTIME_DIR" 2>/dev/null; then
+  RUNTIME_BASE="${TMPDIR:-/tmp}/sketch-runtime"
+  VK_RUNTIME_DIR="$RUNTIME_BASE/vk"
+  mkdir -p "$RUNTIME_BASE/input" "$RUNTIME_BASE/output" "$VK_RUNTIME_DIR" 2>/dev/null || true
+fi
 MOLTENVK_DYLIB="$FRAMEWORKS_DIR/libMoltenVK.dylib"
 ICD_JSON="$VK_RUNTIME_DIR/MoltenVK_icd.json"
-if [ -f "$MOLTENVK_DYLIB" ]; then
+write_moltenvk_icd() {
   cat >"$ICD_JSON" <<EOF
 {
   "file_format_version": "1.0.0",
@@ -29,6 +28,13 @@ if [ -f "$MOLTENVK_DYLIB" ]; then
   }
 }
 EOF
+}
+if [ -f "$MOLTENVK_DYLIB" ] && ! write_moltenvk_icd 2>/dev/null; then
+  RUNTIME_BASE="${TMPDIR:-/tmp}/sketch-runtime"
+  VK_RUNTIME_DIR="$RUNTIME_BASE/vk"
+  ICD_JSON="$VK_RUNTIME_DIR/MoltenVK_icd.json"
+  mkdir -p "$RUNTIME_BASE/input" "$RUNTIME_BASE/output" "$VK_RUNTIME_DIR"
+  write_moltenvk_icd
 fi
 export DRAWING_PROGRAM_RUNTIME_DIR="$RUNTIME_BASE"
 export DRAWING_PROGRAM_RESOURCES_DIR="$RES_DIR"

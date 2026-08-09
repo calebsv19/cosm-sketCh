@@ -21,20 +21,23 @@ def digest(path: Path) -> str:
 
 def verify_shared(adopted: Path, canonical: Path) -> str:
     commit = output(["git", "rev-parse", "HEAD"], canonical)
-    if commit != EXPECTED_SHARED_COMMIT:
-        raise SystemExit(f"canonical shared commit mismatch: {commit}")
-    dirty = output(["git", "status", "--porcelain", "--untracked-files=all", "--",
-                    "vk_runtime", "vk_renderer"], canonical)
-    if dirty:
-        raise SystemExit("canonical Vulkan source is dirty:\n" + dirty)
-    tracked = output(["git", "ls-files", "--", "vk_runtime", "vk_renderer"],
+    ancestor = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", EXPECTED_SHARED_COMMIT, commit],
+        cwd=canonical).returncode
+    if ancestor:
+        raise SystemExit(
+            f"canonical shared history does not contain {EXPECTED_SHARED_COMMIT}: {commit}")
+    tracked = output(["git", "ls-tree", "-r", "--name-only",
+                      EXPECTED_SHARED_COMMIT, "--", "vk_runtime", "vk_renderer"],
                      canonical).splitlines()
     manifest = hashlib.sha256()
     mismatches = []
     for relative in tracked:
-        source = canonical / relative
         target = adopted / relative
-        source_digest = digest(source)
+        source_bytes = subprocess.run(
+            ["git", "show", f"{EXPECTED_SHARED_COMMIT}:{relative}"],
+            cwd=canonical, check=True, stdout=subprocess.PIPE).stdout
+        source_digest = hashlib.sha256(source_bytes).hexdigest()
         if not target.is_file() or digest(target) != source_digest:
             mismatches.append(relative)
             continue
