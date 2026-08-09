@@ -219,6 +219,14 @@ CoreResult drawing_program_texture_project_session_select_surface(DrawingProgram
     return texture_project_session_apply_surface(ctx, surface_index, 1u);
 }
 
+CoreResult drawing_program_texture_project_session_activate_loaded_surface(DrawingProgramAppContext *ctx) {
+    if (!ctx || ctx->texture_project.surface_count == 0u ||
+        ctx->texture_project.active_surface_index >= ctx->texture_project.surface_count) {
+        return texture_project_session_invalid("invalid loaded texture project active surface");
+    }
+    return texture_project_session_apply_surface(ctx, ctx->texture_project.active_surface_index, 0u);
+}
+
 CoreResult drawing_program_texture_project_session_import_scene_object(DrawingProgramAppContext *ctx,
                                                                        const char *scene_json_path,
                                                                        const char *object_id,

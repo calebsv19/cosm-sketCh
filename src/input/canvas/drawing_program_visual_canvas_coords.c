@@ -2,6 +2,7 @@
 
 #include "drawing_program/drawing_program_visual_pane_bindings.h"
 #include "drawing_program/drawing_program_texture_workspace.h"
+#include "drawing_program/drawing_program_indexed_cell_board.h"
 
 void drawing_program_visual_compute_canvas_sheet_metrics(const DrawingProgramAppContext *ctx,
                                                          SDL_Rect pane_rect,
@@ -24,6 +25,11 @@ int drawing_program_visual_screen_to_canvas_sample(const DrawingProgramAppContex
     if (!ctx || !out_sample_x || !out_sample_y) {
         return 0;
     }
+    if (ctx->texture_project.profile_kind == DRAWING_PROGRAM_TEXTURE_PROJECT_PROFILE_INDEXED_ATLAS_V1 &&
+        ctx->ui.indexed_workspace_mode == (uint8_t)DRAWING_PROGRAM_INDEXED_WORKSPACE_MODE_CELL_BOARD) {
+        return drawing_program_indexed_cell_board_screen_to_sample(
+            ctx, pane_rect, sx, sy, out_sample_x, out_sample_y);
+    }
     return drawing_program_texture_workspace_screen_to_active_sample(
         ctx, pane_rect, sx, sy, out_sample_x, out_sample_y);
 }
@@ -36,6 +42,11 @@ int drawing_program_visual_screen_to_canvas_sample_clamped(const DrawingProgramA
                                                            uint32_t *out_sample_y) {
     if (!ctx || !out_sample_x || !out_sample_y || ctx->document.raster_width == 0u || ctx->document.raster_height == 0u) {
         return 0;
+    }
+    if (ctx->texture_project.profile_kind == DRAWING_PROGRAM_TEXTURE_PROJECT_PROFILE_INDEXED_ATLAS_V1 &&
+        ctx->ui.indexed_workspace_mode == (uint8_t)DRAWING_PROGRAM_INDEXED_WORKSPACE_MODE_CELL_BOARD) {
+        return drawing_program_indexed_cell_board_screen_to_sample(
+            ctx, pane_rect, sx, sy, out_sample_x, out_sample_y);
     }
     return drawing_program_texture_workspace_screen_to_active_sample_clamped(
         ctx, pane_rect, sx, sy, out_sample_x, out_sample_y);

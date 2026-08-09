@@ -11,6 +11,8 @@ extern "C" {
  * actions only own the mutation they trigger, not duplicate fit/reset policy. */
 int drawing_program_visual_input_workspace_view_fit_surface(DrawingProgramAppContext *ctx,
                                                             uint32_t surface_index);
+int drawing_program_visual_input_workspace_view_focus_indexed_cell(DrawingProgramAppContext *ctx,
+                                                                    uint32_t cell_index);
 int drawing_program_visual_input_workspace_view_fit_all(DrawingProgramAppContext *ctx);
 int drawing_program_visual_input_workspace_view_fit_all_or_reset(DrawingProgramAppContext *ctx);
 int drawing_program_visual_input_workspace_view_show_canvas_fit_all(DrawingProgramAppContext *ctx);

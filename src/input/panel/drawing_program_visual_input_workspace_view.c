@@ -24,6 +24,15 @@ int drawing_program_visual_input_workspace_view_fit_surface(DrawingProgramAppCon
     return drawing_program_texture_workspace_fit_surface(ctx, canvas_rect, surface_index);
 }
 
+int drawing_program_visual_input_workspace_view_focus_indexed_cell(DrawingProgramAppContext *ctx,
+                                                                    uint32_t cell_index) {
+    SDL_Rect canvas_rect = {0, 0, 0, 0};
+    if (!ctx || !visual_input_workspace_canvas_pane_rect(ctx, &canvas_rect)) {
+        return 0;
+    }
+    return drawing_program_texture_workspace_focus_indexed_cell(ctx, canvas_rect, cell_index);
+}
+
 int drawing_program_visual_input_workspace_view_fit_all(DrawingProgramAppContext *ctx) {
     SDL_Rect canvas_rect = {0, 0, 0, 0};
     if (!ctx || !visual_input_workspace_canvas_pane_rect(ctx, &canvas_rect)) {

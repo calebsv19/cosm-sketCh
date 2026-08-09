@@ -16,6 +16,7 @@
 #include "drawing_program/drawing_program_visual_input_keymap.h"
 #include "drawing_program/drawing_program_visual_input_panel_clicks.h"
 #include "drawing_program/drawing_program_visual_input_support.h"
+#include "drawing_program/drawing_program_visual_input_workspace_view.h"
 #include "drawing_program/drawing_program_visual_layer_opacity.h"
 #include "drawing_program/drawing_program_visual_layout.h"
 #include "drawing_program/drawing_program_visual_loop_timing.h"
@@ -557,6 +558,10 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
             if (result.code != CORE_OK) {
                 drawing_program_visual_runtime_print_stage_failure("pane_host_bounds", result);
                 goto cleanup;
+            }
+            if (app_ctx.texture_project.profile_kind ==
+                DRAWING_PROGRAM_TEXTURE_PROJECT_PROFILE_INDEXED_ATLAS_V1) {
+                (void)drawing_program_visual_input_workspace_view_show_canvas_fit_all(&app_ctx);
             }
         }
     }

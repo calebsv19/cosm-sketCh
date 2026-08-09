@@ -272,6 +272,12 @@ CoreResult drawing_program_runtime_orchestration_apply_workflow_control(
             case DRAWING_PROGRAM_WORKFLOW_CONTROL_CLEAR_HISTORY:
                 drawing_program_indexed_history_clear(&ctx->texture_project.indexed_history);
                 return core_result_ok();
+            case DRAWING_PROGRAM_WORKFLOW_CONTROL_STAMP_CENTER_SAMPLE:
+                return drawing_program_indexed_editor_apply_at(
+                    ctx,
+                    DRAWING_PROGRAM_TOOL_BRUSH,
+                    ctx->texture_project.indexed_raster.width / 2u,
+                    ctx->texture_project.indexed_raster.height / 2u);
             case DRAWING_PROGRAM_WORKFLOW_CONTROL_NONE:
                 return core_result_ok();
             default:

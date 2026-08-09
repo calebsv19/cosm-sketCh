@@ -139,12 +139,19 @@ typedef struct DrawingProgramAppUiState {
     uint8_t recent_color_count;
     uint8_t selected_recent_color_index;
     uint8_t indexed_selected_slot;
+    uint8_t indexed_selected_cell;
+    uint8_t indexed_workspace_mode;
     int8_t font_zoom_step;
     uint8_t layer_opacity_values[DRAWING_PROGRAM_MAX_LAYERS];
     uint32_t layer_opacity_layer_ids[DRAWING_PROGRAM_MAX_LAYERS];
     uint8_t recent_color_rgb[DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT][3];
     uint8_t color_palette_rgb[DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT][3];
 } DrawingProgramAppUiState;
+
+typedef enum DrawingProgramIndexedWorkspaceMode {
+    DRAWING_PROGRAM_INDEXED_WORKSPACE_MODE_ATLAS = 0,
+    DRAWING_PROGRAM_INDEXED_WORKSPACE_MODE_CELL_BOARD = 1
+} DrawingProgramIndexedWorkspaceMode;
 
 typedef struct DrawingProgramAuthoringHostState {
     uint8_t key_c_down;
@@ -206,6 +213,8 @@ typedef struct DrawingProgramAppSessionState {
     uint32_t project_saved_history_cursor;
     uint32_t project_saved_indexed_history_count;
     uint32_t project_saved_indexed_history_cursor;
+    uint32_t project_saved_indexed_cell_history_count;
+    uint32_t project_saved_indexed_cell_history_cursor;
     uint8_t project_has_saved_state;
     uint16_t recent_project_count;
     uint8_t ui_prefs_loaded;

@@ -43,6 +43,9 @@ int drawing_program_texture_workspace_fit_all(DrawingProgramAppContext *ctx, SDL
 int drawing_program_texture_workspace_fit_surface(DrawingProgramAppContext *ctx,
                                                   SDL_Rect pane_rect,
                                                   uint32_t surface_index);
+int drawing_program_texture_workspace_focus_indexed_cell(DrawingProgramAppContext *ctx,
+                                                         SDL_Rect pane_rect,
+                                                         uint32_t cell_index);
 
 #ifdef __cplusplus
 }

@@ -921,19 +921,18 @@ int drawing_program_texture_workspace_fit_all(DrawingProgramAppContext *ctx, SDL
         &ctx->editor.viewport, pane_rect, &core, layout.atlas_width, layout.atlas_height);
 }
 
-int drawing_program_texture_workspace_fit_surface(DrawingProgramAppContext *ctx,
-                                                  SDL_Rect pane_rect,
-                                                  uint32_t surface_index) {
-    DrawingProgramTextureWorkspaceRect rect;
-    DrawingProgramTextureWorkspaceLayout layout;
+static int texture_workspace_fit_rect(DrawingProgramAppContext *ctx,
+                                      SDL_Rect pane_rect,
+                                      DrawingProgramTextureWorkspaceRect rect,
+                                      DrawingProgramTextureWorkspaceLayout layout) {
     CoreViewport2D core;
     float view_padding;
     float available_width;
     float available_height;
     float zoom_x;
     float zoom_y;
-    if (!ctx || !texture_workspace_frame_valid(pane_rect) ||
-        !texture_workspace_surface_rect(&ctx->texture_project, surface_index, &rect, &layout)) {
+    if (!ctx || !texture_workspace_frame_valid(pane_rect) || rect.width <= 0.0f || rect.height <= 0.0f ||
+        layout.atlas_width <= 0.0f || layout.atlas_height <= 0.0f) {
         return 0;
     }
     if (core_viewport2d_init(&core).code != CORE_OK) {
@@ -958,4 +957,34 @@ int drawing_program_texture_workspace_fit_surface(DrawingProgramAppContext *ctx,
                  (((rect.y + (rect.height * 0.5f)) * core.zoom));
     return texture_workspace_state_from_core(
         &ctx->editor.viewport, pane_rect, &core, layout.atlas_width, layout.atlas_height);
+}
+
+int drawing_program_texture_workspace_fit_surface(DrawingProgramAppContext *ctx,
+                                                  SDL_Rect pane_rect,
+                                                  uint32_t surface_index) {
+    DrawingProgramTextureWorkspaceRect rect;
+    DrawingProgramTextureWorkspaceLayout layout;
+    if (!ctx || !texture_workspace_surface_rect(&ctx->texture_project, surface_index, &rect, &layout)) {
+        return 0;
+    }
+    return texture_workspace_fit_rect(ctx, pane_rect, rect, layout);
+}
+
+int drawing_program_texture_workspace_focus_indexed_cell(DrawingProgramAppContext *ctx,
+                                                         SDL_Rect pane_rect,
+                                                         uint32_t cell_index) {
+    const DrawingProgramIndexedCell *cell;
+    DrawingProgramTextureWorkspaceRect rect;
+    DrawingProgramTextureWorkspaceLayout layout;
+    if (!ctx || ctx->texture_project.profile_kind != DRAWING_PROGRAM_TEXTURE_PROJECT_PROFILE_INDEXED_ATLAS_V1 ||
+        cell_index >= ctx->texture_project.indexed_cells.count ||
+        !texture_workspace_build_layout(&ctx->texture_project, &layout)) {
+        return 0;
+    }
+    cell = &ctx->texture_project.indexed_cells.cells[cell_index];
+    rect.x = (float)cell->x;
+    rect.y = (float)cell->y;
+    rect.width = (float)cell->width;
+    rect.height = (float)cell->height;
+    return texture_workspace_fit_rect(ctx, pane_rect, rect, layout);
 }

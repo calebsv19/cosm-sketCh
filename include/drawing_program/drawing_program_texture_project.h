@@ -6,8 +6,10 @@
 #include "core_base.h"
 #include "drawing_program/drawing_program_document.h"
 #include "drawing_program/drawing_program_indexed_history.h"
+#include "drawing_program/drawing_program_indexed_cells.h"
 #include "drawing_program/drawing_program_indexed_layer_raster.h"
 #include "drawing_program/drawing_program_indexed_tileset_profile.h"
+#include "drawing_program/drawing_program_indexed_tile_canvases.h"
 #include "drawing_program/drawing_program_texture_export_intent.h"
 #include "drawing_program/drawing_program_layer_raster.h"
 #include "drawing_program/drawing_program_reflection_state.h"
@@ -113,6 +115,9 @@ typedef struct DrawingProgramTextureProject {
     DrawingProgramIndexedTilesetProfile indexed_profile;
     DrawingProgramIndexedLayerRaster indexed_raster;
     DrawingProgramIndexedHistory indexed_history;
+    DrawingProgramIndexedCellTable indexed_cells;
+    DrawingProgramIndexedCellHistory indexed_cell_history;
+    DrawingProgramIndexedTileCanvasTable indexed_tile_canvases;
     DrawingProgramTextureSurface *surfaces;
 } DrawingProgramTextureProject;
 

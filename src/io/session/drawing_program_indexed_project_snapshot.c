@@ -5,7 +5,9 @@
 
 enum {
     DRAWING_PROGRAM_INDEXED_PROFILE_CHUNK_VERSION_V1 = 1u,
-    DRAWING_PROGRAM_INDEXED_LAYER_CHUNK_VERSION_V1 = 1u
+    DRAWING_PROGRAM_INDEXED_LAYER_CHUNK_VERSION_V1 = 1u,
+    DRAWING_PROGRAM_INDEXED_CELLS_CHUNK_VERSION_V1 = 1u,
+    DRAWING_PROGRAM_INDEXED_TILE_CANVASES_CHUNK_VERSION_V1 = 1u
 };
 
 typedef struct DrawingProgramIndexedProfileChunkV1 {
@@ -21,6 +23,16 @@ typedef struct DrawingProgramIndexedLayerChunkHeaderV1 {
     uint32_t slot_count;
 } DrawingProgramIndexedLayerChunkHeaderV1;
 
+typedef struct DrawingProgramIndexedCellsChunkV1 {
+    uint32_t version;
+    DrawingProgramIndexedCellTable table;
+} DrawingProgramIndexedCellsChunkV1;
+
+typedef struct DrawingProgramIndexedTileCanvasesChunkV1 {
+    uint32_t version;
+    DrawingProgramIndexedTileCanvasTable table;
+} DrawingProgramIndexedTileCanvasesChunkV1;
+
 static CoreResult indexed_snapshot_format(const char *message) {
     CoreResult result = { CORE_ERR_FORMAT, message };
     return result;
@@ -31,12 +43,31 @@ CoreResult drawing_program_indexed_project_snapshot_write(
     const DrawingProgramTextureProject *project) {
     DrawingProgramIndexedProfileChunkV1 profile_chunk;
     DrawingProgramIndexedLayerChunkHeaderV1 layer_header;
+    DrawingProgramIndexedLayerRaster composed_raster;
+    DrawingProgramIndexedTileCanvasTable sliced_canvases;
+    const DrawingProgramIndexedTileCanvasTable *canvases = 0;
     uint8_t *layer_payload = 0;
     uint64_t layer_payload_size;
     CoreResult result;
     if (!writer || !project ||
         drawing_program_texture_project_validate_indexed_atlas(project).code != CORE_OK) {
         return indexed_snapshot_format("invalid indexed project snapshot write request");
+    }
+    memset(&composed_raster, 0, sizeof(composed_raster));
+    memset(&sliced_canvases, 0, sizeof(sliced_canvases));
+    canvases = &project->indexed_tile_canvases;
+    if (project->indexed_cells.count > 0u) {
+        if (canvases->count != project->indexed_cells.count) {
+            result = drawing_program_indexed_tile_canvas_table_slice_atlas(
+                &sliced_canvases, &project->indexed_cells, &project->indexed_profile,
+                &project->indexed_raster);
+            if (result.code != CORE_OK) return result;
+            canvases = &sliced_canvases;
+        }
+        result = drawing_program_indexed_tile_canvas_table_compose_atlas(
+            canvases, &project->indexed_cells,
+            &project->indexed_profile, &composed_raster);
+        if (result.code != CORE_OK) return result;
     }
     memset(&profile_chunk, 0, sizeof(profile_chunk));
     profile_chunk.version = DRAWING_PROGRAM_INDEXED_PROFILE_CHUNK_VERSION_V1;
@@ -61,10 +92,27 @@ CoreResult drawing_program_indexed_project_snapshot_write(
     }
     memcpy(layer_payload, &layer_header, sizeof(layer_header));
     memcpy(layer_payload + sizeof(layer_header),
-           project->indexed_raster.indices,
+           composed_raster.indices ? composed_raster.indices : project->indexed_raster.indices,
            (size_t)layer_header.index_count);
     result = core_pack_writer_add_chunk(writer, "DPIL", layer_payload, layer_payload_size);
     free(layer_payload);
+    drawing_program_indexed_layer_raster_dispose(&composed_raster);
+    if (result.code == CORE_OK && project->indexed_cells.count > 0u) {
+        DrawingProgramIndexedCellsChunkV1 cells_chunk;
+        memset(&cells_chunk, 0, sizeof(cells_chunk));
+        cells_chunk.version = DRAWING_PROGRAM_INDEXED_CELLS_CHUNK_VERSION_V1;
+        cells_chunk.table = project->indexed_cells;
+        result = core_pack_writer_add_chunk(writer, "DPIC", &cells_chunk,
+                                            (uint64_t)sizeof(cells_chunk));
+        if (result.code == CORE_OK) {
+            DrawingProgramIndexedTileCanvasesChunkV1 canvases_chunk;
+            memset(&canvases_chunk, 0, sizeof(canvases_chunk));
+            canvases_chunk.version = DRAWING_PROGRAM_INDEXED_TILE_CANVASES_CHUNK_VERSION_V1;
+            canvases_chunk.table = *canvases;
+            result = core_pack_writer_add_chunk(writer, "DPTC", &canvases_chunk,
+                                                (uint64_t)sizeof(canvases_chunk));
+        }
+    }
     return result;
 }
 
@@ -75,6 +123,10 @@ CoreResult drawing_program_indexed_project_snapshot_load(
     CorePackChunkInfo layer_info;
     DrawingProgramIndexedProfileChunkV1 profile_chunk;
     DrawingProgramIndexedLayerChunkHeaderV1 layer_header;
+    DrawingProgramIndexedCellsChunkV1 cells_chunk;
+    DrawingProgramIndexedTileCanvasesChunkV1 canvases_chunk;
+    CorePackChunkInfo cells_info;
+    CorePackChunkInfo canvases_info;
     DrawingProgramIndexedLayerRaster next_raster;
     uint8_t *layer_payload = 0;
     CoreResult result;
@@ -85,6 +137,10 @@ CoreResult drawing_program_indexed_project_snapshot_load(
     memset(&layer_info, 0, sizeof(layer_info));
     memset(&profile_chunk, 0, sizeof(profile_chunk));
     memset(&layer_header, 0, sizeof(layer_header));
+    memset(&cells_chunk, 0, sizeof(cells_chunk));
+    memset(&cells_info, 0, sizeof(cells_info));
+    memset(&canvases_chunk, 0, sizeof(canvases_chunk));
+    memset(&canvases_info, 0, sizeof(canvases_info));
     memset(&next_raster, 0, sizeof(next_raster));
     result = core_pack_reader_find_chunk(reader, "DPIP", 0u, &profile_info);
     if (result.code != CORE_OK || profile_info.size != (uint64_t)sizeof(profile_chunk)) {
@@ -137,6 +193,61 @@ CoreResult drawing_program_indexed_project_snapshot_load(
     drawing_program_indexed_history_clear(&project->indexed_history);
     project->indexed_profile = profile_chunk.profile;
     project->indexed_raster = next_raster;
+    drawing_program_indexed_cell_table_clear(&project->indexed_cells);
+    drawing_program_indexed_tile_canvas_table_clear(&project->indexed_tile_canvases);
+    drawing_program_indexed_cell_history_clear(&project->indexed_cell_history);
+    result = core_pack_reader_find_chunk(reader, "DPIC", 0u, &cells_info);
+    if (result.code == CORE_OK) {
+        if (cells_info.size != (uint64_t)sizeof(cells_chunk) ||
+            core_pack_reader_read_chunk_data(reader, &cells_info, &cells_chunk,
+                                             (uint64_t)sizeof(cells_chunk)).code != CORE_OK ||
+            cells_chunk.version != DRAWING_PROGRAM_INDEXED_CELLS_CHUNK_VERSION_V1 ||
+            drawing_program_indexed_cell_table_validate(
+                &cells_chunk.table,
+                profile_chunk.profile.atlas_width,
+                profile_chunk.profile.atlas_height,
+                profile_chunk.profile.logical_cell_width,
+                profile_chunk.profile.logical_cell_height).code != CORE_OK) {
+            drawing_program_indexed_layer_raster_dispose(&project->indexed_raster);
+            return indexed_snapshot_format("indexed cells chunk contract invalid");
+        }
+        project->indexed_cells = cells_chunk.table;
+        result = core_pack_reader_find_chunk(reader, "DPTC", 0u, &canvases_info);
+        if (result.code == CORE_OK) {
+            if (canvases_info.size != (uint64_t)sizeof(canvases_chunk) ||
+                core_pack_reader_read_chunk_data(reader, &canvases_info, &canvases_chunk,
+                                                 (uint64_t)sizeof(canvases_chunk)).code != CORE_OK ||
+                canvases_chunk.version != DRAWING_PROGRAM_INDEXED_TILE_CANVASES_CHUNK_VERSION_V1 ||
+                drawing_program_indexed_tile_canvas_table_validate(
+                    &canvases_chunk.table, &project->indexed_cells, &project->indexed_profile).code != CORE_OK) {
+                drawing_program_indexed_layer_raster_dispose(&project->indexed_raster);
+                return indexed_snapshot_format("indexed tile canvases chunk contract invalid");
+            }
+            project->indexed_tile_canvases = canvases_chunk.table;
+            {
+                DrawingProgramIndexedLayerRaster composed;
+                memset(&composed, 0, sizeof(composed));
+                result = drawing_program_indexed_tile_canvas_table_compose_atlas(
+                    &project->indexed_tile_canvases, &project->indexed_cells,
+                    &project->indexed_profile, &composed);
+                if (result.code != CORE_OK || composed.index_count != project->indexed_raster.index_count ||
+                    memcmp(composed.indices, project->indexed_raster.indices, composed.index_count) != 0) {
+                    drawing_program_indexed_layer_raster_dispose(&composed);
+                    drawing_program_indexed_layer_raster_dispose(&project->indexed_raster);
+                    return indexed_snapshot_format("indexed tile canvases do not compose to indexed atlas");
+                }
+                drawing_program_indexed_layer_raster_dispose(&composed);
+            }
+        } else {
+            result = drawing_program_indexed_tile_canvas_table_slice_atlas(
+                &project->indexed_tile_canvases, &project->indexed_cells,
+                &project->indexed_profile, &project->indexed_raster);
+            if (result.code != CORE_OK) {
+                drawing_program_indexed_layer_raster_dispose(&project->indexed_raster);
+                return result;
+            }
+        }
+    }
     project->profile_kind = DRAWING_PROGRAM_TEXTURE_PROJECT_PROFILE_INDEXED_ATLAS_V1;
     result = drawing_program_texture_project_validate_indexed_atlas(project);
     if (result.code != CORE_OK) {

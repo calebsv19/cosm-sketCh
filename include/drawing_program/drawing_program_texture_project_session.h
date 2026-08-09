@@ -21,6 +21,8 @@ CoreResult drawing_program_texture_project_session_commit_active_surface(
 CoreResult drawing_program_texture_project_session_select_surface(
     struct DrawingProgramAppContext *ctx,
     uint32_t surface_index);
+CoreResult drawing_program_texture_project_session_activate_loaded_surface(
+    struct DrawingProgramAppContext *ctx);
 CoreResult drawing_program_texture_project_session_import_scene_object(
     struct DrawingProgramAppContext *ctx,
     const char *scene_json_path,

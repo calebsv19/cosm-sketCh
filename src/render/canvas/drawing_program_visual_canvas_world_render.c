@@ -10,6 +10,7 @@
 #include "drawing_program/drawing_program_texture_project.h"
 #include "drawing_program/drawing_program_indexed_editor.h"
 #include "drawing_program/drawing_program_visual_indexed_canvas.h"
+#include "drawing_program/drawing_program_indexed_cell_board.h"
 #include "drawing_program/drawing_program_texture_canvas_resize.h"
 #include "drawing_program/drawing_program_texture_net_guides.h"
 #include "drawing_program/drawing_program_texture_workspace.h"
@@ -278,6 +279,12 @@ void drawing_program_visual_draw_canvas_world_view(
     world_grid_major = sdl_color_shift_by_luma(world_grid_major, 16);
     drawing_program_visual_canvas_world_draw_backdrop_immediate(
         renderer, pane_rect, pane_rect, world_grid_minor, world_grid_major, (SDL_Color){0u, 0u, 0u, 0u});
+
+    if (drawing_program_indexed_editor_is_active(ctx) &&
+        ctx->ui.indexed_workspace_mode == (uint8_t)DRAWING_PROGRAM_INDEXED_WORKSPACE_MODE_CELL_BOARD) {
+        drawing_program_visual_draw_indexed_cell_board(renderer, pane_rect, ctx, hooks->draw_bitmap_text);
+        return;
+    }
 
     drawing_program_visual_collect_layer_opacity_by_index(ctx, layer_opacity, DRAWING_PROGRAM_MAX_LAYERS);
     (void)SDL_RenderSetClipRect(renderer, &pane_rect);

@@ -70,6 +70,9 @@ static void drawing_program_normalize_ui_state(DrawingProgramAppContext *ctx) {
         (uint32_t)ctx->ui.indexed_selected_slot >= ctx->texture_project.indexed_profile.slot_count) {
         ctx->ui.indexed_selected_slot = ctx->texture_project.indexed_profile.transparent_slot_index;
     }
+    if (ctx->ui.indexed_workspace_mode > (uint8_t)DRAWING_PROGRAM_INDEXED_WORKSPACE_MODE_CELL_BOARD) {
+        ctx->ui.indexed_workspace_mode = (uint8_t)DRAWING_PROGRAM_INDEXED_WORKSPACE_MODE_CELL_BOARD;
+    }
     drawing_program_visual_tool_options_normalize_ui(ctx);
     if (ctx->ui.canvas_guide_mode > (uint8_t)DRAWING_PROGRAM_UI_CANVAS_GUIDE_MODE_CORNERS_AND_EDGES) {
         ctx->ui.canvas_guide_mode = (uint8_t)DRAWING_PROGRAM_UI_CANVAS_GUIDE_MODE_OFF;

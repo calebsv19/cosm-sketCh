@@ -7,7 +7,10 @@
 
 enum {
     DRAWING_PROGRAM_VIEWPORT_DEFAULT_MIN_ZOOM_SCALED = 25,
-    DRAWING_PROGRAM_VIEWPORT_DEFAULT_MAX_ZOOM_SCALED = 800
+    /* 64x yields 48 screen pixels per indexed source pixel (base size .75).
+     * That is enough to inspect a 16x16 Dungeon tile without limiting the
+     * standard canvas path to a special-case zoom implementation. */
+    DRAWING_PROGRAM_VIEWPORT_DEFAULT_MAX_ZOOM_SCALED = 6400
 };
 
 static const float DRAWING_PROGRAM_VIEWPORT_BASE_PIXEL_SIZE = 0.75f;

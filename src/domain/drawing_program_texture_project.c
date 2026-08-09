@@ -407,6 +407,7 @@ void drawing_program_texture_project_dispose(DrawingProgramTextureProject *proje
         project->surfaces[i].storage = 0;
     }
     drawing_program_indexed_history_dispose(&project->indexed_history);
+    drawing_program_indexed_cell_history_dispose(&project->indexed_cell_history);
     drawing_program_indexed_layer_raster_dispose(&project->indexed_raster);
     free(project->surfaces);
     memset(project, 0, sizeof(*project));
@@ -455,6 +456,31 @@ CoreResult drawing_program_texture_project_validate_indexed_atlas(
         project->indexed_raster.slot_count != project->indexed_profile.slot_count) {
         return texture_project_invalid("indexed texture project raster/profile mismatch");
     }
+    if (project->indexed_cells.count > 0u) {
+        result = drawing_program_indexed_cell_table_validate(
+            &project->indexed_cells,
+            project->indexed_profile.atlas_width,
+            project->indexed_profile.atlas_height,
+            project->indexed_profile.logical_cell_width,
+            project->indexed_profile.logical_cell_height);
+        if (result.code != CORE_OK) return result;
+        if (project->indexed_tile_canvases.count > 0u) {
+            DrawingProgramIndexedLayerRaster composed;
+            result = drawing_program_indexed_tile_canvas_table_validate(
+                &project->indexed_tile_canvases, &project->indexed_cells, &project->indexed_profile);
+            if (result.code != CORE_OK) return result;
+            memset(&composed, 0, sizeof(composed));
+            result = drawing_program_indexed_tile_canvas_table_compose_atlas(
+                &project->indexed_tile_canvases, &project->indexed_cells,
+                &project->indexed_profile, &composed);
+            if (result.code != CORE_OK || composed.index_count != project->indexed_raster.index_count ||
+                memcmp(composed.indices, project->indexed_raster.indices, composed.index_count) != 0) {
+                drawing_program_indexed_layer_raster_dispose(&composed);
+                return texture_project_invalid("indexed tile canvases and composed atlas diverged");
+            }
+            drawing_program_indexed_layer_raster_dispose(&composed);
+        }
+    }
     return core_result_ok();
 }
 
@@ -488,6 +514,9 @@ CoreResult drawing_program_texture_project_enable_indexed_atlas(
         return result;
     }
     drawing_program_indexed_history_clear(&project->indexed_history);
+    drawing_program_indexed_cell_history_clear(&project->indexed_cell_history);
+    drawing_program_indexed_cell_table_clear(&project->indexed_cells);
+    drawing_program_indexed_tile_canvas_table_clear(&project->indexed_tile_canvases);
     drawing_program_indexed_layer_raster_dispose(&project->indexed_raster);
     project->indexed_profile = *profile;
     project->indexed_raster = next_raster;

@@ -8,6 +8,8 @@ DRAWING_PROGRAM_BASE_LOCAL_SRCS := \
 	src/model/indexed_tileset/drawing_program_indexed_tileset_profile.c \
 	src/model/indexed_tileset/drawing_program_indexed_layer_raster.c \
 	src/model/indexed_tileset/drawing_program_indexed_history.c \
+	src/model/indexed_tileset/drawing_program_indexed_cells.c \
+	src/model/indexed_tileset/drawing_program_indexed_tile_canvases.c \
 	src/model/indexed_tileset/drawing_program_indexed_editor.c \
 	src/domain/drawing_program_layer_raster.c \
 	src/domain/drawing_program_object_geometry.c \
@@ -31,6 +33,8 @@ DRAWING_PROGRAM_BASE_LOCAL_SRCS := \
 	src/io/export/drawing_program_iconset_export.c \
 	src/io/export/drawing_program_png_export.c \
 	src/io/export/drawing_program_texture_export.c \
+	src/io/export/indexed_tileset/drawing_program_indexed_png.c \
+	src/io/export/indexed_tileset/drawing_program_indexed_tileset_export.c \
 	src/io/session/drawing_program_project_state.c \
 	src/io/session/drawing_program_project_selection.c \
 	src/io/session/drawing_program_session_paths.c \
@@ -73,6 +77,7 @@ DRAWING_PROGRAM_BASE_LOCAL_SRCS := \
 	src/runtime/adapters/drawing_program_overlay_adapter.c \
 	src/render/canvas/drawing_program_visual_canvas_world_render.c \
 	src/render/canvas/drawing_program_visual_indexed_canvas.c \
+	src/render/canvas/drawing_program_indexed_cell_board.c \
 	src/render/canvas/drawing_program_texture_net_guides.c \
 	src/render/frame/drawing_program_visual_authoring_chrome.c \
 	src/render/frame/drawing_program_visual_frame_render.c \
@@ -91,6 +96,7 @@ DRAWING_PROGRAM_BASE_LOCAL_SRCS := \
 	src/input/panel/drawing_program_visual_panel_ui_state.c \
 	src/input/panel/drawing_program_visual_input_panel_workspace_modes.c \
 	src/input/panel/drawing_program_visual_input_workspace_view.c \
+	src/input/panel/drawing_program_visual_input_indexed_asset.c \
 	src/input/panel/drawing_program_visual_input_right_file_tabs.c \
 	src/input/panel/drawing_program_visual_input_panel_clicks_left.c \
 	src/input/panel/drawing_program_visual_input_panel_clicks.c \

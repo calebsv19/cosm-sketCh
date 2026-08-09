@@ -6,6 +6,15 @@ static CoreResult indexed_editor_invalid(const char *message) {
     return (CoreResult){ CORE_ERR_INVALID_ARG, message };
 }
 
+static CoreResult indexed_editor_synchronize_tile_canvases(DrawingProgramAppContext *ctx) {
+    if (!ctx || ctx->texture_project.indexed_cells.count == 0u) return core_result_ok();
+    return drawing_program_indexed_tile_canvas_table_slice_atlas(
+        &ctx->texture_project.indexed_tile_canvases,
+        &ctx->texture_project.indexed_cells,
+        &ctx->texture_project.indexed_profile,
+        &ctx->texture_project.indexed_raster);
+}
+
 int drawing_program_indexed_editor_is_active(const DrawingProgramAppContext *ctx) {
     return ctx &&
            ctx->texture_project.profile_kind == DRAWING_PROGRAM_TEXTURE_PROJECT_PROFILE_INDEXED_ATLAS_V1 &&
@@ -42,16 +51,30 @@ static CoreResult indexed_editor_write(DrawingProgramAppContext *ctx,
     DrawingProgramIndexedLayerRaster *raster = &ctx->texture_project.indexed_raster;
     DrawingProgramIndexedHistoryDelta delta;
     uint32_t offset;
+    CoreResult result;
     if (x >= raster->width || y >= raster->height || (uint32_t)value >= raster->slot_count) {
         return indexed_editor_invalid("indexed edit coordinate or slot out of range");
+    }
+    if (ctx->texture_project.indexed_cells.count > 0u) {
+        uint32_t cell_index;
+        uint32_t local_x;
+        uint32_t local_y;
+        if (!drawing_program_indexed_tile_canvas_find_atlas_coordinate(
+                &ctx->texture_project.indexed_cells, x, y, &cell_index, &local_x, &local_y)) {
+            return indexed_editor_invalid("indexed edit is outside a named tile canvas");
+        }
+        result = indexed_editor_synchronize_tile_canvases(ctx);
+        if (result.code != CORE_OK) return result;
     }
     offset = y * raster->width + x;
     if (raster->indices[offset] == value) {
         return core_result_ok();
     }
     delta = (DrawingProgramIndexedHistoryDelta){ offset, raster->indices[offset], value, 0u };
-    return drawing_program_indexed_history_apply_delta_block_typed(
+    result = drawing_program_indexed_history_apply_delta_block_typed(
         &ctx->texture_project.indexed_history, raster, &delta, 1u, kind);
+    if (result.code != CORE_OK) return result;
+    return indexed_editor_synchronize_tile_canvases(ctx);
 }
 
 static CoreResult indexed_editor_fill(DrawingProgramAppContext *ctx, uint32_t x, uint32_t y, uint8_t value) {
@@ -63,10 +86,23 @@ static CoreResult indexed_editor_fill(DrawingProgramAppContext *ctx, uint32_t x,
     uint32_t tail = 0u;
     uint32_t delta_count = 0u;
     uint32_t start;
+    uint32_t target_cell_index = UINT32_MAX;
     uint8_t target;
     CoreResult result;
     if (x >= raster->width || y >= raster->height || (uint32_t)value >= raster->slot_count) {
         return indexed_editor_invalid("indexed fill coordinate or slot out of range");
+    }
+    if (ctx->texture_project.indexed_cells.count > 0u) {
+        uint32_t cell_index;
+        uint32_t local_x;
+        uint32_t local_y;
+        if (!drawing_program_indexed_tile_canvas_find_atlas_coordinate(
+                &ctx->texture_project.indexed_cells, x, y, &cell_index, &local_x, &local_y)) {
+            return indexed_editor_invalid("indexed fill is outside a named tile canvas");
+        }
+        result = indexed_editor_synchronize_tile_canvases(ctx);
+        if (result.code != CORE_OK) return result;
+        target_cell_index = cell_index;
     }
     start = y * raster->width + x;
     target = raster->indices[start];
@@ -101,10 +137,24 @@ static CoreResult indexed_editor_fill(DrawingProgramAppContext *ctx, uint32_t x,
                 queue[tail++] = neighbor_offset; \
             } \
         } while (0)
-        if (px > 0u) QUEUE_INDEXED_NEIGHBOR(offset - 1u);
-        if (px + 1u < raster->width) QUEUE_INDEXED_NEIGHBOR(offset + 1u);
-        if (py > 0u) QUEUE_INDEXED_NEIGHBOR(offset - raster->width);
-        if (py + 1u < raster->height) QUEUE_INDEXED_NEIGHBOR(offset + raster->width);
+        if (px > 0u && (target_cell_index == UINT32_MAX ||
+            (px - 1u) >= ctx->texture_project.indexed_cells.cells[target_cell_index].x)) {
+            QUEUE_INDEXED_NEIGHBOR(offset - 1u);
+        }
+        if (px + 1u < raster->width && (target_cell_index == UINT32_MAX ||
+            (px + 1u) < ctx->texture_project.indexed_cells.cells[target_cell_index].x +
+                ctx->texture_project.indexed_cells.cells[target_cell_index].width)) {
+            QUEUE_INDEXED_NEIGHBOR(offset + 1u);
+        }
+        if (py > 0u && (target_cell_index == UINT32_MAX ||
+            (py - 1u) >= ctx->texture_project.indexed_cells.cells[target_cell_index].y)) {
+            QUEUE_INDEXED_NEIGHBOR(offset - raster->width);
+        }
+        if (py + 1u < raster->height && (target_cell_index == UINT32_MAX ||
+            (py + 1u) < ctx->texture_project.indexed_cells.cells[target_cell_index].y +
+                ctx->texture_project.indexed_cells.cells[target_cell_index].height)) {
+            QUEUE_INDEXED_NEIGHBOR(offset + raster->width);
+        }
 #undef QUEUE_INDEXED_NEIGHBOR
     }
     result = drawing_program_indexed_history_apply_delta_block_typed(
@@ -116,7 +166,8 @@ static CoreResult indexed_editor_fill(DrawingProgramAppContext *ctx, uint32_t x,
     free(deltas);
     free(queue);
     free(visited);
-    return result;
+    if (result.code != CORE_OK) return result;
+    return indexed_editor_synchronize_tile_canvases(ctx);
 }
 
 CoreResult drawing_program_indexed_editor_apply_at(DrawingProgramAppContext *ctx,
@@ -150,14 +201,16 @@ CoreResult drawing_program_indexed_editor_undo(DrawingProgramAppContext *ctx) {
     if (!drawing_program_indexed_editor_is_active(ctx)) {
         return indexed_editor_invalid("indexed undo unavailable");
     }
-    return drawing_program_indexed_history_undo(
+    CoreResult result = drawing_program_indexed_history_undo(
         &ctx->texture_project.indexed_history, &ctx->texture_project.indexed_raster);
+    return result.code == CORE_OK ? indexed_editor_synchronize_tile_canvases(ctx) : result;
 }
 
 CoreResult drawing_program_indexed_editor_redo(DrawingProgramAppContext *ctx) {
     if (!drawing_program_indexed_editor_is_active(ctx)) {
         return indexed_editor_invalid("indexed redo unavailable");
     }
-    return drawing_program_indexed_history_redo(
+    CoreResult result = drawing_program_indexed_history_redo(
         &ctx->texture_project.indexed_history, &ctx->texture_project.indexed_raster);
+    return result.code == CORE_OK ? indexed_editor_synchronize_tile_canvases(ctx) : result;
 }

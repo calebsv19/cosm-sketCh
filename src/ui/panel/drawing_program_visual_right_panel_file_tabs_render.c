@@ -299,6 +299,81 @@ void drawing_program_visual_render_right_asset_tab(SDL_Renderer *renderer,
                                                    VisualPaneLayoutMetrics m,
                                                    VisualThemePalette p,
                                                    const DrawingProgramVisualPanelRenderHooks *hooks) {
+    if (ctx->texture_project.profile_kind ==
+        DRAWING_PROGRAM_TEXTURE_PROJECT_PROFILE_INDEXED_ATLAS_V1) {
+        const uint32_t action_count = 4u;
+        const DrawingProgramIndexedCellTable *table = &ctx->texture_project.indexed_cells;
+        SDL_Rect queue = right_asset_target_queue_rect(
+            rect, m, VISUAL_RIGHT_PANEL_ASSET_TAB_FOOTER_LINE_COUNT, action_count);
+        SDL_Rect add_button = right_file_route_action_button_rect(
+            rect, m, VISUAL_RIGHT_PANEL_ASSET_TAB_FOOTER_LINE_COUNT, 0u, action_count);
+        SDL_Rect rename_button = right_file_route_action_button_rect(
+            rect, m, VISUAL_RIGHT_PANEL_ASSET_TAB_FOOTER_LINE_COUNT, 1u, action_count);
+        SDL_Rect move_button = right_file_route_action_button_rect(
+            rect, m, VISUAL_RIGHT_PANEL_ASSET_TAB_FOOTER_LINE_COUNT, 2u, action_count);
+        SDL_Rect workspace_button = right_file_route_action_button_rect(
+            rect, m, VISUAL_RIGHT_PANEL_ASSET_TAB_FOOTER_LINE_COUNT, 3u, action_count);
+        uint32_t row_count = table->count ? table->count : 1u;
+        int scroll_y = ui ? right_file_target_queue_clamp_scroll(
+            queue, m, row_count, ui->right_file_target_queue_scroll_y) : 0;
+        int y = right_file_content_start_y(rect, m);
+        char cell_line[160];
+        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y,
+                                "INDEXED ATLAS CELLS", p.text_primary, m.body_scale);
+        SDL_SetRenderDrawColor(renderer, p.pane_background_alt.r, p.pane_background_alt.g,
+                               p.pane_background_alt.b, p.pane_background_alt.a);
+        (void)SDL_RenderFillRect(renderer, &queue);
+        SDL_SetRenderDrawColor(renderer, p.button_border.r, p.button_border.g,
+                               p.button_border.b, p.button_border.a);
+        (void)SDL_RenderDrawRect(renderer, &queue);
+        for (uint32_t i = 0u; i < row_count; ++i) {
+            SDL_Rect row = right_file_target_queue_row_rect(queue, m, i, scroll_y);
+            SDL_Rect clipped;
+            if (!SDL_IntersectRect(&row, &queue, &clipped)) continue;
+            if (i < table->count) {
+                const DrawingProgramIndexedCell *cell = &table->cells[i];
+                (void)snprintf(cell_line, sizeof(cell_line), "%02u %s  %u,%u %ux%u",
+                               (unsigned)(i + 1u), cell->id, (unsigned)cell->x, (unsigned)cell->y,
+                               (unsigned)cell->width, (unsigned)cell->height);
+            } else {
+                (void)snprintf(cell_line, sizeof(cell_line), "NO NAMED CELLS");
+            }
+            visual_right_panel_draw_queue_row(
+                renderer, queue, row, cell_line,
+                i < table->count && i == ctx->ui.indexed_selected_cell,
+                drawing_program_visual_panel_ui_hovered(ui, row, hooks), m, p, hooks);
+        }
+        (void)SDL_RenderSetClipRect(renderer, 0);
+        visual_right_panel_draw_scrollbar(renderer, queue, scroll_y,
+            right_file_target_queue_scroll_max(queue, m, row_count), p.button_fill, p.button_border);
+        drawing_program_visual_panel_draw_themed_button(
+            renderer, rect, add_button, "ADD GRID CELL", p.text_primary, 0, ui, m, p, hooks);
+        drawing_program_visual_panel_draw_themed_button(
+            renderer, rect, rename_button, "AUTO RENAME CELL", p.text_primary, 0, ui, m, p, hooks);
+        drawing_program_visual_panel_draw_themed_button(
+            renderer, rect, move_button, "MOVE CELL RECT", p.text_primary, 0, ui, m, p, hooks);
+        drawing_program_visual_panel_draw_themed_button(
+            renderer, rect, workspace_button,
+            ctx->ui.indexed_workspace_mode == (uint8_t)DRAWING_PROGRAM_INDEXED_WORKSPACE_MODE_CELL_BOARD
+                ? "SHOW ATLAS" : "SHOW CELL BOARD",
+            p.text_primary, 0, ui, m, p, hooks);
+        y = right_file_state_start_y(rect, m, VISUAL_RIGHT_PANEL_ASSET_TAB_FOOTER_LINE_COUNT);
+        (void)snprintf(cell_line, sizeof(cell_line), "CELLS %u  FIXED %ux%u",
+                       (unsigned)table->count,
+                       (unsigned)ctx->texture_project.indexed_profile.logical_cell_width,
+                       (unsigned)ctx->texture_project.indexed_profile.logical_cell_height);
+        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, cell_line, p.text_muted, m.body_scale);
+        y += m.line_h;
+        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y,
+                                "NAMES AND RECTS ARE SOURCE DATA", p.text_muted, m.body_scale);
+        y += m.line_h;
+        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y,
+                                "OVERLAP/BOUNDS VALIDATED", p.text_muted, m.body_scale);
+        y += m.line_h;
+        (void)snprintf(cell_line, sizeof(cell_line), "ACTION %s", ctx->session.file_action_status_message);
+        hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, cell_line, p.text_muted, m.body_scale);
+        return;
+    }
     char line[160];
     DrawingProgramTextureSceneFileEntry scene_entries[DRAWING_PROGRAM_TEXTURE_SCENE_BROWSER_LIST_CAPACITY];
     DrawingProgramTextureSceneObjectEntry object_entries[DRAWING_PROGRAM_TEXTURE_SCENE_BROWSER_LIST_CAPACITY];
@@ -536,7 +611,18 @@ void drawing_program_visual_render_right_export_tab(SDL_Renderer *renderer,
     drawing_program_visual_panel_draw_themed_button(
         renderer, rect, export_png_button, "EXPORT PNG", p.text_primary, 0, ui, m, p, hooks);
     drawing_program_visual_panel_draw_themed_button(
-        renderer, rect, export_textures_button, "EXPORT TEXTURES", p.text_primary, 0, ui, m, p, hooks);
+        renderer,
+        rect,
+        export_textures_button,
+        ctx->texture_project.profile_kind == DRAWING_PROGRAM_TEXTURE_PROJECT_PROFILE_INDEXED_ATLAS_V1
+            ? "EXPORT TILESET"
+            : "EXPORT TEXTURES",
+        p.text_primary,
+        0,
+        ui,
+        m,
+        p,
+        hooks);
     drawing_program_visual_panel_draw_themed_button(
         renderer, rect, export_iconset_button, "EXPORT ICONSET", p.text_primary, 0, ui, m, p, hooks);
     drawing_program_visual_panel_draw_themed_button(

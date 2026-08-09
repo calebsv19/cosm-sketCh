@@ -7,6 +7,7 @@
 #include "drawing_program/drawing_program_app_post_load.h"
 #include "drawing_program/drawing_program_icns_export.h"
 #include "drawing_program/drawing_program_iconset_export.h"
+#include "drawing_program/drawing_program_indexed_tileset_export.h"
 #include "drawing_program/drawing_program_native_dialogs.h"
 #include "drawing_program/drawing_program_png_export.h"
 #include "drawing_program/drawing_program_project_state.h"
@@ -18,6 +19,7 @@
 #include "drawing_program/drawing_program_texture_scene_browser.h"
 #include "drawing_program/drawing_program_visual_layout.h"
 #include "drawing_program/drawing_program_visual_input_workspace_view.h"
+#include "drawing_program/drawing_program_visual_input_indexed_asset.h"
 #include "drawing_program/drawing_program_visual_right_panel_defs.h"
 
 static void visual_right_panel_set_file_status(DrawingProgramAppContext *ctx, const char *format, ...) {
@@ -72,6 +74,14 @@ static int visual_right_panel_after_snapshot_load(DrawingProgramAppContext *ctx,
     }
     drawing_program_app_rearm_after_snapshot_load(ctx, selection, preserve_project_clean_state);
     visual_panel_clear_object_target_ui(ui);
+    if (ctx->texture_project.profile_kind == DRAWING_PROGRAM_TEXTURE_PROJECT_PROFILE_INDEXED_ATLAS_V1) {
+        /*
+         * Texture-only source packs do not contain a saved editor viewport.
+         * Make their compact logical atlas immediately paintable instead of
+         * inheriting the standard project's 1x workspace view.
+         */
+        (void)drawing_program_visual_input_workspace_view_show_canvas_fit_all(ctx);
+    }
     hooks->sync_panel_ui_from_app(ctx, ui);
     return 1;
 }
@@ -399,6 +409,26 @@ static int visual_right_panel_export_textures(DrawingProgramAppContext *ctx) {
     if (!ctx) {
         return 0;
     }
+    if (ctx->texture_project.profile_kind ==
+        DRAWING_PROGRAM_TEXTURE_PROJECT_PROFILE_INDEXED_ATLAS_V1) {
+        DrawingProgramIndexedTilesetExportOptions options = { "default", 0u };
+        DrawingProgramIndexedTilesetExportReport report;
+        int written = snprintf(export_dir, sizeof(export_dir), "%s/%s",
+                               ctx->session.output_root_path,
+                               ctx->texture_project.indexed_profile.tileset_id);
+        if (written <= 0 || (size_t)written >= sizeof(export_dir)) {
+            visual_right_panel_set_file_status(ctx, "TILESET PATH FAILED");
+            return 0;
+        }
+        result = drawing_program_indexed_tileset_export(
+            &ctx->texture_project, export_dir, &options, &report);
+        if (result.code != CORE_OK) {
+            visual_right_panel_set_file_status(ctx, "TILESET EXPORT FAILED");
+            return 0;
+        }
+        visual_right_panel_set_file_status(ctx, "INDEXED TILESET EXPORTED");
+        return 1;
+    }
     result = drawing_program_texture_export_default_directory(ctx, export_dir, sizeof(export_dir));
     if (result.code != CORE_OK) {
         visual_right_panel_set_file_status(ctx, "TEXTURE PATH FAILED");
@@ -655,6 +685,10 @@ int drawing_program_visual_input_handle_right_asset_tab_payload(
         return 0;
     }
     m = make_pane_layout_metrics(ctx);
+    if (ctx->texture_project.profile_kind ==
+        DRAWING_PROGRAM_TEXTURE_PROJECT_PROFILE_INDEXED_ATLAS_V1) {
+        return drawing_program_visual_input_handle_indexed_asset(ctx, rect, x, y, ui, hooks);
+    }
     browser_scenes_tab = right_asset_browser_mode_tab_rect(rect, m, 0u, 2u);
     browser_objects_tab = right_asset_browser_mode_tab_rect(rect, m, 1u, 2u);
     pick_scene_root_button = right_file_route_action_button_rect(rect,
@@ -829,6 +863,13 @@ int drawing_program_visual_input_handle_right_file_tabs_wheel_payload(
                                                    VISUAL_RIGHT_PANEL_FILE_TAB_FOOTER_LINE_COUNT);
         slot_count = right_file_target_queue_slot_count(ctx);
     } else if (hooks->clamp_right_slot(ctx->ui.right_panel_slot) == (uint8_t)VISUAL_RIGHT_PANEL_SLOT_ASSET) {
+        if (ctx->texture_project.profile_kind ==
+            DRAWING_PROGRAM_TEXTURE_PROJECT_PROFILE_INDEXED_ATLAS_V1) {
+            queue_rect = right_asset_target_queue_rect(
+                rect, m, VISUAL_RIGHT_PANEL_ASSET_TAB_FOOTER_LINE_COUNT, 4u);
+            slot_count = ctx->texture_project.indexed_cells.count
+                ? ctx->texture_project.indexed_cells.count : 1u;
+        } else {
         DrawingProgramTextureSceneFileEntry scene_entries[DRAWING_PROGRAM_TEXTURE_SCENE_BROWSER_LIST_CAPACITY];
         DrawingProgramTextureSceneObjectEntry object_entries[DRAWING_PROGRAM_TEXTURE_SCENE_BROWSER_LIST_CAPACITY];
         uint32_t scene_count = 0u;
@@ -854,6 +895,7 @@ int drawing_program_visual_input_handle_right_file_tabs_wheel_payload(
             slot_count = object_count > 0u ? object_count : 1u;
         } else {
             slot_count = scene_count > 0u ? scene_count : 1u;
+        }
         }
     } else {
         return 0;

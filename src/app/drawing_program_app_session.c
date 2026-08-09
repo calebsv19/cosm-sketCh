@@ -149,6 +149,7 @@ CoreResult drawing_program_app_bootstrap(DrawingProgramAppContext *ctx, int argc
     ctx->ui.tool_fill_tolerance = 0u;
     ctx->ui.tool_select_mode = (uint8_t)DRAWING_PROGRAM_UI_SELECT_MODE_REPLACE;
     ctx->ui.canvas_guide_mode = (uint8_t)DRAWING_PROGRAM_UI_CANVAS_GUIDE_MODE_OFF;
+    ctx->ui.indexed_workspace_mode = (uint8_t)DRAWING_PROGRAM_INDEXED_WORKSPACE_MODE_CELL_BOARD;
     ctx->ui.font_zoom_step = 0;
     drawing_program_ui_color_seed_defaults(ctx);
     (void)snprintf(

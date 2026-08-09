@@ -26,8 +26,47 @@ typedef struct VisualTextCacheEntry {
     uint32_t last_used_tick;
 } VisualTextCacheEntry;
 
+typedef struct VisualTextClipState {
+    SDL_bool enabled;
+    SDL_Rect rect;
+} VisualTextClipState;
+
 static VisualTextCacheEntry g_text_cache[DRAWING_PROGRAM_TEXT_CACHE_MAX_ENTRIES];
 static uint32_t g_text_cache_tick = 1u;
+
+static VisualTextClipState visual_text_capture_clip_state(SDL_Renderer *renderer) {
+    VisualTextClipState state = { SDL_FALSE, { 0, 0, 0, 0 } };
+    if (!renderer) {
+        return state;
+    }
+    state.enabled = SDL_RenderIsClipEnabled(renderer);
+    if (state.enabled) {
+        SDL_RenderGetClipRect(renderer, &state.rect);
+    }
+    return state;
+}
+
+static void visual_text_apply_clip(SDL_Renderer *renderer,
+                                   const VisualTextClipState *parent,
+                                   SDL_Rect requested) {
+    SDL_Rect effective = requested;
+    if (!renderer) {
+        return;
+    }
+    if (parent && parent->enabled &&
+        !SDL_IntersectRect(&parent->rect, &requested, &effective)) {
+        effective = (SDL_Rect){ 0, 0, 0, 0 };
+    }
+    (void)SDL_RenderSetClipRect(renderer, &effective);
+}
+
+static void visual_text_restore_clip(SDL_Renderer *renderer,
+                                     const VisualTextClipState *state) {
+    if (!renderer || !state) {
+        return;
+    }
+    (void)SDL_RenderSetClipRect(renderer, state->enabled ? &state->rect : 0);
+}
 
 static uint32_t visual_text_cache_next_tick(void) {
     g_text_cache_tick += 1u;
@@ -194,18 +233,20 @@ int drawing_program_visual_draw_bitmap_text(SDL_Renderer *renderer,
     SDL_Texture *texture = 0;
     int cursor_x = x;
     size_t i;
+    VisualTextClipState parent_clip;
     if (!renderer || !text || scale < 1) {
         return 0;
     }
+    parent_clip = visual_text_capture_clip_state(renderer);
     font = drawing_program_visual_get_ttf_font_for_preset(g_visual_text_font_preset_id, scale);
     if (font && visual_text_cache_text_fits(text)) {
         cache_index = visual_text_cache_find_exact(renderer, g_visual_text_font_preset_id, scale, text, color);
         if (cache_index >= 0) {
             VisualTextCacheEntry *entry = &g_text_cache[cache_index];
             SDL_Rect dst = { x, y, entry->width, entry->height };
-            (void)SDL_RenderSetClipRect(renderer, &clip_rect);
+            visual_text_apply_clip(renderer, &parent_clip, clip_rect);
             (void)SDL_RenderCopy(renderer, entry->texture, 0, &dst);
-            (void)SDL_RenderSetClipRect(renderer, 0);
+            visual_text_restore_clip(renderer, &parent_clip);
             entry->last_used_tick = visual_text_cache_next_tick();
             return entry->width;
         }
@@ -217,9 +258,9 @@ int drawing_program_visual_draw_bitmap_text(SDL_Renderer *renderer,
             if (texture) {
                 SDL_Rect dst = { x, y, surface->w, surface->h };
                 int can_cache = visual_text_cache_text_fits(text) ? 1 : 0;
-                (void)SDL_RenderSetClipRect(renderer, &clip_rect);
+                visual_text_apply_clip(renderer, &parent_clip, clip_rect);
                 (void)SDL_RenderCopy(renderer, texture, 0, &dst);
-                (void)SDL_RenderSetClipRect(renderer, 0);
+                visual_text_restore_clip(renderer, &parent_clip);
                 cursor_x = x + surface->w;
                 if (can_cache) {
                     int slot = visual_text_cache_reserve_slot();
@@ -251,7 +292,7 @@ int drawing_program_visual_draw_bitmap_text(SDL_Renderer *renderer,
             SDL_FreeSurface(surface);
         }
     }
-    (void)SDL_RenderSetClipRect(renderer, &clip_rect);
+    visual_text_apply_clip(renderer, &parent_clip, clip_rect);
     SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
     for (i = 0; text[i] != '\0'; ++i) {
         uint8_t rows[7];
@@ -271,7 +312,7 @@ int drawing_program_visual_draw_bitmap_text(SDL_Renderer *renderer,
             break;
         }
     }
-    (void)SDL_RenderSetClipRect(renderer, 0);
+    visual_text_restore_clip(renderer, &parent_clip);
     return cursor_x - x;
 }
 

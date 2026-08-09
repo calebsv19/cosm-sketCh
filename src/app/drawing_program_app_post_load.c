@@ -16,6 +16,13 @@ void drawing_program_app_rearm_after_document_swap(DrawingProgramAppContext *ctx
                                                     &active_index).code != CORE_OK) {
         ctx->editor.active_layer_id = ctx->document.layers[0].layer_id;
     }
+    if (ctx->texture_project.profile_kind == DRAWING_PROGRAM_TEXTURE_PROJECT_PROFILE_INDEXED_ATLAS_V1 &&
+        ctx->editor.viewport.max_zoom < 64.0f) {
+        ctx->editor.viewport.max_zoom = 64.0f;
+    }
+    if (ctx->texture_project.profile_kind == DRAWING_PROGRAM_TEXTURE_PROJECT_PROFILE_INDEXED_ATLAS_V1) {
+        ctx->ui.indexed_workspace_mode = (uint8_t)DRAWING_PROGRAM_INDEXED_WORKSPACE_MODE_CELL_BOARD;
+    }
     drawing_program_canvas_reflection_sync_editor_from_active_surface(ctx);
 
     drawing_program_selection_cancel_transient(&ctx->selection);
