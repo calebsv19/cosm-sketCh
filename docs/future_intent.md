@@ -1,6 +1,6 @@
 # Future Intent
 
-Last updated: 2026-07-20
+Last updated: 2026-07-21
 
 ## Near-term
 - The R0-R6 refinement sequence is complete at this checkpoint:
@@ -29,11 +29,11 @@ Last updated: 2026-07-20
 - Vulkan or another new live backend should remain deferred unless the current
   renderer/compose state proves unacceptable even after bounded SDL/cache work.
 - Any new authored-texture or mixed-material semantics work should start as its
-  own bounded roadmap rather than being folded into the renderer lane. The next
-  such roadmap is the indexed tileset authoring profile documented under the
-  Drawing Program private active bucket. Its DPT1 exact model/history/
-  persistence foundation and DPT2 profile-routed pixel editing surface are
-  implemented and packaged at 0.3.0; DPT3 stable named atlas cells are next.
+  own bounded roadmap rather than being folded into the renderer lane. The
+  indexed tileset authoring roadmap completed DPT1-DPT5 on 2026-07-21: exact
+  indexed editing, stable named cells, transactional interchange, and the
+  Dungeon producer/consumer roundtrip are now proven. Final art and renderer
+  cutover require a new separately authorized roadmap.
 - The post-R0-R6 renderer/cache decision is to stop at the current bounded
   medium-risk state. Any renderer follow-on should require new measured
   evidence from broader mixed partial-opacity scenes, remain bounded, and
@@ -41,10 +41,10 @@ Last updated: 2026-07-20
   cache architecture work.
 
 ## Expected Next Outcomes
-- Implement DPT3 stable named atlas cells through a bounded model,
-  persistence/history, ASSET-panel, and overlay slice. Keep DPT4 transactional
-  indexed export and DPT5 Dungeon consumer roundtrip separate, and keep
-  standard RGBA UX unchanged.
+- Preserve the closed DPT1-DPT5 roundtrip as the source/resource contract.
+  Future work may author reviewed final tiles and, only after separate visual
+  acceptance, plan Dungeon renderer cutover while retaining the procedural
+  fallback.
 - Treat the R0-R6 refinement loop as closed. If renderer/cache work resumes,
   start from fresh measurement and a new bounded plan rather than the archived
   R0-R6 or seam-lowering records.

@@ -20,6 +20,32 @@
 - `make -C drawing_program memory-check-audit`
 - `make -C drawing_program package-desktop-self-test`
 
+## Indexed Tileset Roundtrip
+
+`INDEXED_ATLAS_V1` projects store exact index bytes, stable named cells, and
+fixed logical cell geometry. The `ASSET` tab selects and mutates cells; cell
+frames/names are canvas overlays only. The `EXPORT` tab's texture action becomes
+`EXPORT TILESET` for indexed projects and writes a separate transactional
+artifact family: `<tileset>_indices.png`, `tileset_manifest.json`, palette JSON
+and preview PNG, and `export_validation.json`. This path does not call the
+standard RGBA PNG exporter or schema-v5 authored-texture exporter.
+
+Dungeon canonical source packs are intentionally texture-project-only: they
+contain indexed project chunks, not a saved Drawing Program window shell. Use
+`OPEN PROJECT` to select a `.pack`; Drawing Program keeps its seeded shell and
+activates the pack's selected surface. For `cobble_master_v1.pack`, the canvas
+opens as the 80x64 logical atlas with its 20 stable 16x16 named cells and exact
+nine-slot palette. Saving a working session writes a normal Drawing Program
+snapshot separately; it does not rewrite the selected canonical source pack.
+Indexed source packs automatically frame the atlas in the canvas pane after
+startup or `OPEN PROJECT`, so their pixels are immediately large enough to
+paint. Select a palette slot in the `COLOR` tab, then use `BRUSH`, `ERASER`, or
+`FILL` on the canvas; use `ASSET` to select the named cell you are editing.
+The canvas wheel now supports up to 64x zoom (48 screen pixels per indexed
+source pixel). Selecting a named row in `ASSET` centers and frames that 16x16
+cell for close inspection; right-drag pans between cells, and the wheel keeps
+the pixel beneath the pointer anchored while changing zoom.
+
 ## Visual Artifact Proof
 
 Run the source-render first-frame proof with:

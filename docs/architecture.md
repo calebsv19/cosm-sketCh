@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-06-24
+Last updated: 2026-07-21
 
 `drawing_program` is organized as a retained-object drawing editor,
 texture-project host, and atlas-style multi-surface workspace shell. The app is
@@ -38,6 +38,15 @@ session/export IO.
   contract.
 - Snapshot and session persistence live under `src/io/session/`; export-specific
   behavior lives under `src/io/export/`.
+- Indexed tileset state is deliberately split by role:
+  - `src/model/indexed_tileset/` owns exact indices, palette profile, named-cell
+    tables, and typed raster/cell history
+  - `src/io/session/drawing_program_indexed_project_snapshot.c` owns `DPIP`,
+    `DPIL`, and optional `DPIC` pack chunks
+  - `src/io/export/indexed_tileset/` owns indexed PNG encode/decode,
+    manifest/palette/report emission, reopen comparison, and destination commit
+  - Dungeon owns its nine-slot policy, stable tile-key vocabulary, canonical
+    source descriptor, generated resources, and consumer decoder
 - Input handlers should normalize and route intent, while domain/runtime owners
   perform the actual semantic mutation.
 - Renderer/cache behavior is split between domain render facts, runtime
@@ -85,6 +94,9 @@ to move into `shared/`.
 - Build/source-list ownership is manual enough that build-target changes should
   be reconciled deliberately before they are treated as public verification
   contracts.
+- Indexed export intentionally remains separate from both the standard RGBA PNG
+  path and schema-v5 face-oriented authored-texture export. Merging those
+  output families would weaken exact-index guarantees.
 
 ## Contract References
 

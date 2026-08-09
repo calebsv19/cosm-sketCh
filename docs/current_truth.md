@@ -1,6 +1,6 @@
 # drawing_program Current Truth
 
-Last updated: 2026-07-20
+Last updated: 2026-07-21
 
 ## Program Identity
 - Repository directory: `drawing_program/`
@@ -60,9 +60,48 @@ Last updated: 2026-07-20
 - Indexed mode rejects tools and controls that could introduce antialiasing,
   opacity blending, brush softness, layer/canvas mutation, or RGB/HSV
   inference.
-- Named atlas-cell editing, indexed PNG/manifest export, Dungeon source/create
-  integration, Dungeon asset changes, final artwork, and renderer cutover are
-  not implemented.
+- Indexed projects can persist stable named cells through optional `DPIC` v1,
+  mutate cell identity/order/rectangles through typed cell history, select and
+  edit cells in the `ASSET` tab, and display cell frames/names as non-raster
+  overlays. The default authoring presentation is now a `CELL BOARD`: each
+  named 16x16 cell is a separate clipped card, but every card maps directly
+  onto the same canonical indexed atlas bytes. `SHOW ATLAS` exposes the
+  continuous source-sheet inspection mode without changing storage, names,
+  cells, palette indices, or export behavior.
+- Indexed tile canvases are now first-class authoring owners. Every named cell
+  owns an independent fixed 16×16 (256-byte) palette-index payload; `DPTC` v1
+  persists that ordered canvas table. `DPIL` remains the required 80×64
+  compatibility atlas, composed deterministically from the tile canvases for
+  pack and export boundaries. Legacy `DPIL`/`DPIC` packs without `DPTC` load by
+  slicing their existing atlas into tile canvases, and any canvas/atlas byte
+  divergence fails closed.
+- Indexed export is a separate transaction from standard RGBA PNG and
+  schema-v5 authored-texture export. It writes an exact 8-bit palette PNG,
+  stable-order `PLTE`/`tRNS`, palette preview artifacts, manifest, and digest
+  report to a staging directory, reopens and compares them, then atomically
+  commits the destination.
+- The canonical Dungeon `cobble_master_v1.pack` is a texture-project-only
+  source pack. `OPEN PROJECT` accepts it without a `DPS3`/`DPS2` window-shell
+  chunk, preserves the seeded Drawing Program shell, and activates its indexed
+  80x64 surface. Indexed source loads frame the atlas to the canvas pane rather
+  than inheriting a 1x standard-project view. It reexports without changing
+  exact indices, the nine palette slots, 20 stable cell keys, or logical 16x16
+  geometry. Dungeon independently decodes the PNG and confirms matching index,
+  palette, and cell-table digests.
+- Indexed atlas navigation has a 64x ceiling. In `CELL BOARD`, selecting a
+  named entry selects its separate card and brush input maps only through that
+  card to its source pixels. In `SHOW ATLAS`, wheel zoom remains
+  anchor-preserving and right-drag pans for continuous-sheet inspection.
+- Indexed-canvas rendering owns an exact canvas-pane clip at every zoom. Text
+  draws now intersect and restore an inherited parent clip, so cell labels,
+  frames, grids, and pixel fills cannot overdraw the surrounding panels. Pixel
+  and cell geometry use shared logical-edge rounding, keeping adjacent source
+  pixels and 16x16 cell borders aligned at fractional zoom values. Software
+  rendering verifies both outside-pane clipping for a labeled oversized atlas
+  and gap-free coverage for a fractional-scale opaque raster.
+- The current Dungeon pixels are a contract fixture rather than final artwork,
+  and Dungeon's procedural value-map renderer remains active. Renderer cutover
+  is not implemented or authorized by this roundtrip.
 - Drawing Program now carries managed `core_authored_texture` 0.2.0 and is
   packaged as version 0.3.0.
 
@@ -181,7 +220,7 @@ Last updated: 2026-07-20
   - invalid render-backend values provide a deterministic GUI-route diagnostic
 
 ## Current Verification Baseline
-- DPT1-DPT2 gates passed on 2026-07-20:
+- DPT1-DPT5 producer/consumer gates passed on 2026-07-21:
   - clean Clang build
   - `test-suite TEST_SUITE=indexed-tileset`
   - full `test`
@@ -204,9 +243,9 @@ Last updated: 2026-07-20
   - `make -C /Users/calebsv/Desktop/CodeWork/drawing_program package-desktop-refresh`
 
 ## Next Boundary
-- DPT3 is next: stable named atlas-cell model, persistence, history,
-  validation, ASSET-panel editing, and non-raster overlays. DPT4 export and
-  DPT5 Dungeon integration remain separate later gates.
+- DPT1-DPT5 are complete. A later separately authorized lane may replace the
+  contract fixture with reviewed final artwork and then consider Dungeon
+  renderer cutover. Neither follows automatically from this closeout.
 - The R0-R6 refinement sequence is complete and the post-R0-R6 renderer/cache
   decision checkpoint is closed. The program is not currently in an active named
   refinement slice.
