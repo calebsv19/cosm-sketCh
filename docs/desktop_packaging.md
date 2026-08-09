@@ -1,6 +1,6 @@
 # sketCh Desktop Packaging
 
-Last updated: 2026-06-06
+Last updated: 2026-08-08
 
 ## Bundle Contract
 
@@ -11,12 +11,16 @@ Last updated: 2026-06-06
 - app bundle metadata:
   - bundle id: `com.cosm.sketch`
   - product name: `sketCh`
-  - version: `0.2.0`
+  - version: read from `VERSION` (currently `0.3.0`)
   - icon file: `Contents/Resources/AppIcon.icns` via `CFBundleIconFile=AppIcon`
 - bundled frameworks live under `Contents/Frameworks/`
 - bundled resources currently include:
   - `Contents/Resources/shared/assets/fonts/*`
+  - `Contents/Resources/vk_renderer/shaders/*`
   - `Contents/Resources/AppIcon.icns` when `PACKAGE_APP_ICON_SRC` or `PACKAGE_APP_ICONSET_SRC` resolves
+- packaged Vulkan closure includes `libvulkan.1.dylib` and
+  `libMoltenVK.dylib`; the launcher writes a runtime-local ICD manifest pointing
+  at the bundled MoltenVK driver.
 
 ## Make Targets
 
@@ -89,11 +93,19 @@ Current notarized pass:
 - `--print-config` prints:
   - `DRAWING_PROGRAM_RUNTIME_DIR`
   - `DRAWING_PROGRAM_RESOURCES_DIR`
+  - `VK_ICD_FILENAMES`
+  - `VK_DRIVER_FILES`
+  - `MOLTENVK_DYLIB`
   - `DRAWING_PROGRAM_APP_BIN`
 - `--self-test` verifies:
   - packaged runtime binary is executable
   - one bounded headless smoke run succeeds:
     - `drawing-program-bin --headless --smoke-frames 1 --no-persist`
+
+`package-desktop-self-test` now runs both the existing launcher headless smoke
+and the checksum-bound managed Vulkan proof against the packaged binary. The
+proof requires validation-clean startup, native captures before and after a
+real resize, restart, 2x Retina drawable scale, and one real app-frame capture.
 - launcher runtime root:
   - default: `~/Library/Application Support/sketCh/runtime`
   - tmp fallback: `${TMPDIR:-/tmp}/sketch-runtime`

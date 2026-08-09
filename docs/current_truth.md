@@ -1,6 +1,6 @@
 # drawing_program Current Truth
 
-Last updated: 2026-07-21
+Last updated: 2026-08-08
 
 ## Program Identity
 - Repository directory: `drawing_program/`
@@ -106,6 +106,16 @@ Last updated: 2026-07-21
   packaged as version 0.3.0.
 
 ## Renderer And Cache Truth
+- The default Clang desktop and packaged presentation route is now
+  `vulkan-kit`: app-local compatibility wrappers retain the existing SDL
+  software drawing contract while `vk_runtime 0.6.0` owns Vulkan lifecycle and
+  `vk_renderer 1.3.1` owns upload, swapchain presentation, readback, capture,
+  resize recovery, and restart behavior.
+- Indexed/pixel quality remains explicit: the compatibility image is uploaded
+  with nearest filtering at the SDL Vulkan drawable extent. Current Apple M2
+  proof measured 1280x800 logical pixels as a 2560x1600 drawable (2.00x).
+- `sdl-debug` remains an explicit oracle/fallback. fisiCs remains SDL-only.
+  No compute, residency, or timing workload API is adopted by Drawing Program.
 - Atlas rendering is feature-capable and structurally narrower than earlier
   builds:
   - visible surfaces use per-surface cache entries rather than one active-only
@@ -126,9 +136,9 @@ Last updated: 2026-07-21
     suffix changes
   - cached suffix-band reuse when lower-band changes leave the upper suffix
     unchanged
-- The dominant remaining renderer risk is still CPU-side compose cost during
-  deeper mixed blended rebuilds. Current source/docs truth does not justify a
-  Vulkan lane; backend migration remains explicitly deferred.
+- The dominant remaining renderer performance risk is still CPU-side compose
+  cost during deeper mixed blended rebuilds. Managed Vulkan presentation does
+  not accelerate that app-owned composition work.
 
 ## Current Risk State
 - Overall program risk is now medium rather than high.
@@ -220,6 +230,16 @@ Last updated: 2026-07-21
   - invalid render-backend values provide a deterministic GUI-route diagnostic
 
 ## Current Verification Baseline
+- Managed Vulkan adoption passed on 2026-08-08:
+  - exact vendored-source identity at canonical shared commit
+    `cc340d78a3cea80b1086fc5e434ccbaf1118c34c`
+  - clean build, indexed-tileset suite, full tests, headless smoke, and SDL
+    fallback visual artifact
+  - validation-clean startup, native readback/capture, real resize and
+    swapchain recreation, 2x Retina extent, shutdown/restart, and a nonblank
+    2560x1600 real application frame
+  - packaged self-test with bundled Vulkan loader, MoltenVK, shaders, and the
+    same validation/readback/resize/restart/application proof
 - DPT1-DPT5 producer/consumer gates passed on 2026-07-21:
   - clean Clang build
   - `test-suite TEST_SUITE=indexed-tileset`
@@ -243,6 +263,9 @@ Last updated: 2026-07-21
   - `make -C /Users/calebsv/Desktop/CodeWork/drawing_program package-desktop-refresh`
 
 ## Next Boundary
+- Keep the managed Vulkan presentation baseline stable. Profile before moving
+  any CPU compose workload to Vulkan, and retain deterministic CPU oracle and
+  fallback behavior for any future compute proposal.
 - DPT1-DPT5 are complete. A later separately authorized lane may replace the
   contract fixture with reviewed final artwork and then consider Dungeon
   renderer cutover. Neither follows automatically from this closeout.

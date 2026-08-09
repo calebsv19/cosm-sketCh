@@ -18,7 +18,16 @@
 - `make -C drawing_program run-headless`
 - `make -C drawing_program fisics-run-headless`
 - `make -C drawing_program memory-check-audit`
+- `make -C drawing_program vulkan-rollout-contract`
+- `make -C drawing_program vulkan-rollout-self-test`
 - `make -C drawing_program package-desktop-self-test`
+
+`vulkan-rollout-self-test` binds the vendored `vk_runtime` and `vk_renderer`
+files to canonical shared commit
+`cc340d78a3cea80b1086fc5e434ccbaf1118c34c`, then proves validation-clean
+startup, native readback/capture, resize recreation, 2x Retina scaling,
+shutdown/restart, and a real Drawing Program frame. It does not claim Vulkan
+compute adoption.
 
 ## Indexed Tileset Roundtrip
 

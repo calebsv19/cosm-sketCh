@@ -1,6 +1,6 @@
 # Future Intent
 
-Last updated: 2026-07-21
+Last updated: 2026-08-08
 
 ## Near-term
 - The R0-R6 refinement sequence is complete at this checkpoint:
@@ -26,8 +26,10 @@ Last updated: 2026-07-21
 
 ## Current Follow-on Rule
 - Reflection should remain closed unless a fresh bounded plan is opened.
-- Vulkan or another new live backend should remain deferred unless the current
-  renderer/compose state proves unacceptable even after bounded SDL/cache work.
+- Managed Vulkan presentation is complete at `vk_runtime 0.6.0` and
+  `vk_renderer 1.3.1`; keep it compatibility-preserving and validation-clean.
+  Any future GPU compute work must be separately selected through profiling
+  with a deterministic CPU oracle/fallback.
 - Any new authored-texture or mixed-material semantics work should start as its
   own bounded roadmap rather than being folded into the renderer lane. The
   indexed tileset authoring roadmap completed DPT1-DPT5 on 2026-07-21: exact
@@ -41,6 +43,8 @@ Last updated: 2026-07-21
   cache architecture work.
 
 ## Expected Next Outcomes
+- Stabilize the committed Vulkan presentation boundary; do not conflate it with
+  acceleration of Drawing Program's CPU compose/cache pipeline.
 - Preserve the closed DPT1-DPT5 roundtrip as the source/resource contract.
   Future work may author reviewed final tiles and, only after separate visual
   acceptance, plan Dungeon renderer cutover while retaining the procedural

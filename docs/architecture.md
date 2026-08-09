@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-07-21
+Last updated: 2026-08-08
 
 `drawing_program` is organized as a retained-object drawing editor,
 texture-project host, and atlas-style multi-surface workspace shell. The app is
@@ -52,6 +52,10 @@ session/export IO.
 - Renderer/cache behavior is split between domain render facts, runtime
   composed-source/cache contracts, UI surface-cache resources, and render pass
   presentation.
+- `src/runtime/render/drawing_program_render_backend_lifecycle.c` is the
+  app-local compatibility boundary: it owns backend selection and fallback,
+  retains the SDL software canvas, and delegates Vulkan lifecycle/presentation
+  to `vk_runtime`/`vk_renderer`. Shared code does not own drawing semantics.
 - UI layout/panel code owns screen presentation and control geometry; it should
   not become the authority for document or texture-project state.
 
@@ -65,6 +69,7 @@ already stable:
   `core_pane_module`, `core_viewport2d`
 - `core_authored_texture`
 - `kit_render`, `kit_pane`, `kit_ui`, `kit_workspace_authoring`
+- `vk_runtime 0.6.0`, `vk_renderer 1.3.1`
 
 Shared extraction remains conservative. Drawing-specific behavior stays
 app-local until a later pass proves that a cross-app contract is stable enough
