@@ -7,7 +7,7 @@ import struct
 import subprocess
 from pathlib import Path
 
-EXPECTED_SHARED_COMMIT = "cc340d78a3cea80b1086fc5e434ccbaf1118c34c"
+EXPECTED_SHARED_COMMIT = "ddc0c2b1420d95132ef089e68e2ce7728fbc53a4"
 
 
 def output(command: list[str], cwd: Path) -> str:
@@ -220,7 +220,7 @@ def main() -> int:
     verify_adoption(repo)
     runtime = (adopted / "vk_runtime/VERSION").read_text().strip()
     renderer = (adopted / "vk_renderer/VERSION").read_text().strip()
-    if (runtime, renderer) != ("0.6.0", "1.3.1"):
+    if (runtime, renderer) != ("0.6.0", "1.3.2"):
         raise SystemExit(f"unexpected Vulkan versions: runtime={runtime} renderer={renderer}")
     if args.app:
         if not args.shader_root or not args.initial_capture or not args.resized_capture or not args.log:
