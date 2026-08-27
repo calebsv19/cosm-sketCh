@@ -1,6 +1,6 @@
 # drawing_program Current Truth
 
-Last updated: 2026-08-08
+Last updated: 2026-08-27
 
 ## Program Identity
 - Repository directory: `drawing_program/`
@@ -230,6 +230,14 @@ Last updated: 2026-08-08
   - invalid render-backend values provide a deterministic GUI-route diagnostic
 
 ## Current Verification Baseline
+- The persistent Main Edit package surface is implemented:
+  - branch convention: `codex/drawing-program-main-edit`
+  - app: `sketCh Main Edit.app`
+  - bundle ID: `com.cosm.sketch.main-edit`
+  - separate `DrawingProgram-Main-Edit` runtime/log namespaces
+  - exact source fingerprint, branch/commit/dirty state, toolchain/architecture,
+    and packaged-binary identity
+  - required package, self-test, and guarded refresh targets
 - Managed Vulkan adoption passed on 2026-08-08:
   - exact vendored-source identity at canonical shared commit
     `cc340d78a3cea80b1086fc5e434ccbaf1118c34c`

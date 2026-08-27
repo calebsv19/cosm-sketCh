@@ -1,5 +1,6 @@
 test: $(TEST_TARGET)
 	"$(TEST_TARGET)"
+	./tests/run_main_edit_package_contract_checks.sh
 
 test-list: $(TEST_TARGET)
 	"$(TEST_TARGET)" --list-suites
@@ -7,6 +8,9 @@ test-list: $(TEST_TARGET)
 test-suite: $(TEST_TARGET)
 	@test -n "$(TEST_SUITE)" || (echo "TEST_SUITE is required, for example: make test-suite TEST_SUITE=texture-import"; exit 1)
 	"$(TEST_TARGET)" --suite "$(TEST_SUITE)"
+
+main-edit-package-contract-checks:
+	./tests/run_main_edit_package_contract_checks.sh
 
 -include $(APP_DEPS) $(HEADLESS_DEPS) $(TEST_DEPS)
 

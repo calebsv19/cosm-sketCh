@@ -23,3 +23,8 @@ Identity lock (P1-S1):
 Important distinction:
 - `drawing_program` (`sketCh`) is the new program lane.
 - `line_drawing` is an existing separate program and is not this lane.
+
+Ongoing functional development uses the persistent Main Edit workflow in
+`docs/main_edit_worktree.md`. Its local development bundle is
+`sketCh Main Edit.app`; it is isolated from the canonical `sketCh.app` bundle,
+runtime/log state, release artifacts, and Registry authority.

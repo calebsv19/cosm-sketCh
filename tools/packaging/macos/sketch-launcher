@@ -5,60 +5,111 @@ SELF_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 CONTENTS_DIR="$(CDPATH= cd -- "$SELF_DIR/.." && pwd)"
 RES_DIR="$CONTENTS_DIR/Resources"
 FRAMEWORKS_DIR="$CONTENTS_DIR/Frameworks"
+INFO_PLIST="$CONTENTS_DIR/Info.plist"
 APP_BIN="$SELF_DIR/drawing-program-bin"
-DEFAULT_RUNTIME_BASE="${HOME}/Library/Application Support/sketCh/runtime"
+
+read_plist_string() {
+  key="$1"
+  fallback="$2"
+  value="$(/usr/libexec/PlistBuddy -c "Print :$key" "$INFO_PLIST" 2>/dev/null || true)"
+  if [ -n "$value" ]; then
+    printf '%s' "$value"
+  else
+    printf '%s' "$fallback"
+  fi
+}
+
+PACKAGE_PROFILE="$(read_plist_string DrawingProgramPackageProfile standard)"
+RUNTIME_NAMESPACE="$(read_plist_string DrawingProgramRuntimeNamespace sketCh)"
+LOG_NAMESPACE="$(read_plist_string DrawingProgramLogNamespace sketCh)"
+BUILD_LABEL="$(read_plist_string DrawingProgramBuildLabel sketCh)"
+DEFAULT_RUNTIME_BASE="${HOME}/Library/Application Support/${RUNTIME_NAMESPACE}/runtime"
 RUNTIME_BASE="${DRAWING_PROGRAM_RUNTIME_DIR:-$DEFAULT_RUNTIME_BASE}"
+DEFAULT_LOG_DIR="${HOME}/Library/Logs/${LOG_NAMESPACE}"
+LOG_DIR="${DRAWING_PROGRAM_LOG_DIR:-$DEFAULT_LOG_DIR}"
+LOG_FILE="$LOG_DIR/launcher.log"
 VK_RUNTIME_DIR="$RUNTIME_BASE/vk"
 
 if ! mkdir -p "$RUNTIME_BASE/input" "$RUNTIME_BASE/output" "$VK_RUNTIME_DIR" 2>/dev/null; then
-  RUNTIME_BASE="${TMPDIR:-/tmp}/sketch-runtime"
+  RUNTIME_BASE="${TMPDIR:-/tmp}/${RUNTIME_NAMESPACE}/runtime"
   VK_RUNTIME_DIR="$RUNTIME_BASE/vk"
   mkdir -p "$RUNTIME_BASE/input" "$RUNTIME_BASE/output" "$VK_RUNTIME_DIR" 2>/dev/null || true
 fi
+if ! mkdir -p "$LOG_DIR" 2>/dev/null || ! touch "$LOG_FILE" 2>/dev/null; then
+  LOG_DIR="${TMPDIR:-/tmp}/${LOG_NAMESPACE}/logs"
+  LOG_FILE="$LOG_DIR/launcher.log"
+  mkdir -p "$LOG_DIR" 2>/dev/null || true
+  touch "$LOG_FILE" 2>/dev/null || true
+fi
+
 MOLTENVK_DYLIB="$FRAMEWORKS_DIR/libMoltenVK.dylib"
 ICD_JSON="$VK_RUNTIME_DIR/MoltenVK_icd.json"
 write_moltenvk_icd() {
-  cat >"$ICD_JSON" <<EOF
-{
-  "file_format_version": "1.0.0",
-  "ICD": {
-    "library_path": "$MOLTENVK_DYLIB",
-    "api_version": "1.4.0",
-    "is_portability_driver": true
-  }
-}
-EOF
+  printf '%s\n' \
+    '{' \
+    '  "file_format_version": "1.0.0",' \
+    '  "ICD": {' \
+    "    \"library_path\": \"$MOLTENVK_DYLIB\"," \
+    '    "api_version": "1.4.0",' \
+    '    "is_portability_driver": true' \
+    '  }' \
+    '}' >"$ICD_JSON"
 }
 if [ -f "$MOLTENVK_DYLIB" ] && ! write_moltenvk_icd 2>/dev/null; then
-  RUNTIME_BASE="${TMPDIR:-/tmp}/sketch-runtime"
+  RUNTIME_BASE="${TMPDIR:-/tmp}/${RUNTIME_NAMESPACE}/runtime"
   VK_RUNTIME_DIR="$RUNTIME_BASE/vk"
   ICD_JSON="$VK_RUNTIME_DIR/MoltenVK_icd.json"
   mkdir -p "$RUNTIME_BASE/input" "$RUNTIME_BASE/output" "$VK_RUNTIME_DIR"
   write_moltenvk_icd
 fi
+
+export DRAWING_PROGRAM_PACKAGE_PROFILE="$PACKAGE_PROFILE"
+export DRAWING_PROGRAM_RUNTIME_NAMESPACE="$RUNTIME_NAMESPACE"
+export DRAWING_PROGRAM_LOG_NAMESPACE="$LOG_NAMESPACE"
+export DRAWING_PROGRAM_BUILD_LABEL="$BUILD_LABEL"
 export DRAWING_PROGRAM_RUNTIME_DIR="$RUNTIME_BASE"
+export DRAWING_PROGRAM_LOG_DIR="$LOG_DIR"
 export DRAWING_PROGRAM_RESOURCES_DIR="$RES_DIR"
 export VK_ICD_FILENAMES="${VK_ICD_FILENAMES:-$ICD_JSON}"
 export VK_DRIVER_FILES="${VK_DRIVER_FILES:-$ICD_JSON}"
 
-if [ "${1-}" = "--print-config" ]; then
+launcher_print_config() {
+  echo "DRAWING_PROGRAM_PACKAGE_PROFILE=$DRAWING_PROGRAM_PACKAGE_PROFILE"
+  echo "DRAWING_PROGRAM_RUNTIME_NAMESPACE=$DRAWING_PROGRAM_RUNTIME_NAMESPACE"
+  echo "DRAWING_PROGRAM_LOG_NAMESPACE=$DRAWING_PROGRAM_LOG_NAMESPACE"
+  echo "DRAWING_PROGRAM_BUILD_LABEL=$DRAWING_PROGRAM_BUILD_LABEL"
   echo "DRAWING_PROGRAM_RUNTIME_DIR=$DRAWING_PROGRAM_RUNTIME_DIR"
+  echo "DRAWING_PROGRAM_LOG_DIR=$DRAWING_PROGRAM_LOG_DIR"
+  echo "DRAWING_PROGRAM_LOG_FILE=$LOG_FILE"
   echo "DRAWING_PROGRAM_RESOURCES_DIR=$RES_DIR"
   echo "DRAWING_PROGRAM_APP_BIN=$APP_BIN"
   echo "VK_ICD_FILENAMES=$VK_ICD_FILENAMES"
   echo "VK_DRIVER_FILES=$VK_DRIVER_FILES"
   echo "MOLTENVK_DYLIB=$MOLTENVK_DYLIB"
+}
+
+if [ "${1-}" = "--print-config" ]; then
+  launcher_print_config
   exit 0
 fi
 
 if [ "${1-}" = "--self-test" ]; then
   [ -x "$APP_BIN" ] || { echo "missing app binary: $APP_BIN"; exit 1; }
+  [ -f "$INFO_PLIST" ] || { echo "missing Info.plist: $INFO_PLIST"; exit 1; }
+  if [ "$PACKAGE_PROFILE" = "main-edit" ]; then
+    [ -f "$RES_DIR/build_identity.json" ] || { echo "missing Main Edit build identity"; exit 1; }
+  fi
+  [ -f "$MOLTENVK_DYLIB" ] || { echo "missing MoltenVK: $MOLTENVK_DYLIB"; exit 1; }
+  [ -f "$ICD_JSON" ] || { echo "missing Vulkan ICD: $ICD_JSON"; exit 1; }
   "$APP_BIN" --headless --smoke-frames 1 --no-persist >/dev/null 2>&1 || {
     echo "headless smoke failed"
     exit 1
   }
   echo "self-test ok"
+  launcher_print_config
   exit 0
 fi
 
+printf '%s launch profile=%s label=%s pid=%s runtime=%s args=%s\n' \
+  "$(date '+%Y-%m-%d %H:%M:%S')" "$PACKAGE_PROFILE" "$BUILD_LABEL" "$$" "$RUNTIME_BASE" "$*" >>"$LOG_FILE" 2>/dev/null || true
 exec "$APP_BIN" "$@"

@@ -2,6 +2,8 @@
 
 - `current_truth.md`: what is implemented right now
 - `desktop_packaging.md`: packaged desktop app contract and validation flow
+- `main_edit_worktree.md`: persistent Main Edit lane, isolated app identity,
+  verification, integration, and retention contract
 - `memory_check_audit.md`: default-off fisiCs memory-check audit command and
   latest clean headless smoke result
 - `future_intent.md`: near-term roadmap and planned slices
@@ -21,6 +23,8 @@
 - `make -C drawing_program vulkan-rollout-contract`
 - `make -C drawing_program vulkan-rollout-self-test`
 - `make -C drawing_program package-desktop-self-test`
+- `make -C drawing_program package-desktop-main-edit-self-test`
+- `make -C drawing_program main-edit-package-contract-checks`
 
 `vulkan-rollout-self-test` binds the vendored `vk_runtime` and `vk_renderer`
 files to canonical shared commit

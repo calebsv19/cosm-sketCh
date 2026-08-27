@@ -1,6 +1,6 @@
 # sketCh Desktop Packaging
 
-Last updated: 2026-08-08
+Last updated: 2026-08-27
 
 ## Bundle Contract
 
@@ -33,6 +33,10 @@ Last updated: 2026-08-08
   - `make -C drawing_program package-desktop-open`
   - `make -C drawing_program package-desktop-remove`
   - `make -C drawing_program package-desktop-refresh`
+- isolated Main Edit packaging:
+  - `make -C drawing_program package-desktop-main-edit`
+  - `make -C drawing_program package-desktop-main-edit-self-test`
+  - `make -C drawing_program package-desktop-main-edit-refresh`
 - release/export prep:
   - `make -C drawing_program release-secret-audit`
   - `make -C drawing_program release-contract`
@@ -91,7 +95,12 @@ Current notarized pass:
 ## Launcher Runtime Contract
 
 - `--print-config` prints:
+  - `DRAWING_PROGRAM_PACKAGE_PROFILE`
+  - `DRAWING_PROGRAM_RUNTIME_NAMESPACE`
+  - `DRAWING_PROGRAM_LOG_NAMESPACE`
+  - `DRAWING_PROGRAM_BUILD_LABEL`
   - `DRAWING_PROGRAM_RUNTIME_DIR`
+  - `DRAWING_PROGRAM_LOG_DIR`
   - `DRAWING_PROGRAM_RESOURCES_DIR`
   - `VK_ICD_FILENAMES`
   - `VK_DRIVER_FILES`
@@ -108,12 +117,34 @@ proof requires validation-clean startup, native captures before and after a
 real resize, restart, 2x Retina drawable scale, and one real app-frame capture.
 - launcher runtime root:
   - default: `~/Library/Application Support/sketCh/runtime`
-  - tmp fallback: `${TMPDIR:-/tmp}/sketch-runtime`
+  - tmp fallback: `${TMPDIR:-/tmp}/<runtime-namespace>/runtime`
 - launcher runtime directories created on boot:
   - `<runtime>/input`
   - `<runtime>/output`
 - runtime override:
   - `DRAWING_PROGRAM_RUNTIME_DIR=<path>`
+
+## Persistent Main Edit Package
+
+The Main Edit profile is a local-development artifact, not a release candidate:
+
+- app: `sketCh Main Edit.app`
+- bundle ID: `com.cosm.sketch.main-edit`
+- profile: `main-edit`
+- runtime/log namespace: `DrawingProgram-Main-Edit`
+- build root: `build/targets/<target>/dist/dev/main-edit/`
+- embedded identity: `Contents/Resources/build_identity.json`
+
+The identity records the source branch, commit, dirty state, complete source
+fingerprint, target architecture, toolchain, build label, and packaged binary
+digest. Packaging compares source fingerprints before and after assembly and
+discards the generated Main Edit bundle if source changes during the build.
+
+`package-desktop-main-edit-self-test` verifies the identity, plist profile,
+bundle ID, runtime/log separation, launcher headless smoke, and code signature
+using isolated runtime and log roots. The refresh target refuses the canonical
+Desktop destination and stops if a matching Main Edit app process is running.
+It never refreshes `sketCh.app`.
 
 ## Packaged Resource And Framework Contract
 

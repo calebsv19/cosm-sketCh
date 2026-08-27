@@ -202,7 +202,7 @@ def run_actual_application(app: Path, shader_root: Path, capture: Path,
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--shared-root", type=Path, required=True)
-    parser.add_argument("--canonical-shared", type=Path, default=Path("../shared"))
+    parser.add_argument("--canonical-shared", type=Path)
     parser.add_argument("--app", type=Path)
     parser.add_argument("--shader-root", type=Path)
     parser.add_argument("--initial-capture", type=Path)
@@ -215,7 +215,13 @@ def main() -> int:
     args = parser.parse_args()
     repo = Path(__file__).resolve().parents[1]
     adopted = args.shared_root.resolve()
-    canonical = (repo / args.canonical_shared).resolve()
+    if args.canonical_shared is None:
+        common_dir = Path(output(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            repo)).resolve()
+        canonical = common_dir.parent.parent / "shared"
+    else:
+        canonical = (repo / args.canonical_shared).resolve()
     manifest = verify_shared(adopted, canonical)
     verify_adoption(repo)
     runtime = (adopted / "vk_runtime/VERSION").read_text().strip()

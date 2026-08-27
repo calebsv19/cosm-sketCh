@@ -16,6 +16,8 @@ include make/objects.mk
 	package-desktop package-desktop-smoke package-desktop-self-test \
 	package-desktop-copy-desktop package-desktop-sync package-desktop-open \
 	package-desktop-remove package-desktop-refresh \
+	package-desktop-main-edit package-desktop-main-edit-self-test \
+	package-desktop-main-edit-refresh main-edit-package-contract-checks \
 	release-secret-audit release-contract release-clean release-build \
 	release-bundle-audit release-sign release-verify release-verify-signed \
 	release-notarize release-staple release-verify-notarized release-artifact \
