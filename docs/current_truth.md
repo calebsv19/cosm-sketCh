@@ -109,7 +109,7 @@ Last updated: 2026-08-27
 - The default Clang desktop and packaged presentation route is now
   `vulkan-kit`: app-local compatibility wrappers retain the existing SDL
   software drawing contract while `vk_runtime 0.6.0` owns Vulkan lifecycle and
-  `vk_renderer 1.3.1` owns upload, swapchain presentation, readback, capture,
+  `vk_renderer 1.3.2` owns upload, swapchain presentation, readback, capture,
   resize recovery, and restart behavior.
 - Indexed/pixel quality remains explicit: the compatibility image is uploaded
   with nearest filtering at the SDL Vulkan drawable extent. Current Apple M2
@@ -240,7 +240,7 @@ Last updated: 2026-08-27
   - required package, self-test, and guarded refresh targets
 - Managed Vulkan adoption passed on 2026-08-08:
   - exact vendored-source identity at canonical shared commit
-    `cc340d78a3cea80b1086fc5e434ccbaf1118c34c`
+    `ddc0c2b1420d95132ef089e68e2ce7728fbc53a4`
   - clean build, indexed-tileset suite, full tests, headless smoke, and SDL
     fallback visual artifact
   - validation-clean startup, native readback/capture, real resize and
