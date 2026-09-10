@@ -28,5 +28,6 @@ include make/rules-test.mk
 include make/rules-memory-check.mk
 include make/package-macos.mk
 include make/release.mk
+include make/release-disposable.mk
 
 -include $(APP_DEPS) $(HEADLESS_DEPS) $(TEST_DEPS)

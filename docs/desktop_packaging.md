@@ -213,3 +213,7 @@ It never refreshes `sketCh.app`.
 - This doc describes the current local packaged-app workflow only.
 - The 2026-06-06 pass did produce a fresh notarized artifact set for the current `0.2.0` macOS arm64 worktree.
 - It does not prove a fresh packaging rerun on its own; use current verification records and release docs for bounded milestone context.
+
+## Isolated release packaging
+
+`make release-artifact-disposable RELEASE_ROOT=build/release-authenticated/<job-id>` creates a fresh sketCh.app, ZIP, checksum and source-bound manifest. Existing roots, traversal and symlink ancestors are rejected. `release-package-self-test` preserves the full standard package self-test, including Vulkan validation, resize and real-app capture, while isolating runtime, logs and proof output under a temporary build directory. Installed apps are not replaced. Developer ID authentication and publication remain separate Decision 1 and Decision 2 stages.
