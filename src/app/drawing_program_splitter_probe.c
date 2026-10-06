@@ -99,14 +99,19 @@ int drawing_program_splitter_probe(SDL_Window *window, SDL_Renderer *renderer,
         key(SDLK_c,KMOD_ALT); key(SDLK_v,KMOD_ALT); break;
     case 9:
         CHECK(drawing_program_authoring_host_active(app));
-        CHECK(strstr(SDL_GetWindowTitle(window), "[Authoring]"));
         CHECK(app->authoring_host.draft_baseline_valid);
-        CHECK(capture(renderer,dir,"resize-explicit-authoring")); key(SDLK_ESCAPE,0); break;
+        CHECK(capture(renderer,dir,"resize-explicit-authoring")); break;
     case 10:
+        /* Window title updates after present; observe the completed frame. */
+        CHECK(strstr(SDL_GetWindowTitle(window), "[Authoring]"));
+        key(SDLK_ESCAPE,0); break;
+    case 11:
         CHECK(!drawing_program_authoring_host_active(app));
         CHECK(!memcmp(nodes,app->pane_host.nodes,sizeof(nodes)));
         puts("SPLITTER_PROOF cancellation-and-explicit-authoring status=pass"); break;
-    default: puts("SPLITTER_PROOF status=complete"); return 1;
+    default:
+        CHECK(!strstr(SDL_GetWindowTitle(window), "[Authoring]"));
+        puts("SPLITTER_PROOF status=complete"); return 1;
     }
     ++phase; return 0;
 }
