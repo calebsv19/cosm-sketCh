@@ -102,6 +102,17 @@ void drawing_program_ui_controls_invalidate(void) {
   surface.activation_count = 0;
   last_activation = (KitUiSurfaceKey){0};
 }
+int drawing_program_ui_controls_header_at(int x, int y) {
+  if (!geometry_valid || surface.collecting) return 0;
+  for (uint32_t i=0; i<surface.count; ++i) {
+    const KitUiInteractionControl *c=&surface.controls[i];
+    uint32_t op=surface.keys[i].domain;
+    if (c->enabled && (op==DRAWING_UI_PANE_HEADER_FIT || op==DRAWING_UI_PANE_HEADER_LAYOUT) &&
+        x>=c->bounds.x && x<c->bounds.x+c->bounds.width &&
+        y>=c->bounds.y && y<c->bounds.y+c->bounds.height) return 1;
+  }
+  return 0;
+}
 int drawing_program_ui_controls_route(const DrawingProgramAppContext *app,
                                       const SDL_Event *event, int x, int y,
                                       int *ax, int *ay, int *activated) {

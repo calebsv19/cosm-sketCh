@@ -106,6 +106,8 @@ static int activation_contract(DrawingProgramAppContext *ctx, SDL_Renderer *rend
     KitRenderRect b=surface->controls[index].bounds;
     SDL_Event e={0}; e.type=SDL_MOUSEBUTTONDOWN; e.button.button=SDL_BUTTON_LEFT;
     int x=(int)(b.x+b.width/2), y=(int)(b.y+b.height/2),ax,ay,activated;
+    CHECK(drawing_program_ui_controls_header_at(x,y));
+    CHECK(!drawing_program_ui_controls_header_at(-1,-1));
     CHECK(drawing_program_ui_controls_route(ctx,&e,x,y,&ax,&ay,&activated) && !activated);
     e.type=SDL_MOUSEBUTTONUP;
     CHECK(drawing_program_ui_controls_route(ctx,&e,-1,-1,&ax,&ay,&activated) && !activated);

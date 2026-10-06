@@ -103,6 +103,9 @@ uint64_t drawing_program_ui_controls_string_id(const char *text);
 void drawing_program_ui_controls_button(SDL_Renderer *renderer, SDL_Rect clip,
                                         SDL_Rect rect, KitUiButtonSpec *spec);
 void drawing_program_ui_controls_invalidate(void);
+/* Explicit header action slots keep their pointer ownership inside a wider
+ * divider band; ordinary content controls yield to runtime resizing. */
+int drawing_program_ui_controls_header_at(int x, int y);
 /* Available only after a successful activation in the current route call. */
 KitUiSurfaceKey drawing_program_ui_controls_last_activation(void);
 /* Returns ownership; activation resolves to current visible bounds only. */

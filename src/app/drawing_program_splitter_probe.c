@@ -2,6 +2,7 @@
 #include "drawing_program/drawing_program_authoring_host.h"
 #include "drawing_program/drawing_program_render_backend.h"
 #include "drawing_program/drawing_program_ui_controls.h"
+#include "drawing_program/drawing_program_visual_layout.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -55,13 +56,14 @@ int drawing_program_splitter_probe(SDL_Window *window, SDL_Renderer *renderer,
         }
         CHECK(hit);
         x=hit->splitter_bounds.x+hit->splitter_bounds.width/2-6*app->pane_host.splitter_scale_x;
-        /* The widened band overlaps the side header's nearby LAYOUT button. */
+        /* The widened band overlaps an ordinary content tab beside the edge;
+         * explicit header action slots retain their own visible click bounds. */
         const KitPaneCompositionEntry *side=NULL;
         for (uint32_t i=0;i<app->pane_host.composition_host.view.count;++i) {
             const KitPaneCompositionEntry *p=&app->pane_host.composition_host.view.entries[i];
             if (p->header.height>0 && p->header.x<x && p->header.x+p->header.width>x) { side=p; break; }
         }
-        CHECK(side); y=side->header.y+side->header.height/2;
+        CHECK(side); y=side->content.y+make_pane_layout_metrics(app).tab_h/2;
         before=app->pane_host.layout_state; memcpy(nodes,app->pane_host.nodes,sizeof(nodes));
         moved_x=x+40*app->pane_host.splitter_scale_x;
         CHECK(capture(renderer,dir,"resize-initial")); CHECK(pointer(window,renderer,SDL_MOUSEMOTION,x,y)); break;

@@ -227,6 +227,7 @@ static void drawing_program_visual_loop_handle_event(DrawingProgramVisualLoopEve
         if (event->type == SDL_MOUSEMOTION && !drawing_program_pane_host_splitter_drag_active(ctx->app))
             (void)drawing_program_pane_host_update_pointer(ctx->app, (float)event_x, (float)event_y);
         if (event->type == SDL_MOUSEBUTTONDOWN && event->button.button == SDL_BUTTON_LEFT &&
+            !drawing_program_ui_controls_header_at(event_x,event_y) &&
             drawing_program_pane_host_begin_splitter_drag(ctx->app, (float)event_x, (float)event_y)) {
             drawing_program_ui_controls_invalidate();
             ctx->input_handlers->cancel_all_transient_interactions(ctx->app,ctx->canvas_interaction,ctx->selection,1);

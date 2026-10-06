@@ -76,7 +76,9 @@ Divider hit bands are 16 logical window pixels wide, centered on the edge (8 on
 either side); paint stays a thin 2-render-pixel hover/drag highlight. The host
 applies the logical-to-bounded-render scale independently on each axis, including
 Retina and large drawables. Divider presses take priority over nearby content
-buttons within this band; movement outside it retains normal content interaction.
+buttons within this band. Explicit FIT/LAYOUT slots retain ownership inside their
+visible click bounds so the generous divider band cannot swallow a header action.
+Movement outside the band retains normal content interaction.
 
 Splitter motion is a layout transaction. Cancel restores node payload and
 revision state, including nested authoring state. A no-op drag creates no new
@@ -119,7 +121,7 @@ and is inactive in routine use. Run this and other probes separately, checking
 completion, exit status and capture existence; do not combine their drivers.
 
 `DRAWING_PROGRAM_SPLITTER_PROOF=<existing directory>` independently qualifies
-the actual loop: hit the wider band beside a header control, drag without the
+the actual loop: hit the wider band over an ordinary content tab, drag without the
 authoring HUD, commit one revision, cancel another drag with Escape, then enter
 and cancel explicit workspace authoring. It records six captures. Use the same
 isolated no-persist roots and run each engineering probe separately.
