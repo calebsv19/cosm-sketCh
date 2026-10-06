@@ -32,7 +32,7 @@ static int capture(SDL_Renderer *r,const char *dir,const char *name) {
 int drawing_program_splitter_probe(SDL_Window *window, SDL_Renderer *renderer,
                                    const DrawingProgramAppContext *app) {
     const char *dir=getenv("DRAWING_PROGRAM_SPLITTER_PROOF"); if (!dir || !*dir) return 0;
-    static int phase; static uint64_t start; static float x,y,moved_x;
+    static int phase, hover_attempts; static uint64_t start; static float x,y,moved_x;
     static CoreLayoutState before; static CorePaneNode nodes[DRAWING_PROGRAM_PANE_NODE_CAPACITY];
     struct stat st; CHECK(stat(dir,&st)==0 && S_ISDIR(st.st_mode));
     if (!start) start=SDL_GetTicks64(); CHECK(SDL_GetTicks64()-start<30000);
@@ -70,7 +70,13 @@ int drawing_program_splitter_probe(SDL_Window *window, SDL_Renderer *renderer,
     }
     case 1: {
         CorePaneRect line; int hover,drag;
-        CHECK(drawing_program_pane_host_visible_splitter(app,&line,&hover,&drag));
+        /* SDL may deliver a late real pointer/window notification after our
+         * synthetic motion. Synchronize on observed hover, with a finite bound. */
+        if (!drawing_program_pane_host_visible_splitter(app,&line,&hover,&drag)) {
+            CHECK(++hover_attempts<12);
+            CHECK(pointer(window,renderer,SDL_MOUSEMOTION,x,y));
+            return 0;
+        }
         CHECK(hover && !drag && line.width==2);
         CHECK(pointer(window,renderer,SDL_MOUSEBUTTONDOWN,x,y)); break;
     }
