@@ -22,3 +22,9 @@ owns titles/action slots and direct header commands. Panel/render callbacks own
 content only, and shared content bounds also drive hit testing and projection.
 Top-level menu chrome remains a distinct content module. Dynamic providers,
 topology and persistence do not belong in the header adapter.
+
+UI input commands: `input/panel/drawing_program_ui_commands.c` routes shared
+operation/domain keys to typed intents in the existing product handlers. Pointer
+coordinates remain for spatial gestures; button activations have no coordinate
+outputs and never re-enter input intake. `drawing_program_panel_intent.h` is the
+private boundary shared by the panel adapters, not a new cross-program core API.

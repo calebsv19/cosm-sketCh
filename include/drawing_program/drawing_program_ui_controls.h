@@ -108,9 +108,10 @@ void drawing_program_ui_controls_invalidate(void);
 int drawing_program_ui_controls_header_at(int x, int y);
 /* Available only after a successful activation in the current route call. */
 KitUiSurfaceKey drawing_program_ui_controls_last_activation(void);
-/* Returns ownership; activation resolves to current visible bounds only. */
+/* Claim a routed activation once. Rejected commands consume their activation. */
+int drawing_program_ui_controls_claim_activation(KitUiSurfaceKey key);
+/* Returns ownership and a semantic activation; no action coordinates exist. */
 int drawing_program_ui_controls_route(const DrawingProgramAppContext *app,
                                       const SDL_Event *event, int x, int y,
-                                      int *activated_x, int *activated_y,
-                                      int *activated);
+                                      KitUiSurfaceKey *command);
 #endif

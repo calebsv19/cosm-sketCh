@@ -250,6 +250,19 @@ uint32_t drawing_program_visual_authoring_chrome_build_pane_rows(
     return count;
 }
 
+DrawingProgramAuthoringChromeAction drawing_program_visual_authoring_chrome_command(
+    const DrawingProgramAppContext *ctx, KitUiSurfaceKey key) {
+    if (!drawing_program_authoring_host_active(ctx) || key.value > UINT32_MAX)
+        return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_NONE;
+    if (key.domain == DRAWING_UI_AUTHORING_ACTION)
+        return authoring_action_from_overlay_button((KitWorkspaceAuthoringOverlayButtonId)key.value);
+    if (key.domain == DRAWING_UI_AUTHORING_FONT_THEME &&
+        drawing_program_authoring_host_font_theme_overlay_active(ctx) &&
+        kit_workspace_authoring_ui_font_theme_button_enabled((KitWorkspaceAuthoringFontThemeButtonId)key.value))
+        return authoring_action_from_shared_font_button((KitWorkspaceAuthoringFontThemeButtonId)key.value);
+    return DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_NONE;
+}
+
 DrawingProgramAuthoringChromeAction drawing_program_visual_authoring_chrome_hit_test(
     int viewport_width,
     int viewport_height,

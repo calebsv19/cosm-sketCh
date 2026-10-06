@@ -6,6 +6,7 @@
 #include <SDL2/SDL.h>
 
 #include "core_theme.h"
+#include "kit_ui_surface.h"
 #include "drawing_program/drawing_program_app_main.h"
 
 #ifdef __cplusplus
@@ -40,6 +41,9 @@ uint32_t drawing_program_visual_authoring_chrome_build_pane_rows(
     const DrawingProgramAppContext *ctx,
     char rows[][DRAWING_PROGRAM_AUTHORING_CHROME_ROW_TEXT_MAX],
     uint32_t row_capacity);
+
+DrawingProgramAuthoringChromeAction drawing_program_visual_authoring_chrome_command(
+    const DrawingProgramAppContext *ctx, KitUiSurfaceKey key);
 
 DrawingProgramAuthoringChromeAction drawing_program_visual_authoring_chrome_hit_test(
     int viewport_width,

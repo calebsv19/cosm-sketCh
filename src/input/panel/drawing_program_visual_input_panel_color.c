@@ -1,3 +1,4 @@
+#include "drawing_program_panel_intent.h"
 #include "drawing_program/drawing_program_color_panel_internal.h"
 #include "drawing_program/drawing_program_indexed_editor.h"
 
@@ -34,13 +35,13 @@ static void visual_color_panel_apply_object_target(DrawingProgramAppContext *ctx
     }
 }
 
-int drawing_program_visual_input_handle_right_color_panel_click_payload(
+int drawing_program_visual_input_handle_right_color_panel_click_payload_intent(
     DrawingProgramAppContext *ctx,
     SDL_Rect rect,
-    int x,
-    int y,
+    DrawingProgramPanelIntent intent,
     VisualPanelUiState *ui,
     const DrawingProgramVisualInputHandlersHooks *hooks) {
+    int x = intent.x, y = intent.y;
     VisualPaneLayoutMetrics m;
     uint8_t recent_i;
     uint8_t palette_i;
@@ -56,7 +57,7 @@ int drawing_program_visual_input_handle_right_color_panel_click_payload(
         for (slot_index = 0u; slot_index < ctx->texture_project.indexed_profile.slot_count; ++slot_index) {
             SDL_Rect slot_rect = visual_color_panel_swatch_hit_rect(
                 right_color_indexed_slot_rect(rect, m, (uint8_t)slot_index));
-            if (hooks->point_in_rect(slot_rect, x, y)) {
+            if ((!intent.semantic && hooks->point_in_rect(slot_rect, x, y))) {
                 (void)drawing_program_indexed_editor_select_slot(ctx, (uint8_t)slot_index);
                 return 1;
             }
@@ -66,20 +67,20 @@ int drawing_program_visual_input_handle_right_color_panel_click_payload(
     save_button_rect = right_color_save_preset_button_rect(rect, m);
     hue_rect = right_color_hue_slider_rect(rect, m);
     sv_rect = right_color_sv_grid_rect(rect, m);
-    if (hooks->point_in_rect(save_button_rect, x, y)) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_COLOR_RENDER_SAVE_BUTTON_RECT, 0, save_button_rect, hooks)) {
         drawing_program_ui_color_save_active_paint_to_swatch(ctx, ctx->ui.active_color_index);
         return 1;
     }
     for (recent_i = 0u; recent_i < (uint8_t)DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT; ++recent_i) {
         SDL_Rect recent_rect = right_color_recent_swatch_rect(rect, m, recent_i);
         SDL_Rect hit_rect = visual_color_panel_swatch_hit_rect(recent_rect);
-        if (hooks->point_in_rect(hit_rect, x, y)) {
+        if ((!intent.semantic && hooks->point_in_rect(hit_rect, x, y))) {
             drawing_program_ui_color_select_recent_slot(ctx, recent_i);
             visual_color_panel_apply_object_target(ctx, ui);
             return 1;
         }
     }
-    if (hooks->point_in_rect(hue_rect, x, y)) {
+    if ((!intent.semantic && hooks->point_in_rect(hue_rect, x, y))) {
         int relative_x = x - hue_rect.x;
         if (relative_x < 0) {
             relative_x = 0;
@@ -92,7 +93,7 @@ int drawing_program_visual_input_handle_right_color_panel_click_payload(
         visual_color_panel_apply_object_target(ctx, ui);
         return 1;
     }
-    if (hooks->point_in_rect(sv_rect, x, y)) {
+    if ((!intent.semantic && hooks->point_in_rect(sv_rect, x, y))) {
         int relative_x = x - sv_rect.x;
         int relative_y = y - sv_rect.y;
         if (relative_x < 0) {
@@ -116,11 +117,21 @@ int drawing_program_visual_input_handle_right_color_panel_click_payload(
     for (palette_i = 0u; palette_i < (uint8_t)DRAWING_PROGRAM_UI_COLOR_PALETTE_COUNT; ++palette_i) {
         SDL_Rect palette_rect = right_color_palette_swatch_rect(rect, m, palette_i);
         SDL_Rect hit_rect = visual_color_panel_swatch_hit_rect(palette_rect);
-        if (hooks->point_in_rect(hit_rect, x, y)) {
+        if ((!intent.semantic && hooks->point_in_rect(hit_rect, x, y))) {
             drawing_program_ui_color_load_active_paint_from_swatch(ctx, palette_i);
             visual_color_panel_apply_object_target(ctx, ui);
             return 1;
         }
     }
     return 0;
+}
+
+int drawing_program_visual_input_handle_right_color_panel_click_payload(
+    DrawingProgramAppContext *ctx,
+    SDL_Rect rect,
+    int x,
+    int y,
+    VisualPanelUiState *ui,
+    const DrawingProgramVisualInputHandlersHooks *hooks) {
+    return drawing_program_visual_input_handle_right_color_panel_click_payload_intent(ctx, rect, (DrawingProgramPanelIntent){.x=x, .y=y}, ui, hooks);
 }

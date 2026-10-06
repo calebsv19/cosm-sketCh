@@ -1,3 +1,4 @@
+#include "drawing_program_panel_intent.h"
 #include "drawing_program/drawing_program_visual_input_panel_workspace_modes.h"
 
 #include "drawing_program/drawing_program_canvas_reflection.h"
@@ -8,14 +9,14 @@
 #include "drawing_program/drawing_program_visual_panel_ui_state.h"
 #include "drawing_program/drawing_program_visual_right_panel_defs.h"
 
-int drawing_program_visual_input_handle_right_canvas_workspace_mode_payload(
+int drawing_program_visual_input_handle_right_canvas_workspace_mode_payload_intent(
     DrawingProgramAppContext *ctx,
     SDL_Rect rect,
     VisualPaneLayoutMetrics metrics,
-    int x,
-    int y,
+    DrawingProgramPanelIntent intent,
     VisualPanelUiState *ui,
     const DrawingProgramVisualInputHandlersHooks *hooks) {
+
     SDL_Rect center_pick_button;
     SDL_Rect center_reset_button;
     SDL_Rect reflector_add_button;
@@ -30,49 +31,49 @@ int drawing_program_visual_input_handle_right_canvas_workspace_mode_payload(
     }
 
     center_pick_button = right_canvas_center_pick_button_rect(rect, metrics);
-    if (hooks->point_in_rect(center_pick_button, x, y)) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_RENDER_CENTER_PICK_BUTTON, 0, center_pick_button, hooks)) {
         drawing_program_visual_panel_ui_disarm_canvas_delete(ui);
         drawing_program_visual_panel_ui_toggle_reflection_center_pick(ui);
         return 1;
     }
 
     center_reset_button = right_canvas_center_reset_button_rect(rect, metrics);
-    if (hooks->point_in_rect(center_reset_button, x, y)) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_RENDER_CENTER_RESET_BUTTON, 0, center_reset_button, hooks)) {
         drawing_program_visual_panel_ui_disarm_right_canvas_transients(ui);
         drawing_program_canvas_reflection_reset_active_center(ctx);
         return 1;
     }
 
     reflector_add_button = right_canvas_reflector_add_button_rect(rect, metrics);
-    if (hooks->point_in_rect(reflector_add_button, x, y)) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_RENDER_REFLECTOR_ADD_BUTTON, 0, reflector_add_button, hooks)) {
         drawing_program_visual_panel_ui_disarm_right_canvas_transients(ui);
         (void)drawing_program_canvas_reflection_add_active_reflector(ctx, 1, 1);
         return 1;
     }
 
     reflector_cycle_button = right_canvas_reflector_cycle_button_rect(rect, metrics);
-    if (hooks->point_in_rect(reflector_cycle_button, x, y)) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_RENDER_REFLECTOR_CYCLE_BUTTON, 0, reflector_cycle_button, hooks)) {
         drawing_program_visual_panel_ui_disarm_right_canvas_transients(ui);
         (void)drawing_program_canvas_reflection_cycle_active_reflector(ctx, 1);
         return 1;
     }
 
     reflector_toggle_button = right_canvas_reflector_toggle_button_rect(rect, metrics);
-    if (hooks->point_in_rect(reflector_toggle_button, x, y)) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_RENDER_REFLECTOR_TOGGLE_BUTTON, 0, reflector_toggle_button, hooks)) {
         drawing_program_visual_panel_ui_disarm_right_canvas_transients(ui);
         (void)drawing_program_canvas_reflection_toggle_active_reflector_enabled(ctx);
         return 1;
     }
 
     reflector_delete_button = right_canvas_reflector_delete_button_rect(rect, metrics);
-    if (hooks->point_in_rect(reflector_delete_button, x, y)) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_RENDER_REFLECTOR_DELETE_BUTTON, 0, reflector_delete_button, hooks)) {
         drawing_program_visual_panel_ui_disarm_right_canvas_transients(ui);
         (void)drawing_program_canvas_reflection_delete_active_reflector(ctx);
         return 1;
     }
 
     delete_canvas_button = right_canvas_delete_canvas_button_rect(rect, metrics);
-    if (hooks->point_in_rect(delete_canvas_button, x, y)) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_RENDER_DELETE_CANVAS_BUTTON, 0, delete_canvas_button, hooks)) {
         if (ctx->texture_project.surface_count <= 1u) {
             drawing_program_visual_panel_ui_disarm_canvas_delete(ui);
             return 1;
@@ -99,7 +100,7 @@ int drawing_program_visual_input_handle_right_canvas_workspace_mode_payload(
     surface_count = ctx->texture_project.surface_count;
     for (surface_index = 0u; surface_index < surface_count; ++surface_index) {
         SDL_Rect surface_row = right_canvas_surface_row_rect(rect, metrics, surface_index);
-        if (hooks->point_in_rect(surface_row, x, y)) {
+        if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_RENDER_SELECT_CANVAS, ctx->texture_project.surfaces[surface_index].surface_id, surface_row, hooks)) {
             SDL_Rect canvas_rect = {0, 0, 0, 0};
             drawing_program_visual_panel_ui_disarm_reflection_center_pick(ui);
             if (drawing_program_visual_pane_rect_for_module_type(ctx, 1u, &canvas_rect)) {
@@ -111,4 +112,15 @@ int drawing_program_visual_input_handle_right_canvas_workspace_mode_payload(
     }
 
     return 0;
+}
+
+int drawing_program_visual_input_handle_right_canvas_workspace_mode_payload(
+    DrawingProgramAppContext *ctx,
+    SDL_Rect rect,
+    VisualPaneLayoutMetrics metrics,
+    int x,
+    int y,
+    VisualPanelUiState *ui,
+    const DrawingProgramVisualInputHandlersHooks *hooks) {
+    return drawing_program_visual_input_handle_right_canvas_workspace_mode_payload_intent(ctx, rect, metrics, (DrawingProgramPanelIntent){.x=x, .y=y}, ui, hooks);
 }

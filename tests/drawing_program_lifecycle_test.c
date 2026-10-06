@@ -646,8 +646,10 @@ static int lifecycle_run_test_support_contract_suite(void) {
 int drawing_program_ui_contract_suite(void);
 int drawing_program_pane_header_suite(void);
 int drawing_program_pane_lifecycle_suite(void);
+int drawing_program_ui_command_suite(void);
 
 static const LifecycleStandaloneSuiteEntry g_lifecycle_standalone_suites[] = {
+    { "ui-command", "direct semantic commands and stale target protection", drawing_program_ui_command_suite },
     { "pane-lifecycle", "production pane lifecycle and accepted layout persistence", drawing_program_pane_lifecycle_suite },
     { "ui-contract", "production UI window/pane contracts", drawing_program_ui_contract_suite },
     { "pane-header", "production pane header/content and action contracts", drawing_program_pane_header_suite },
@@ -974,6 +976,7 @@ int main(int argc, char **test_argv) {
     }
     if (drawing_program_ui_contract_suite() != 0) return 1;
     if (drawing_program_pane_header_suite() != 0) return 1;
+    if (drawing_program_ui_command_suite() != 0) return 1;
     if (drawing_program_pane_lifecycle_suite() != 0) return 1;
     if (drawing_program_lifecycle_run_authoring_host_suite() != 0) {
         return 1;

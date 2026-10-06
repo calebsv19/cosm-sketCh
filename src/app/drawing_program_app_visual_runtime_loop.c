@@ -7,6 +7,7 @@
 #include "core_font.h"
 #include "kit_ui_window_sdl.h"
 #include "drawing_program/drawing_program_ui_controls.h"
+#include "drawing_program/drawing_program_ui_commands.h"
 #include "drawing_program/drawing_program_visual_pane_header.h"
 #include "drawing_program/drawing_program_ui_pilot_probe.h"
 #include "kit_ui_window_probe_sdl.h"
@@ -254,26 +255,37 @@ static void drawing_program_visual_loop_handle_event(DrawingProgramVisualLoopEve
             return;
         }
     }
-    SDL_Event activation_event;
-    int activated=0,ax=0,ay=0;
+    KitUiSurfaceKey command = {0};
     if (event->type==SDL_MOUSEWHEEL || kit_ui_window_event_invalidates_sdl(event))
         drawing_program_ui_controls_invalidate();
     if (!drawing_program_pane_host_splitter_drag_active(ctx->app) &&
-        drawing_program_ui_controls_route(ctx->app,event,event_x,event_y,&ax,&ay,&activated)) {
-        if (!activated) return;
-        if (drawing_program_visual_pane_header_action(ctx->app,
-                drawing_program_ui_controls_last_activation())) {
+        drawing_program_ui_controls_route(ctx->app,event,event_x,event_y,&command)) {
+        if (!command.domain) return;
+        if (command.domain == DRAWING_UI_PANE_HEADER_FIT ||
+            command.domain == DRAWING_UI_PANE_HEADER_LAYOUT) {
+            if (!drawing_program_ui_controls_claim_activation(command)) return;
+            (void)drawing_program_visual_pane_header_action(ctx->app, command);
             ctx->input_handlers->cancel_all_transient_interactions(
                 ctx->app, ctx->canvas_interaction, ctx->selection, 1);
             drawing_program_pane_host_cancel_input(ctx->app);
             drawing_program_visual_loop_sync_theme_from_app(ctx);
             return;
         }
-        SDL_zero(activation_event);activation_event.type=SDL_MOUSEBUTTONDOWN;
-        activation_event.button.button=SDL_BUTTON_LEFT;
-        event=&activation_event;event_x=ax;event_y=ay;event_has_position=1;
-        /* Product action runs below, rechecking its own domain predicates.
-         * Reject further events against this geometry until the next frame. */
+        if (command.domain == DRAWING_UI_AUTHORING_ACTION ||
+            command.domain == DRAWING_UI_AUTHORING_FONT_THEME) {
+            if (!drawing_program_ui_controls_claim_activation(command)) return;
+            (void)drawing_program_visual_loop_apply_authoring_chrome_action(ctx,
+                drawing_program_visual_authoring_chrome_command(ctx->app, command));
+            return;
+        }
+        ctx->input_handlers->cancel_all_transient_interactions(
+            ctx->app, ctx->canvas_interaction, ctx->selection, 0);
+        (void)drawing_program_ui_command_dispatch(ctx->app, command,
+            ctx->selection, ctx->panel_ui, ctx->input_handlers);
+        drawing_program_visual_loop_sync_theme_from_app(ctx);
+        /* Every semantic activation is consumed. Rejected commands never
+         * become a pointer press or fall through to canvas/authoring input. */
+        return;
     }
     if (event_has_position) {
         ctx->panel_ui->mouse_known = 1u;
@@ -304,29 +316,11 @@ static void drawing_program_visual_loop_handle_event(DrawingProgramVisualLoopEve
         drawing_program_visual_loop_sync_theme_from_app(ctx);
         return;
     }
-    if (drawing_program_authoring_host_active(ctx->app) &&
-        event->type == SDL_MOUSEBUTTONDOWN &&
-        event->button.button == SDL_BUTTON_LEFT &&
-        event_has_position) {
-        int viewport_w = 0;
-        int viewport_h = 0;
-        DrawingProgramAuthoringChromeAction action = DRAWING_PROGRAM_AUTHORING_CHROME_ACTION_NONE;
-        if (drawing_program_render_backend_output_size(ctx->renderer,
-                                                       &viewport_w,
-                                                       &viewport_h) == 0) {
-            action = drawing_program_visual_authoring_chrome_hit_test(viewport_w,
-                                                                      viewport_h,
-                                                                      ctx->app,
-                                                                      event_x,
-                                                                      event_y);
-        }
-        if (drawing_program_visual_loop_apply_authoring_chrome_action(ctx, action)) {
-            return;
-        }
-        if (drawing_program_authoring_host_font_theme_overlay_active(ctx->app)) {
-            return;
-        }
-    }
+    /* The font/theme modal blocks background pointer presses. Its buttons
+     * execute only through the collected semantic surface above. */
+    if (drawing_program_authoring_host_font_theme_overlay_active(ctx->app) &&
+        event->type == SDL_MOUSEBUTTONDOWN) return;
+
     if (event->type == SDL_KEYDOWN && event->key.keysym.sym == SDLK_ESCAPE) {
         *(ctx->quit) = 1;
     }

@@ -1,3 +1,4 @@
+#include "drawing_program_panel_intent.h"
 #include "drawing_program/drawing_program_visual_input_right_file_tabs.h"
 
 #include <stdarg.h>
@@ -491,13 +492,13 @@ static int visual_right_panel_export_icns(DrawingProgramAppContext *ctx) {
     return 1;
 }
 
-static int visual_right_panel_file_queue_hit_slot(DrawingProgramAppContext *ctx,
+static int visual_right_panel_file_queue_hit_slot_intent(DrawingProgramAppContext *ctx,
                                                   SDL_Rect rect,
-                                                  int x,
-                                                  int y,
+                                                  DrawingProgramPanelIntent intent,
                                                   VisualPanelUiState *ui,
                                                   const DrawingProgramVisualInputHandlersHooks *hooks,
                                                   uint32_t *out_slot_index) {
+    int x = intent.x, y = intent.y;
     VisualPaneLayoutMetrics m;
     SDL_Rect queue_rect;
     uint32_t slot_count;
@@ -511,7 +512,7 @@ static int visual_right_panel_file_queue_hit_slot(DrawingProgramAppContext *ctx,
                                                m,
                                                VISUAL_RIGHT_PANEL_FILE_TAB_ACTION_COUNT,
                                                VISUAL_RIGHT_PANEL_FILE_TAB_FOOTER_LINE_COUNT);
-    if (!hooks->point_in_rect(queue_rect, x, y)) {
+    if (!intent.semantic && !hooks->point_in_rect(queue_rect, x, y)) {
         return 0;
     }
     slot_count = right_file_target_queue_slot_count(ctx);
@@ -522,7 +523,7 @@ static int visual_right_panel_file_queue_hit_slot(DrawingProgramAppContext *ctx,
     ui->right_file_target_queue_scroll_y = scroll_y;
     for (i = 0u; i < slot_count; ++i) {
         SDL_Rect row = right_file_target_queue_row_rect(queue_rect, m, i, scroll_y);
-        if (hooks->point_in_rect(row, x, y)) {
+        if (drawing_program_panel_intent_matches(intent, DRAWING_UI_FILE_PROJECT_SLOT, i, row, hooks)) {
             *out_slot_index = i;
             return 1;
         }
@@ -530,10 +531,9 @@ static int visual_right_panel_file_queue_hit_slot(DrawingProgramAppContext *ctx,
     return 0;
 }
 
-static int visual_right_panel_asset_queue_hit_slot(DrawingProgramAppContext *ctx,
+static int visual_right_panel_asset_queue_hit_slot_intent(DrawingProgramAppContext *ctx,
                                                    SDL_Rect rect,
-                                                   int x,
-                                                   int y,
+                                                   DrawingProgramPanelIntent intent,
                                                    VisualPanelUiState *ui,
                                                    const DrawingProgramVisualInputHandlersHooks *hooks,
                                                    uint32_t *out_slot_index,
@@ -541,6 +541,7 @@ static int visual_right_panel_asset_queue_hit_slot(DrawingProgramAppContext *ctx
                                                    uint32_t *out_object_entry_count,
                                                    DrawingProgramTextureSceneFileEntry *scene_entries,
                                                    DrawingProgramTextureSceneObjectEntry *object_entries) {
+    int x = intent.x, y = intent.y;
     VisualPaneLayoutMetrics m;
     SDL_Rect queue_rect;
     uint32_t slot_count = 0u;
@@ -575,7 +576,7 @@ static int visual_right_panel_asset_queue_hit_slot(DrawingProgramAppContext *ctx
                                                m,
                                                VISUAL_RIGHT_PANEL_ASSET_TAB_FOOTER_LINE_COUNT,
                                                VISUAL_RIGHT_PANEL_ASSET_TAB_ACTION_COUNT);
-    if (!hooks->point_in_rect(queue_rect, x, y)) {
+    if (!intent.semantic && !hooks->point_in_rect(queue_rect, x, y)) {
         return 0;
     }
     scroll_y = right_file_target_queue_clamp_scroll(queue_rect,
@@ -585,7 +586,10 @@ static int visual_right_panel_asset_queue_hit_slot(DrawingProgramAppContext *ctx
     ui->right_file_target_queue_scroll_y = scroll_y;
     for (i = 0u; i < slot_count; ++i) {
         SDL_Rect row = right_file_target_queue_row_rect(queue_rect, m, i, scroll_y);
-        if (hooks->point_in_rect(row, x, y)) {
+        if (drawing_program_panel_intent_matches(intent, DRAWING_UI_FILE_SCENE_ENTRY,
+            ui->right_file_browser_mode == (uint8_t)VISUAL_RIGHT_FILE_BROWSER_MODE_OBJECTS ?
+            (i < *out_object_entry_count ? drawing_program_ui_controls_string_id(object_entries[i].object_id) : 0) :
+            (i < *out_scene_entry_count ? drawing_program_ui_controls_string_id(scene_entries[i].scene_path) : 0), row, hooks)) {
             *out_slot_index = i;
             return 1;
         }
@@ -593,14 +597,14 @@ static int visual_right_panel_asset_queue_hit_slot(DrawingProgramAppContext *ctx
     return 0;
 }
 
-int drawing_program_visual_input_handle_right_file_tab_payload(
+int drawing_program_visual_input_handle_right_file_tab_payload_intent(
     DrawingProgramAppContext *ctx,
     SDL_Rect rect,
-    int x,
-    int y,
+    DrawingProgramPanelIntent intent,
     DrawingProgramSelectionState *selection,
     VisualPanelUiState *ui,
     const DrawingProgramVisualInputHandlersHooks *hooks) {
+
     VisualPaneLayoutMetrics m;
     uint32_t slot_index = 0u;
     SDL_Rect new_project_button;
@@ -623,53 +627,53 @@ int drawing_program_visual_input_handle_right_file_tab_payload(
     pick_input_root_button = right_file_action_button_rect(rect, m, 5u, VISUAL_RIGHT_PANEL_FILE_TAB_ACTION_COUNT);
     save_session_button = right_file_action_button_rect(rect, m, 6u, VISUAL_RIGHT_PANEL_FILE_TAB_ACTION_COUNT);
     reload_session_button = right_file_action_button_rect(rect, m, 7u, VISUAL_RIGHT_PANEL_FILE_TAB_ACTION_COUNT);
-    if (visual_right_panel_file_queue_hit_slot(ctx, rect, x, y, ui, hooks, &slot_index)) {
+    if (visual_right_panel_file_queue_hit_slot_intent(ctx, rect, intent, ui, hooks, &slot_index)) {
         (void)visual_right_panel_select_project_slot(ctx, slot_index, ui, hooks);
         return 1;
     }
-    if (hooks->point_in_rect(new_project_button, x, y)) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_NEW_PROJECT_BUTTON, 0, new_project_button, hooks)) {
         (void)visual_right_panel_new_project(ctx, ui, hooks);
         return 1;
     }
-    if (hooks->point_in_rect(open_project_button, x, y)) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_OPEN_PROJECT_BUTTON, 0, open_project_button, hooks)) {
         (void)visual_right_panel_open_project(ctx, selection, ui, hooks);
         return 1;
     }
-    if (hooks->point_in_rect(save_project_button, x, y)) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_SAVE_PROJECT_BUTTON, 0, save_project_button, hooks)) {
         (void)visual_right_panel_save_project(ctx);
         return 1;
     }
-    if (hooks->point_in_rect(save_as_button, x, y)) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_SAVE_AS_BUTTON, 0, save_as_button, hooks)) {
         (void)visual_right_panel_save_as_project(ctx, ui, hooks);
         return 1;
     }
-    if (hooks->point_in_rect(load_project_button, x, y)) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_LOAD_PROJECT_BUTTON, 0, load_project_button, hooks)) {
         (void)visual_right_panel_load_project(ctx, selection, ui, hooks);
         return 1;
     }
-    if (hooks->point_in_rect(pick_input_root_button, x, y)) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_PICK_INPUT_ROOT_BUTTON, 0, pick_input_root_button, hooks)) {
         (void)visual_right_panel_pick_input_root(ctx, ui, hooks);
         return 1;
     }
-    if (hooks->point_in_rect(save_session_button, x, y)) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_SAVE_SESSION_BUTTON, 0, save_session_button, hooks)) {
         (void)visual_right_panel_save_session(ctx);
         return 1;
     }
-    if (hooks->point_in_rect(reload_session_button, x, y)) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_RELOAD_SESSION_BUTTON, 0, reload_session_button, hooks)) {
         (void)visual_right_panel_reload_session(ctx, selection, ui, hooks);
         return 1;
     }
     return 0;
 }
 
-int drawing_program_visual_input_handle_right_asset_tab_payload(
+int drawing_program_visual_input_handle_right_asset_tab_payload_intent(
     DrawingProgramAppContext *ctx,
     SDL_Rect rect,
-    int x,
-    int y,
+    DrawingProgramPanelIntent intent,
     DrawingProgramSelectionState *selection,
     VisualPanelUiState *ui,
     const DrawingProgramVisualInputHandlersHooks *hooks) {
+
     DrawingProgramTextureSceneFileEntry scene_entries[DRAWING_PROGRAM_TEXTURE_SCENE_BROWSER_LIST_CAPACITY];
     DrawingProgramTextureSceneObjectEntry object_entries[DRAWING_PROGRAM_TEXTURE_SCENE_BROWSER_LIST_CAPACITY];
     uint32_t scene_entry_count = 0u;
@@ -687,7 +691,7 @@ int drawing_program_visual_input_handle_right_asset_tab_payload(
     m = make_pane_layout_metrics(ctx);
     if (ctx->texture_project.profile_kind ==
         DRAWING_PROGRAM_TEXTURE_PROJECT_PROFILE_INDEXED_ATLAS_V1) {
-        return drawing_program_visual_input_handle_indexed_asset(ctx, rect, x, y, ui, hooks);
+        return drawing_program_visual_input_handle_indexed_asset_intent(ctx, rect, intent, ui, hooks);
     }
     browser_scenes_tab = right_asset_browser_mode_tab_rect(rect, m, 0u, 2u);
     browser_objects_tab = right_asset_browser_mode_tab_rect(rect, m, 1u, 2u);
@@ -701,20 +705,19 @@ int drawing_program_visual_input_handle_right_asset_tab_payload(
                                                              VISUAL_RIGHT_PANEL_ASSET_TAB_FOOTER_LINE_COUNT,
                                                              1u,
                                                              VISUAL_RIGHT_PANEL_ASSET_TAB_ACTION_COUNT);
-    if (hooks->point_in_rect(browser_scenes_tab, x, y)) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_BROWSER_SCENES_TAB, 0, browser_scenes_tab, hooks)) {
         ui->right_file_browser_mode = (uint8_t)VISUAL_RIGHT_FILE_BROWSER_MODE_SCENES;
         ui->right_file_target_queue_scroll_y = 0;
         return 1;
     }
-    if (hooks->point_in_rect(browser_objects_tab, x, y) && ctx->session.selected_scene_path[0] != '\0') {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_BROWSER_OBJECTS_TAB, 0, browser_objects_tab, hooks) && ctx->session.selected_scene_path[0] != '\0') {
         ui->right_file_browser_mode = (uint8_t)VISUAL_RIGHT_FILE_BROWSER_MODE_OBJECTS;
         ui->right_file_target_queue_scroll_y = 0;
         return 1;
     }
-    if (visual_right_panel_asset_queue_hit_slot(ctx,
+    if (visual_right_panel_asset_queue_hit_slot_intent(ctx,
                                                 rect,
-                                                x,
-                                                y,
+                                                intent,
                                                 ui,
                                                 hooks,
                                                 &slot_index,
@@ -741,24 +744,24 @@ int drawing_program_visual_input_handle_right_asset_tab_payload(
         }
         return 1;
     }
-    if (hooks->point_in_rect(pick_scene_root_button, x, y)) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_PICK_SCENE_ROOT_BUTTON, 0, pick_scene_root_button, hooks)) {
         (void)visual_right_panel_pick_scene_root(ctx, ui, hooks);
         return 1;
     }
-    if (hooks->point_in_rect(open_object_button, x, y)) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_OPEN_OBJECT_BUTTON, 0, open_object_button, hooks)) {
         (void)visual_right_panel_open_selected_scene_object(ctx, ui, hooks);
         return 1;
     }
     return 0;
 }
 
-int drawing_program_visual_input_handle_right_export_tab_payload(
+int drawing_program_visual_input_handle_right_export_tab_payload_intent(
     DrawingProgramAppContext *ctx,
     SDL_Rect rect,
-    int x,
-    int y,
+    DrawingProgramPanelIntent intent,
     VisualPanelUiState *ui,
     const DrawingProgramVisualInputHandlersHooks *hooks) {
+
     VisualPaneLayoutMetrics m;
     SDL_Rect pick_output_root_button;
     SDL_Rect export_intent_button;
@@ -808,31 +811,31 @@ int drawing_program_visual_input_handle_right_export_tab_payload(
                                                              VISUAL_RIGHT_PANEL_EXPORT_TAB_FOOTER_LINE_COUNT,
                                                              6u,
                                                              VISUAL_RIGHT_PANEL_EXPORT_TAB_ACTION_COUNT);
-    if (hooks->point_in_rect(pick_output_root_button, x, y)) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_PICK_OUTPUT_ROOT_BUTTON, 0, pick_output_root_button, hooks)) {
         (void)visual_right_panel_pick_output_root(ctx);
         return 1;
     }
-    if (hooks->point_in_rect(export_intent_button, x, y)) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_EXPORT_INTENT_BUTTON, 0, export_intent_button, hooks)) {
         (void)visual_right_panel_toggle_texture_export_intent(ctx);
         return 1;
     }
-    if (hooks->point_in_rect(overlay_material_intent_button, x, y)) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_OVERLAY_MATERIAL_INTENT_BUTTON, 0, overlay_material_intent_button, hooks)) {
         (void)visual_right_panel_toggle_overlay_material_intent(ctx);
         return 1;
     }
-    if (hooks->point_in_rect(export_png_button, x, y)) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_EXPORT_PNG_BUTTON, 0, export_png_button, hooks)) {
         (void)visual_right_panel_export_png(ctx);
         return 1;
     }
-    if (hooks->point_in_rect(export_textures_button, x, y)) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_EXPORT_TEXTURES_BUTTON, 0, export_textures_button, hooks)) {
         (void)visual_right_panel_export_textures(ctx);
         return 1;
     }
-    if (hooks->point_in_rect(export_iconset_button, x, y)) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_EXPORT_ICONSET_BUTTON, 0, export_iconset_button, hooks)) {
         (void)visual_right_panel_export_iconset(ctx);
         return 1;
     }
-    if (hooks->point_in_rect(export_icns_button, x, y)) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_EXPORT_ICNS_BUTTON, 0, export_icns_button, hooks)) {
         (void)visual_right_panel_export_icns(ctx);
         return 1;
     }
@@ -911,4 +914,36 @@ int drawing_program_visual_input_handle_right_file_tabs_wheel_payload(
     ui->right_file_target_queue_scroll_y =
         right_file_target_queue_clamp_scroll(queue_rect, m, slot_count, scroll_y);
     return 1;
+}
+
+int drawing_program_visual_input_handle_right_file_tab_payload(
+    DrawingProgramAppContext *ctx,
+    SDL_Rect rect,
+    int x,
+    int y,
+    DrawingProgramSelectionState *selection,
+    VisualPanelUiState *ui,
+    const DrawingProgramVisualInputHandlersHooks *hooks) {
+    return drawing_program_visual_input_handle_right_file_tab_payload_intent(ctx, rect, (DrawingProgramPanelIntent){.x=x, .y=y}, selection, ui, hooks);
+}
+
+int drawing_program_visual_input_handle_right_asset_tab_payload(
+    DrawingProgramAppContext *ctx,
+    SDL_Rect rect,
+    int x,
+    int y,
+    DrawingProgramSelectionState *selection,
+    VisualPanelUiState *ui,
+    const DrawingProgramVisualInputHandlersHooks *hooks) {
+    return drawing_program_visual_input_handle_right_asset_tab_payload_intent(ctx, rect, (DrawingProgramPanelIntent){.x=x, .y=y}, selection, ui, hooks);
+}
+
+int drawing_program_visual_input_handle_right_export_tab_payload(
+    DrawingProgramAppContext *ctx,
+    SDL_Rect rect,
+    int x,
+    int y,
+    VisualPanelUiState *ui,
+    const DrawingProgramVisualInputHandlersHooks *hooks) {
+    return drawing_program_visual_input_handle_right_export_tab_payload_intent(ctx, rect, (DrawingProgramPanelIntent){.x=x, .y=y}, ui, hooks);
 }

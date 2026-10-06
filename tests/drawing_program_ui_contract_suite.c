@@ -121,22 +121,18 @@ static int controls_contract(DrawingProgramAppContext *ctx) {
   SDL_Event e = {0};
   e.type = SDL_MOUSEBUTTONDOWN;
   e.button.button = SDL_BUTTON_LEFT;
-  int ax, ay, activated;
-  CHECK(drawing_program_ui_controls_route(ctx, &e, 20, 20, &ax, &ay,
-                                          &activated) &&
-        !activated);
+  KitUiSurfaceKey command;
+  CHECK(drawing_program_ui_controls_route(ctx, &e, 20, 20, &command) &&
+        !command.domain);
   e.type = SDL_MOUSEBUTTONUP;
-  CHECK(drawing_program_ui_controls_route(ctx, &e, 90, 70, &ax, &ay,
-                                          &activated) &&
-        !activated);
+  CHECK(drawing_program_ui_controls_route(ctx, &e, 90, 70, &command) &&
+        !command.domain);
   e.type = SDL_MOUSEBUTTONDOWN;
-  CHECK(drawing_program_ui_controls_route(ctx, &e, 20, 20, &ax, &ay,
-                                          &activated) &&
-        !activated);
+  CHECK(drawing_program_ui_controls_route(ctx, &e, 20, 20, &command) &&
+        !command.domain);
   e.type = SDL_MOUSEBUTTONUP;
-  CHECK(drawing_program_ui_controls_route(ctx, &e, 20, 20, &ax, &ay,
-                                          &activated) &&
-        activated && ax == 40 && ay == 25);
+  CHECK(drawing_program_ui_controls_route(ctx, &e, 20, 20, &command) &&
+        command.domain == DRAWING_UI_RIGHT_PANEL_RENDER_TAB_CANVAS && command.value == 0);
   /* Modal takeover uses shared focus scope and excludes background controls. */
   CHECK(drawing_program_authoring_host_enter(ctx).code == CORE_OK);
   CHECK(drawing_program_ui_controls_begin(ctx).code == CORE_OK);

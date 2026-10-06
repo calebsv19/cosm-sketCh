@@ -428,7 +428,7 @@ void drawing_program_visual_render_left_panel_content(SDL_Renderer *renderer,
                 (void)snprintf(stroke_color_label,
                                sizeof(stroke_color_label),
                                "SET STROKE COLOR");
-                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_STROKE_COLOR_ROW,0,1);
+                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_STROKE_COLOR_ROW,selected_object->object_id,1);
                 drawing_program_visual_panel_draw_tab_button(renderer,
                                                              rect,
                                                              stroke_color_row,
@@ -450,7 +450,7 @@ void drawing_program_visual_render_left_panel_content(SDL_Renderer *renderer,
                 (void)snprintf(fill_color_label,
                                sizeof(fill_color_label),
                                "SET FILL COLOR");
-                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_FILL_COLOR_ROW,0,1);
+                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_FILL_COLOR_ROW,selected_object->object_id,1);
                 drawing_program_visual_panel_draw_tab_button(renderer,
                                                              rect,
                                                              fill_color_row,
@@ -479,7 +479,7 @@ void drawing_program_visual_render_left_panel_content(SDL_Renderer *renderer,
                                         "STROKE WIDTH",
                                         p.text_primary,
                                         m.body_scale);
-                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_MINUS_RECT,0,1);
+                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_MINUS_RECT,selected_object->object_id,1);
                 drawing_program_visual_panel_draw_tab_button(renderer,
                                                              rect,
                                                              minus_rect,
@@ -509,7 +509,7 @@ void drawing_program_visual_render_left_panel_content(SDL_Renderer *renderer,
                                         value_text,
                                         p.text_primary,
                                         m.body_scale);
-                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_PLUS_RECT,0,1);
+                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_PLUS_RECT,selected_object->object_id,1);
                 drawing_program_visual_panel_draw_tab_button(renderer,
                                                              rect,
                                                              plus_rect,
@@ -532,7 +532,7 @@ void drawing_program_visual_render_left_panel_content(SDL_Renderer *renderer,
                                                                  action_count);
                 const char *fill_label =
                     visual_object_style_fill_enabled(selected_object->style_mode) ? "FILL ON" : "FILL OFF";
-                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_FILL_ROW,0,1);
+                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_FILL_ROW,selected_object->object_id,1);
                 drawing_program_visual_panel_draw_tab_button(renderer,
                                                              rect,
                                                              fill_row,
@@ -566,7 +566,7 @@ void drawing_program_visual_render_left_panel_content(SDL_Renderer *renderer,
                                         "WIDTH",
                                         p.text_primary,
                                         m.body_scale);
-                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_WIDTH_MINUS_RECT,0,1);
+                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_WIDTH_MINUS_RECT,selected_object->object_id,1);
                 drawing_program_visual_panel_draw_tab_button(renderer,
                                                              rect,
                                                              width_minus_rect,
@@ -596,7 +596,7 @@ void drawing_program_visual_render_left_panel_content(SDL_Renderer *renderer,
                                         value_text,
                                         p.text_primary,
                                         m.body_scale);
-                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_WIDTH_PLUS_RECT,0,1);
+                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_WIDTH_PLUS_RECT,selected_object->object_id,1);
                 drawing_program_visual_panel_draw_tab_button(renderer,
                                                              rect,
                                                              width_plus_rect,
@@ -618,7 +618,7 @@ void drawing_program_visual_render_left_panel_content(SDL_Renderer *renderer,
                                         "HEIGHT",
                                         p.text_primary,
                                         m.body_scale);
-                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_HEIGHT_MINUS_RECT,0,1);
+                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_HEIGHT_MINUS_RECT,selected_object->object_id,1);
                 drawing_program_visual_panel_draw_tab_button(renderer,
                                                              rect,
                                                              height_minus_rect,
@@ -648,7 +648,7 @@ void drawing_program_visual_render_left_panel_content(SDL_Renderer *renderer,
                                         value_text,
                                         p.text_primary,
                                         m.body_scale);
-                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_HEIGHT_PLUS_RECT,0,1);
+                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_HEIGHT_PLUS_RECT,selected_object->object_id,1);
                 drawing_program_visual_panel_draw_tab_button(renderer,
                                                              rect,
                                                              height_plus_rect,
@@ -669,7 +669,7 @@ void drawing_program_visual_render_left_panel_content(SDL_Renderer *renderer,
                 int can_close = (selected_object->path_closed || selected_object->path_point_count >= 3u) ? 1 : 0;
                 const char *path_label = selected_object->path_closed ? "PATH CLOSED" :
                                          (can_close ? "PATH OPEN" : "PATH OPEN (3+)");
-                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_PATH_ROW,0,1);
+                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_PATH_ROW,selected_object->object_id,1);
                 drawing_program_visual_panel_draw_tab_button(renderer,
                                                              rect,
                                                              path_row,

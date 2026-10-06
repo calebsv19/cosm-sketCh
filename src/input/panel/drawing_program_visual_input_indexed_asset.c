@@ -1,3 +1,4 @@
+#include "drawing_program_panel_intent.h"
 #include "drawing_program/drawing_program_visual_input_indexed_asset.h"
 
 #include <stdio.h>
@@ -27,13 +28,13 @@ static int indexed_asset_rect_occupied(const DrawingProgramIndexedCellTable *tab
     return 0;
 }
 
-int drawing_program_visual_input_handle_indexed_asset(
+int drawing_program_visual_input_handle_indexed_asset_intent(
     DrawingProgramAppContext *ctx,
     SDL_Rect rect,
-    int x,
-    int y,
+    DrawingProgramPanelIntent intent,
     VisualPanelUiState *ui,
     const DrawingProgramVisualInputHandlersHooks *hooks) {
+    int x = intent.x, y = intent.y;
     const uint32_t action_count = 4u;
     DrawingProgramIndexedCellTable *table;
     const DrawingProgramIndexedTilesetProfile *profile;
@@ -65,10 +66,10 @@ int drawing_program_visual_input_handle_indexed_asset(
     row_count = table->count ? table->count : 1u;
     scroll_y = right_file_target_queue_clamp_scroll(
         queue, metrics, row_count, ui->right_file_target_queue_scroll_y);
-    if (hooks->point_in_rect(queue, x, y)) {
+    if (intent.semantic ? intent.key.domain == DRAWING_UI_FILE_INDEXED_CELL : hooks->point_in_rect(queue, x, y)) {
         for (uint32_t i = 0u; i < table->count; ++i) {
             SDL_Rect row = right_file_target_queue_row_rect(queue, metrics, i, scroll_y);
-            if (hooks->point_in_rect(row, x, y)) {
+            if (drawing_program_panel_intent_matches(intent, DRAWING_UI_FILE_INDEXED_CELL, drawing_program_ui_controls_string_id(table->cells[i].id), row, hooks)) {
                 ctx->ui.indexed_selected_cell = (uint8_t)i;
                 ctx->ui.indexed_workspace_mode = (uint8_t)DRAWING_PROGRAM_INDEXED_WORKSPACE_MODE_CELL_BOARD;
                 indexed_asset_set_status(ctx, "CELL SELECTED IN BOARD");
@@ -77,7 +78,7 @@ int drawing_program_visual_input_handle_indexed_asset(
         }
         return 1;
     }
-    if (hooks->point_in_rect(add_button, x, y)) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_ADD_BUTTON, 0, add_button, hooks)) {
         uint32_t columns = profile->atlas_width / profile->logical_cell_width;
         uint32_t rows = profile->atlas_height / profile->logical_cell_height;
         for (uint32_t slot = 0u; slot < columns * rows; ++slot) {
@@ -97,7 +98,7 @@ int drawing_program_visual_input_handle_indexed_asset(
         indexed_asset_set_status(ctx, "NO FREE CELL RECT");
         return 1;
     }
-    if (hooks->point_in_rect(rename_button, x, y) && table->count > 0u) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_RENAME_BUTTON, 0, rename_button, hooks) && table->count > 0u) {
         char id[DRAWING_PROGRAM_INDEXED_CELL_ID_CAPACITY];
         uint32_t selected = ctx->ui.indexed_selected_cell < table->count
             ? ctx->ui.indexed_selected_cell : 0u;
@@ -113,7 +114,7 @@ int drawing_program_visual_input_handle_indexed_asset(
         }
         return 1;
     }
-    if (hooks->point_in_rect(move_button, x, y) && table->count > 0u) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_MOVE_BUTTON, 0, move_button, hooks) && table->count > 0u) {
         uint32_t selected = ctx->ui.indexed_selected_cell < table->count
             ? ctx->ui.indexed_selected_cell : 0u;
         uint32_t columns = profile->atlas_width / profile->logical_cell_width;
@@ -133,7 +134,7 @@ int drawing_program_visual_input_handle_indexed_asset(
         indexed_asset_set_status(ctx, "NO FREE CELL RECT");
         return 1;
     }
-    if (hooks->point_in_rect(workspace_button, x, y)) {
+    if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_WORKSPACE_BUTTON, 0, workspace_button, hooks)) {
         ctx->ui.indexed_workspace_mode =
             ctx->ui.indexed_workspace_mode == (uint8_t)DRAWING_PROGRAM_INDEXED_WORKSPACE_MODE_CELL_BOARD
                 ? (uint8_t)DRAWING_PROGRAM_INDEXED_WORKSPACE_MODE_ATLAS
@@ -144,4 +145,14 @@ int drawing_program_visual_input_handle_indexed_asset(
         return 1;
     }
     return 0;
+}
+
+int drawing_program_visual_input_handle_indexed_asset(
+    DrawingProgramAppContext *ctx,
+    SDL_Rect rect,
+    int x,
+    int y,
+    VisualPanelUiState *ui,
+    const DrawingProgramVisualInputHandlersHooks *hooks) {
+    return drawing_program_visual_input_handle_indexed_asset_intent(ctx, rect, (DrawingProgramPanelIntent){.x=x, .y=y}, ui, hooks);
 }

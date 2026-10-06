@@ -57,10 +57,9 @@ has FIT; either side panel has LAYOUT, opening the existing workspace authoring
 session. Narrow/empty panes omit slots instead of overlapping the title; omitted
 or hidden actions have no input target. Disabled actions cannot activate. Action
 keys combine operation and stable pane ID, and the app checks the current module
-policy before dispatch. Headers dispatch directly to existing domain actions;
-older content controls still use their bounded app-handler bridge. Real pointer
-events reach pane ownership before semantic control routing, so a synthesized
-content action cannot become a second press or leave capture stuck after release.
+policy before dispatch. Headers and registered content controls dispatch semantic
+commands directly. Real pointer events reach pane ownership before control routing;
+activations never re-enter pointer intake as fabricated presses.
 
 The three header policies are a fixed app projection. No new pane topology,
 dynamic provider registration or docking is introduced. Fixed-module lifecycle and accepted
@@ -142,11 +141,9 @@ Run independently of other probes with isolated runtime/input/output roots and
 `--no-persist`. Qualification probes are inactive in routine operation.
 
 The fixed-pane macOS UI adoption baseline is the bounded completion target.
-Generalized docking/plugins, fully direct routing of every legacy content action,
-GPU-native canvas composition, other-platform/monitor/IME qualification and
-canonical/release adoption remain separately scoped follow-ons. Existing content
-bridges retain shared control semantics and recheck product eligibility; this
-baseline does not claim they have all been replaced with direct domain commands.
+Generalized docking/plugins, GPU-native canvas composition, other-platform/monitor/IME
+qualification and canonical/release adoption remain separately scoped follow-ons.
+The registered content-control coordinate bridge has been replaced as described below.
 
 ## Verification
 
@@ -181,3 +178,45 @@ the actual loop: hit the wider band over an ordinary content tab, drag without t
 authoring HUD, commit one revision, cancel another drag with Escape, then enter
 and cancel explicit workspace authoring. It records six captures. Use the same
 isolated no-persist roots and run each engineering probe separately.
+
+## Direct content commands — 2026-10-06
+
+The shared `KitUiSurfaceKey` is the app input command: operation plus domain
+identity. `drawing_program_ui_controls_route` returns that key and has no action
+coordinate outputs. The app loop dispatches headers, authoring/font-theme controls
+and both inspector panes by meaning, then consumes the activation. It never
+constructs an SDL mouse event for a command. Each activation can be claimed once;
+invalidation and scope takeover discard pending commands. Modal pointer presses
+are blocked until the correct scope is collected, without a press-time chrome
+action fallback.
+
+`src/input/panel/drawing_program_ui_commands.c` validates the collected enabled
+key, current modal/composition state and available pane content. Explicit typed
+intents reach the existing product handlers; their operation/identity comparisons
+select the authoritative action without spatial hit tests. Shared interaction,
+focus and clipping remain in kit_ui/kit_pane. Product eligibility, history, file
+panels, import/export and target resolution remain app-owned. No shared API or
+module version changes are required.
+
+Object rows and inspector actions carry object IDs. Layer/canvas rows carry their
+existing IDs; indexed cells and scene entries resolve current stable domain string
+identities rather than visible row offsets. Project-slot numbers retain their
+existing stable slot meaning. Removed or changed targets cannot select the row
+that replaced them. Commands named for the active target retain that product
+meaning and recheck the current tab/profile/domain predicates.
+
+The action bodies are shared between semantic and retained spatial entry points.
+Spatial entry points remain necessary for color surfaces, swatches, opacity, wheel
+scrolling and drawing gestures, and keep the existing domain/pointer regressions.
+These APIs do not justify converting a command into a coordinate. Layout helpers
+may still calculate content geometry within the common product handler; semantic
+action selection does not use it. This slice does not introduce a generic command
+registry, widget tree or new docking/provider model.
+
+`make test-suite TEST_SUITE=ui-command` links production actions and checks pointer
+and keyboard commands, disabled/replayed/invalidated activations, modal takeover,
+hidden panes, standard/indexed eligibility, object target replacement and indexed
+row reordering. Its spatial-hit hook deliberately fails if any semantic command
+reaches a legacy hit test. Aggregate domain/history/persistence/export tests and
+real-loop UI/native/package checks complete the qualification boundary; native
+file-panel acceptance and every destructive action are not automated.

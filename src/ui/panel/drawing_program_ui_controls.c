@@ -115,13 +115,14 @@ int drawing_program_ui_controls_header_at(int x, int y) {
 }
 int drawing_program_ui_controls_route(const DrawingProgramAppContext *app,
                                       const SDL_Event *event, int x, int y,
-                                      int *ax, int *ay, int *activated) {
-  *activated = 0;
+                                      KitUiSurfaceKey *command) {
+  *command = (KitUiSurfaceKey){0};
   last_activation = (KitUiSurfaceKey){0};
   if (controls_scope(app) != surface.scope) {
     (void)kit_ui_focus_scope_sync(&focus, &surface, controls_scope(app),
                                   drawing_program_authoring_host_active(app));
-    return event->type == SDL_MOUSEBUTTONUP || event->type == SDL_KEYUP;
+    return event->type == SDL_MOUSEBUTTONDOWN ||
+           event->type == SDL_MOUSEBUTTONUP || event->type == SDL_KEYUP;
   }
   if (!geometry_valid)
     return event->type == SDL_MOUSEBUTTONDOWN ||
@@ -143,15 +144,11 @@ int drawing_program_ui_controls_route(const DrawingProgramAppContext *app,
       kit_ui_surface_take_activation(&surface, result.activated_id)) {
     for (uint32_t i = 0; i < surface.count; i++)
       if (surface.controls[i].id == result.activated_id) {
-        KitRenderRect b = surface.controls[i].bounds;
-        *ax = (int)(b.x + b.width / 2);
-        *ay = (int)(b.y + b.height / 2);
-        *activated = 1;
-        last_activation = surface.keys[i];
+        *command = last_activation = surface.keys[i];
         break;
       }
   }
-  if (*activated)
+  if (command->domain)
     geometry_valid = 0;
   return result.consumed;
 }
@@ -162,4 +159,11 @@ const KitUiSurface *drawing_program_ui_controls_snapshot(void) {
 
 KitUiSurfaceKey drawing_program_ui_controls_last_activation(void) {
   return last_activation;
+}
+
+int drawing_program_ui_controls_claim_activation(KitUiSurfaceKey key) {
+  if (!key.domain || key.domain != last_activation.domain ||
+      key.value != last_activation.value) return 0;
+  last_activation = (KitUiSurfaceKey){0};
+  return 1;
 }

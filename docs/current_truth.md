@@ -381,3 +381,14 @@ and staged snapshot loads. Renderer-owned resources survive layout preview and
 Cancel; pending cache source work is canceled before document replacement.
 See [UI contract](ui_contract.md) for the exact implementation and qualification
 boundaries. Canonical/production adoption remains separate.
+
+## Main Edit direct content commands — 2026-10-06
+
+Registered buttons now dispatch operation/domain identity directly through the
+shared surface and app product handlers, including authoring controls. Activation
+has no action coordinates and cannot be replayed as a synthetic pointer event.
+Object-inspector actions bind object IDs; typed-intent tests reject stale targets
+and fail on semantic spatial-hit fallback. The existing fixed-pane UI architecture
+uses the adopted shared APIs without module/version changes. See the UI contract
+for spatial-control and qualification boundaries. Canonical/production adoption
+remains separate.
