@@ -140,6 +140,7 @@ int drawing_program_visual_pane_rect_for_module_type(const DrawingProgramAppCont
             KitPaneCompositionEntry pane;
             if (drawing_program_visual_pane_entry(ctx, leaf, &pane).code != CORE_OK)
                 return 0;
+            if (!pane.enabled) continue;
             *out_rect = drawing_program_visual_pane_pixel_rect(pane.content);
             return out_rect->w > 0 && out_rect->h > 0;
         }

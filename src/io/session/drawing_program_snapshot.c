@@ -174,7 +174,7 @@ CoreResult drawing_program_snapshot_save(struct DrawingProgramAppContext *ctx, c
     return result;
 }
 
-CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, const char *path) {
+CoreResult drawing_program_snapshot_load_payload(struct DrawingProgramAppContext *ctx, const char *path) {
     CorePackReader reader;
     CorePackChunkInfo chunk;
     CorePackChunkInfo ui_chunk;
@@ -434,7 +434,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
         result = drawing_program_snapshot_apply_texture_only_indexed_project(ctx, &loaded_texture_project);
     } else {
         result = drawing_program_pane_host_rebuild(ctx);
-        if (result.code == CORE_OK && !drawing_program_pane_host_default_modules_ready(ctx)) {
+        if (result.code == CORE_OK && ctx->pane_host.module_binding_count == 0u) {
             result = drawing_program_pane_host_rebind_default_modules(ctx);
             if (result.code == CORE_OK) {
                 result = drawing_program_pane_host_rebuild(ctx);
@@ -444,6 +444,7 @@ CoreResult drawing_program_snapshot_load(struct DrawingProgramAppContext *ctx, c
             if (loaded_texture_project_found) {
                 drawing_program_texture_project_dispose(&ctx->texture_project);
                 ctx->texture_project = loaded_texture_project;
+                memset(&loaded_texture_project,0,sizeof(loaded_texture_project));
                 result = drawing_program_texture_project_session_commit_active_surface(ctx);
             } else {
                 result = drawing_program_texture_project_session_init_from_current_document(ctx);

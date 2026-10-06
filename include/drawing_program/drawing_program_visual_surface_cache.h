@@ -42,6 +42,10 @@ void drawing_program_visual_surface_cache_prune_for_project(
     const struct DrawingProgramTextureProject *project);
 uint32_t drawing_program_visual_surface_cache_entry_count(void);
 uint32_t drawing_program_visual_surface_cache_pending_count(void);
+/* Borrowed readback for resource qualification; does not allocate or sync. */
+SDL_Texture *drawing_program_visual_surface_cache_texture(uint64_t epoch, uint32_t surface_id);
+/* Drop source pointers before their document/store is replaced; keep textures. */
+void drawing_program_visual_surface_cache_cancel_pending(void);
 uint32_t drawing_program_visual_surface_cache_process_pending_step(uint8_t active_only,
                                                                   DrawingProgramVisualSurfaceCacheTelemetry *out_telemetry);
 void drawing_program_visual_surface_cache_shutdown(void);

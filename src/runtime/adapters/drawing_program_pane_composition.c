@@ -14,7 +14,7 @@ void drawing_program_pane_host_cancel_splitter_drag(
     (void)drawing_program_pane_host_rebuild(ctx);
   }
   kit_pane_splitter_interaction_end_drag(&host->splitter_interaction);
-  kit_pane_host_cancel(&host->composition_host, NULL, NULL);
+  drawing_program_pane_host_cancel_input(ctx);
 }
 CoreResult drawing_program_pane_host_compose(DrawingProgramAppContext *ctx,
                                              int blocked) {
@@ -37,6 +37,5 @@ CoreResult drawing_program_pane_host_compose(DrawingProgramAppContext *ctx,
       &view, specs, ctx->pane_host.leaf_count, viewport);
   if (result.code != CORE_OK)
     return result;
-  return kit_pane_host_sync(&ctx->pane_host.composition_host, &view, blocked,
-                            NULL, NULL);
+  return drawing_program_pane_host_sync_controllers(ctx, &view, blocked);
 }

@@ -8,10 +8,14 @@ KitPaneCompositionSpec drawing_program_visual_pane_spec(
     const DrawingProgramAppContext *ctx, const CorePaneLeafRect *leaf) {
     uint32_t module = drawing_program_visual_module_type_for_pane(ctx, leaf->id);
     VisualPaneLayoutMetrics m = make_pane_layout_metrics(ctx);
+    int enabled = 1;
+    for (uint32_t i=0; i<ctx->pane_host.module_binding_count; ++i)
+        if (ctx->pane_host.module_bindings[i].pane_node_id==leaf->id)
+            enabled=!(ctx->pane_host.module_bindings[i].runtime_flags & DRAWING_PROGRAM_PANE_HIDDEN);
     float header = (module == 1u || module == 2u || module == 4u)
                        ? (float)(m.pad_y + m.title_glyph_h + m.section_gap)
                        : 0.0f;
-    return (KitPaneCompositionSpec){leaf->id, leaf->rect, 0, header, 0, 1};
+    return (KitPaneCompositionSpec){leaf->id, leaf->rect, 0, header, 0, enabled};
 }
 
 CoreResult drawing_program_visual_pane_entry(

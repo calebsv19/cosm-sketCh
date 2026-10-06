@@ -56,6 +56,26 @@ typedef struct DrawingProgramVisualLoopEventContext {
     int *resize_pending;
 } DrawingProgramVisualLoopEventContext;
 
+static void drawing_program_visual_pane_lifecycle(void *user,
+    const CorePaneModuleBinding *binding, const KitPaneHostEvent *event) {
+    DrawingProgramVisualLoopEventContext *ctx=user;
+    (void)binding;
+    if (event->type==KIT_PANE_HOST_CANCEL || event->type==KIT_PANE_HOST_BLUR ||
+        event->type==KIT_PANE_HOST_UNMOUNT)
+        ctx->input_handlers->cancel_all_transient_interactions(
+            ctx->app,ctx->canvas_interaction,ctx->selection,1);
+    /* Fonts, document textures and surface caches belong to the renderer host.
+     * Pane controllers borrow them, so authoring previews/Cancel retain caches. */
+    if (event->type==KIT_PANE_HOST_RESIZE || event->type==KIT_PANE_HOST_UNMOUNT)
+        drawing_program_ui_controls_invalidate();
+}
+static void drawing_program_visual_document_will_change(void *user) {
+    DrawingProgramVisualLoopEventContext *ctx=user;
+    ctx->input_handlers->cancel_all_transient_interactions(
+        ctx->app,ctx->canvas_interaction,ctx->selection,1);
+    drawing_program_visual_surface_cache_cancel_pending();
+}
+
 static double drawing_program_visual_loop_elapsed_sec(Uint64 begin_counter,
                                                       Uint64 end_counter,
                                                       Uint64 perf_freq) {
@@ -220,7 +240,7 @@ static void drawing_program_visual_loop_handle_event(DrawingProgramVisualLoopEve
     if (event_has_position && !drawing_program_authoring_host_active(ctx->app)) {
         KitPaneHostEventType type=event->type==SDL_MOUSEBUTTONDOWN ? KIT_PANE_HOST_POINTER_DOWN :
             event->type==SDL_MOUSEBUTTONUP ? KIT_PANE_HOST_POINTER_UP : KIT_PANE_HOST_POINTER_MOVE;
-        (void)kit_pane_host_pointer(&ctx->app->pane_host.composition_host,type,(float)event_x,(float)event_y,NULL,NULL);
+        (void)drawing_program_pane_host_route_pointer(ctx->app,type,(float)event_x,(float)event_y);
     }
     /* Runtime divider bands own the press before nearby content controls. */
     if (!drawing_program_authoring_host_active(ctx->app) && event_has_position) {
@@ -245,7 +265,7 @@ static void drawing_program_visual_loop_handle_event(DrawingProgramVisualLoopEve
                 drawing_program_ui_controls_last_activation())) {
             ctx->input_handlers->cancel_all_transient_interactions(
                 ctx->app, ctx->canvas_interaction, ctx->selection, 1);
-            kit_pane_host_cancel(&ctx->app->pane_host.composition_host, NULL, NULL);
+            drawing_program_pane_host_cancel_input(ctx->app);
             drawing_program_visual_loop_sync_theme_from_app(ctx);
             return;
         }
@@ -647,9 +667,9 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
 
     {
         int background_present_dirty = 0;
+        DrawingProgramVisualLoopEventContext event_ctx;
         while (!quit) {
             SDL_Event event;
-            DrawingProgramVisualLoopEventContext event_ctx;
             int current_w = 0;
             int current_h = 0;
             int wait_timeout_ms = 0;
@@ -682,6 +702,8 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
             event_ctx.theme_preset = &theme_preset;
             event_ctx.quit = &quit;
             event_ctx.resize_pending = &resize_pending;
+            drawing_program_pane_host_observe(&app_ctx,drawing_program_visual_pane_lifecycle,&event_ctx);
+            drawing_program_pane_host_document_swap_hook(&app_ctx,drawing_program_visual_document_will_change);
 
             wait_timeout_ms = drawing_program_visual_loop_compute_wait_timeout_ms(&wait_policy_input);
             if (wait_timeout_ms > 0) {
@@ -764,7 +786,7 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
                               : 0;
             force_render = (present_count == 0u || window_probe.directory ||
                 getenv("DRAWING_PROGRAM_UI_PROOF") || getenv("DRAWING_PROGRAM_PANE_HEADER_PROOF") ||
-                getenv("DRAWING_PROGRAM_SPLITTER_PROOF")) ? 1 : 0;
+                getenv("DRAWING_PROGRAM_SPLITTER_PROOF") || getenv("DRAWING_PROGRAM_PANE_LIFECYCLE_PROOF")) ? 1 : 0;
             should_run_runtime_tick =
                 (force_render || resize_pending || high_intensity_mode || frame_runtime_tick_event_count > 0u) ? 1 : 0;
             render_policy_input.background_busy = background_busy ? 1u : 0u;
@@ -828,6 +850,9 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
             int splitter_proof=drawing_program_splitter_probe(window,renderer,&app_ctx);
             if (splitter_proof<0) {result=(CoreResult){CORE_ERR_IO,"splitter proof failed"};break;}
             if (splitter_proof>0) quit=1;
+            int lifecycle_proof=drawing_program_pane_lifecycle_probe(window,renderer,&app_ctx);
+            if (lifecycle_proof<0) {result=(CoreResult){CORE_ERR_IO,"pane lifecycle proof failed"};break;}
+            if (lifecycle_proof>0) quit=1;
             if (!drawing_program_render_backend_present(renderer)) {
                 result = (CoreResult){CORE_ERR_IO, "renderer backend present failed"};
                 drawing_program_visual_runtime_print_stage_failure("present", result);
@@ -856,6 +881,7 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
                                                            resize_pending,
                                                            background_busy || background_present_dirty);
         }
+        drawing_program_pane_host_dispose(&app_ctx);
     }
 
     if (drawing_program_render_backend_active_kind(renderer) ==

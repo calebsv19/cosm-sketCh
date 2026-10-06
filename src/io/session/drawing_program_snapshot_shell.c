@@ -35,7 +35,8 @@ typedef struct DrawingProgramSnapshotShellV2 {
 } DrawingProgramSnapshotShellV2;
 
 enum {
-    DRAWING_PROGRAM_SNAPSHOT_SHELL_VERSION_V2 = 2u
+    DRAWING_PROGRAM_SNAPSHOT_SHELL_VERSION_V2 = 2u,
+    DRAWING_PROGRAM_SNAPSHOT_SHELL_VERSION_V3 = 3u
 };
 
 static CoreResult drawing_program_snapshot_shell_invalid(const char *message) {
@@ -60,7 +61,7 @@ CoreResult drawing_program_snapshot_shell_write_current(
     if (!payload) {
         return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "failed to allocate snapshot shell payload" };
     }
-    payload->header.version = DRAWING_PROGRAM_SNAPSHOT_SHELL_VERSION_V2;
+    payload->header.version = DRAWING_PROGRAM_SNAPSHOT_SHELL_VERSION_V3;
     payload->header.history_count = ctx->history.count;
     payload->header.history_cursor = ctx->history.cursor;
     payload->header.schema_version = ctx->document.schema_version;
@@ -85,7 +86,8 @@ CoreResult drawing_program_snapshot_shell_write_current(
         free(payload);
         return result;
     }
-    (void)accepted_root_index;
+    /* reserved0 was zero in older DPS3 files, matching their root index. */
+    payload->header.reserved0 = accepted_root_index;
     memcpy(payload->history_entries, ctx->history.entries, sizeof(payload->history_entries));
     result = core_pack_writer_add_chunk(writer,
                                         drawing_program_snapshot_shell_chunk_id_current(),
@@ -129,10 +131,13 @@ CoreResult drawing_program_snapshot_shell_load_current(
         free(payload);
         return result;
     }
-    if (payload->header.version != DRAWING_PROGRAM_SNAPSHOT_SHELL_VERSION_V2) {
+    if (payload->header.version != DRAWING_PROGRAM_SNAPSHOT_SHELL_VERSION_V2 &&
+        payload->header.version != DRAWING_PROGRAM_SNAPSHOT_SHELL_VERSION_V3) {
         free(payload);
         return (CoreResult){ CORE_ERR_FORMAT, "unsupported drawing snapshot shell version" };
     }
+    if (payload->header.version == DRAWING_PROGRAM_SNAPSHOT_SHELL_VERSION_V2)
+        payload->header.reserved0 = 0u;
     if (payload->header.node_count > DRAWING_PROGRAM_PANE_NODE_CAPACITY ||
         payload->header.binding_count > DRAWING_PROGRAM_MODULE_BINDING_CAPACITY ||
         payload->header.history_count > DRAWING_PROGRAM_HISTORY_CAPACITY ||
@@ -144,6 +149,19 @@ CoreResult drawing_program_snapshot_shell_load_current(
         payload->header.sample_density == 0u) {
         free(payload);
         return (CoreResult){ CORE_ERR_FORMAT, "invalid drawing snapshot shell bounds" };
+    }
+    /* Validate geometry before changing document or live pane state. */
+    CorePaneValidationReport report;
+    CorePaneLeafRect leaves[DRAWING_PROGRAM_PANE_LEAF_CAPACITY];
+    uint32_t leaf_count = 0;
+    CorePaneRect bounds = {0,0,ctx->pane_host_bounds_width,ctx->pane_host_bounds_height};
+    if (bounds.width < 64 || bounds.height < 64) bounds=(CorePaneRect){0,0,1200,800};
+    if (!core_pane_validate_graph(payload->nodes,payload->header.node_count,
+                                  payload->header.reserved0,bounds,&report) ||
+        !core_pane_solve(payload->nodes,payload->header.node_count,payload->header.reserved0,
+                         bounds,leaves,DRAWING_PROGRAM_PANE_LEAF_CAPACITY,&leaf_count)) {
+        free(payload);
+        return (CoreResult){CORE_ERR_FORMAT,"invalid snapshot pane graph"};
     }
     result = drawing_program_document_init_with_shape(&ctx->document,
                                                       payload->header.logical_width,
@@ -183,7 +201,7 @@ CoreResult drawing_program_snapshot_shell_load_current(
     ctx->history.cursor = payload->header.history_cursor;
     ctx->history.raster_delta_count = 0u;
     ctx->pane_host.node_count = payload->header.node_count;
-    ctx->pane_host.root_index = 0u;
+    ctx->pane_host.root_index = payload->header.reserved0;
     ctx->pane_host.module_binding_count = payload->header.binding_count;
     free(payload);
     if (out_found) {

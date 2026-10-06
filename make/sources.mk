@@ -1,4 +1,7 @@
 DRAWING_PROGRAM_BASE_LOCAL_SRCS := \
+	src/app/drawing_program_pane_lifecycle_probe.c \
+	src/runtime/adapters/drawing_program_pane_lifecycle.c \
+	src/io/session/drawing_program_snapshot_pane_transaction.c \
 	src/app/drawing_program_splitter_probe.c \
 	src/app/drawing_program_pane_header_probe.c \
 	src/render/canvas/drawing_program_visual_canvas_readout.c \
@@ -169,6 +172,7 @@ HEADLESS_TARGET_LOCAL_SRCS := \
 	src/app/drawing_program_app_headless_main.c
 
 TEST_TARGET_LOCAL_SRCS := \
+	tests/drawing_program_pane_lifecycle_suite.c \
 	tests/drawing_program_ui_contract_suite.c \
 	tests/drawing_program_pane_header_suite.c \
 	src/runtime/render/drawing_program_vulkan_rollout.c \

@@ -9,4 +9,6 @@ int drawing_program_pane_header_probe(SDL_Window *window, SDL_Renderer *renderer
                                       const DrawingProgramAppContext *app);
 int drawing_program_splitter_probe(SDL_Window *window, SDL_Renderer *renderer,
                                    const DrawingProgramAppContext *app);
+int drawing_program_pane_lifecycle_probe(SDL_Window *window, SDL_Renderer *renderer,
+                                        DrawingProgramAppContext *app);
 #endif

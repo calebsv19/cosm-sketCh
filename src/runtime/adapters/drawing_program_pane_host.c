@@ -250,6 +250,11 @@ CoreResult drawing_program_pane_host_rebuild(struct DrawingProgramAppContext *ct
 
     preserved_ui = ctx->ui;
     bounds = drawing_program_pane_host_bounds(ctx);
+    if (!ctx->pane_host.node_count || ctx->pane_host.node_count > DRAWING_PROGRAM_PANE_NODE_CAPACITY ||
+        ctx->pane_host.module_binding_count > DRAWING_PROGRAM_MODULE_BINDING_CAPACITY) {
+        final_result = (CoreResult){CORE_ERR_FORMAT, "pane host capacity exceeded"};
+        goto restore_ui;
+    }
     memset(&report, 0, sizeof(report));
     if (!core_pane_validate_graph(ctx->pane_host.nodes,
                                   ctx->pane_host.node_count,
@@ -303,6 +308,19 @@ CoreResult drawing_program_pane_host_rebuild(struct DrawingProgramAppContext *ct
     }
 
 restore_ui:
+    if (final_result.code == CORE_OK) {
+        drawing_program_pane_host_capture_state(&ctx->pane_host, &ctx->pane_host.valid_state);
+        ctx->pane_host.valid_state_ready = 1;
+    } else if (ctx->pane_host.valid_state_ready) {
+        CoreLayoutState layout = ctx->pane_host.layout_state;
+        drawing_program_pane_host_restore_state(&ctx->pane_host, &ctx->pane_host.valid_state);
+        ctx->pane_host.layout_state = layout;
+        /* Restore derived geometry too; failed candidates must not publish hits. */
+        (void)core_pane_solve(ctx->pane_host.nodes, ctx->pane_host.node_count,
+            ctx->pane_host.root_index, bounds, ctx->pane_host.leaves,
+            DRAWING_PROGRAM_PANE_LEAF_CAPACITY, &ctx->pane_host.leaf_count);
+        (void)drawing_program_pane_host_refresh_splitter_hits(ctx, bounds);
+    }
     ctx->ui = preserved_ui;
     return final_result;
 }
@@ -510,6 +528,7 @@ CoreResult drawing_program_pane_host_init(struct DrawingProgramAppContext *ctx) 
         return pane_host_invalid("null app context");
     }
 
+    drawing_program_pane_host_dispose(ctx);
     memset(&ctx->pane_host, 0, sizeof(ctx->pane_host));
     ctx->pane_host.splitter_scale_x = ctx->pane_host.splitter_scale_y = 1.0f;
     core_layout_state_init(&ctx->pane_host.layout_state);
@@ -603,6 +622,7 @@ CoreResult drawing_program_pane_host_render(struct DrawingProgramAppContext *ctx
     for (i = 0u; i < ctx->pane_host.module_binding_count; ++i) {
         const CorePaneModuleBinding *binding = &ctx->pane_host.module_bindings[i];
         const CorePaneModuleDescriptor *descriptor = 0;
+        if (binding->runtime_flags & DRAWING_PROGRAM_PANE_HIDDEN) continue;
         CorePaneModuleResult find_result = core_pane_module_find_by_type_id(&ctx->pane_host.module_registry,
                                                                             binding->module_type_id,
                                                                             &descriptor);
@@ -655,7 +675,7 @@ int drawing_program_pane_host_begin_splitter_drag(struct DrawingProgramAppContex
         return 0;
     }
     memcpy(ctx->pane_host.splitter_before,ctx->pane_host.nodes,sizeof(ctx->pane_host.nodes));
-    kit_pane_host_cancel(&ctx->pane_host.composition_host,NULL,NULL);
+    drawing_program_pane_host_cancel_input(ctx);
     return 1;
 }
 

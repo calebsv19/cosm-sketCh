@@ -21,6 +21,24 @@ struct DrawingProgramAppContext;
 #define DRAWING_PROGRAM_PANE_SPLITTER_HIT_CAPACITY DRAWING_PROGRAM_PANE_NODE_CAPACITY
 #define DRAWING_PROGRAM_MODULE_REGISTRY_CAPACITY 16u
 #define DRAWING_PROGRAM_MODULE_BINDING_CAPACITY 16u
+#define DRAWING_PROGRAM_PANE_HIDDEN 1u /* App-owned persisted binding flag. */
+
+typedef struct DrawingProgramPaneState {
+    CoreLayoutState layout;
+    CorePaneNode nodes[DRAWING_PROGRAM_PANE_NODE_CAPACITY];
+    uint32_t node_count, root_index;
+    CorePaneModuleBinding bindings[DRAWING_PROGRAM_MODULE_BINDING_CAPACITY];
+    uint32_t binding_count;
+} DrawingProgramPaneState;
+
+/* Controllers borrow document/model state. Renderer caches stay host-owned. */
+typedef struct DrawingProgramPaneController {
+    CorePaneModuleBinding binding;
+    uint64_t generation;
+    int mounted, focused, captured;
+} DrawingProgramPaneController;
+typedef void (*DrawingProgramPaneLifecycleObserver)(void *user,
+    const CorePaneModuleBinding *binding, const KitPaneHostEvent *event);
 
 typedef struct DrawingProgramPaneHost {
     CoreLayoutState layout_state;
@@ -40,7 +58,33 @@ typedef struct DrawingProgramPaneHost {
     KitPaneLayoutEdit splitter_edit;
     CorePaneNode splitter_before[DRAWING_PROGRAM_PANE_NODE_CAPACITY];
     KitPaneHost composition_host;
+    DrawingProgramPaneController controllers[DRAWING_PROGRAM_MODULE_BINDING_CAPACITY];
+    uint32_t controller_count;
+    uint64_t next_controller_generation;
+    DrawingProgramPaneLifecycleObserver lifecycle_observer;
+    void *lifecycle_user;
+    void (*document_swap_hook)(void *user);
+    DrawingProgramPaneState valid_state;
+    int valid_state_ready;
 } DrawingProgramPaneHost;
+
+void drawing_program_pane_host_capture_state(const DrawingProgramPaneHost *host,
+    DrawingProgramPaneState *state);
+void drawing_program_pane_host_restore_state(DrawingProgramPaneHost *host,
+    const DrawingProgramPaneState *state);
+CoreResult drawing_program_pane_host_validate_state(const DrawingProgramPaneHost *host,
+    const DrawingProgramPaneState *state, CorePaneRect bounds);
+void drawing_program_pane_host_observe(struct DrawingProgramAppContext *ctx,
+    DrawingProgramPaneLifecycleObserver observer, void *user);
+void drawing_program_pane_host_before_document_swap(struct DrawingProgramAppContext *ctx);
+void drawing_program_pane_host_document_swap_hook(struct DrawingProgramAppContext *ctx,
+    void (*hook)(void *user));
+CoreResult drawing_program_pane_host_sync_controllers(struct DrawingProgramAppContext *ctx,
+    const KitPaneComposition *view, int blocked);
+void drawing_program_pane_host_cancel_input(struct DrawingProgramAppContext *ctx);
+CorePaneId drawing_program_pane_host_route_pointer(struct DrawingProgramAppContext *ctx,
+    KitPaneHostEventType type, float x, float y);
+void drawing_program_pane_host_dispose(struct DrawingProgramAppContext *ctx);
 
 CoreResult drawing_program_pane_host_init(struct DrawingProgramAppContext *ctx);
 CoreResult drawing_program_pane_host_rebuild(struct DrawingProgramAppContext *ctx);

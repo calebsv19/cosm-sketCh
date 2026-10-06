@@ -107,6 +107,8 @@ int drawing_program_visual_draw_frame(SDL_Window *window,
 
     for (i = 0u; i < ctx->pane_host.leaf_count; ++i) {
         const CorePaneLeafRect *leaf = &ctx->pane_host.leaves[i];
+        const KitPaneCompositionEntry *pane=kit_pane_composition_find(&ctx->pane_host.composition_host.view,leaf->id);
+        if (!pane) continue; /* Unmounted or hidden providers do not paint. */
         uint32_t module_type_id = hooks->module_type_for_pane(ctx, (uint32_t)leaf->id);
         SDL_Color fill;
         SDL_Color border;
@@ -135,7 +137,6 @@ int drawing_program_visual_draw_frame(SDL_Window *window,
         }
         SDL_SetRenderDrawColor(renderer, fill.r, fill.g, fill.b, fill.a);
         (void)SDL_RenderFillRect(renderer, &rect);
-        const KitPaneCompositionEntry *pane=kit_pane_composition_find(&ctx->pane_host.composition_host.view,leaf->id);
         KitPaneSdlClip saved;
         if (!pane || !drawing_program_visual_pane_header_draw(renderer,ctx,pane,theme)) return 0;
         if (kit_pane_content_begin_sdl(renderer,pane,&saved).code!=CORE_OK) return 0;

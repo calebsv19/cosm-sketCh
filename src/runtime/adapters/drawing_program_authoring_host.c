@@ -421,6 +421,13 @@ CoreResult drawing_program_authoring_host_export_accepted_pane_state(
                ctx->authoring_host.baseline_module_bindings,
                sizeof(ctx->authoring_host.baseline_module_bindings));
         *out_module_binding_count = ctx->authoring_host.baseline_module_binding_count;
+    } else if (ctx->pane_host.splitter_edit.active && ctx->pane_host.splitter_edit.owns_authoring) {
+        *out_layout_state = ctx->pane_host.splitter_edit.before;
+        memcpy(out_nodes, ctx->pane_host.splitter_before, sizeof(ctx->pane_host.splitter_before));
+        *out_node_count = ctx->pane_host.node_count;
+        *out_root_index = ctx->pane_host.root_index;
+        memcpy(out_module_bindings, ctx->pane_host.module_bindings, sizeof(ctx->pane_host.module_bindings));
+        *out_module_binding_count = ctx->pane_host.module_binding_count;
     } else {
         memcpy(out_nodes, ctx->pane_host.nodes, sizeof(ctx->pane_host.nodes));
         *out_node_count = ctx->pane_host.node_count;

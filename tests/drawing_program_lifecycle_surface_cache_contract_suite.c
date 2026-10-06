@@ -197,6 +197,22 @@ int drawing_program_lifecycle_run_surface_cache_contract_suite(void) {
         goto cleanup;
     }
 
+    SDL_Texture *retained_texture = drawing_program_visual_surface_cache_texture(
+        request.project_epoch, request.surface_id);
+    drawing_program_visual_surface_cache_cancel_pending();
+    if (retained_texture != texture || drawing_program_visual_surface_cache_pending_count() != 0u ||
+        drawing_program_visual_surface_cache_texture(request.project_epoch,request.surface_id) != texture ||
+        drawing_program_visual_surface_cache_entry_count() != 2u ||
+        drawing_program_visual_surface_cache_process_pending_step(0u,&telemetry) != 0u) {
+        fprintf(stderr,"lifecycle_test: expected pending cancellation to retain textures without source work\n");
+        goto cleanup;
+    }
+    /* The same valid source may explicitly enqueue its work again. */
+    texture = drawing_program_visual_surface_cache_sync(renderer,&request,
+        &inactive_surface->storage->document,&inactive_surface->storage->layer_rasters,
+        inactive_opacity,inactive_opacity_count,&telemetry);
+    if (!texture || drawing_program_visual_surface_cache_pending_count() != 1u) goto cleanup;
+
     request.content_revision = active_surface->content_revision + 1u;
     request.surface_id = active_surface->surface_id;
     request.active_surface = 1u;

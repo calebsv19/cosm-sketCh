@@ -63,7 +63,8 @@ events reach pane ownership before semantic control routing, so a synthesized
 content action cannot become a second press or leave capture stuck after release.
 
 The three header policies are a fixed app projection. No new pane topology,
-dynamic provider registration, docking or provider persistence is introduced.
+dynamic provider registration or docking is introduced. Fixed-module lifecycle and accepted
+layout persistence are described below.
 
 Ordinary splitter resizing is a quiet runtime interaction. Its internal layout
 transaction can borrow authoring revision machinery without opening the explicit
@@ -91,6 +92,61 @@ drawable metrics remain separate from the Vulkan compatibility canvas; a
 drawable above 4096 is uniformly scaled into the bounded canvas, presented over
 the full native extent and mapped once for input. Pipeline recovery uses the
 resolved source/package shader directory, including automatic recovery.
+
+## Fixed-module lifecycle and accepted persistence
+
+`core_pane_module` validates stable module/instance/leaf bindings. The app's
+`drawing_program_pane_lifecycle.c` prepares the complete candidate before using
+`kit_pane_host` mount/unmount/resize/focus/cancel notifications. Changing an
+instance, module or configuration at the same pane ID cancels capture, blurs and
+unmounts the old controller before mounting its replacement. Hidden, disabled,
+empty or removed panes have no controller, paint callback or input target.
+The app-owned `DRAWING_PROGRAM_PANE_HIDDEN` binding flag persists visibility;
+this adds no new hide/docking UI. Modal takeover cancels input while retaining
+controllers. Unchanged frames and geometry-only resizing preserve controller
+identity. Failed graph/binding candidates preserve the previous valid geometry
+and live controllers. Explicit authoring Cancel restores its entry bindings/layout.
+
+Controllers borrow document/model storage; renderer-owned font/texture caches
+are shared by the existing panes. Layout preview, hiding and Cancel retain those
+resources. Renderer shutdown releases them through existing owners. Before a
+successful document replacement, a host hook cancels drawing transients against
+the old document and drops pending surface-cache source pointers before freeing
+old storage. Retained textures are then reconciled by the normal project epoch
+and content-signature logic. A failed staged read invokes no replacement hook.
+
+Snapshot loads stage a candidate document, layer store, texture project, UI and
+pane state separately. Failed reads discard the candidate; accepted live state
+and resources remain intact. Successful reads publish validated storage, retain
+the live pane host/observer, clear unfinished gestures and return to runtime mode.
+Valid accepted bindings/configurations survive reopening; only legacy shells
+with no bindings are repaired to defaults. Saving during an explicit authoring
+draft exports its entry baseline. Saving during a quiet runtime resize exports
+the splitter's pre-drag nodes/revision without finishing that gesture. Accepted
+changed drags still commit exactly one revision.
+
+DPS3 shell payload version 3 uses the former reserved header word for root index;
+version 2 remains readable with its historical root-zero meaning. The outer
+core_pack format and legacy fallback chunks remain unchanged. New shared APIs,
+module minimums and module VERSION transitions were unnecessary for this slice.
+
+`make test-suite TEST_SUITE=pane-lifecycle` covers standard/indexed mount/remount,
+hidden input exclusion, failure/Cancel, unfinished/accepted saves, module and
+visibility persistence, nonzero roots and staged late-load failure. The
+`surface-cache` suite verifies pending cancellation retains textures and permits
+fresh enqueue. Optional `DRAWING_PROGRAM_PANE_LIFECYCLE_PROOF=<existing directory>`
+runs six captured actual-loop stages: initial, draft, Cancel, hidden, restored and
+accepted reopen. It checks standard RGBA surface textures and indexed raster
+storage according to their real owner; indexed mode keeps its normal view.
+Run independently of other probes with isolated runtime/input/output roots and
+`--no-persist`. Qualification probes are inactive in routine operation.
+
+The fixed-pane macOS UI adoption baseline is the bounded completion target.
+Generalized docking/plugins, fully direct routing of every legacy content action,
+GPU-native canvas composition, other-platform/monitor/IME qualification and
+canonical/release adoption remain separately scoped follow-ons. Existing content
+bridges retain shared control semantics and recheck product eligibility; this
+baseline does not claim they have all been replaced with direct domain commands.
 
 ## Verification
 

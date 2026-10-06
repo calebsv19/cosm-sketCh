@@ -173,6 +173,19 @@ static DrawingProgramVisualSurfaceCacheEntry *surface_cache_find_entry(uint64_t 
     return 0;
 }
 
+SDL_Texture *drawing_program_visual_surface_cache_texture(uint64_t epoch, uint32_t surface_id) {
+    DrawingProgramVisualSurfaceCacheEntry *entry=surface_cache_find_entry(epoch,surface_id);
+    return entry ? entry->texture : NULL;
+}
+void drawing_program_visual_surface_cache_cancel_pending(void) {
+    for (uint32_t i=0; i<g_surface_cache.count; ++i) {
+        DrawingProgramVisualSurfaceCacheEntry *entry=&g_surface_cache.entries[i];
+        entry->pending_sync=0;
+        entry->pending_document=NULL; entry->pending_layer_rasters=NULL;
+        entry->pending_layer_opacity_count=0;
+    }
+}
+
 static DrawingProgramVisualSurfaceCacheEntry *surface_cache_ensure_entry(uint64_t project_epoch, uint32_t surface_id) {
     DrawingProgramVisualSurfaceCacheEntry *entry = surface_cache_find_entry(project_epoch, surface_id);
     if (entry) {

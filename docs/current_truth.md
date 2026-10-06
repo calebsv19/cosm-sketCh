@@ -372,3 +372,12 @@ separate. See [the UI contract](ui_contract.md) for exact scope and tests.
 - If renderer work resumes, it should start as a fresh bounded plan aimed at a
   newly measured mixed-scene CPU compose problem rather than reopening the
   completed whole-raster seam snapshot.
+
+## Main Edit fixed-pane UI adoption — 2026-10-06
+
+The retained Main Edit UI baseline now includes explicit fixed-module controller
+lifecycle, accepted-only resize/authoring persistence, root-index preservation
+and staged snapshot loads. Renderer-owned resources survive layout preview and
+Cancel; pending cache source work is canceled before document replacement.
+See [UI contract](ui_contract.md) for the exact implementation and qualification
+boundaries. Canonical/production adoption remains separate.

@@ -514,6 +514,7 @@ CoreResult drawing_program_app_shutdown(DrawingProgramAppContext *ctx) {
     if (!ctx) {
         return drawing_program_invalid("null app context");
     }
+    drawing_program_pane_host_dispose(ctx);
     if (!ctx->session.persist_enabled) {
         if (ctx->session.export_json_requested) {
             result = drawing_program_snapshot_export_debug_json(ctx, ctx->session.export_json_path);
