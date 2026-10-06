@@ -5,6 +5,7 @@
 #include "drawing_program/drawing_program_color_model.h"
 #include "drawing_program/drawing_program_indexed_editor.h"
 #include "drawing_program/drawing_program_visual_panel_render_common.h"
+#include "drawing_program/drawing_program_ui_controls.h"
 
 static void draw_color_swatch(SDL_Renderer *renderer, SDL_Rect rect, uint8_t r, uint8_t g, uint8_t b) {
     if (!renderer) {
@@ -163,6 +164,7 @@ void drawing_program_visual_render_right_panel_color_tab(SDL_Renderer *renderer,
                             p.text_muted,
                             m.body_scale);
     (void)snprintf(line, sizeof(line), "SAVE PAINT TO C%u", (unsigned)active_color_index + 1u);
+    drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_COLOR_RENDER_SAVE_BUTTON_RECT,0,1);
     drawing_program_visual_panel_draw_themed_button(
         renderer, rect, save_button_rect, line, p.text_primary, 0, ui, m, p, hooks);
     hsv_line_y = save_button_rect.y + save_button_rect.h + m.section_gap;

@@ -27,6 +27,10 @@ int drawing_program_ui_button_style_resolve(SDL_Color fill,
                                             const DrawingProgramUiButtonSpec *spec,
                                             DrawingProgramUiButtonStyle *out_style);
 
+int drawing_program_ui_button_draw_spec(SDL_Renderer *renderer,SDL_Rect clip,SDL_Rect rect,
+    const DrawingProgramUiButtonSpec *spec,const KitUiButtonTheme *theme,int scale,
+    const DrawingProgramVisualPanelRenderHooks *hooks);
+
 int drawing_program_ui_button_draw_frame(SDL_Renderer *renderer,
                                          SDL_Rect rect,
                                          const DrawingProgramUiButtonStyle *style);

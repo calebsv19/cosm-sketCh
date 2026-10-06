@@ -340,3 +340,8 @@ int drawing_program_visual_measure_bitmap_text_width(const char *text, int scale
     }
     return width;
 }
+
+int drawing_program_visual_text_line_height(int scale) {
+    TTF_Font *font=drawing_program_visual_get_ttf_font_for_preset(g_visual_text_font_preset_id,scale);
+    return font ? TTF_FontHeight(font) : 7*scale;
+}

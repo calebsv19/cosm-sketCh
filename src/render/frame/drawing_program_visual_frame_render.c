@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include "kit_pane_composition_sdl.h"
 
 #include "drawing_program/drawing_program_visual_authoring_chrome.h"
 #include "drawing_program/drawing_program_render_backend.h"
@@ -132,6 +133,9 @@ int drawing_program_visual_draw_frame(SDL_Window *window,
         }
         SDL_SetRenderDrawColor(renderer, fill.r, fill.g, fill.b, fill.a);
         (void)SDL_RenderFillRect(renderer, &rect);
+        const KitPaneCompositionEntry *pane=kit_pane_composition_find(&ctx->pane_host.composition_host.view,leaf->id);
+        KitPaneSdlClip saved;
+        if (!pane || kit_pane_content_begin_sdl(renderer,pane,&saved).code!=CORE_OK) return 0;
         if (module_type_id == 3u) {
             hooks->draw_menu_bar_chrome(renderer, rect, ctx, theme);
         } else if (module_type_id == 2u) {
@@ -142,6 +146,7 @@ int drawing_program_visual_draw_frame(SDL_Window *window,
             hooks->draw_canvas_world_view(renderer, rect, ctx, theme, selection, ui, interaction);
             hooks->draw_canvas_viewport_chrome(renderer, rect, ctx, theme);
         }
+        if (kit_pane_content_end_sdl(renderer,&saved).code!=CORE_OK) return 0;
         SDL_SetRenderDrawColor(renderer, border.r, border.g, border.b, border.a);
         (void)SDL_RenderDrawRect(renderer, &rect);
     }

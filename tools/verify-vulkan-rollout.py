@@ -7,7 +7,7 @@ import struct
 import subprocess
 from pathlib import Path
 
-EXPECTED_SHARED_COMMIT = "ddc0c2b1420d95132ef089e68e2ce7728fbc53a4"
+EXPECTED_SHARED_COMMIT = "7b37ad8c6ca7eafa679ab820aab9cac033d46c11"
 
 
 def output(command: list[str], cwd: Path) -> str:
@@ -28,7 +28,7 @@ def verify_shared(adopted: Path, canonical: Path) -> str:
         raise SystemExit(
             f"canonical shared history does not contain {EXPECTED_SHARED_COMMIT}: {commit}")
     tracked = output(["git", "ls-tree", "-r", "--name-only",
-                      EXPECTED_SHARED_COMMIT, "--", "vk_runtime", "vk_renderer"],
+                      EXPECTED_SHARED_COMMIT, "--", "vk_runtime", "vk_renderer", "kit/kit_ui", "kit/kit_pane", "kit/kit_render", "kit/kit_workspace_authoring", "core/core_layout", "core/core_authored_texture"],
                      canonical).splitlines()
     manifest = hashlib.sha256()
     mismatches = []
@@ -226,7 +226,7 @@ def main() -> int:
     verify_adoption(repo)
     runtime = (adopted / "vk_runtime/VERSION").read_text().strip()
     renderer = (adopted / "vk_renderer/VERSION").read_text().strip()
-    if (runtime, renderer) != ("0.6.0", "1.3.2"):
+    if (runtime, renderer) != ("0.6.0", "1.6.0"):
         raise SystemExit(f"unexpected Vulkan versions: runtime={runtime} renderer={renderer}")
     if args.app:
         if not args.shader_root or not args.initial_capture or not args.resized_capture or not args.log:

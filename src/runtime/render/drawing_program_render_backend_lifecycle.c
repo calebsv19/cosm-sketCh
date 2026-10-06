@@ -30,6 +30,7 @@ typedef struct DrawingProgramRenderBackendState {
     int drawable_width;
     int drawable_height;
     unsigned long frame_count;
+    char sdl_capture_path[4096];
 #if DRAWING_PROGRAM_USE_VULKAN
     VkRenderer vk;
     VkRendererTexture texture;
@@ -40,6 +41,15 @@ typedef struct DrawingProgramRenderBackendState {
 } DrawingProgramRenderBackendState;
 
 static DrawingProgramRenderBackendState g_backend;
+
+int drawing_program_render_backend_canvas_extent(int dw,int dh,int *w,int *h) {
+    if (dw<=0 || dh<=0 || !w || !h) return 0;
+    double scale=fmin(1.0,fmin(4096.0/dw,4096.0/dh));
+    *w=(int)lround(dw*scale);*h=(int)lround(dh*scale);
+    if (*w<1) *w=1;if (*h<1) *h=1;
+    return 1;
+}
+
 
 static int backend_env_enabled(const char *name) {
     const char *value = getenv(name);
@@ -75,9 +85,7 @@ static int backend_drawable_size(SDL_Window *window, int *width, int *height) {
         return 0;
     }
     SDL_Vulkan_GetDrawableSize(window, width, height);
-    return *width > 0 && *height > 0 &&
-           *width <= DRAWING_PROGRAM_VULKAN_CANVAS_WIDTH &&
-           *height <= DRAWING_PROGRAM_VULKAN_CANVAS_HEIGHT;
+    return *width > 0 && *height > 0;
 }
 
 static const char *backend_shader_root(void) {
@@ -139,7 +147,7 @@ static int backend_init_vulkan(DrawingProgramRenderBackendState *backend) {
                                &backend->drawable_height)) {
         return 0;
     }
-    snprintf(backend->shader_root, sizeof(backend->shader_root), "%s", shader_root);
+    if (!realpath(shader_root,backend->shader_root)) return 0;
     backend->surface = SDL_CreateRGBSurfaceWithFormat(
         0,
         DRAWING_PROGRAM_VULKAN_CANVAS_WIDTH,
@@ -284,24 +292,19 @@ int drawing_program_render_backend_output_size(SDL_Renderer *renderer,
     if (!backend_drawable_size(backend->window, width, height)) {
         return -1;
     }
+    (void)drawing_program_render_backend_canvas_extent(*width,*height,width,height);
     return 0;
 #else
     return -1;
 #endif
 }
 
-int drawing_program_render_backend_present(SDL_Renderer *renderer) {
-    DrawingProgramRenderBackendState *backend = &g_backend;
-    if (!renderer || renderer != backend->canvas) {
-        return 0;
-    }
-    if (backend->kind == DRAWING_PROGRAM_RENDER_BACKEND_SDL_DEBUG) {
-        SDL_RenderPresent(renderer);
-        backend->frame_count += 1u;
-        return 1;
-    }
+uint64_t drawing_program_render_backend_presented_frames(SDL_Renderer *renderer) {
+    return renderer == g_backend.canvas ? g_backend.frame_count : 0;
+}
+
 #if DRAWING_PROGRAM_USE_VULKAN
-    {
+static int backend_present_vulkan(DrawingProgramRenderBackendState *backend) {
         VkCommandBuffer command = VK_NULL_HANDLE;
         VkFramebuffer framebuffer = VK_NULL_HANDLE;
         VkExtent2D extent = {0};
@@ -309,9 +312,12 @@ int drawing_program_render_backend_present(SDL_Renderer *renderer) {
         SDL_Rect destination;
         VkResult result;
         int locked = 0;
+        int render_width=0,render_height=0;
         if (!backend_sync_vulkan_size(backend)) {
             return 0;
         }
+        (void)drawing_program_render_backend_canvas_extent(backend->drawable_width,backend->drawable_height,
+            &render_width,&render_height);
         if (backend->frame_count == 0u) {
             const char *automatic_capture = getenv("DRAWING_PROGRAM_VULKAN_CAPTURE");
             if (automatic_capture && automatic_capture[0] &&
@@ -341,8 +347,8 @@ int drawing_program_render_backend_present(SDL_Renderer *renderer) {
                 (size_t)backend->surface->pitch,
                 0u,
                 0u,
-                (uint32_t)backend->drawable_width,
-                (uint32_t)backend->drawable_height);
+                (uint32_t)render_width,
+                (uint32_t)render_height);
         }
         if (locked) {
             SDL_UnlockSurface(backend->surface);
@@ -361,7 +367,7 @@ int drawing_program_render_backend_present(SDL_Renderer *renderer) {
             framebuffer == VK_NULL_HANDLE || extent.width == 0u || extent.height == 0u) {
             return 0;
         }
-        source = (SDL_Rect){0, 0, backend->drawable_width, backend->drawable_height};
+        source = (SDL_Rect){0, 0, render_width,render_height};
         destination = (SDL_Rect){0, 0, (int)extent.width, (int)extent.height};
         vk_renderer_set_logical_size(&backend->vk, (float)extent.width, (float)extent.height);
         vk_renderer_set_draw_color(&backend->vk, 1.0f, 1.0f, 1.0f, 1.0f);
@@ -372,7 +378,39 @@ int drawing_program_render_backend_present(SDL_Renderer *renderer) {
         }
         backend->frame_count += 1u;
         return 1;
+
+}
+#endif
+
+int drawing_program_render_backend_present(SDL_Renderer *renderer) {
+    DrawingProgramRenderBackendState *backend = &g_backend;
+    if (!renderer || renderer != backend->canvas) {
+        return 0;
     }
+    if (backend->kind == DRAWING_PROGRAM_RENDER_BACKEND_SDL_DEBUG) {
+        if (backend->sdl_capture_path[0]) {
+            int w=0,h=0;
+            if (SDL_GetRendererOutputSize(renderer,&w,&h)!=0) return 0;
+            SDL_Surface *capture=SDL_CreateRGBSurfaceWithFormat(0,w,h,32,SDL_PIXELFORMAT_ARGB8888);
+            if (!capture) return 0;
+            int ok=SDL_RenderReadPixels(renderer,NULL,capture->format->format,capture->pixels,capture->pitch)==0 &&
+                SDL_SaveBMP(capture,backend->sdl_capture_path)==0;
+            SDL_FreeSurface(capture);
+            if (!ok) return 0;
+            backend->sdl_capture_path[0]=0;
+        }
+        SDL_RenderPresent(renderer);
+        backend->frame_count += 1u;
+        return 1;
+    }
+#if DRAWING_PROGRAM_USE_VULKAN
+    /* Automatic acquire/present recovery may rebuild pipelines internally.
+     * Resolve packaged shaders in the same scope as explicit recovery. */
+    char previous_cwd[4096];
+    if (!getcwd(previous_cwd,sizeof(previous_cwd)) || chdir(backend->shader_root)!=0) return 0;
+    int presented=backend_present_vulkan(backend);
+    if (chdir(previous_cwd)!=0) return 0;
+    return presented;
 #else
     return 0;
 #endif
@@ -380,11 +418,15 @@ int drawing_program_render_backend_present(SDL_Renderer *renderer) {
 
 int drawing_program_render_backend_request_capture(SDL_Renderer *renderer,
                                                    const char *path) {
-#if DRAWING_PROGRAM_USE_VULKAN
     DrawingProgramRenderBackendState *backend = &g_backend;
-    if (!renderer || renderer != backend->canvas ||
-        backend->kind != DRAWING_PROGRAM_RENDER_BACKEND_VULKAN_KIT ||
-        !path || !path[0] || !backend_sync_vulkan_size(backend)) {
+    if (!renderer || renderer != backend->canvas || !path || !path[0]) return 0;
+    if (backend->kind == DRAWING_PROGRAM_RENDER_BACKEND_SDL_DEBUG) {
+        if (strlen(path) >= sizeof(backend->sdl_capture_path)) return 0;
+        snprintf(backend->sdl_capture_path,sizeof(backend->sdl_capture_path),"%s",path);
+        return 1;
+    }
+#if DRAWING_PROGRAM_USE_VULKAN
+    if (!backend_sync_vulkan_size(backend)) {
         return 0;
     }
     return vk_renderer_request_capture(&backend->vk, path) == VK_SUCCESS;
@@ -457,9 +499,14 @@ int drawing_program_render_backend_drawable_metrics(SDL_Renderer *renderer,
         return 0;
     }
     SDL_GetWindowSize(backend->window, logical_width, logical_height);
-    if (drawing_program_render_backend_output_size(renderer,
-                                                   drawable_width,
-                                                   drawable_height) != 0 ||
+    int metric_result;
+#if DRAWING_PROGRAM_USE_VULKAN
+    if (backend->kind == DRAWING_PROGRAM_RENDER_BACKEND_VULKAN_KIT)
+        metric_result = backend_drawable_size(backend->window,drawable_width,drawable_height) ? 0 : -1;
+    else
+#endif
+        metric_result = SDL_GetRendererOutputSize(renderer,drawable_width,drawable_height);
+    if (metric_result != 0 ||
         *logical_width < 1 || *logical_height < 1) {
         return 0;
     }

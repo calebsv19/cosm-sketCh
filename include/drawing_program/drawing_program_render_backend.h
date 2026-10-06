@@ -28,6 +28,9 @@ DrawingProgramRenderBackendKind drawing_program_render_backend_active_kind(SDL_R
 int drawing_program_render_backend_output_size(SDL_Renderer *renderer,
                                                int *width,
                                                int *height);
+/* Uniformly bounded Vulkan reference canvas; physical metrics stay native. */
+int drawing_program_render_backend_canvas_extent(int dw,int dh,int *w,int *h);
+uint64_t drawing_program_render_backend_presented_frames(SDL_Renderer *renderer);
 int drawing_program_render_backend_present(SDL_Renderer *renderer);
 int drawing_program_render_backend_request_capture(SDL_Renderer *renderer,
                                                    const char *path);

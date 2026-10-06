@@ -6,7 +6,7 @@ Branded program name: `sketCh`
 This is the new hybrid drawing/icon creation program scaffold lane.
 
 The Clang desktop build now defaults to managed Vulkan presentation through
-vendored `vk_runtime 0.6.0` and `vk_renderer 1.3.1`. Drawing semantics remain
+vendored `vk_runtime 0.6.0` and `vk_renderer 1.6.0`. Drawing semantics remain
 CPU/SDL-rasterized into an app-local compatibility canvas, then uploaded with
 nearest filtering at the native drawable extent. Use `--render-backend
 sdl-debug` as the explicit SDL oracle/fallback. This is presentation adoption,
@@ -28,3 +28,5 @@ Ongoing functional development uses the persistent Main Edit workflow in
 `docs/main_edit_worktree.md`. Its local development bundle is
 `sketCh Main Edit.app`; it is isolated from the canonical `sketCh.app` bundle,
 runtime/log state, release artifacts, and Registry authority.
+
+Retained Main Edit UI adoption is documented in [the UI contract](docs/ui_contract.md).

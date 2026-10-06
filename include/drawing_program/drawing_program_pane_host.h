@@ -8,6 +8,7 @@
 #include "core_pane.h"
 #include "core_pane_module.h"
 #include "kit_pane.h"
+#include "kit_pane_host.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,6 +36,9 @@ typedef struct DrawingProgramPaneHost {
     CorePaneModuleBinding module_bindings[DRAWING_PROGRAM_MODULE_BINDING_CAPACITY];
     uint32_t module_binding_count;
     KitPaneSplitterInteraction splitter_interaction;
+    KitPaneLayoutEdit splitter_edit;
+    CorePaneNode splitter_before[DRAWING_PROGRAM_PANE_NODE_CAPACITY];
+    KitPaneHost composition_host;
 } DrawingProgramPaneHost;
 
 CoreResult drawing_program_pane_host_init(struct DrawingProgramAppContext *ctx);
@@ -51,6 +55,8 @@ int drawing_program_pane_host_begin_splitter_drag(struct DrawingProgramAppContex
 int drawing_program_pane_host_update_splitter_drag(struct DrawingProgramAppContext *ctx,
                                                    float point_x,
                                                    float point_y);
+void drawing_program_pane_host_cancel_splitter_drag(struct DrawingProgramAppContext *ctx);
+CoreResult drawing_program_pane_host_compose(struct DrawingProgramAppContext *ctx, int blocked);
 void drawing_program_pane_host_end_splitter_drag(struct DrawingProgramAppContext *ctx);
 int drawing_program_pane_host_splitter_drag_active(const struct DrawingProgramAppContext *ctx);
 int drawing_program_pane_host_visible_splitter(const struct DrawingProgramAppContext *ctx,

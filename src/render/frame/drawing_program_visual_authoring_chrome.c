@@ -12,6 +12,8 @@
 #include "drawing_program/drawing_program_visual_layout.h"
 #include "drawing_program/drawing_program_visual_theme.h"
 #include "kit_workspace_authoring_ui.h"
+#include "drawing_program/drawing_program_ui_controls.h"
+#include "../../ui/panel/drawing_program_ui_button.h"
 
 static const CorePaneModuleBinding *authoring_binding_for_pane(const DrawingProgramAppContext *ctx,
                                                                uint32_t pane_node_id) {
@@ -315,20 +317,16 @@ static void authoring_draw_panel(SDL_Renderer *renderer,
 static void authoring_draw_button(SDL_Renderer *renderer,
                                   SDL_Rect rect,
                                   const char *label,
+                                  uint32_t control_id,
                                   SDL_Color fill,
                                   SDL_Color border,
                                   SDL_Color text) {
-    SDL_SetRenderDrawColor(renderer, fill.r, fill.g, fill.b, fill.a);
-    (void)SDL_RenderFillRect(renderer, &rect);
-    SDL_SetRenderDrawColor(renderer, border.r, border.g, border.b, border.a);
-    (void)SDL_RenderDrawRect(renderer, &rect);
-    (void)drawing_program_visual_draw_bitmap_text(renderer,
-                                                  rect,
-                                                  rect.x + 8,
-                                                  rect.y + 5,
-                                                  label,
-                                                  text,
-                                                  1);
+    DrawingProgramVisualPanelRenderHooks hooks={0};
+    hooks.draw_bitmap_text=drawing_program_visual_draw_bitmap_text;
+    hooks.measure_bitmap_text_width=drawing_program_visual_measure_bitmap_text_width;
+    drawing_program_ui_controls_key(DRAWING_UI_AUTHORING_ACTION,control_id,1);
+    (void)drawing_program_ui_button_draw(renderer,rect,rect,label,fill,fill,fill,border,text,text,
+        1,0,0,KIT_UI_BUTTON_VARIANT_DEFAULT,&hooks);
 }
 
 static void authoring_draw_section(SDL_Renderer *renderer,
@@ -374,6 +372,7 @@ static void authoring_draw_section(SDL_Renderer *renderer,
 static void authoring_draw_font_theme_button(SDL_Renderer *renderer,
                                              SDL_Rect rect,
                                              const char *label,
+                                  uint32_t control_id,
                                              int active,
                                              int enabled,
                                              int text_scale,
@@ -382,27 +381,17 @@ static void authoring_draw_font_theme_button(SDL_Renderer *renderer,
                                              SDL_Color border,
                                              SDL_Color text,
                                              SDL_Color muted) {
-    SDL_Color button_fill = active ? active_fill : fill;
-    SDL_Color button_text = enabled ? text : muted;
-    int text_y;
-    if (text_scale < 1) {
-        text_scale = 1;
-    }
-    text_y = rect.y + ((rect.h - (7 * text_scale)) / 2);
-    if (text_y < rect.y + 2) {
-        text_y = rect.y + 2;
-    }
-    SDL_SetRenderDrawColor(renderer, button_fill.r, button_fill.g, button_fill.b, enabled ? 235u : 130u);
-    (void)SDL_RenderFillRect(renderer, &rect);
-    SDL_SetRenderDrawColor(renderer, border.r, border.g, border.b, enabled ? 238u : 120u);
-    (void)SDL_RenderDrawRect(renderer, &rect);
-    (void)drawing_program_visual_draw_bitmap_text(renderer,
-                                                  rect,
-                                                  rect.x + 8,
-                                                  text_y,
-                                                  label,
-                                                  button_text,
-                                                  text_scale);
+    DrawingProgramVisualPanelRenderHooks hooks={0};
+    hooks.draw_bitmap_text=drawing_program_visual_draw_bitmap_text;
+    hooks.measure_bitmap_text_width=drawing_program_visual_measure_bitmap_text_width;
+    KitUiButtonSpec spec;kit_ui_button_spec_init(&spec,label);
+    spec.state.selected=!!active;spec.state.disabled=!enabled;
+    KitUiButtonTheme theme={{fill.r,fill.g,fill.b,fill.a},{active_fill.r,active_fill.g,active_fill.b,active_fill.a},
+        {fill.r,fill.g,fill.b,fill.a},{active_fill.r,active_fill.g,active_fill.b,active_fill.a},
+        {border.r,border.g,border.b,border.a},{border.r,border.g,border.b,border.a},
+        {text.r,text.g,text.b,text.a},{muted.r,muted.g,muted.b,muted.a}};
+    if (control_id) drawing_program_ui_controls_key(DRAWING_UI_AUTHORING_FONT_THEME,control_id,enabled);
+    (void)drawing_program_ui_button_draw_spec(renderer,rect,rect,&spec,&theme,text_scale,&hooks);
 }
 
 static void authoring_draw_font_theme_overlay(SDL_Renderer *renderer,
@@ -481,7 +470,7 @@ static void authoring_draw_font_theme_overlay(SDL_Renderer *renderer,
         }
         authoring_draw_button(renderer,
                               authoring_rect_from_core(top_buttons[i].rect),
-                              top_buttons[i].label,
+                              top_buttons[i].label,top_buttons[i].id,
                               fill,
                               palette->text_primary,
                               text);
@@ -510,7 +499,7 @@ static void authoring_draw_font_theme_overlay(SDL_Renderer *renderer,
         }
         authoring_draw_font_theme_button(renderer,
                                          authoring_rect_from_kit(layout.font_preset_buttons[i]),
-                                         kit_workspace_authoring_ui_font_theme_button_label(button_id),
+                                         kit_workspace_authoring_ui_font_theme_button_label(button_id),button_id,
                                          active,
                                          enabled,
                                          control_text_scale,
@@ -544,7 +533,7 @@ static void authoring_draw_font_theme_overlay(SDL_Renderer *renderer,
     authoring_draw_font_theme_button(renderer,
                                      authoring_rect_from_kit(layout.text_size_dec_button),
                                      kit_workspace_authoring_ui_font_theme_button_label(
-                                         KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_TEXT_SIZE_DEC),
+                                         KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_TEXT_SIZE_DEC),KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_TEXT_SIZE_DEC,
                                      0,
                                      1,
                                      control_text_scale,
@@ -556,7 +545,7 @@ static void authoring_draw_font_theme_overlay(SDL_Renderer *renderer,
     authoring_draw_font_theme_button(renderer,
                                      authoring_rect_from_kit(layout.text_size_inc_button),
                                      kit_workspace_authoring_ui_font_theme_button_label(
-                                         KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_TEXT_SIZE_INC),
+                                         KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_TEXT_SIZE_INC),KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_TEXT_SIZE_INC,
                                      0,
                                      1,
                                      control_text_scale,
@@ -569,7 +558,7 @@ static void authoring_draw_font_theme_overlay(SDL_Renderer *renderer,
     (void)snprintf(line, sizeof(line), "%+d", (int)ctx->ui.font_zoom_step);
     authoring_draw_font_theme_button(renderer,
                                      value_rect,
-                                     line,
+                                     line,KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_NONE,
                                      1,
                                      1,
                                      control_text_scale,
@@ -581,7 +570,7 @@ static void authoring_draw_font_theme_overlay(SDL_Renderer *renderer,
     authoring_draw_font_theme_button(renderer,
                                      authoring_rect_from_kit(layout.text_size_reset_button),
                                      kit_workspace_authoring_ui_font_theme_button_label(
-                                         KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_TEXT_SIZE_RESET),
+                                         KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_TEXT_SIZE_RESET),KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_TEXT_SIZE_RESET,
                                      ctx->ui.font_zoom_step == 0,
                                      1,
                                      control_text_scale,
@@ -613,7 +602,7 @@ static void authoring_draw_font_theme_overlay(SDL_Renderer *renderer,
         }
         authoring_draw_font_theme_button(renderer,
                                          authoring_rect_from_kit(layout.theme_preset_buttons[i]),
-                                         kit_workspace_authoring_ui_font_theme_button_label(button_id),
+                                         kit_workspace_authoring_ui_font_theme_button_label(button_id),button_id,
                                          active,
                                          1,
                                          control_text_scale,
@@ -645,7 +634,7 @@ static void authoring_draw_font_theme_overlay(SDL_Renderer *renderer,
         button_rect = authoring_rect_from_kit(layout.custom_theme_buttons[i]);
         authoring_draw_font_theme_button(renderer,
                                          button_rect,
-                                         kit_workspace_authoring_ui_font_theme_button_label(button_id),
+                                         kit_workspace_authoring_ui_font_theme_button_label(button_id),button_id,
                                          0,
                                          (int)kit_workspace_authoring_ui_font_theme_button_enabled(button_id),
                                          control_text_scale,
@@ -773,19 +762,19 @@ void drawing_program_visual_authoring_chrome_draw(SDL_Renderer *renderer,
                                                   1);
     authoring_draw_button(renderer,
                           authoring_mode_rect(panel_rect),
-                          "FONT",
+                          "FONT",KIT_WORKSPACE_AUTHORING_OVERLAY_BUTTON_MODE,
                           palette.pane_background,
                           palette.text_primary,
                           palette.text_primary);
     authoring_draw_button(renderer,
                           authoring_apply_rect(panel_rect),
-                          "APPLY",
+                          "APPLY",KIT_WORKSPACE_AUTHORING_OVERLAY_BUTTON_APPLY,
                           palette.status_ok,
                           palette.text_primary,
                           palette.app_background);
     authoring_draw_button(renderer,
                           authoring_cancel_rect(panel_rect),
-                          "CANCEL",
+                          "CANCEL",KIT_WORKSPACE_AUTHORING_OVERLAY_BUTTON_CANCEL,
                           palette.status_warn,
                           palette.text_primary,
                           palette.app_background);
@@ -794,7 +783,7 @@ void drawing_program_visual_authoring_chrome_draw(SDL_Renderer *renderer,
                                                   screen_clip,
                                                   panel_rect.x + 12,
                                                   y,
-                                                  "Tab opens font/theme  Enter applies  Esc cancels  Alt+C then Alt+V toggles",
+                                                  "Tab focuses buttons  FONT switches overlay  Esc cancels  Alt+C then Alt+V toggles",
                                                   palette.text_primary,
                                                   1);
     y += 20;

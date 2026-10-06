@@ -5,6 +5,7 @@
 #include "drawing_program/drawing_program_color_model.h"
 #include "drawing_program/drawing_program_visual_layout.h"
 #include "drawing_program/drawing_program_visual_panel_render_common.h"
+#include "drawing_program/drawing_program_ui_controls.h"
 #include "drawing_program/drawing_program_visual_right_panel_render.h"
 #include "drawing_program/drawing_program_visual_theme.h"
 #include "drawing_program_ui_button.h"
@@ -188,6 +189,7 @@ void drawing_program_visual_render_left_panel_chrome(SDL_Renderer *renderer,
     hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, "LEFT PANEL", p.text_primary, m.title_scale);
     tab_tools = left_panel_slot_tab_rect(rect, m, VISUAL_LEFT_PANEL_SLOT_TOOLS_VALUE, 2u);
     tab_objects = left_panel_slot_tab_rect(rect, m, VISUAL_LEFT_PANEL_SLOT_OBJECTS_VALUE, 2u);
+    drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_TAB_TOOLS,0,1);
     drawing_program_visual_panel_draw_tab_button(renderer,
                                                  rect,
                                                  tab_tools,
@@ -201,6 +203,7 @@ void drawing_program_visual_render_left_panel_chrome(SDL_Renderer *renderer,
                                                  left_slot == VISUAL_LEFT_PANEL_SLOT_TOOLS_VALUE,
                                                  drawing_program_visual_panel_ui_hovered(ui, tab_tools, hooks),
                                                  hooks);
+    drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_TAB_OBJECTS,0,1);
     drawing_program_visual_panel_draw_tab_button(renderer,
                                                  rect,
                                                  tab_objects,
@@ -257,30 +260,15 @@ void drawing_program_visual_render_left_panel_chrome(SDL_Renderer *renderer,
                 SDL_Rect row = left_panel_objects_row_rect(object_list_rect, m, display_i);
                 char line[64];
                 int selected;
-                SDL_Color row_color;
-                SDL_Color label_color;
                 if (row.y + row.h > object_list_rect.y + object_list_rect.h) {
                     break;
                 }
                 selected = drawing_program_object_selection_contains(&ctx->object_selection, object->object_id);
-                row_color = selected ? p.button_fill_active : p.button_fill;
-                label_color = selected ? p.text_primary : sdl_color_ensure_contrast(p.text_muted, row_color);
-                SDL_SetRenderDrawColor(renderer, row_color.r, row_color.g, row_color.b, row_color.a);
-                (void)SDL_RenderFillRect(renderer, &row);
-                SDL_SetRenderDrawColor(renderer, p.button_border.r, p.button_border.g, p.button_border.b, p.button_border.a);
-                (void)SDL_RenderDrawRect(renderer, &row);
-                (void)snprintf(line,
-                               sizeof(line),
-                               "ID %u %s",
-                               (unsigned)object->object_id,
-                               visual_object_type_name(object->type));
-                hooks->draw_bitmap_text(renderer,
-                                        rect,
-                                        row.x + 6,
-                                        row.y + m.row_text_y,
-                                        line,
-                                        label_color,
-                                        m.body_scale);
+                (void)snprintf(line,sizeof(line),"ID %u %s",(unsigned)object->object_id,visual_object_type_name(object->type));
+                drawing_program_ui_controls_key(DRAWING_UI_LEFT_OBJECT,(uint64_t)object->object_id,1);
+                drawing_program_visual_panel_draw_tab_button(renderer,rect,row,line,p.button_fill,p.button_fill_hover,
+                    p.button_fill_active,p.button_border,p.text_primary,m.body_scale,selected,
+                    drawing_program_visual_panel_ui_hovered(ui,row,hooks),hooks);
             }
         }
 
@@ -443,6 +431,7 @@ void drawing_program_visual_render_left_panel_chrome(SDL_Renderer *renderer,
                 (void)snprintf(stroke_color_label,
                                sizeof(stroke_color_label),
                                "SET STROKE COLOR");
+                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_STROKE_COLOR_ROW,0,1);
                 drawing_program_visual_panel_draw_tab_button(renderer,
                                                              rect,
                                                              stroke_color_row,
@@ -464,6 +453,7 @@ void drawing_program_visual_render_left_panel_chrome(SDL_Renderer *renderer,
                 (void)snprintf(fill_color_label,
                                sizeof(fill_color_label),
                                "SET FILL COLOR");
+                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_FILL_COLOR_ROW,0,1);
                 drawing_program_visual_panel_draw_tab_button(renderer,
                                                              rect,
                                                              fill_color_row,
@@ -492,6 +482,7 @@ void drawing_program_visual_render_left_panel_chrome(SDL_Renderer *renderer,
                                         "STROKE WIDTH",
                                         p.text_primary,
                                         m.body_scale);
+                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_MINUS_RECT,0,1);
                 drawing_program_visual_panel_draw_tab_button(renderer,
                                                              rect,
                                                              minus_rect,
@@ -521,6 +512,7 @@ void drawing_program_visual_render_left_panel_chrome(SDL_Renderer *renderer,
                                         value_text,
                                         p.text_primary,
                                         m.body_scale);
+                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_PLUS_RECT,0,1);
                 drawing_program_visual_panel_draw_tab_button(renderer,
                                                              rect,
                                                              plus_rect,
@@ -543,6 +535,7 @@ void drawing_program_visual_render_left_panel_chrome(SDL_Renderer *renderer,
                                                                  action_count);
                 const char *fill_label =
                     visual_object_style_fill_enabled(selected_object->style_mode) ? "FILL ON" : "FILL OFF";
+                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_FILL_ROW,0,1);
                 drawing_program_visual_panel_draw_tab_button(renderer,
                                                              rect,
                                                              fill_row,
@@ -576,6 +569,7 @@ void drawing_program_visual_render_left_panel_chrome(SDL_Renderer *renderer,
                                         "WIDTH",
                                         p.text_primary,
                                         m.body_scale);
+                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_WIDTH_MINUS_RECT,0,1);
                 drawing_program_visual_panel_draw_tab_button(renderer,
                                                              rect,
                                                              width_minus_rect,
@@ -605,6 +599,7 @@ void drawing_program_visual_render_left_panel_chrome(SDL_Renderer *renderer,
                                         value_text,
                                         p.text_primary,
                                         m.body_scale);
+                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_WIDTH_PLUS_RECT,0,1);
                 drawing_program_visual_panel_draw_tab_button(renderer,
                                                              rect,
                                                              width_plus_rect,
@@ -626,6 +621,7 @@ void drawing_program_visual_render_left_panel_chrome(SDL_Renderer *renderer,
                                         "HEIGHT",
                                         p.text_primary,
                                         m.body_scale);
+                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_HEIGHT_MINUS_RECT,0,1);
                 drawing_program_visual_panel_draw_tab_button(renderer,
                                                              rect,
                                                              height_minus_rect,
@@ -655,6 +651,7 @@ void drawing_program_visual_render_left_panel_chrome(SDL_Renderer *renderer,
                                         value_text,
                                         p.text_primary,
                                         m.body_scale);
+                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_HEIGHT_PLUS_RECT,0,1);
                 drawing_program_visual_panel_draw_tab_button(renderer,
                                                              rect,
                                                              height_plus_rect,
@@ -675,6 +672,7 @@ void drawing_program_visual_render_left_panel_chrome(SDL_Renderer *renderer,
                 int can_close = (selected_object->path_closed || selected_object->path_point_count >= 3u) ? 1 : 0;
                 const char *path_label = selected_object->path_closed ? "PATH CLOSED" :
                                          (can_close ? "PATH OPEN" : "PATH OPEN (3+)");
+                drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_PATH_ROW,0,1);
                 drawing_program_visual_panel_draw_tab_button(renderer,
                                                              rect,
                                                              path_row,
@@ -698,14 +696,10 @@ void drawing_program_visual_render_left_panel_chrome(SDL_Renderer *renderer,
         SDL_Rect row = left_panel_tool_row_rect(rect, m, i, tool_count);
         int active = (ctx->editor.active_tool == tool) ? 1 : 0;
         int hovered = drawing_program_visual_panel_ui_hovered(ui, row, hooks);
-        SDL_Color row_color = active ? p.button_fill_active : (hovered ? p.button_fill_hover : p.button_fill);
-        SDL_Color label_color = active ? p.text_primary : sdl_color_ensure_contrast(p.text_muted, row_color);
-        SDL_SetRenderDrawColor(renderer, row_color.r, row_color.g, row_color.b, row_color.a);
-        (void)SDL_RenderFillRect(renderer, &row);
-        SDL_SetRenderDrawColor(renderer, p.button_border.r, p.button_border.g, p.button_border.b, p.button_border.a);
-        (void)SDL_RenderDrawRect(renderer, &row);
-        hooks->draw_bitmap_text(
-            renderer, rect, row.x + 6, row.y + m.row_text_y, hooks->tool_name(tool), label_color, m.body_scale);
+        drawing_program_ui_controls_key(DRAWING_UI_LEFT_TOOL,(uint64_t)tool,1);
+        drawing_program_visual_panel_draw_tab_button(renderer,rect,row,hooks->tool_name(tool),
+            p.button_fill,p.button_fill_hover,p.button_fill_active,p.button_border,p.text_primary,
+            m.body_scale,active,hovered,hooks);
     }
 
     detail_rect = left_panel_tool_detail_rect(rect, m, tool_count);
@@ -744,6 +738,7 @@ void drawing_program_visual_render_left_panel_chrome(SDL_Renderer *renderer,
         }
         hooks->visual_tool_option_value_text_raw(ctx, option_kind_raw, value_text, sizeof(value_text));
         if (hooks->visual_tool_option_is_action_button_raw(option_kind_raw)) {
+            drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_OPTION_ROW,option_kind_raw,1);
             drawing_program_visual_panel_draw_tab_button(renderer,
                             rect,
                             option_row,
@@ -772,6 +767,7 @@ void drawing_program_visual_render_left_panel_chrome(SDL_Renderer *renderer,
                                     hooks->visual_tool_option_label_raw(option_kind_raw),
                                     p.text_muted,
                                     m.body_scale);
+            drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_MINUS_RECT,option_kind_raw,1);
             drawing_program_visual_panel_draw_tab_button(renderer,
                             rect,
                             minus_rect,
@@ -785,6 +781,7 @@ void drawing_program_visual_render_left_panel_chrome(SDL_Renderer *renderer,
                             0,
                             drawing_program_visual_panel_ui_hovered(ui, minus_rect, hooks),
                             hooks);
+            drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_VALUE_RECT,option_kind_raw,0);
             drawing_program_visual_panel_draw_tab_button(renderer,
                             rect,
                             value_rect,
@@ -798,6 +795,7 @@ void drawing_program_visual_render_left_panel_chrome(SDL_Renderer *renderer,
                             0,
                             0,
                             hooks);
+            drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_PLUS_RECT,option_kind_raw,1);
             drawing_program_visual_panel_draw_tab_button(renderer,
                             rect,
                             plus_rect,

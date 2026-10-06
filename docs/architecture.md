@@ -69,7 +69,7 @@ already stable:
   `core_pane_module`, `core_viewport2d`
 - `core_authored_texture`
 - `kit_render`, `kit_pane`, `kit_ui`, `kit_workspace_authoring`
-- `vk_runtime 0.6.0`, `vk_renderer 1.3.1`
+- `vk_runtime 0.6.0`, `vk_renderer 1.6.0`
 
 Shared extraction remains conservative. Drawing-specific behavior stays
 app-local until a later pass proves that a cross-app contract is stable enough

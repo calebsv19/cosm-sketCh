@@ -11,6 +11,7 @@
 #include "drawing_program/drawing_program_visual_layer_opacity.h"
 #include "drawing_program/drawing_program_visual_layout.h"
 #include "drawing_program/drawing_program_visual_panel_render_common.h"
+#include "drawing_program/drawing_program_ui_controls.h"
 #include "drawing_program/drawing_program_visual_right_panel_defs.h"
 #include "drawing_program/drawing_program_visual_right_panel_color_render.h"
 #include "drawing_program/drawing_program_visual_right_panel_file_tabs_render.h"
@@ -71,6 +72,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
     tab_file = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_FILE, VISUAL_RIGHT_PANEL_SLOT_COUNT);
     tab_asset = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_ASSET, VISUAL_RIGHT_PANEL_SLOT_COUNT);
     tab_export = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_EXPORT, VISUAL_RIGHT_PANEL_SLOT_COUNT);
+    drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_TAB_CANVAS,0,1);
     drawing_program_visual_panel_draw_themed_button(
         renderer,
         rect,
@@ -82,6 +84,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
         m,
         p,
         hooks);
+    drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_TAB_LAYER,0,!drawing_program_indexed_editor_is_active(ctx));
     drawing_program_visual_panel_draw_themed_button(
         renderer,
         rect,
@@ -93,6 +96,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
         m,
         p,
         hooks);
+    drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_TAB_COLOR,0,1);
     drawing_program_visual_panel_draw_themed_button(
         renderer,
         rect,
@@ -104,6 +108,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
         m,
         p,
         hooks);
+    drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_TAB_FILE,0,1);
     drawing_program_visual_panel_draw_themed_button(
         renderer,
         rect,
@@ -115,6 +120,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
         m,
         p,
         hooks);
+    drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_TAB_ASSET,0,1);
     drawing_program_visual_panel_draw_themed_button(
         renderer,
         rect,
@@ -126,6 +132,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
         m,
         p,
         hooks);
+    drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_TAB_EXPORT,0,1);
     drawing_program_visual_panel_draw_themed_button(
         renderer,
         rect,
@@ -335,6 +342,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
         reflector_toggle_button = right_canvas_reflector_toggle_button_rect(rect, m);
         reflector_delete_button = right_canvas_reflector_delete_button_rect(rect, m);
         delete_canvas_button = right_canvas_delete_canvas_button_rect(rect, m);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_ADD_SURFACE_BUTTON,0,1);
         drawing_program_visual_panel_draw_tab_button(renderer,
                                                      rect,
                                                      add_surface_button,
@@ -348,6 +356,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                                                      0,
                                                      drawing_program_visual_panel_ui_hovered(ui, add_surface_button, hooks),
                                                      hooks);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_DUPLICATE_SURFACE_BUTTON,0,1);
         drawing_program_visual_panel_draw_tab_button(renderer,
                                                      rect,
                                                      duplicate_surface_button,
@@ -361,6 +370,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                                                      0,
                                                      drawing_program_visual_panel_ui_hovered(ui, duplicate_surface_button, hooks),
                                                      hooks);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_CANVAS_MODE_BUTTON,0,1);
         drawing_program_visual_panel_draw_tab_button(
             renderer,
             rect,
@@ -377,6 +387,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
             ctx->ui.canvas_control_mode == (uint8_t)DRAWING_PROGRAM_UI_CANVAS_CONTROL_MODE_LAYOUT,
             drawing_program_visual_panel_ui_hovered(ui, canvas_mode_button, hooks),
             hooks);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_CANVAS_GUIDE_BUTTON,0,1);
         drawing_program_visual_panel_draw_tab_button(
             renderer,
             rect,
@@ -395,6 +406,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
             ctx->ui.canvas_guide_mode != (uint8_t)DRAWING_PROGRAM_UI_CANVAS_GUIDE_MODE_OFF,
             drawing_program_visual_panel_ui_hovered(ui, canvas_guide_button, hooks),
             hooks);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_REFLECT_HORIZONTAL_BUTTON,0,1);
         drawing_program_visual_panel_draw_tab_button(renderer,
                                                      rect,
                                                      reflect_horizontal_button,
@@ -410,6 +422,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                                                                                             reflect_horizontal_button,
                                                                                             hooks),
                                                      hooks);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_REFLECT_VERTICAL_BUTTON,0,1);
         drawing_program_visual_panel_draw_tab_button(renderer,
                                                      rect,
                                                      reflect_vertical_button,
@@ -425,6 +438,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                                                                                             reflect_vertical_button,
                                                                                             hooks),
                                                      hooks);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_CENTER_PICK_BUTTON,0,1);
         drawing_program_visual_panel_draw_tab_button(renderer,
                                                      rect,
                                                      center_pick_button,
@@ -447,6 +461,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                            "RESET %u,%u",
                            (unsigned)reflection_center_x,
                            (unsigned)reflection_center_y);
+            drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_CENTER_RESET_BUTTON,0,1);
             drawing_program_visual_panel_draw_tab_button(renderer,
                                                          rect,
                                                          center_reset_button,
@@ -463,6 +478,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                                                                                                 hooks),
                                                          hooks);
         }
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_REFLECTOR_ADD_BUTTON,0,1);
         drawing_program_visual_panel_draw_tab_button(renderer,
                                                      rect,
                                                      reflector_add_button,
@@ -478,6 +494,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                                                                                             reflector_add_button,
                                                                                             hooks),
                                                      hooks);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_REFLECTOR_CYCLE_BUTTON,0,1);
         drawing_program_visual_panel_draw_tab_button(renderer,
                                                      rect,
                                                      reflector_cycle_button,
@@ -493,6 +510,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                                                                                             reflector_cycle_button,
                                                                                             hooks),
                                                      hooks);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_REFLECTOR_TOGGLE_BUTTON,0,1);
         drawing_program_visual_panel_draw_tab_button(
             renderer,
             rect,
@@ -517,6 +535,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                 : 0,
             drawing_program_visual_panel_ui_hovered(ui, reflector_toggle_button, hooks),
             hooks);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_REFLECTOR_DELETE_BUTTON,0,1);
         drawing_program_visual_panel_draw_tab_button(
             renderer,
             rect,
@@ -556,6 +575,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                                                         p.button_fill_hover.b,
                                                         p.button_fill_hover.a }
                                          : p.button_fill_hover;
+            drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_DELETE_CANVAS_BUTTON,0,1);
             drawing_program_visual_panel_draw_tab_button(renderer,
                                                          rect,
                                                          delete_canvas_button,
@@ -595,6 +615,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
             fill = (surface_index == ctx->texture_project.active_surface_index) ? p.button_fill_active : p.button_fill;
             text_color =
                 (surface_index == ctx->texture_project.active_surface_index) ? p.text_primary : p.text_muted;
+            drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_SELECT_CANVAS,surface->surface_id,1);
             drawing_program_visual_panel_draw_row_button_variant(
                 renderer,
                 rect,
@@ -621,26 +642,32 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
         delete_selection_button = right_canvas_delete_selection_button_rect(rect, m);
         clear_history_button = right_canvas_clear_history_button_rect(rect, m);
 
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_RESET_LAYOUT_BUTTON,0,1);
         drawing_program_visual_panel_draw_tab_button(renderer, rect, reset_layout_button, "RESET TO OBJECT LAYOUT",
                                                      p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
                                                      p.text_primary, m.body_scale, 0,
                                                      drawing_program_visual_panel_ui_hovered(ui, reset_layout_button, hooks), hooks);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_RESET_VIEW_BUTTON,0,1);
         drawing_program_visual_panel_draw_tab_button(renderer, rect, reset_view_button, "FIT ALL",
                                                      p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
                                                      p.text_primary, m.body_scale, 0,
                                                      drawing_program_visual_panel_ui_hovered(ui, reset_view_button, hooks), hooks);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_CLEAR_CANVAS_BUTTON,0,1);
         drawing_program_visual_panel_draw_tab_button(renderer, rect, clear_canvas_button, "CLEAR CANVAS",
                                                      p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
                                                      p.text_primary, m.body_scale, 0,
                                                      drawing_program_visual_panel_ui_hovered(ui, clear_canvas_button, hooks), hooks);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_CLEAR_OBJECTS_BUTTON,0,1);
         drawing_program_visual_panel_draw_tab_button(renderer, rect, clear_objects_button, "CLEAR OBJECTS",
                                                      p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
                                                      p.text_primary, m.body_scale, 0,
                                                      drawing_program_visual_panel_ui_hovered(ui, clear_objects_button, hooks), hooks);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_DELETE_SELECTION_BUTTON,0,1);
         drawing_program_visual_panel_draw_tab_button(renderer, rect, delete_selection_button, "DELETE SELECTION",
                                                      p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
                                                      delete_selection_enabled ? p.text_primary : p.text_muted, m.body_scale, 0,
                                                      drawing_program_visual_panel_ui_hovered(ui, delete_selection_button, hooks), hooks);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_CLEAR_HISTORY_BUTTON,0,1);
         drawing_program_visual_panel_draw_tab_button(renderer, rect, clear_history_button, "CLEAR HISTORY",
                                                      p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
                                                      p.text_primary, m.body_scale, 0,
@@ -674,6 +701,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                            layer->visible ? "ON" : "OFF",
                            layer->locked ? "ON" : "OFF",
                            layer->name);
+            drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_SELECT_LAYER,layer->layer_id,1);
             drawing_program_visual_panel_draw_row_button_variant(renderer,
                                                                  rect,
                                                                  row,
@@ -728,46 +756,55 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
         hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, "ACTIONS", p.text_primary, m.body_scale);
 
         button_rect = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_ADD);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_ADD_LAYER,0,1);
         drawing_program_visual_panel_draw_tab_button(renderer, rect, button_rect, "ADD LAYER",
                                                      p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
                                                      p.text_primary, m.body_scale, 0,
                                                      drawing_program_visual_panel_ui_hovered(ui, button_rect, hooks), hooks);
         button_rect = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_DUPLICATE);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_DUPLICATE_SELECTED,0,1);
         drawing_program_visual_panel_draw_tab_button(renderer, rect, button_rect, "DUPLICATE SELECTED",
                                                      p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
                                                      p.text_primary, m.body_scale, 0,
                                                      drawing_program_visual_panel_ui_hovered(ui, button_rect, hooks), hooks);
         button_rect = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_RENAME);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_AUTO_ROLE_NAME,0,1);
         drawing_program_visual_panel_draw_tab_button(renderer, rect, button_rect, "AUTO ROLE NAME",
                                                      p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
                                                      p.text_primary, m.body_scale, 0,
                                                      drawing_program_visual_panel_ui_hovered(ui, button_rect, hooks), hooks);
         button_rect = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_DELETE);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_DELETE_SELECTED,0,1);
         drawing_program_visual_panel_draw_tab_button(renderer, rect, button_rect, "DELETE SELECTED",
                                                      p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
                                                      p.text_primary, m.body_scale, 0,
                                                      drawing_program_visual_panel_ui_hovered(ui, button_rect, hooks), hooks);
         button_rect = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_ACTIVE_PREV);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_ACTIVE_PREV,0,1);
         drawing_program_visual_panel_draw_tab_button(renderer, rect, button_rect, "ACTIVE PREV",
                                                      p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
                                                      p.text_primary, m.body_scale, 0,
                                                      drawing_program_visual_panel_ui_hovered(ui, button_rect, hooks), hooks);
         button_rect = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_ACTIVE_NEXT);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_ACTIVE_NEXT,0,1);
         drawing_program_visual_panel_draw_tab_button(renderer, rect, button_rect, "ACTIVE NEXT",
                                                      p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
                                                      p.text_primary, m.body_scale, 0,
                                                      drawing_program_visual_panel_ui_hovered(ui, button_rect, hooks), hooks);
         button_rect = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_MOVE_UP);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_MOVE_UP,0,1);
         drawing_program_visual_panel_draw_tab_button(renderer, rect, button_rect, "MOVE UP",
                                                      p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
                                                      p.text_primary, m.body_scale, 0,
                                                      drawing_program_visual_panel_ui_hovered(ui, button_rect, hooks), hooks);
         button_rect = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_MOVE_DOWN);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_MOVE_DOWN,0,1);
         drawing_program_visual_panel_draw_tab_button(renderer, rect, button_rect, "MOVE DOWN",
                                                      p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
                                                      p.text_primary, m.body_scale, 0,
                                                      drawing_program_visual_panel_ui_hovered(ui, button_rect, hooks), hooks);
         button_rect = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_TOGGLE_VISIBLE);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_ACTIVE_VISIBLE_VISIBLE_ON_VISIBLE_OFF,0,1);
         drawing_program_visual_panel_draw_tab_button(renderer,
                                                      rect,
                                                      button_rect,
@@ -782,6 +819,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
                                                      drawing_program_visual_panel_ui_hovered(ui, button_rect, hooks),
                                                      hooks);
         button_rect = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_TOGGLE_LOCK);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_ACTIVE_LOCKED_LOCK_ON_LOCK_OFF,0,1);
         drawing_program_visual_panel_draw_tab_button(renderer,
                                                      rect,
                                                      button_rect,
@@ -821,6 +859,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
         for (i = 0u; i < (uint32_t)DRAWING_PROGRAM_VISUAL_LAYER_ROLE_PRESET_COUNT; ++i) {
             DrawingProgramVisualLayerRolePreset role = (DrawingProgramVisualLayerRolePreset)i;
             role_button_rect = right_layer_role_button_rect(rect, m, ctx->document.layer_count, i);
+            drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_ROLE_BUTTON_RECT,(uint64_t)role,1);
             drawing_program_visual_panel_draw_tab_button(
                 renderer,
                 rect,

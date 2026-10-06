@@ -116,45 +116,15 @@ void drawing_program_visual_panel_draw_row_button_variant(SDL_Renderer *renderer
                                                           int positive,
                                                           const DrawingProgramVisualPanelRenderHooks *hooks) {
     DrawingProgramUiButtonSpec spec;
-    DrawingProgramUiButtonStyle style;
-    SDL_Color text_color;
-    SDL_Color fill_color;
-    int glyph_h;
-    int text_y;
-
-    if (!renderer || !label || !hooks || !hooks->draw_bitmap_text || rect.w <= 0 || rect.h <= 0) {
-        return;
-    }
-
-    drawing_program_ui_button_spec_init(&spec, label);
-    spec.variant = positive ? KIT_UI_BUTTON_VARIANT_POSITIVE : KIT_UI_BUTTON_VARIANT_DEFAULT;
-    spec.state.selected = selected ? 1 : 0;
-    spec.state.focused = selected ? 1 : 0;
-    spec.state.hovered = hovered ? 1 : 0;
-    spec.state.disabled = disabled ? 1 : 0;
-    if (drawing_program_ui_button_style_resolve(fill,
-                                                fill_hover,
-                                                fill_active,
-                                                border,
-                                                text_primary,
-                                                text_muted,
-                                                &spec,
-                                                &style) != 0) {
-        return;
-    }
-    if (drawing_program_ui_button_draw_frame(renderer, rect, &style) != 0) {
-        return;
-    }
-
-    fill_color = (SDL_Color){ style.fill.r, style.fill.g, style.fill.b, style.fill.a };
-    text_color = sdl_color_ensure_contrast((SDL_Color){ style.text.r, style.text.g, style.text.b, style.text.a },
-                                           fill_color);
-    glyph_h = 7 * text_scale;
-    text_y = rect.y + ((rect.h - glyph_h) / 2);
-    if (text_y < rect.y + 2) {
-        text_y = rect.y + 2;
-    }
-    hooks->draw_bitmap_text(renderer, clip_rect, rect.x + 6, text_y, label, text_color, text_scale);
+    drawing_program_ui_button_spec_init(&spec,label);
+    spec.variant=positive ? KIT_UI_BUTTON_VARIANT_POSITIVE : KIT_UI_BUTTON_VARIANT_DEFAULT;
+    spec.state.selected=!!selected;spec.state.hovered=!!hovered;spec.state.disabled=!!disabled;
+    KitUiButtonTheme theme={
+        {fill.r,fill.g,fill.b,fill.a},{fill_active.r,fill_active.g,fill_active.b,fill_active.a},
+        {fill_hover.r,fill_hover.g,fill_hover.b,fill_hover.a},{fill_active.r,fill_active.g,fill_active.b,fill_active.a},
+        {border.r,border.g,border.b,border.a},{border.r,border.g,border.b,border.a},
+        {text_primary.r,text_primary.g,text_primary.b,text_primary.a},{text_muted.r,text_muted.g,text_muted.b,text_muted.a}};
+    (void)drawing_program_ui_button_draw_spec(renderer,clip_rect,rect,&spec,&theme,text_scale,hooks);
 }
 
 const char *drawing_program_visual_shape_target_mode_name(uint8_t mode) {

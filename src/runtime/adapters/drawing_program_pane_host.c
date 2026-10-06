@@ -624,7 +624,14 @@ int drawing_program_pane_host_begin_splitter_drag(struct DrawingProgramAppContex
                                                                 ctx->pane_host.splitter_hit_count,
                                                                 point_x,
                                                                 point_y);
-    return result.code == CORE_OK ? 1 : 0;
+    if (result.code != CORE_OK) return 0;
+    if (!kit_pane_layout_edit_begin(&ctx->pane_host.splitter_edit,&ctx->pane_host.layout_state)) {
+        kit_pane_splitter_interaction_end_drag(&ctx->pane_host.splitter_interaction);
+        return 0;
+    }
+    memcpy(ctx->pane_host.splitter_before,ctx->pane_host.nodes,sizeof(ctx->pane_host.nodes));
+    kit_pane_host_cancel(&ctx->pane_host.composition_host,NULL,NULL);
+    return 1;
 }
 
 int drawing_program_pane_host_update_splitter_drag(struct DrawingProgramAppContext *ctx,
@@ -648,7 +655,7 @@ int drawing_program_pane_host_update_splitter_drag(struct DrawingProgramAppConte
         if (drawing_program_pane_host_rebuild(ctx).code != CORE_OK) {
             return 0;
         }
-        if (drawing_program_authoring_host_mark_draft_changed(ctx).code != CORE_OK) {
+        if (!kit_pane_layout_edit_update(&ctx->pane_host.splitter_edit,&ctx->pane_host.layout_state,1)) {
             return 0;
         }
     }
@@ -659,6 +666,8 @@ void drawing_program_pane_host_end_splitter_drag(struct DrawingProgramAppContext
     if (!ctx) {
         return;
     }
+    if (ctx->pane_host.splitter_edit.active)
+        (void)kit_pane_layout_edit_commit(&ctx->pane_host.splitter_edit,&ctx->pane_host.layout_state);
     kit_pane_splitter_interaction_end_drag(&ctx->pane_host.splitter_interaction);
 }
 

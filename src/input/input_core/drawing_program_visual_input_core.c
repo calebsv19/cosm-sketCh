@@ -1,6 +1,7 @@
 #include "drawing_program/drawing_program_visual_input_core.h"
 
 #include <math.h>
+#include "kit_ui_window_sdl.h"
 
 #include "drawing_program/drawing_program_render_backend.h"
 #include "drawing_program/drawing_program_viewport.h"
@@ -24,33 +25,14 @@ static void map_input_to_render_coords(SDL_Window *window,
                                        int input_y,
                                        int *out_x,
                                        int *out_y) {
-    int window_w = 0;
-    int window_h = 0;
-    int render_w = 0;
-    int render_h = 0;
-    float sx = 1.0f;
-    float sy = 1.0f;
-    int mapped_x = input_x;
-    int mapped_y = input_y;
-
-    if (renderer &&
-        drawing_program_render_backend_output_size(renderer, &render_w, &render_h) == 0 &&
-        render_w > 0 && render_h > 0 &&
-        window) {
-        SDL_GetWindowSize(window, &window_w, &window_h);
+    KitUiWindowState state = {0};
+    int w=0,h=0,x=input_x,y=input_y;
+    if (window && renderer && drawing_program_render_backend_output_size(renderer,&w,&h)==0) {
+        SDL_GetWindowSize(window,&state.logical_width,&state.logical_height);
+        (void)kit_ui_window_map_point_sdl(&state,w,h,input_x,input_y,&x,&y);
     }
-    if (render_w > 0 && render_h > 0 && window_w > 0 && window_h > 0) {
-        sx = (float)render_w / (float)window_w;
-        sy = (float)render_h / (float)window_h;
-        mapped_x = (int)((float)input_x * sx);
-        mapped_y = (int)((float)input_y * sy);
-    }
-    if (out_x) {
-        *out_x = mapped_x;
-    }
-    if (out_y) {
-        *out_y = mapped_y;
-    }
+    if (out_x) *out_x=x;
+    if (out_y) *out_y=y;
 }
 
 void drawing_program_visual_input_map_event_position(SDL_Window *window,
@@ -151,7 +133,7 @@ void drawing_program_visual_input_window_event_flags(const SDL_Event *event,
     if (event && event->type == SDL_WINDOWEVENT) {
         if (event->window.event == SDL_WINDOWEVENT_LEAVE) {
             clear_mouse_known = 1u;
-        } else if (event->window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
+        } else if (kit_ui_window_event_invalidates_sdl(event)) {
             clear_mouse_known = 1u;
             cancel_transients = 1u;
         }

@@ -1,4 +1,12 @@
 DRAWING_PROGRAM_BASE_LOCAL_SRCS := \
+	src/app/drawing_program_ui_pilot_probe.c \
+	src/ui/panel/drawing_program_ui_controls.c \
+	third_party/codework_shared/kit/kit_ui/src/kit_ui_interaction_sdl.c \
+	third_party/codework_shared/kit/kit_ui/src/kit_ui_sdl.c \
+	third_party/codework_shared/kit/kit_ui/src/kit_ui_window_sdl.c \
+	third_party/codework_shared/kit/kit_ui/src/kit_ui_window_probe_sdl.c \
+	third_party/codework_shared/kit/kit_pane/src/kit_pane_composition_sdl.c \
+	src/runtime/adapters/drawing_program_pane_composition.c \
 	src/domain/drawing_program_color_model.c \
 	src/domain/drawing_program_document.c \
 	src/domain/drawing_program_editor_state.c \
@@ -156,6 +164,7 @@ HEADLESS_TARGET_LOCAL_SRCS := \
 	src/app/drawing_program_app_headless_main.c
 
 TEST_TARGET_LOCAL_SRCS := \
+	tests/drawing_program_ui_contract_suite.c \
 	src/runtime/render/drawing_program_vulkan_rollout.c \
 	src/app/drawing_program_app_post_load.c \
 	src/app/drawing_program_app_session.c \

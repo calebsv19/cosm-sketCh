@@ -14,6 +14,7 @@
 #include "drawing_program/drawing_program_texture_scene_browser.h"
 #include "drawing_program/drawing_program_visual_layout.h"
 #include "drawing_program/drawing_program_visual_panel_render_common.h"
+#include "drawing_program/drawing_program_ui_controls.h"
 #include "drawing_program/drawing_program_visual_right_panel_defs.h"
 
 static void visual_right_panel_format_path_line(char *out_line,
@@ -159,7 +160,6 @@ static void visual_right_panel_draw_queue_row(SDL_Renderer *renderer,
                                               VisualPaneLayoutMetrics m,
                                               VisualThemePalette p,
                                               const DrawingProgramVisualPanelRenderHooks *hooks) {
-    (void)SDL_RenderSetClipRect(renderer, &clip_rect);
     drawing_program_visual_panel_draw_row_button_variant(renderer,
                                                          clip_rect,
                                                          row_rect,
@@ -219,20 +219,28 @@ void drawing_program_visual_render_right_file_tab(SDL_Renderer *renderer,
                             p.text_primary,
                             m.body_scale);
 
+    drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_NEW_PROJECT_BUTTON,0,1);
     drawing_program_visual_panel_draw_themed_button(
         renderer, rect, new_project_button, "NEW BLANK", p.text_primary, 0, ui, m, p, hooks);
+    drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_OPEN_PROJECT_BUTTON,0,1);
     drawing_program_visual_panel_draw_themed_button(
         renderer, rect, open_project_button, "OPEN PROJECT", p.text_primary, 0, ui, m, p, hooks);
+    drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_SAVE_PROJECT_BUTTON,0,1);
     drawing_program_visual_panel_draw_themed_button(
         renderer, rect, save_project_button, "SAVE", p.text_primary, 0, ui, m, p, hooks);
+    drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_SAVE_AS_BUTTON,0,1);
     drawing_program_visual_panel_draw_themed_button(
         renderer, rect, save_as_button, "SAVE AS", p.text_primary, 0, ui, m, p, hooks);
+    drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_LOAD_PROJECT_BUTTON,0,1);
     drawing_program_visual_panel_draw_themed_button(
         renderer, rect, load_project_button, "LOAD SELECTED", p.text_primary, 0, ui, m, p, hooks);
+    drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_PICK_INPUT_ROOT_BUTTON,0,1);
     drawing_program_visual_panel_draw_themed_button(
         renderer, rect, pick_input_root_button, "PICK INPUT ROOT", p.text_primary, 0, ui, m, p, hooks);
+    drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_SAVE_SESSION_BUTTON,0,1);
     drawing_program_visual_panel_draw_themed_button(
         renderer, rect, save_session_button, "SAVE SESSION", p.text_primary, 0, ui, m, p, hooks);
+    drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_RELOAD_SESSION_BUTTON,0,1);
     drawing_program_visual_panel_draw_themed_button(
         renderer, rect, reload_session_button, "RELOAD SESSION", p.text_primary, 0, ui, m, p, hooks);
 
@@ -265,9 +273,9 @@ void drawing_program_visual_render_right_file_tab(SDL_Renderer *renderer,
                        : 0;
         visual_right_panel_format_recent_project_line(line, sizeof(line), i, slot_path, existing);
         hovered = drawing_program_visual_panel_ui_hovered(ui, row_rect, hooks);
+        drawing_program_ui_controls_key(DRAWING_UI_FILE_PROJECT_SLOT,(uint64_t)i,existing);
         visual_right_panel_draw_queue_row(renderer, target_queue_rect, row_rect, line, selected, hovered, m, p, hooks);
     }
-    (void)SDL_RenderSetClipRect(renderer, 0);
     visual_right_panel_draw_scrollbar(renderer,
                                       target_queue_rect,
                                       target_scroll_y,
@@ -338,20 +346,25 @@ void drawing_program_visual_render_right_asset_tab(SDL_Renderer *renderer,
             } else {
                 (void)snprintf(cell_line, sizeof(cell_line), "NO NAMED CELLS");
             }
+            drawing_program_ui_controls_key(DRAWING_UI_FILE_INDEXED_CELL,
+                i<table->count ? drawing_program_ui_controls_string_id(table->cells[i].id) : 0,i<table->count);
             visual_right_panel_draw_queue_row(
                 renderer, queue, row, cell_line,
                 i < table->count && i == ctx->ui.indexed_selected_cell,
                 drawing_program_visual_panel_ui_hovered(ui, row, hooks), m, p, hooks);
         }
-        (void)SDL_RenderSetClipRect(renderer, 0);
-        visual_right_panel_draw_scrollbar(renderer, queue, scroll_y,
+            visual_right_panel_draw_scrollbar(renderer, queue, scroll_y,
             right_file_target_queue_scroll_max(queue, m, row_count), p.button_fill, p.button_border);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_ADD_BUTTON,0,1);
         drawing_program_visual_panel_draw_themed_button(
             renderer, rect, add_button, "ADD GRID CELL", p.text_primary, 0, ui, m, p, hooks);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_RENAME_BUTTON,0,1);
         drawing_program_visual_panel_draw_themed_button(
             renderer, rect, rename_button, "AUTO RENAME CELL", p.text_primary, 0, ui, m, p, hooks);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_MOVE_BUTTON,0,1);
         drawing_program_visual_panel_draw_themed_button(
             renderer, rect, move_button, "MOVE CELL RECT", p.text_primary, 0, ui, m, p, hooks);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_WORKSPACE_BUTTON,0,1);
         drawing_program_visual_panel_draw_themed_button(
             renderer, rect, workspace_button,
             ctx->ui.indexed_workspace_mode == (uint8_t)DRAWING_PROGRAM_INDEXED_WORKSPACE_MODE_CELL_BOARD
@@ -430,6 +443,7 @@ void drawing_program_visual_render_right_asset_tab(SDL_Renderer *renderer,
     target_scroll_max = right_file_target_queue_scroll_max(target_queue_rect, m, target_slot_count);
 
     hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, "OBJECT LOADER", p.text_primary, m.body_scale);
+    drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_BROWSER_SCENES_TAB,0,1);
     drawing_program_visual_panel_draw_tab_button(renderer,
                                                  rect,
                                                  browser_scenes_tab,
@@ -443,6 +457,7 @@ void drawing_program_visual_render_right_asset_tab(SDL_Renderer *renderer,
                                                  browser_mode != (uint8_t)VISUAL_RIGHT_FILE_BROWSER_MODE_OBJECTS,
                                                  drawing_program_visual_panel_ui_hovered(ui, browser_scenes_tab, hooks),
                                                  hooks);
+    drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_BROWSER_OBJECTS_TAB,0,1);
     drawing_program_visual_panel_draw_tab_button(renderer,
                                                  rect,
                                                  browser_objects_tab,
@@ -486,9 +501,13 @@ void drawing_program_visual_render_right_asset_tab(SDL_Renderer *renderer,
             (void)snprintf(line, sizeof(line), "NO AUTHORED SCENES");
         }
         hovered = drawing_program_visual_panel_ui_hovered(ui, row_rect, hooks);
+        int object_row=browser_mode==(uint8_t)VISUAL_RIGHT_FILE_BROWSER_MODE_OBJECTS;
+        drawing_program_ui_controls_key(DRAWING_UI_FILE_SCENE_ENTRY,
+            object_row && i<object_entry_count ? drawing_program_ui_controls_string_id(object_entries[i].object_id) :
+            i<scene_entry_count ? drawing_program_ui_controls_string_id(scene_entries[i].scene_path) : 0,
+            object_row ? i<object_entry_count : i<scene_entry_count);
         visual_right_panel_draw_queue_row(renderer, target_queue_rect, row_rect, line, selected, hovered, m, p, hooks);
     }
-    (void)SDL_RenderSetClipRect(renderer, 0);
     visual_right_panel_draw_scrollbar(renderer,
                                       target_queue_rect,
                                       target_scroll_y,
@@ -496,8 +515,10 @@ void drawing_program_visual_render_right_asset_tab(SDL_Renderer *renderer,
                                       p.button_fill,
                                       p.button_border);
 
+    drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_PICK_SCENE_ROOT_BUTTON,0,1);
     drawing_program_visual_panel_draw_themed_button(
         renderer, rect, pick_scene_root_button, "PICK SCENE ROOT", p.text_primary, 0, ui, m, p, hooks);
+    drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_OPEN_OBJECT_BUTTON,0,1);
     drawing_program_visual_panel_draw_themed_button(
         renderer,
         rect,
@@ -584,8 +605,10 @@ void drawing_program_visual_render_right_export_tab(SDL_Renderer *renderer,
     }
 
     hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, "EXPORT ACTIONS", p.text_primary, m.body_scale);
+    drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_PICK_OUTPUT_ROOT_BUTTON,0,1);
     drawing_program_visual_panel_draw_themed_button(
         renderer, rect, pick_output_root_button, "PICK OUTPUT ROOT", p.text_primary, 0, ui, m, p, hooks);
+    drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_EXPORT_INTENT_BUTTON,0,1);
     drawing_program_visual_panel_draw_themed_button(renderer,
                                                     rect,
                                                     export_intent_button,
@@ -597,6 +620,7 @@ void drawing_program_visual_render_right_export_tab(SDL_Renderer *renderer,
                                                     m,
                                                     p,
                                                     hooks);
+    drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_OVERLAY_MATERIAL_INTENT_BUTTON,0,1);
     drawing_program_visual_panel_draw_themed_button(renderer,
                                                     rect,
                                                     overlay_material_intent_button,
@@ -608,8 +632,10 @@ void drawing_program_visual_render_right_export_tab(SDL_Renderer *renderer,
                                                     m,
                                                     p,
                                                     hooks);
+    drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_EXPORT_PNG_BUTTON,0,1);
     drawing_program_visual_panel_draw_themed_button(
         renderer, rect, export_png_button, "EXPORT PNG", p.text_primary, 0, ui, m, p, hooks);
+    drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_EXPORT_TEXTURES_BUTTON,0,1);
     drawing_program_visual_panel_draw_themed_button(
         renderer,
         rect,
@@ -623,8 +649,10 @@ void drawing_program_visual_render_right_export_tab(SDL_Renderer *renderer,
         m,
         p,
         hooks);
+    drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_EXPORT_ICONSET_BUTTON,0,1);
     drawing_program_visual_panel_draw_themed_button(
         renderer, rect, export_iconset_button, "EXPORT ICONSET", p.text_primary, 0, ui, m, p, hooks);
+    drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_FILE_TABS_RENDER_EXPORT_ICNS_BUTTON,0,1);
     drawing_program_visual_panel_draw_themed_button(
         renderer, rect, export_icns_button, "EXPORT ICNS", p.text_primary, 0, ui, m, p, hooks);
 

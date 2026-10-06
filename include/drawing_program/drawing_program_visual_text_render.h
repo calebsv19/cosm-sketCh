@@ -14,6 +14,8 @@ int drawing_program_visual_draw_bitmap_text(SDL_Renderer *renderer,
                                             SDL_Color color,
                                             int scale);
 
+int drawing_program_visual_text_line_height(int scale);
+
 int drawing_program_visual_measure_bitmap_text_width(const char *text, int scale);
 
 #endif
