@@ -63,6 +63,8 @@ int drawing_program_pane_header_probe(SDL_Window *window, SDL_Renderer *renderer
     REQUIRE(stat(dir,&out)==0 && S_ISDIR(out.st_mode));
     if (!start) start=SDL_GetTicks64();
     REQUIRE(SDL_GetTicks64()-start<30000);
+    /* Startup window notifications cancel pointer capture legitimately. */
+    if (phase==0 && SDL_GetTicks64()-start<250) return 0;
     int fx=(int)(fit_bounds.x+fit_bounds.width/2),
         fy=(int)(fit_bounds.y+fit_bounds.height/2);
     switch (phase) {
