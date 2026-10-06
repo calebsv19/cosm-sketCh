@@ -28,6 +28,14 @@ static int capture(SDL_Renderer *r,const char *dir,const char *name) {
     if (snprintf(path,sizeof(path),"%s/%s.bmp",dir,name)>=(int)sizeof(path)) return 0;
     return drawing_program_render_backend_request_capture(r,path);
 }
+static const CorePaneSplitterHit *left_divider(const DrawingProgramAppContext *app) {
+    const CorePaneSplitterHit *hit=NULL;
+    for (uint32_t i=0;i<app->pane_host.splitter_hit_count;++i) {
+        const CorePaneSplitterHit *h=&app->pane_host.splitter_hits[i];
+        if (h->axis==CORE_PANE_AXIS_HORIZONTAL && (!hit || h->splitter_bounds.x<hit->splitter_bounds.x)) hit=h;
+    }
+    return hit;
+}
 #define CHECK(c) do { if (!(c)) { fprintf(stderr,"SPLITTER_PROOF status=fail phase=%d condition=%s\n",phase,#c); return -1; } } while (0)
 int drawing_program_splitter_probe(SDL_Window *window, SDL_Renderer *renderer,
                                    const DrawingProgramAppContext *app) {
@@ -49,11 +57,7 @@ int drawing_program_splitter_probe(SDL_Window *window, SDL_Renderer *renderer,
     }
     switch (phase) {
     case 0: {
-        const CorePaneSplitterHit *hit=NULL;
-        for (uint32_t i=0;i<app->pane_host.splitter_hit_count;++i) {
-            const CorePaneSplitterHit *h=&app->pane_host.splitter_hits[i];
-            if (h->axis==CORE_PANE_AXIS_HORIZONTAL && (!hit || h->splitter_bounds.x<hit->splitter_bounds.x)) hit=h;
-        }
+        const CorePaneSplitterHit *hit=left_divider(app);
         CHECK(hit);
         x=hit->splitter_bounds.x+hit->splitter_bounds.width/2-6*app->pane_host.splitter_scale_x;
         /* The widened band overlaps an ordinary content tab beside the edge;
@@ -89,14 +93,21 @@ int drawing_program_splitter_probe(SDL_Window *window, SDL_Renderer *renderer,
         CHECK(app->pane_host.layout_state.active_revision==before.active_revision);
         CHECK(capture(renderer,dir,"resize-dragged")); break;
     case 4: CHECK(pointer(window,renderer,SDL_MOUSEBUTTONUP,moved_x,y)); break;
-    case 5:
+    case 5: {
         CHECK(!active && !drawing_program_authoring_host_active(app));
         CHECK(app->pane_host.layout_state.active_revision==before.active_revision+1);
         CHECK(capture(renderer,dir,"resize-committed"));
         puts("SPLITTER_PROOF wide-band-quiet-runtime-commit status=pass");
         before=app->pane_host.layout_state; memcpy(nodes,app->pane_host.nodes,sizeof(nodes));
+        /* Accepted constraints may adjust the divider; a new gesture uses its
+         * current hit registry, rather than the previous draft coordinates. */
+        const CorePaneSplitterHit *hit=left_divider(app); CHECK(hit);
+        moved_x=hit->splitter_bounds.x+hit->splitter_bounds.width/2-6*app->pane_host.splitter_scale_x;
+        CHECK(!drawing_program_ui_controls_header_at((int)moved_x,(int)y));
         CHECK(pointer(window,renderer,SDL_MOUSEBUTTONDOWN,moved_x,y)); break;
+    }
     case 6:
+        if (!active) fprintf(stderr,"SPLITTER_PROOF second-press x=%g y=%g mode=%u paused=%u overlay=%u\n",moved_x,y,app->pane_host.layout_state.mode,app->overlay_adapter.runtime_paused,app->overlay_adapter.lifecycle_state);
         CHECK(active); CHECK(pointer(window,renderer,SDL_MOUSEMOTION,moved_x+30*app->pane_host.splitter_scale_x,y)); break;
     case 7: CHECK(active); key(SDLK_ESCAPE,0); break;
     case 8:
