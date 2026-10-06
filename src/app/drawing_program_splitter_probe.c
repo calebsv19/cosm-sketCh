@@ -35,6 +35,9 @@ int drawing_program_splitter_probe(SDL_Window *window, SDL_Renderer *renderer,
     static CoreLayoutState before; static CorePaneNode nodes[DRAWING_PROGRAM_PANE_NODE_CAPACITY];
     struct stat st; CHECK(stat(dir,&st)==0 && S_ISDIR(st.st_mode));
     if (!start) start=SDL_GetTicks64(); CHECK(SDL_GetTicks64()-start<30000);
+    /* Initial shown/focus/drawable notifications legitimately cancel hover.
+     * Begin the input proof only after the newly launched window settles. */
+    if (phase==0 && SDL_GetTicks64()-start<250) return 0;
     int active=drawing_program_pane_host_splitter_drag_active(app);
     if (phase>=2 && phase<=4) {
         CHECK(active && !drawing_program_authoring_host_active(app));
