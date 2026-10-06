@@ -723,7 +723,7 @@ void drawing_program_visual_authoring_chrome_draw(SDL_Renderer *renderer,
     int y = 0;
 
     if (!renderer || !ctx ||
-        ctx->pane_host.layout_state.mode != CORE_LAYOUT_MODE_AUTHORING ||
+        !drawing_program_authoring_host_active(ctx) ||
         viewport_width <= 0 || viewport_height <= 0) {
         return;
     }

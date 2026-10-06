@@ -5,6 +5,7 @@
 #include "drawing_program/drawing_program_ui_controls.h"
 #include "drawing_program/drawing_program_visual_input_core.h"
 #include "drawing_program/drawing_program_visual_text_render.h"
+#include "drawing_program/drawing_program_visual_authoring_chrome.h"
 #include "kit_ui_window_sdl.h"
 #include <stdio.h>
 #include <string.h>
@@ -16,6 +17,55 @@
     }                                                                          \
   } while (0)
 static int text_x, text_y;
+static int splitter_presentation_contract(DrawingProgramAppContext *ctx) {
+  CHECK(drawing_program_pane_host_set_splitter_scale(ctx, 2.0f, 1.5f).code == CORE_OK);
+  for (uint32_t i=0; i<ctx->pane_host.splitter_hit_count; ++i) {
+    CorePaneSplitterHit hit=ctx->pane_host.splitter_hits[i], found;
+    float x=hit.splitter_bounds.x+hit.splitter_bounds.width/2,
+          y=hit.splitter_bounds.y+hit.splitter_bounds.height/2;
+    CHECK(hit.axis==CORE_PANE_AXIS_HORIZONTAL ? hit.splitter_bounds.width==32 : hit.splitter_bounds.height==24);
+    float dx=hit.axis==CORE_PANE_AXIS_HORIZONTAL ? 14 : 0,
+          dy=hit.axis==CORE_PANE_AXIS_VERTICAL ? 10.5f : 0;
+    CHECK(core_pane_hit_test_splitter_hits(&hit,1,x+dx,y+dy,&found));
+    CHECK(core_pane_hit_test_splitter_hits(&hit,1,x-dx,y-dy,&found));
+    CHECK(!core_pane_hit_test_splitter_hits(&hit,1,x+dx*2,y+dy*2,&found));
+    CHECK(drawing_program_pane_host_update_pointer(ctx,x+dx,y+dy).code==CORE_OK);
+    CorePaneRect line; int hovered,active;
+    CHECK(drawing_program_pane_host_visible_splitter(ctx,&line,&hovered,&active));
+    CHECK(hovered && !active);
+    CHECK(hit.axis==CORE_PANE_AXIS_HORIZONTAL ? line.width==2 : line.height==2);
+  }
+  CHECK(drawing_program_pane_host_set_splitter_scale(ctx,1,1).code==CORE_OK);
+  CorePaneSplitterHit hit=ctx->pane_host.splitter_hits[1];
+  float x=hit.splitter_bounds.x+hit.splitter_bounds.width/2,
+        y=hit.splitter_bounds.y+hit.splitter_bounds.height/2;
+  CHECK(drawing_program_pane_host_begin_splitter_drag(ctx,x,y));
+  CHECK(!drawing_program_authoring_host_active(ctx));
+  CHECK(!drawing_program_authoring_host_pane_overlay_active(ctx));
+  SDL_Surface *pixels=SDL_CreateRGBSurfaceWithFormat(0,100,80,32,SDL_PIXELFORMAT_ARGB8888);
+  CHECK(pixels); SDL_Renderer *r=SDL_CreateSoftwareRenderer(pixels); CHECK(r);
+  SDL_SetRenderDrawColor(r,1,2,3,255); SDL_RenderClear(r);
+  CHECK(drawing_program_ui_controls_begin(ctx).code==CORE_OK);
+  drawing_program_visual_authoring_chrome_draw(r,100,80,ctx,NULL);
+  CHECK(drawing_program_ui_controls_end(r).code==CORE_OK);
+  CHECK(drawing_program_ui_controls_snapshot()->count==0);
+  Uint8 red,green,blue,alpha;
+  SDL_GetRGBA(*(Uint32 *)((Uint8 *)pixels->pixels+10*pixels->pitch+10*4),pixels->format,&red,&green,&blue,&alpha);
+  CHECK(red==1 && green==2 && blue==3); /* The HUD must not paint during a runtime drag. */
+  SDL_DestroyRenderer(r); SDL_FreeSurface(pixels);
+  drawing_program_pane_host_cancel_splitter_drag(ctx);
+  /* Explicit authoring takeover cancels the pending resize before its baseline. */
+  CoreLayoutState before=ctx->pane_host.layout_state;
+  CorePaneNode nodes[DRAWING_PROGRAM_PANE_NODE_CAPACITY]; memcpy(nodes,ctx->pane_host.nodes,sizeof(nodes));
+  CHECK(drawing_program_pane_host_begin_splitter_drag(ctx,x,y));
+  CHECK(drawing_program_pane_host_update_splitter_drag(ctx,x+40,y+40));
+  CHECK(drawing_program_authoring_host_enter(ctx).code==CORE_OK);
+  CHECK(drawing_program_authoring_host_active(ctx) && !drawing_program_pane_host_splitter_drag_active(ctx));
+  CHECK(!memcmp(nodes,ctx->pane_host.nodes,sizeof(nodes)));
+  CHECK(drawing_program_authoring_host_cancel(ctx).code==CORE_OK);
+  CHECK(!memcmp(&before,&ctx->pane_host.layout_state,sizeof(before)));
+  return 0;
+}
 static int measure_text(const char *text, int scale) {
   (void)text;
   return 12 * scale;
@@ -122,6 +172,7 @@ int drawing_program_ui_contract_suite(void) {
   CHECK(drawing_program_runtime_start(&ctx).code == CORE_OK);
   CHECK(drawing_program_app_set_pane_host_bounds(&ctx, 1200, 800).code ==
         CORE_OK);
+  CHECK(!splitter_presentation_contract(&ctx));
   KitUiWindowState window = {.logical_width = 2500, .logical_height = 720};
   int x, y;
   int rw, rh;
@@ -151,6 +202,7 @@ int drawing_program_ui_contract_suite(void) {
     memcpy(before, ctx.pane_host.nodes, sizeof(before));
     CoreLayoutState revision = ctx.pane_host.layout_state;
     CHECK(drawing_program_pane_host_begin_splitter_drag(&ctx, hx, hy));
+    CHECK(!drawing_program_authoring_host_active(&ctx));
     CHECK(
         drawing_program_pane_host_update_splitter_drag(&ctx, hx + 40, hy + 40));
     drawing_program_pane_host_cancel_splitter_drag(&ctx);

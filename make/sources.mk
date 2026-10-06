@@ -1,4 +1,5 @@
 DRAWING_PROGRAM_BASE_LOCAL_SRCS := \
+	src/app/drawing_program_splitter_probe.c \
 	src/app/drawing_program_pane_header_probe.c \
 	src/render/canvas/drawing_program_visual_canvas_readout.c \
 	src/ui/pane/drawing_program_visual_pane_geometry.c \

@@ -3,12 +3,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 #include "drawing_program/drawing_program_app_main.h"
 #include "drawing_program/drawing_program_authoring_host.h"
 
 enum {
-    DRAWING_PROGRAM_PANE_SPLITTER_HANDLE_THICKNESS = 8,
+    /* Interaction width is in logical window pixels, independent of paint. */
+    DRAWING_PROGRAM_PANE_SPLITTER_HANDLE_THICKNESS = 16,
     DRAWING_PROGRAM_PANE_HOST_DEFAULT_BOUNDS_WIDTH = 1200,
     DRAWING_PROGRAM_PANE_HOST_DEFAULT_BOUNDS_HEIGHT = 800
 };
@@ -72,7 +74,29 @@ static CoreResult drawing_program_pane_host_refresh_splitter_hits(struct Drawing
         CoreResult r = { CORE_ERR_FORMAT, "core_pane_collect_splitter_hits failed" };
         return r;
     }
+    for (uint32_t i = 0; i < ctx->pane_host.splitter_hit_count; ++i) {
+        CorePaneSplitterHit *hit = &ctx->pane_host.splitter_hits[i];
+        CorePaneRect *r = &hit->splitter_bounds;
+        if (hit->axis == CORE_PANE_AXIS_HORIZONTAL) {
+            float width = DRAWING_PROGRAM_PANE_SPLITTER_HANDLE_THICKNESS * ctx->pane_host.splitter_scale_x;
+            r->x += (r->width - width) * 0.5f;
+            r->width = width;
+        } else {
+            float height = DRAWING_PROGRAM_PANE_SPLITTER_HANDLE_THICKNESS * ctx->pane_host.splitter_scale_y;
+            r->y += (r->height - height) * 0.5f;
+            r->height = height;
+        }
+    }
     return core_result_ok();
+}
+
+CoreResult drawing_program_pane_host_set_splitter_scale(
+    struct DrawingProgramAppContext *ctx, float scale_x, float scale_y) {
+    if (!ctx || !isfinite(scale_x) || !isfinite(scale_y) || scale_x <= 0 || scale_y <= 0)
+        return pane_host_invalid("invalid splitter coordinate scale");
+    ctx->pane_host.splitter_scale_x = scale_x;
+    ctx->pane_host.splitter_scale_y = scale_y;
+    return drawing_program_pane_host_refresh_splitter_hits(ctx, drawing_program_pane_host_bounds(ctx));
 }
 
 static void drawing_program_module_render_canvas(void *host_context,
@@ -487,6 +511,7 @@ CoreResult drawing_program_pane_host_init(struct DrawingProgramAppContext *ctx) 
     }
 
     memset(&ctx->pane_host, 0, sizeof(ctx->pane_host));
+    ctx->pane_host.splitter_scale_x = ctx->pane_host.splitter_scale_y = 1.0f;
     core_layout_state_init(&ctx->pane_host.layout_state);
     kit_pane_splitter_interaction_init(&ctx->pane_host.splitter_interaction,
                                        (float)DRAWING_PROGRAM_PANE_SPLITTER_HANDLE_THICKNESS);
@@ -685,8 +710,19 @@ int drawing_program_pane_host_visible_splitter(const struct DrawingProgramAppCon
     if (!ctx) {
         return 0;
     }
-    return kit_pane_splitter_interaction_current(&ctx->pane_host.splitter_interaction,
-                                                 out_bounds,
-                                                 out_hovered,
-                                                 out_active);
+    if (!kit_pane_splitter_interaction_current(&ctx->pane_host.splitter_interaction,
+                                                out_bounds, out_hovered, out_active))
+        return 0;
+    if (out_bounds) {
+        const KitPaneSplitterInteraction *s = &ctx->pane_host.splitter_interaction;
+        const CorePaneSplitterHit *hit = s->drag_active ? &s->drag_hit : &s->hover_hit;
+        if (hit->axis == CORE_PANE_AXIS_HORIZONTAL) {
+            out_bounds->x += (out_bounds->width - 2.0f) * 0.5f;
+            out_bounds->width = 2.0f;
+        } else {
+            out_bounds->y += (out_bounds->height - 2.0f) * 0.5f;
+            out_bounds->height = 2.0f;
+        }
+    }
+    return 1;
 }

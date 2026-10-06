@@ -176,11 +176,14 @@ int drawing_program_authoring_host_active(const DrawingProgramAppContext *ctx) {
     if (!ctx) {
         return 0;
     }
-    return ctx->pane_host.layout_state.mode == CORE_LAYOUT_MODE_AUTHORING ? 1 : 0;
+    /* A runtime splitter edit borrows authoring revisions for rollback only.
+     * It does not enter the explicit workspace authoring UI/session. */
+    return ctx->pane_host.layout_state.mode == CORE_LAYOUT_MODE_AUTHORING &&
+           !(ctx->pane_host.splitter_edit.active && ctx->pane_host.splitter_edit.owns_authoring);
 }
 
 int drawing_program_authoring_host_pane_overlay_active(const DrawingProgramAppContext *ctx) {
-    return ctx ? kit_workspace_authoring_pane_overlay_active(ctx->pane_host.layout_state.mode,
+    return drawing_program_authoring_host_active(ctx) ? kit_workspace_authoring_pane_overlay_active(ctx->pane_host.layout_state.mode,
                                                              CORE_LAYOUT_MODE_AUTHORING,
                                                              (int)ctx->authoring_host.overlay_mode,
                                                              DRAWING_PROGRAM_AUTHORING_OVERLAY_PANE)
@@ -198,6 +201,8 @@ CoreResult drawing_program_authoring_host_enter(DrawingProgramAppContext *ctx) {
     if (!ctx) {
         return drawing_program_authoring_invalid("null app context");
     }
+    if (ctx->pane_host.splitter_edit.active && ctx->pane_host.splitter_edit.owns_authoring)
+        drawing_program_pane_host_cancel_splitter_drag(ctx);
     if (!drawing_program_authoring_host_active(ctx)) {
         if (!core_layout_enter_authoring(&ctx->pane_host.layout_state)) {
             return (CoreResult){ CORE_ERR_INVALID_ARG, "failed to enter authoring mode" };
@@ -215,6 +220,7 @@ CoreResult drawing_program_authoring_host_exit(DrawingProgramAppContext *ctx) {
     if (!ctx) {
         return drawing_program_authoring_invalid("null app context");
     }
+    drawing_program_pane_host_cancel_splitter_drag(ctx);
     if (drawing_program_authoring_host_active(ctx)) {
         restore_result = drawing_program_authoring_restore_baseline(ctx);
         if (restore_result.code != CORE_OK) {
@@ -239,6 +245,7 @@ CoreResult drawing_program_authoring_host_apply(DrawingProgramAppContext *ctx) {
     if (!drawing_program_authoring_host_active(ctx)) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "authoring apply requires authoring mode" };
     }
+    drawing_program_pane_host_cancel_splitter_drag(ctx);
     rebuild_result = drawing_program_pane_host_rebuild(ctx);
     if (rebuild_result.code != CORE_OK) {
         return rebuild_result;
@@ -261,6 +268,7 @@ CoreResult drawing_program_authoring_host_cancel(DrawingProgramAppContext *ctx) 
     if (!drawing_program_authoring_host_active(ctx)) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "authoring cancel requires authoring mode" };
     }
+    drawing_program_pane_host_cancel_splitter_drag(ctx);
     restore_result = drawing_program_authoring_restore_baseline(ctx);
     if (restore_result.code != CORE_OK) {
         return restore_result;

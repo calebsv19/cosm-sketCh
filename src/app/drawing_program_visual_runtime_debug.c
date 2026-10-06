@@ -4,6 +4,7 @@
 #include <stdlib.h>
 
 #include "drawing_program/drawing_program_app_main.h"
+#include "drawing_program/drawing_program_authoring_host.h"
 
 int drawing_program_visual_trace_ui_state_enabled(void) {
     const char *value = getenv("DRAWING_PROGRAM_TRACE_UI_STATE");
@@ -58,7 +59,7 @@ void drawing_program_visual_update_window_title(SDL_Window *window,
     if (!window || !ctx) {
         return;
     }
-    authoring_active = ctx->pane_host.layout_state.mode == CORE_LAYOUT_MODE_AUTHORING ? 1 : 0;
+    authoring_active = drawing_program_authoring_host_active(ctx);
     if (last_authoring_active == authoring_active) {
         return;
     }

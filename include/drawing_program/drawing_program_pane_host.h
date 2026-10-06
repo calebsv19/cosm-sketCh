@@ -31,6 +31,7 @@ typedef struct DrawingProgramPaneHost {
     uint32_t leaf_count;
     CorePaneSplitterHit splitter_hits[DRAWING_PROGRAM_PANE_SPLITTER_HIT_CAPACITY];
     uint32_t splitter_hit_count;
+    float splitter_scale_x, splitter_scale_y;
     CorePaneModuleDescriptor module_entries[DRAWING_PROGRAM_MODULE_REGISTRY_CAPACITY];
     CorePaneModuleRegistry module_registry;
     CorePaneModuleBinding module_bindings[DRAWING_PROGRAM_MODULE_BINDING_CAPACITY];
@@ -52,6 +53,8 @@ CoreResult drawing_program_pane_host_update_pointer(struct DrawingProgramAppCont
 int drawing_program_pane_host_begin_splitter_drag(struct DrawingProgramAppContext *ctx,
                                                   float point_x,
                                                   float point_y);
+CoreResult drawing_program_pane_host_set_splitter_scale(struct DrawingProgramAppContext *ctx,
+                                                        float scale_x, float scale_y);
 int drawing_program_pane_host_update_splitter_drag(struct DrawingProgramAppContext *ctx,
                                                    float point_x,
                                                    float point_y);

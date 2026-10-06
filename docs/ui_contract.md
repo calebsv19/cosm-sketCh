@@ -65,6 +65,19 @@ content action cannot become a second press or leave capture stuck after release
 The three header policies are a fixed app projection. No new pane topology,
 dynamic provider registration, docking or provider persistence is introduced.
 
+Ordinary splitter resizing is a quiet runtime interaction. Its internal layout
+transaction can borrow authoring revision machinery without opening the explicit
+authoring session, HUD, pane IDs or all-pane outlines. Those appear only after
+LAYOUT or the established authoring entry chord. Explicit authoring takeover
+cancels an unfinished runtime resize before taking its baseline. Closing an outer
+authoring session also cancels any unfinished nested splitter edit.
+
+Divider hit bands are 16 logical window pixels wide, centered on the edge (8 on
+either side); paint stays a thin 2-render-pixel hover/drag highlight. The host
+applies the logical-to-bounded-render scale independently on each axis, including
+Retina and large drawables. Divider presses take priority over nearby content
+buttons within this band; movement outside it retains normal content interaction.
+
 Splitter motion is a layout transaction. Cancel restores node payload and
 revision state, including nested authoring state. A no-op drag creates no new
 revision; an accepted runtime drag commits once. Escape and all ten shared
@@ -104,3 +117,9 @@ outside, apply FIT on accepted release, reach LAYOUT with Tab/Space, cancel the
 modal and verify focus plus layout restoration. It records four fresh captures
 and is inactive in routine use. Run this and other probes separately, checking
 completion, exit status and capture existence; do not combine their drivers.
+
+`DRAWING_PROGRAM_SPLITTER_PROOF=<existing directory>` independently qualifies
+the actual loop: hit the wider band beside a header control, drag without the
+authoring HUD, commit one revision, cancel another drag with Escape, then enter
+and cancel explicit workspace authoring. It records six captures. Use the same
+isolated no-persist roots and run each engineering probe separately.

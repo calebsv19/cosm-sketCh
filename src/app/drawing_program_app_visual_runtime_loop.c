@@ -222,6 +222,17 @@ static void drawing_program_visual_loop_handle_event(DrawingProgramVisualLoopEve
             event->type==SDL_MOUSEBUTTONUP ? KIT_PANE_HOST_POINTER_UP : KIT_PANE_HOST_POINTER_MOVE;
         (void)kit_pane_host_pointer(&ctx->app->pane_host.composition_host,type,(float)event_x,(float)event_y,NULL,NULL);
     }
+    /* Runtime divider bands own the press before nearby content controls. */
+    if (!drawing_program_authoring_host_active(ctx->app) && event_has_position) {
+        if (event->type == SDL_MOUSEMOTION && !drawing_program_pane_host_splitter_drag_active(ctx->app))
+            (void)drawing_program_pane_host_update_pointer(ctx->app, (float)event_x, (float)event_y);
+        if (event->type == SDL_MOUSEBUTTONDOWN && event->button.button == SDL_BUTTON_LEFT &&
+            drawing_program_pane_host_begin_splitter_drag(ctx->app, (float)event_x, (float)event_y)) {
+            drawing_program_ui_controls_invalidate();
+            ctx->input_handlers->cancel_all_transient_interactions(ctx->app,ctx->canvas_interaction,ctx->selection,1);
+            return;
+        }
+    }
     SDL_Event activation_event;
     int activated=0,ax=0,ay=0;
     if (event->type==SDL_MOUSEWHEEL || kit_ui_window_event_invalidates_sdl(event))
@@ -730,6 +741,12 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
                     break;
                 }
             }
+            if (window_state.logical_width > 0 && window_state.logical_height > 0) {
+                result = drawing_program_pane_host_set_splitter_scale(&app_ctx,
+                    app_ctx.pane_host_bounds_width / window_state.logical_width,
+                    app_ctx.pane_host_bounds_height / window_state.logical_height);
+                if (result.code != CORE_OK) break;
+            }
             result=drawing_program_pane_host_compose(&app_ctx,drawing_program_authoring_host_active(&app_ctx) ||
                 drawing_program_pane_host_splitter_drag_active(&app_ctx));
             if (result.code!=CORE_OK) break;
@@ -745,7 +762,8 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
                               ? 1
                               : 0;
             force_render = (present_count == 0u || window_probe.directory ||
-                getenv("DRAWING_PROGRAM_UI_PROOF") || getenv("DRAWING_PROGRAM_PANE_HEADER_PROOF")) ? 1 : 0;
+                getenv("DRAWING_PROGRAM_UI_PROOF") || getenv("DRAWING_PROGRAM_PANE_HEADER_PROOF") ||
+                getenv("DRAWING_PROGRAM_SPLITTER_PROOF")) ? 1 : 0;
             should_run_runtime_tick =
                 (force_render || resize_pending || high_intensity_mode || frame_runtime_tick_event_count > 0u) ? 1 : 0;
             render_policy_input.background_busy = background_busy ? 1u : 0u;
@@ -806,6 +824,9 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
             int header_proof=drawing_program_pane_header_probe(window,renderer,&app_ctx);
             if (header_proof<0) {result=(CoreResult){CORE_ERR_IO,"pane header proof failed"};break;}
             if (header_proof>0) quit=1;
+            int splitter_proof=drawing_program_splitter_probe(window,renderer,&app_ctx);
+            if (splitter_proof<0) {result=(CoreResult){CORE_ERR_IO,"splitter proof failed"};break;}
+            if (splitter_proof>0) quit=1;
             if (!drawing_program_render_backend_present(renderer)) {
                 result = (CoreResult){CORE_ERR_IO, "renderer backend present failed"};
                 drawing_program_visual_runtime_print_stage_failure("present", result);
