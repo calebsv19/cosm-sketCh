@@ -27,7 +27,7 @@ Last updated: 2026-08-08
 ## Current Follow-on Rule
 - Reflection should remain closed unless a fresh bounded plan is opened.
 - Managed Vulkan presentation is complete at `vk_runtime 0.6.0` and
-  `vk_renderer 1.3.1`; keep it compatibility-preserving and validation-clean.
+  `vk_renderer 1.6.0` in retained Main Edit; keep it compatibility-preserving and validation-clean.
   Any future GPU compute work must be separately selected through profiling
   with a deterministic CPU oracle/fallback.
 - Any new authored-texture or mixed-material semantics work should start as its
@@ -54,3 +54,13 @@ Last updated: 2026-08-08
   R0-R6 or seam-lowering records.
 - Keep the same contract style if renderer work resumes: frozen hot paths,
   bounded optimization, and focused cache-drift validation.
+
+## Retained Main Edit UI refinement — 2026-10-05
+
+The UI adoption and pane header/content separation are implemented in Main Edit;
+see [the UI contract](ui_contract.md). Next work should start from the fixed
+module projection and select one bounded gap: provider mount/remount behavior
+and accepted persistence, or extraction of direct content commands. Dynamic
+docking and a general module picker are not implied by the LAYOUT header action.
+Human comparison and additional-platform qualification remain separate from
+the local automated proofs. Canonical adoption and release are separate steps.

@@ -26,7 +26,7 @@ static int right_color_recent_swatches_start_y(SDL_Rect rect, VisualPaneLayoutMe
 }
 
 int right_color_content_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m) {
-    int y = rect.y + m.pad_y + m.title_glyph_h + m.section_gap;
+    int y = rect.y; /* The pane host already reserved the header. */
     y += m.tab_h + m.section_gap;
     return y;
 }

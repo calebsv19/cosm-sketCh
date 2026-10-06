@@ -13,6 +13,8 @@ uint32_t drawing_program_visual_module_type_for_pane(const DrawingProgramAppCont
 int drawing_program_visual_set_module_type_for_pane(DrawingProgramAppContext *ctx,
                                                      uint32_t pane_node_id,
                                                      uint32_t module_type_id);
+/* Content bounds only: paint/hit/projection share this partition. Header and
+ * shell rectangles come from the composition, not this content lookup. */
 int drawing_program_visual_pane_rect_for_module_type(const DrawingProgramAppContext *ctx,
                                                       uint32_t module_type_id,
                                                       SDL_Rect *out_rect);

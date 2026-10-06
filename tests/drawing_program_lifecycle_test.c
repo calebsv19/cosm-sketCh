@@ -644,9 +644,11 @@ static int lifecycle_run_test_support_contract_suite(void) {
 }
 
 int drawing_program_ui_contract_suite(void);
+int drawing_program_pane_header_suite(void);
 
 static const LifecycleStandaloneSuiteEntry g_lifecycle_standalone_suites[] = {
     { "ui-contract", "production UI window/pane contracts", drawing_program_ui_contract_suite },
+    { "pane-header", "production pane header/content and action contracts", drawing_program_pane_header_suite },
     { "test-support", "test support artifact-root contract", lifecycle_run_test_support_contract_suite },
     { "export", "image/export model contracts", drawing_program_lifecycle_run_export_suite },
     { "composed-source", "composed source cache/dirty-rect contracts", drawing_program_lifecycle_run_composed_source_suite },
@@ -969,6 +971,7 @@ int main(int argc, char **test_argv) {
         return 1;
     }
     if (drawing_program_ui_contract_suite() != 0) return 1;
+    if (drawing_program_pane_header_suite() != 0) return 1;
     if (drawing_program_lifecycle_run_authoring_host_suite() != 0) {
         return 1;
     }

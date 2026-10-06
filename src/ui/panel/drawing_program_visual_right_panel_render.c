@@ -17,7 +17,7 @@
 #include "drawing_program/drawing_program_visual_right_panel_file_tabs_render.h"
 #include "drawing_program/drawing_program_visual_theme.h"
 
-void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
+void drawing_program_visual_render_right_panel_content(SDL_Renderer *renderer,
                                                       SDL_Rect rect,
                                                       const DrawingProgramAppContext *ctx,
                                                       const CoreThemePreset *theme,
@@ -63,9 +63,7 @@ void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
         }
     }
 
-    y = rect.y + m.pad_y;
-    hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, "RIGHT PANEL", p.text_primary, m.title_scale);
-    y += m.title_glyph_h + m.section_gap;
+    y = rect.y;
     tab_canvas = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_CANVAS, VISUAL_RIGHT_PANEL_SLOT_COUNT);
     tab_layer = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_LAYER, VISUAL_RIGHT_PANEL_SLOT_COUNT);
     tab_color = right_panel_slot_tab_rect(rect, m, VISUAL_RIGHT_PANEL_SLOT_COLOR, VISUAL_RIGHT_PANEL_SLOT_COUNT);

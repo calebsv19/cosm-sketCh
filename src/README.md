@@ -15,3 +15,10 @@ Migration rule:
 - keep existing runtime behavior stable;
 - move code from `runtime/` into focused lanes incrementally by slice,
   with build/test/smoke/package gates after each slice.
+
+Pane ownership: `ui/pane/drawing_program_visual_pane_geometry.c` supplies the
+fixed module header policy to kit_pane composition; `drawing_program_visual_pane_header.c`
+owns titles/action slots and direct header commands. Panel/render callbacks own
+content only, and shared content bounds also drive hit testing and projection.
+Top-level menu chrome remains a distinct content module. Dynamic providers,
+topology and persistence do not belong in the header adapter.

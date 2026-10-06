@@ -153,7 +153,7 @@ void drawing_program_visual_render_menu_bar_chrome(SDL_Renderer *renderer,
     hooks->draw_bitmap_text(renderer, chip, tool_x, chip.y + m.tab_text_y, tool_value, p.text_primary, m.body_scale);
 }
 
-void drawing_program_visual_render_left_panel_chrome(SDL_Renderer *renderer,
+void drawing_program_visual_render_left_panel_content(SDL_Renderer *renderer,
                                                      SDL_Rect rect,
                                                      const DrawingProgramAppContext *ctx,
                                                      const CoreThemePreset *theme,
@@ -171,7 +171,6 @@ void drawing_program_visual_render_left_panel_chrome(SDL_Renderer *renderer,
     SDL_Rect object_list_rect;
     SDL_Rect object_inspector_rect;
     const DrawingProgramObjectRecord *selected_object = 0;
-    int y;
     char detail_header[64];
     if (!renderer || !ctx || !hooks || !hooks->draw_bitmap_text || !hooks->clamp_left_slot ||
         !hooks->visual_tool_count || !hooks->visual_tool_at || !hooks->visual_tool_option_count ||
@@ -185,8 +184,6 @@ void drawing_program_visual_render_left_panel_chrome(SDL_Renderer *renderer,
     option_count = hooks->visual_tool_option_count(ctx, ctx->editor.active_tool);
     left_slot = hooks->clamp_left_slot(ctx->ui.left_panel_slot);
 
-    y = rect.y + m.pad_y;
-    hooks->draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, "LEFT PANEL", p.text_primary, m.title_scale);
     tab_tools = left_panel_slot_tab_rect(rect, m, VISUAL_LEFT_PANEL_SLOT_TOOLS_VALUE, 2u);
     tab_objects = left_panel_slot_tab_rect(rect, m, VISUAL_LEFT_PANEL_SLOT_OBJECTS_VALUE, 2u);
     drawing_program_ui_controls_key(DRAWING_UI_PANEL_RENDER_TAB_TOOLS,0,1);

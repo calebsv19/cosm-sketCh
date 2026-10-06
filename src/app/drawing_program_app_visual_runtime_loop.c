@@ -7,6 +7,7 @@
 #include "core_font.h"
 #include "kit_ui_window_sdl.h"
 #include "drawing_program/drawing_program_ui_controls.h"
+#include "drawing_program/drawing_program_visual_pane_header.h"
 #include "drawing_program/drawing_program_ui_pilot_probe.h"
 #include "kit_ui_window_probe_sdl.h"
 #include "core_theme.h"
@@ -216,6 +217,11 @@ static void drawing_program_visual_loop_handle_event(DrawingProgramVisualLoopEve
                                                     &event_x,
                                                     &event_y,
                                                     &event_has_position);
+    if (event_has_position && !drawing_program_authoring_host_active(ctx->app)) {
+        KitPaneHostEventType type=event->type==SDL_MOUSEBUTTONDOWN ? KIT_PANE_HOST_POINTER_DOWN :
+            event->type==SDL_MOUSEBUTTONUP ? KIT_PANE_HOST_POINTER_UP : KIT_PANE_HOST_POINTER_MOVE;
+        (void)kit_pane_host_pointer(&ctx->app->pane_host.composition_host,type,(float)event_x,(float)event_y,NULL,NULL);
+    }
     SDL_Event activation_event;
     int activated=0,ax=0,ay=0;
     if (event->type==SDL_MOUSEWHEEL || kit_ui_window_event_invalidates_sdl(event))
@@ -223,16 +229,19 @@ static void drawing_program_visual_loop_handle_event(DrawingProgramVisualLoopEve
     if (!drawing_program_pane_host_splitter_drag_active(ctx->app) &&
         drawing_program_ui_controls_route(ctx->app,event,event_x,event_y,&ax,&ay,&activated)) {
         if (!activated) return;
+        if (drawing_program_visual_pane_header_action(ctx->app,
+                drawing_program_ui_controls_last_activation())) {
+            ctx->input_handlers->cancel_all_transient_interactions(
+                ctx->app, ctx->canvas_interaction, ctx->selection, 1);
+            kit_pane_host_cancel(&ctx->app->pane_host.composition_host, NULL, NULL);
+            drawing_program_visual_loop_sync_theme_from_app(ctx);
+            return;
+        }
         SDL_zero(activation_event);activation_event.type=SDL_MOUSEBUTTONDOWN;
         activation_event.button.button=SDL_BUTTON_LEFT;
         event=&activation_event;event_x=ax;event_y=ay;event_has_position=1;
         /* Product action runs below, rechecking its own domain predicates.
          * Reject further events against this geometry until the next frame. */
-    }
-    if (event_has_position && !drawing_program_authoring_host_active(ctx->app)) {
-        KitPaneHostEventType type=event->type==SDL_MOUSEBUTTONDOWN ? KIT_PANE_HOST_POINTER_DOWN :
-            event->type==SDL_MOUSEBUTTONUP ? KIT_PANE_HOST_POINTER_UP : KIT_PANE_HOST_POINTER_MOVE;
-        (void)kit_pane_host_pointer(&ctx->app->pane_host.composition_host,type,(float)event_x,(float)event_y,NULL,NULL);
     }
     if (event_has_position) {
         ctx->panel_ui->mouse_known = 1u;
@@ -735,7 +744,8 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
                            background_present_dirty)
                               ? 1
                               : 0;
-            force_render = (present_count == 0u || window_probe.directory || getenv("DRAWING_PROGRAM_UI_PROOF")) ? 1 : 0;
+            force_render = (present_count == 0u || window_probe.directory ||
+                getenv("DRAWING_PROGRAM_UI_PROOF") || getenv("DRAWING_PROGRAM_PANE_HEADER_PROOF")) ? 1 : 0;
             should_run_runtime_tick =
                 (force_render || resize_pending || high_intensity_mode || frame_runtime_tick_event_count > 0u) ? 1 : 0;
             render_policy_input.background_busy = background_busy ? 1u : 0u;
@@ -793,6 +803,9 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
             int ui_proof=drawing_program_ui_pilot_probe(window,renderer,&app_ctx);
             if (ui_proof<0) {result=(CoreResult){CORE_ERR_IO,"UI pilot proof failed"};break;}
             if (ui_proof>0) quit=1;
+            int header_proof=drawing_program_pane_header_probe(window,renderer,&app_ctx);
+            if (header_proof<0) {result=(CoreResult){CORE_ERR_IO,"pane header proof failed"};break;}
+            if (header_proof>0) quit=1;
             if (!drawing_program_render_backend_present(renderer)) {
                 result = (CoreResult){CORE_ERR_IO, "renderer backend present failed"};
                 drawing_program_visual_runtime_print_stage_failure("present", result);

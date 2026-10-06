@@ -111,3 +111,15 @@ to move into `shared/`.
 - orChestra overlay adapter contract
 - shared authored-texture vocabulary
 - workspace-authoring adapter contract
+
+## Retained Main Edit pane boundary — 2026-10-05
+
+The app supplies stable leaf IDs and module-specific header heights to shared
+kit_pane composition. `ui/pane/drawing_program_visual_pane_header.c` owns the
+fixed module title/action policy and shared header slots; frame orchestration
+paints those headers before clipped content callbacks. Content painters and
+input/projection use one inward-rounded content partition, without legacy
+header offsets. Header operations dispatch by operation/pane identity to
+existing FIT and workspace-authoring behavior. Content command extraction and
+dynamic provider lifecycle/persistence remain later boundaries. The menu stays
+its existing top-level chrome module. See [UI contract](ui_contract.md).

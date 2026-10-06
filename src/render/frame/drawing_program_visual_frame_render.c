@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "kit_pane_composition_sdl.h"
+#include "drawing_program/drawing_program_visual_pane_header.h"
+#include "drawing_program/drawing_program_visual_pane_geometry.h"
 
 #include "drawing_program/drawing_program_visual_authoring_chrome.h"
 #include "drawing_program/drawing_program_render_backend.h"
@@ -74,9 +76,9 @@ int drawing_program_visual_draw_frame(SDL_Window *window,
     uint32_t i;
     SDL_Color background;
     if (!window || !renderer || !ctx || !hooks || !hooks->module_type_for_pane ||
-        !hooks->draw_menu_bar_chrome || !hooks->draw_left_panel_chrome ||
-        !hooks->draw_right_panel_chrome || !hooks->draw_canvas_world_view ||
-        !hooks->draw_canvas_viewport_chrome) {
+        !hooks->draw_menu_bar_chrome || !hooks->draw_left_panel_content ||
+        !hooks->draw_right_panel_content || !hooks->draw_canvas_world_view ||
+        !hooks->draw_canvas_content_readout) {
         return 0;
     }
     if (ctx->overlay_adapter.lifecycle_state != DRAWING_PROGRAM_OVERLAY_STATE_RUNTIME_ACTIVE ||
@@ -135,16 +137,20 @@ int drawing_program_visual_draw_frame(SDL_Window *window,
         (void)SDL_RenderFillRect(renderer, &rect);
         const KitPaneCompositionEntry *pane=kit_pane_composition_find(&ctx->pane_host.composition_host.view,leaf->id);
         KitPaneSdlClip saved;
-        if (!pane || kit_pane_content_begin_sdl(renderer,pane,&saved).code!=CORE_OK) return 0;
-        if (module_type_id == 3u) {
-            hooks->draw_menu_bar_chrome(renderer, rect, ctx, theme);
+        if (!pane || !drawing_program_visual_pane_header_draw(renderer,ctx,pane,theme)) return 0;
+        if (kit_pane_content_begin_sdl(renderer,pane,&saved).code!=CORE_OK) return 0;
+        SDL_Rect content = drawing_program_visual_pane_pixel_rect(pane->content);
+        if (content.w <= 0 || content.h <= 0) {
+            /* Collapsed content has chrome but no provider paint invocation. */
+        } else if (module_type_id == 3u) {
+            hooks->draw_menu_bar_chrome(renderer, content, ctx, theme);
         } else if (module_type_id == 2u) {
-            hooks->draw_left_panel_chrome(renderer, rect, ctx, theme, ui);
+            hooks->draw_left_panel_content(renderer, content, ctx, theme, ui);
         } else if (module_type_id == 4u) {
-            hooks->draw_right_panel_chrome(renderer, rect, ctx, theme, ui, selection, interaction);
+            hooks->draw_right_panel_content(renderer, content, ctx, theme, ui, selection, interaction);
         } else if (module_type_id == 1u) {
-            hooks->draw_canvas_world_view(renderer, rect, ctx, theme, selection, ui, interaction);
-            hooks->draw_canvas_viewport_chrome(renderer, rect, ctx, theme);
+            hooks->draw_canvas_world_view(renderer, content, ctx, theme, selection, ui, interaction);
+            hooks->draw_canvas_content_readout(renderer, content, ctx, theme);
         }
         if (kit_pane_content_end_sdl(renderer,&saved).code!=CORE_OK) return 0;
         SDL_SetRenderDrawColor(renderer, border.r, border.g, border.b, border.a);

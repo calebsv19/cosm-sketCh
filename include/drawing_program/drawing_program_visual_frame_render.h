@@ -12,12 +12,12 @@ typedef struct DrawingProgramVisualFrameRenderHooks {
                                  SDL_Rect rect,
                                  const DrawingProgramAppContext *ctx,
                                  const CoreThemePreset *theme);
-    void (*draw_left_panel_chrome)(SDL_Renderer *renderer,
+    void (*draw_left_panel_content)(SDL_Renderer *renderer,
                                    SDL_Rect rect,
                                    const DrawingProgramAppContext *ctx,
                                    const CoreThemePreset *theme,
                                    const VisualPanelUiState *ui);
-    void (*draw_right_panel_chrome)(SDL_Renderer *renderer,
+    void (*draw_right_panel_content)(SDL_Renderer *renderer,
                                     SDL_Rect rect,
                                     const DrawingProgramAppContext *ctx,
                                     const CoreThemePreset *theme,
@@ -31,7 +31,7 @@ typedef struct DrawingProgramVisualFrameRenderHooks {
                                    const VisualSelectionState *selection,
                                    const VisualPanelUiState *ui,
                                    const VisualCanvasInteractionState *interaction);
-    void (*draw_canvas_viewport_chrome)(SDL_Renderer *renderer,
+    void (*draw_canvas_content_readout)(SDL_Renderer *renderer,
                                         SDL_Rect rect,
                                         const DrawingProgramAppContext *ctx,
                                         const CoreThemePreset *theme);

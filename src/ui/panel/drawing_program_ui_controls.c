@@ -7,6 +7,7 @@
 static KitUiSurface surface;
 static KitUiFocusScope focus;
 static KitUiSurfaceKey pending;
+static KitUiSurfaceKey last_activation;
 static int pending_enabled;
 static int geometry_valid;
 static int modal_collecting;
@@ -17,6 +18,7 @@ void drawing_program_ui_controls_reset(void) {
   kit_ui_surface_reset(&surface);
   memset(&focus, 0, sizeof(focus));
   pending = (KitUiSurfaceKey){0};
+  last_activation = (KitUiSurfaceKey){0};
   geometry_valid = 0;
 }
 CoreResult
@@ -98,11 +100,13 @@ void drawing_program_ui_controls_invalidate(void) {
   (void)kit_ui_surface_route(&surface, &e, &result);
   geometry_valid = 0;
   surface.activation_count = 0;
+  last_activation = (KitUiSurfaceKey){0};
 }
 int drawing_program_ui_controls_route(const DrawingProgramAppContext *app,
                                       const SDL_Event *event, int x, int y,
                                       int *ax, int *ay, int *activated) {
   *activated = 0;
+  last_activation = (KitUiSurfaceKey){0};
   if (controls_scope(app) != surface.scope) {
     (void)kit_ui_focus_scope_sync(&focus, &surface, controls_scope(app),
                                   drawing_program_authoring_host_active(app));
@@ -132,6 +136,7 @@ int drawing_program_ui_controls_route(const DrawingProgramAppContext *app,
         *ax = (int)(b.x + b.width / 2);
         *ay = (int)(b.y + b.height / 2);
         *activated = 1;
+        last_activation = surface.keys[i];
         break;
       }
   }
@@ -142,4 +147,8 @@ int drawing_program_ui_controls_route(const DrawingProgramAppContext *app,
 
 const KitUiSurface *drawing_program_ui_controls_snapshot(void) {
   return &surface;
+}
+
+KitUiSurfaceKey drawing_program_ui_controls_last_activation(void) {
+  return last_activation;
 }

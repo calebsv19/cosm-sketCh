@@ -1,6 +1,16 @@
 # drawing_program Current Truth
 
-Last updated: 2026-08-27
+Last updated: 2026-10-05 (retained Main Edit UI refinement)
+
+## Retained Main Edit refinement
+
+The retained Main Edit adopts shared controls, pane composition and window
+lifecycle contracts from reviewed shared 7b37ad8. One app pane-header adapter
+owns side-panel/viewport titles and shared FIT/LAYOUT action slots; content
+painting and input share content bounds. Drawing, indexed data, history,
+persistence and layout topology retain their app-owned meaning. This is a
+development comparison state; canonical 0.3.0 and the stable Desktop app remain
+separate. See [the UI contract](ui_contract.md) for exact scope and tests.
 
 ## Program Identity
 - Repository directory: `drawing_program/`

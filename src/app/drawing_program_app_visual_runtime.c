@@ -486,43 +486,23 @@ static void draw_menu_bar_chrome(SDL_Renderer *renderer,
     drawing_program_visual_render_menu_bar_chrome(renderer, rect, ctx, theme, visual_panel_render_hooks());
 }
 
-static void draw_left_panel_chrome(SDL_Renderer *renderer,
+static void draw_left_panel_content(SDL_Renderer *renderer,
                                    SDL_Rect rect,
                                    const DrawingProgramAppContext *ctx,
                                    const CoreThemePreset *theme,
                                    const VisualPanelUiState *ui) {
-    drawing_program_visual_render_left_panel_chrome(renderer, rect, ctx, theme, ui, visual_panel_render_hooks());
+    drawing_program_visual_render_left_panel_content(renderer, rect, ctx, theme, ui, visual_panel_render_hooks());
 }
 
-static void draw_right_panel_chrome(SDL_Renderer *renderer,
+static void draw_right_panel_content(SDL_Renderer *renderer,
                                     SDL_Rect rect,
                                     const DrawingProgramAppContext *ctx,
                                     const CoreThemePreset *theme,
                                     const VisualPanelUiState *ui,
                                     const VisualSelectionState *selection,
                                     const VisualCanvasInteractionState *interaction) {
-    drawing_program_visual_render_right_panel_chrome(
+    drawing_program_visual_render_right_panel_content(
         renderer, rect, ctx, theme, ui, selection, interaction, visual_panel_render_hooks());
-}
-
-static void draw_canvas_viewport_chrome(SDL_Renderer *renderer,
-                                        SDL_Rect rect,
-                                        const DrawingProgramAppContext *ctx,
-                                        const CoreThemePreset *theme) {
-    VisualPaneLayoutMetrics m;
-    char line[96];
-    VisualThemePalette p;
-    int y;
-    if (!renderer || !ctx) {
-        return;
-    }
-    m = make_pane_layout_metrics(ctx);
-    resolve_visual_theme_palette(theme, &p);
-    y = rect.y + m.pad_y;
-    drawing_program_visual_draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, "VIEWPORT", p.text_primary, m.title_scale);
-    y += m.title_glyph_h + m.section_gap;
-    (void)snprintf(line, sizeof(line), "WORLD VIEW  ZOOM: %.2fx", (double)ctx->editor.viewport.zoom);
-    drawing_program_visual_draw_bitmap_text(renderer, rect, rect.x + m.pad_x, y, line, p.text_muted, m.body_scale);
 }
 
 static const DrawingProgramVisualCanvasWorldRenderHooks *visual_canvas_world_render_hooks(void) {
@@ -558,10 +538,10 @@ static const DrawingProgramVisualFrameRenderHooks *visual_frame_render_hooks(voi
     static const DrawingProgramVisualFrameRenderHooks hooks = {
         .module_type_for_pane = drawing_program_visual_module_type_for_pane,
         .draw_menu_bar_chrome = draw_menu_bar_chrome,
-        .draw_left_panel_chrome = draw_left_panel_chrome,
-        .draw_right_panel_chrome = draw_right_panel_chrome,
+        .draw_left_panel_content = draw_left_panel_content,
+        .draw_right_panel_content = draw_right_panel_content,
         .draw_canvas_world_view = draw_canvas_world_view,
-        .draw_canvas_viewport_chrome = draw_canvas_viewport_chrome
+        .draw_canvas_content_readout = drawing_program_visual_draw_canvas_content_readout
     };
     return &hooks;
 }

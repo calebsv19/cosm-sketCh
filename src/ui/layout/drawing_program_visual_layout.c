@@ -77,7 +77,7 @@ VisualPaneLayoutMetrics make_pane_layout_metrics(const DrawingProgramAppContext 
 }
 
 int right_canvas_content_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m) {
-    int y = rect.y + m.pad_y + m.title_glyph_h + m.section_gap;
+    int y = rect.y; /* The pane host already reserved the header. */
     y += m.tab_h + m.section_gap;
     return y;
 }
@@ -108,7 +108,7 @@ SDL_Rect right_panel_slot_tab_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, uin
     int total_gap = 0;
     int tab_w = 0;
     int x = 0;
-    int y = rect.y + m.pad_y + m.title_glyph_h + m.section_gap;
+    int y = rect.y; /* The pane host already reserved the header. */
     if (slot_count == 0u) {
         slot_count = 1u;
     }
@@ -491,7 +491,7 @@ SDL_Rect right_file_route_action_button_rect(SDL_Rect rect,
 }
 
 int right_layer_content_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m) {
-    int y = rect.y + m.pad_y + m.title_glyph_h + m.section_gap;
+    int y = rect.y; /* The pane host already reserved the header. */
     y += m.tab_h + m.section_gap;
     return y;
 }
@@ -584,7 +584,7 @@ SDL_Rect right_layer_role_button_rect(SDL_Rect rect,
 }
 
 int left_panel_content_start_y(SDL_Rect rect, VisualPaneLayoutMetrics m) {
-    int y = rect.y + m.pad_y + m.title_glyph_h + m.section_gap;
+    int y = rect.y; /* The pane host already reserved the header. */
     y += m.tab_h + m.section_gap;
     return y;
 }
@@ -593,7 +593,7 @@ SDL_Rect left_panel_slot_tab_rect(SDL_Rect rect, VisualPaneLayoutMetrics m, uint
     int total_gap = 0;
     int tab_w = 0;
     int x = 0;
-    int y = rect.y + m.pad_y + m.title_glyph_h + m.section_gap;
+    int y = rect.y; /* The pane host already reserved the header. */
     if (slot_count == 0u) {
         slot_count = 1u;
     }

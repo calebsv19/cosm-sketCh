@@ -8,6 +8,8 @@
   latest clean headless smoke result
 - `future_intent.md`: near-term roadmap and planned slices
 - `architecture.md`: subsystem boundaries and ownership
+- [ui_contract.md](ui_contract.md): retained Main Edit UI, pane header/content,
+  window lifecycle and qualification boundaries
 - `keybind_reference.md`: canonical runtime control map
 
 ## Verification Entry Points
@@ -28,7 +30,7 @@
 
 `vulkan-rollout-self-test` binds the vendored `vk_runtime` and `vk_renderer`
 files to canonical shared commit
-`cc340d78a3cea80b1086fc5e434ccbaf1118c34c`, then proves validation-clean
+`7b37ad8c6ca7eafa679ab820aab9cac033d46c11` in retained Main Edit, then proves validation-clean
 startup, native readback/capture, resize recreation, 2x Retina scaling,
 shutdown/restart, and a real Drawing Program frame. It does not claim Vulkan
 compute adoption.

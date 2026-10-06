@@ -43,10 +43,27 @@ product target in this pilot. Native file panels retain platform text behavior.
 ## Panes and windows
 
 Existing core_pane leaf IDs and solved rectangles feed one shared composition
-snapshot for input ownership and nested drawing clips. No new pane layout,
-docking or provider persistence is introduced. Existing content titles remain
-app-owned; shared header-action slots are reserved for a future header/content
-separation rather than changing the drawing workspace in this adoption.
+snapshot for input ownership and nested drawing clips. The app's pane geometry
+adapter supplies module-specific header height; kit_pane partitions shell,
+header and content. The top-level menu keeps its existing chrome without an
+additional header. Side-panel and viewport titles are painted by one header
+adapter. Content callbacks, hit classification, view fitting and world/input
+projection use the same inward-rounded content bounds. Side-panel layout
+helpers no longer add their own title offset. Canvas projection is centered in
+the content area below the header rather than under the old title overlay.
+
+Shared header slots reserve measured title space before actions. The viewport
+has FIT; either side panel has LAYOUT, opening the existing workspace authoring
+session. Narrow/empty panes omit slots instead of overlapping the title; omitted
+or hidden actions have no input target. Disabled actions cannot activate. Action
+keys combine operation and stable pane ID, and the app checks the current module
+policy before dispatch. Headers dispatch directly to existing domain actions;
+older content controls still use their bounded app-handler bridge. Real pointer
+events reach pane ownership before semantic control routing, so a synthesized
+content action cannot become a second press or leave capture stuck after release.
+
+The three header policies are a fixed app projection. No new pane topology,
+dynamic provider registration, docking or provider persistence is introduced.
 
 Splitter motion is a layout transaction. Cancel restores node payload and
 revision state, including nested authoring state. A no-op drag creates no new
@@ -67,6 +84,9 @@ centering/state restoration, release ownership, modal exclusion/restoration,
 window invalidation, splitter transactions and pane capture. `make test` keeps
 existing drawing/history/indexed/persistence/export/authoring regressions.
 `make vulkan-rollout-self-test` checks shared identity and native presentation.
+`make test-suite TEST_SUITE=pane-header` exercises the production frame's
+header/content isolation, content/input bounds, narrow/disabled/hidden slots,
+semantic dispatch, FIT parity and authoring cancellation without a native window.
 
 Optional qualification environments run finite probes in the actual event loop:
 `CODEWORK_WINDOW_LIFECYCLE_PROOF=<existing directory>` covers resize, fullscreen,
@@ -77,3 +97,10 @@ and authoring scopes. These are engineering probes, inactive in routine use.
 Always supply isolated runtime/input/output roots and `--no-persist`. Native
 macOS proof does not establish human IME, external monitor/DPI, exclusive
 fullscreen, device-loss, Linux or Windows acceptance.
+
+`DRAWING_PROGRAM_PANE_HEADER_PROOF=<existing directory>` runs an independent,
+finite actual-loop header qualification: pan the content, reject FIT on release
+outside, apply FIT on accepted release, reach LAYOUT with Tab/Space, cancel the
+modal and verify focus plus layout restoration. It records four fresh captures
+and is inactive in routine use. Run this and other probes separately, checking
+completion, exit status and capture existence; do not combine their drivers.

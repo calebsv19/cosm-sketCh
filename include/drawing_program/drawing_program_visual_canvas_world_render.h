@@ -52,4 +52,8 @@ void drawing_program_visual_draw_canvas_world_view(
 void drawing_program_visual_canvas_world_backdrop_cache_shutdown(void);
 uint32_t drawing_program_visual_canvas_world_current_zoom_bucket_percent(const DrawingProgramAppContext *ctx);
 
+void drawing_program_visual_draw_canvas_content_readout(
+    SDL_Renderer *renderer, SDL_Rect content,
+    const DrawingProgramAppContext *ctx, const CoreThemePreset *theme);
+
 #endif

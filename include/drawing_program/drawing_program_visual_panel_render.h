@@ -57,14 +57,14 @@ void drawing_program_visual_render_menu_bar_chrome(SDL_Renderer *renderer,
                                                    const CoreThemePreset *theme,
                                                    const DrawingProgramVisualPanelRenderHooks *hooks);
 
-void drawing_program_visual_render_left_panel_chrome(SDL_Renderer *renderer,
+void drawing_program_visual_render_left_panel_content(SDL_Renderer *renderer,
                                                      SDL_Rect rect,
                                                      const DrawingProgramAppContext *ctx,
                                                      const CoreThemePreset *theme,
                                                      const VisualPanelUiState *ui,
                                                      const DrawingProgramVisualPanelRenderHooks *hooks);
 
-void drawing_program_visual_render_right_panel_chrome(SDL_Renderer *renderer,
+void drawing_program_visual_render_right_panel_content(SDL_Renderer *renderer,
                                                       SDL_Rect rect,
                                                       const DrawingProgramAppContext *ctx,
                                                       const CoreThemePreset *theme,

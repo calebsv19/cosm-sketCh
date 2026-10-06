@@ -1,4 +1,5 @@
 #include "drawing_program/drawing_program_app_main.h"
+#include "drawing_program/drawing_program_visual_pane_geometry.h"
 #include <string.h>
 
 void drawing_program_pane_host_cancel_splitter_drag(
@@ -23,7 +24,7 @@ CoreResult drawing_program_pane_host_compose(DrawingProgramAppContext *ctx,
   CorePaneRect viewport = {0};
   for (uint32_t i = 0; i < ctx->pane_host.leaf_count; i++) {
     CorePaneLeafRect leaf = ctx->pane_host.leaves[i];
-    specs[i] = (KitPaneCompositionSpec){leaf.id, leaf.rect, 0, 0, 0, 1};
+    specs[i] = drawing_program_visual_pane_spec(ctx, &leaf);
     float right = leaf.rect.x + leaf.rect.width,
           bottom = leaf.rect.y + leaf.rect.height;
     if (right > viewport.width)

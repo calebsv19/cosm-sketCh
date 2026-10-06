@@ -5,4 +5,6 @@
 /* Opt-in bounded qualification; no routine automation policy. */
 int drawing_program_ui_pilot_probe(SDL_Window *window, SDL_Renderer *renderer,
                                    const DrawingProgramAppContext *app);
+int drawing_program_pane_header_probe(SDL_Window *window, SDL_Renderer *renderer,
+                                      const DrawingProgramAppContext *app);
 #endif

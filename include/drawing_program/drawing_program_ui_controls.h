@@ -89,6 +89,8 @@ enum DrawingProgramUiOperation {
   DRAWING_UI_AUTHORING_FONT_THEME = 181,
   DRAWING_UI_LEFT_TOOL = 182,
   DRAWING_UI_LEFT_OBJECT = 183,
+  DRAWING_UI_PANE_HEADER_LAYOUT = 300,
+  DRAWING_UI_PANE_HEADER_FIT = 301,
 };
 const KitUiSurface *drawing_program_ui_controls_snapshot(void);
 void drawing_program_ui_controls_reset(void);
@@ -101,6 +103,8 @@ uint64_t drawing_program_ui_controls_string_id(const char *text);
 void drawing_program_ui_controls_button(SDL_Renderer *renderer, SDL_Rect clip,
                                         SDL_Rect rect, KitUiButtonSpec *spec);
 void drawing_program_ui_controls_invalidate(void);
+/* Available only after a successful activation in the current route call. */
+KitUiSurfaceKey drawing_program_ui_controls_last_activation(void);
 /* Returns ownership; activation resolves to current visible bounds only. */
 int drawing_program_ui_controls_route(const DrawingProgramAppContext *app,
                                       const SDL_Event *event, int x, int y,

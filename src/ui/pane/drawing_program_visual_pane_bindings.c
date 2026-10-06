@@ -1,4 +1,5 @@
 #include "drawing_program/drawing_program_visual_pane_bindings.h"
+#include "drawing_program/drawing_program_visual_pane_geometry.h"
 
 #include <math.h>
 
@@ -136,17 +137,11 @@ int drawing_program_visual_pane_rect_for_module_type(const DrawingProgramAppCont
     for (i = 0u; i < ctx->pane_host.leaf_count; ++i) {
         const CorePaneLeafRect *leaf = &ctx->pane_host.leaves[i];
         if (drawing_program_visual_module_type_for_pane(ctx, (uint32_t)leaf->id) == module_type_id) {
-            out_rect->x = (int)leaf->rect.x;
-            out_rect->y = (int)leaf->rect.y;
-            out_rect->w = (int)leaf->rect.width;
-            out_rect->h = (int)leaf->rect.height;
-            if (out_rect->w < 1) {
-                out_rect->w = 1;
-            }
-            if (out_rect->h < 1) {
-                out_rect->h = 1;
-            }
-            return 1;
+            KitPaneCompositionEntry pane;
+            if (drawing_program_visual_pane_entry(ctx, leaf, &pane).code != CORE_OK)
+                return 0;
+            *out_rect = drawing_program_visual_pane_pixel_rect(pane.content);
+            return out_rect->w > 0 && out_rect->h > 0;
         }
     }
     return 0;
