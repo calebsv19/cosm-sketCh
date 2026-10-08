@@ -69,3 +69,13 @@ force-remove, or repurpose it to recover its name. Recycling requires a clean
 lane, no untracked owner data, retained commit reachability, explicit ignored
 artifact handling, and no process owner. The guarded refresh target refuses to
 replace a running Main Edit app and cannot target the canonical Desktop app.
+
+## Main Edit icon packaging
+
+The existing product icon is retained at
+`tools/packaging/macos/local_app_icon/AppIcon.icns`; this file is deliberately
+excluded from the local-icon ignore rule so future source checkpoints and
+worktrees retain it. Main Edit packaging requires an icon input. Its self-test
+requires the bundled icon, the matching `CFBundleIconFile`, and byte equality
+with the selected `.icns` input. Missing icons must fail rather than silently
+produce a generic Desktop icon. Other local icon experiments remain ignored.

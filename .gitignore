@@ -12,5 +12,6 @@ data/input/
 data/output/
 data/runtime/
 data/last_session_debug.json
-tools/packaging/macos/local_app_icon/
+tools/packaging/macos/local_app_icon/*
+!tools/packaging/macos/local_app_icon/AppIcon.icns
 *.log
