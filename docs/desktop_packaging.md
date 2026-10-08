@@ -48,11 +48,12 @@ Last updated: 2026-08-27
   - `make -C drawing_program release-notarize APPLE_SIGN_IDENTITY="Developer ID Application: <Name> (<TEAMID>)" APPLE_NOTARY_PROFILE="<profile>"`
   - `make -C drawing_program release-staple`
   - `make -C drawing_program release-verify-notarized`
-  - `make -C drawing_program release-artifact TARGET_ARCH=arm64`
-  - `make -C drawing_program release-artifact TARGET_ARCH=x86_64`
-  - `make -C drawing_program release-distribute APPLE_SIGN_IDENTITY="Developer ID Application: <Name> (<TEAMID>)" APPLE_NOTARY_PROFILE="<profile>"`
+  - `make -C drawing_program release-artifact TARGET_ARCH=arm64 RELEASE_ROOT=build/release-authenticated/<fresh-job-id>`
+  - `make -C drawing_program release-artifact TARGET_ARCH=x86_64 RELEASE_ROOT=build/release-authenticated/<fresh-job-id>`
+  - `make -C drawing_program release-distribute RELEASE_ROOT=build/release-authenticated/<fresh-job-id> APPLE_SIGN_IDENTITY="Developer ID Application: <Name> (<TEAMID>)" APPLE_NOTARY_PROFILE="<profile>"`
 
-Current release-artifact output now matches the unified export lane:
+Current `release-artifact` output uses the supplied create-only `RELEASE_ROOT`
+(`build/release` paths below describe the retained historical layout):
 - `build/release/sketCh-<version>-macOS-arm64-stable.zip`
 - `build/release/sketCh-<version>-macOS-arm64-stable.zip.sha256`
 - `build/release/sketCh-<version>-macOS-arm64-stable.manifest.txt`
@@ -216,4 +217,4 @@ It never refreshes `sketCh.app`.
 
 ## Isolated release packaging
 
-`make release-artifact-disposable RELEASE_ROOT=build/release-authenticated/<job-id>` creates a fresh sketCh.app, ZIP, checksum and source-bound manifest. Existing roots, traversal and symlink ancestors are rejected. `release-package-self-test` preserves the full standard package self-test, including Vulkan validation, resize and real-app capture, while isolating runtime, logs and proof output under a temporary build directory. Installed apps are not replaced. Developer ID authentication and publication remain separate Decision 1 and Decision 2 stages.
+`make release-artifact-disposable RELEASE_ROOT=build/release-authenticated/<job-id>` creates a fresh sketCh.app, ZIP, checksum and source-bound manifest. Existing roots, traversal and symlink ancestors are rejected. The split-root Release Control route also accepts an absolute bound job or target under the configured data workspace at `drawing_program/build/release-authenticated/`; arbitrary absolute paths remain forbidden. The signed `release-artifact` entrypoint enforces the same create-only root and directs both its app and final ZIP/checksum/manifest there, preserving existing `dist` and release outputs. `release-package-self-test` preserves the full standard package self-test, including Vulkan validation, resize and real-app capture, while isolating runtime, logs and proof output under a temporary build directory. Installed apps are not replaced. Developer ID authentication and publication remain separate Decision 1 and Decision 2 stages.

@@ -3,6 +3,8 @@ import pathlib
 import shutil
 import subprocess
 import tempfile
+import sys
+sys.dont_write_bytecode = True
 import unittest
 
 SOURCE = pathlib.Path(__file__).resolve().parents[1]
@@ -12,6 +14,10 @@ class DisposableRootTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="sketch-package-root-") as temporary:
             root = pathlib.Path(temporary)
             shutil.copyfile(SOURCE / "make/release-disposable.mk", root / "Makefile")
+            helper = root / "tools/packaging/macos"
+            helper.mkdir(parents=True)
+            shutil.copyfile(SOURCE / "tools/packaging/macos/prepare_release_root.py",
+                            helper / "prepare_release_root.py")
             parent = root / "build/release-authenticated"
             parent.mkdir(parents=True)
             existing = parent / "existing-job"
@@ -36,6 +42,56 @@ class DisposableRootTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("ancestor must not be a symlink", result.stdout + result.stderr)
             self.assertFalse((root / "ancestor-job").exists())
+
+    def test_absolute_target_and_signed_roots_are_create_only(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "sketch_release_root", SOURCE / "tools/packaging/macos/prepare_release_root.py")
+        helper = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(helper)
+        with tempfile.TemporaryDirectory(prefix="sketch-data-root-") as temporary:
+            base = pathlib.Path(temporary).resolve()
+            source = base / "source"
+            source.mkdir()
+            data = base / "data"
+            data.mkdir()
+            target = data / "drawing_program/build/release-authenticated/raor_exact/targets/rapt_exact"
+            self.assertEqual(helper.prepare_root(str(target), source, data), target)
+            (target / "sentinel").write_text("keep")
+            with self.assertRaises(ValueError):
+                helper.prepare_root(str(target), source, data)
+            self.assertEqual((target / "sentinel").read_text(), "keep")
+            signed = data / "drawing_program/build/release-authenticated/rapcj_exact"
+            self.assertEqual(helper.prepare_root(str(signed), source, data), signed)
+            for bad in (base / "outside/job", data / "drawing_program/build/release-authenticated/ab",
+                        data / "drawing_program/build/release-authenticated/job/extra"):
+                with self.assertRaises(ValueError):
+                    helper.prepare_root(str(bad), source, data)
+                self.assertFalse(bad.exists())
+            link = data / "drawing_program/build/release-authenticated/link"
+            link.symlink_to(signed, target_is_directory=True)
+            with self.assertRaises(ValueError):
+                helper.prepare_root(str(link / "targets/target"), source, data)
+
+    def test_signed_entrypoint_passes_only_fresh_root_to_child(self):
+        with tempfile.TemporaryDirectory(prefix="sketch-signed-root-") as temporary:
+            root = pathlib.Path(temporary).resolve()
+            helper = root / "tools/packaging/macos"
+            helper.mkdir(parents=True)
+            shutil.copyfile(SOURCE / "tools/packaging/macos/prepare_release_root.py",
+                            helper / "prepare_release_root.py")
+            text = (SOURCE / "make/release.mk").read_text()
+            start = text.index("release-artifact:\n")
+            end = text.index(".PHONY: release-artifact-internal", start)
+            (root / "Makefile").write_text(text[start:end] +
+                "\nrelease-artifact-internal:\n\t@test \"$(RELEASE_DIR)\" = \"$(DIST_DIR)\"\n"
+                "\t@echo proof > \"$(RELEASE_DIR)/proof\"\n")
+            path = root / "build/release-authenticated/signed-job"
+            cmd = ["make", "release-artifact", "RELEASE_ROOT=" + str(path)]
+            self.assertEqual(subprocess.run(cmd, cwd=root, capture_output=True).returncode, 0)
+            self.assertEqual((path / "proof").read_text().strip(), "proof")
+            self.assertNotEqual(subprocess.run(cmd, cwd=root, capture_output=True).returncode, 0)
+            self.assertFalse((root / "dist").exists())
 
     def test_self_test_uses_and_removes_private_runtime_on_success_and_failure(self):
         for exit_code in (0, 7):

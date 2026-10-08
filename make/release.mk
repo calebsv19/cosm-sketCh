@@ -116,10 +116,18 @@ release-verify-notarized: release-staple
 	@xcrun stapler validate "$(PACKAGE_APP_DIR)"
 	@echo "release-verify-notarized passed."
 
-release-artifact: release-verify-notarized
+# The credential owner supplies an absent, disjoint job root. Preserve all
+# pre-existing unsigned packages, dist bundles and historical release outputs.
+release-artifact:
+	@set -eu; \
+	root="$$(python3 tools/packaging/macos/prepare_release_root.py --output "$(RELEASE_ROOT)")"; \
+	$(MAKE) release-artifact-internal RELEASE_DIR="$$root" DIST_DIR="$$root"
+
+.PHONY: release-artifact-internal
+release-artifact-internal: release-verify-notarized
 	@mkdir -p "$(RELEASE_DIR)"
 	@rm -f "$(RELEASE_APP_ZIP)" "$(RELEASE_APP_ZIP_SHA256)" "$(RELEASE_MANIFEST)"
-	@cd "$(DIST_DIR)" && zip -qr "../$(RELEASE_APP_ZIP)" "$(PACKAGE_APP_NAME)"
+	@/usr/bin/ditto -c -k --sequesterRsrc --keepParent "$(PACKAGE_APP_DIR)" "$(RELEASE_APP_ZIP)"
 	@shasum -a 256 "$(RELEASE_APP_ZIP)" > "$(RELEASE_APP_ZIP_SHA256)"
 	@{ \
 		echo "product=$(RELEASE_PRODUCT_NAME)"; \
@@ -134,6 +142,10 @@ release-artifact: release-verify-notarized
 		echo "version=$(RELEASE_VERSION)"; \
 		echo "channel=$(RELEASE_CHANNEL)"; \
 		echo "bundle_id=$(RELEASE_BUNDLE_ID)"; \
+		echo "platform=$(RELEASE_PLATFORM)"; \
+		echo "arch=$(RELEASE_ARCH)"; \
+		echo "format=zip"; \
+		echo "artifact=$$(basename "$(RELEASE_APP_ZIP)")"; \
 		echo "signed=1"; \
 		echo "notarized=1"; \
 		echo "zip=$(RELEASE_APP_ZIP)"; \
