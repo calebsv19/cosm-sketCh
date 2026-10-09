@@ -15,3 +15,7 @@ data/last_session_debug.json
 tools/packaging/macos/local_app_icon/*
 !tools/packaging/macos/local_app_icon/AppIcon.icns
 *.log
+
+# Python MCP adapter caches
+__pycache__/
+*.pyc

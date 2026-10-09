@@ -1,4 +1,6 @@
 DRAWING_PROGRAM_BASE_LOCAL_SRCS := \
+	src/control/control_bridge.c \
+	src/control/control_dispatch.c \
 	src/input/panel/drawing_program_ui_commands.c \
 	src/app/drawing_program_pane_lifecycle_probe.c \
 	src/runtime/adapters/drawing_program_pane_lifecycle.c \

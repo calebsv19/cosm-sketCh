@@ -100,3 +100,9 @@ Troubleshooting:
   regression; the target exits nonzero instead of writing ambiguous proof.
 - If the output path is missing or empty, the target failed and should not be
   counted as R6 proof.
+
+## Indexed agent control
+
+[Local MCP setup and command contract](../tools/mcp/README.md) describes the optional GUI endpoint, atomic indexed tile edits, source previews and candidate save/export. Dungeon candidate rendering and named palette families remain follow-on work.
+
+The Sketch-only candidate preparation client in `tools/mcp/prepare_candidate.py` can author the compatible cobble sample through the installed S1 MCP endpoint, verify exact candidate save/reopen and export, and generate lossless tile/repetition review sheets. It uses an isolated software session and preserves source assets; it does not render Dungeon rooms. See `tools/mcp/README.md`.

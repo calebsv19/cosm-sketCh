@@ -10,6 +10,8 @@
 extern "C" {
 #endif
 
+CoreResult drawing_program_indexed_editor_replace_tile(DrawingProgramAppContext *ctx, const char *cell_id, const uint8_t indices[256]);
+
 int drawing_program_indexed_editor_is_active(const DrawingProgramAppContext *ctx);
 int drawing_program_indexed_editor_tool_allowed(DrawingProgramToolKind tool);
 CoreResult drawing_program_indexed_editor_select_slot(DrawingProgramAppContext *ctx, uint8_t slot_index);

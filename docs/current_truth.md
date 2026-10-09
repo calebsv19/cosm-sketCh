@@ -392,3 +392,17 @@ and fail on semantic spatial-hit fallback. The existing fixed-pane UI architectu
 uses the adopted shared APIs without module/version changes. See the UI contract
 for spatial-control and qualification boundaries. Canonical/production adoption
 remains separate.
+
+## 2026-10-09 — Indexed agent commands and MCP
+
+Retained Main Edit adds opt-in same-user local control for open indexed projects: inspect/read/preview, atomic patch/replacement, cell-confined fill, copy between existing tiles, shared pixel undo/redo, new candidate pack save and transactional export. The owner loop executes commands; transport never accesses authored state. Instance/state preconditions and bounded exact replay receipts protect stale and uncertain calls. Document swaps invalidate prior state. See [MCP contract](../tools/mcp/README.md). No Dungeon authored-terrain cutover or palette-family editor is implemented by this slice. Qualification is recorded in the owning private roadmap.
+
+The Sketch-only candidate preparation client in `tools/mcp/prepare_candidate.py` can author the compatible cobble sample through the installed S1 MCP endpoint, verify exact candidate save/reopen and export, and generate lossless tile/repetition review sheets. It uses an isolated software session and preserves source assets; it does not render Dungeon rooms. See `tools/mcp/README.md`.
+
+## 2026-10-09 — Agent authoring source checkpoint
+
+The indexed command bridge, official SDK adapter and deterministic room-theme
+recipes are saved on `codex/drawing-program-main-edit`. A fresh contained staged
+build, full lifecycle tests, Main Edit package contracts, headless smoke and
+13-tool live owner-loop SDK test pass. Source input bytes remain unchanged and
+saved candidate indices reopen exactly. VERSION and installed app are unchanged.

@@ -214,3 +214,30 @@ CoreResult drawing_program_indexed_editor_redo(DrawingProgramAppContext *ctx) {
         &ctx->texture_project.indexed_history, &ctx->texture_project.indexed_raster);
     return result.code == CORE_OK ? indexed_editor_synchronize_tile_canvases(ctx) : result;
 }
+
+/* One validated tile batch is one history command; all callers share exact
+ * atlas/canvas synchronization with pointer brush and fill actions. */
+CoreResult drawing_program_indexed_editor_replace_tile(DrawingProgramAppContext *ctx,
+    const char *cell_id, const uint8_t indices[256]) {
+    DrawingProgramIndexedHistoryDelta deltas[256];
+    uint32_t count = 0;
+    if (!drawing_program_indexed_editor_is_active(ctx) || !cell_id || !indices)
+        return indexed_editor_invalid("indexed tile edit unavailable");
+    const DrawingProgramIndexedCell *cell = drawing_program_indexed_cell_table_find(
+        &ctx->texture_project.indexed_cells, cell_id);
+    if (!cell || cell->width != 16 || cell->height != 16)
+        return indexed_editor_invalid("unknown or unsupported named tile");
+    CoreResult result = indexed_editor_synchronize_tile_canvases(ctx);
+    if (result.code != CORE_OK) return result;
+    for (uint32_t i = 0; i < 256; ++i) {
+        if (indices[i] >= ctx->texture_project.indexed_profile.slot_count)
+            return indexed_editor_invalid("tile slot out of range");
+        uint32_t offset = (cell->y + i / 16) * ctx->texture_project.indexed_raster.width + cell->x + i % 16;
+        uint8_t old = ctx->texture_project.indexed_raster.indices[offset];
+        if (old != indices[i]) deltas[count++] = (DrawingProgramIndexedHistoryDelta){offset, old, indices[i], 0};
+    }
+    if (!count) return core_result_ok();
+    result = drawing_program_indexed_history_apply_delta_block(
+        &ctx->texture_project.indexed_history, &ctx->texture_project.indexed_raster, deltas, count);
+    return result.code == CORE_OK ? indexed_editor_synchronize_tile_canvases(ctx) : result;
+}

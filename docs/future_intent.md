@@ -64,3 +64,7 @@ and accepted persistence, or extraction of direct content commands. Dynamic
 docking and a general module picker are not implied by the LAYOUT header action.
 Human comparison and additional-platform qualification remain separate from
 the local automated proofs. Canonical adoption and release are separate steps.
+
+## Agent pixel authoring sequence — 2026-10-09
+
+S1 adds Sketch indexed commands/MCP. Next is S2 Dungeon candidate rendering with asset-revision cache invalidation and matched room capture, then S3 named palette families, S4 deterministic recipes/variants and style review, and S5 props/sprites/animation. Preserve the existing exact-index interchange and procedural fallback. Final room visuals require the actual producer-to-renderer loop and human review.

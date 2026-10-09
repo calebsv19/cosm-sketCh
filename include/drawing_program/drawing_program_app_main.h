@@ -185,6 +185,7 @@ typedef struct DrawingProgramAuthoringHostState {
 } DrawingProgramAuthoringHostState;
 
 typedef struct DrawingProgramAppSessionState {
+    uint64_t control_document_generation; /* runtime-only; invalidates agent state after document swap */
     uint8_t headless;
     uint8_t print_lifecycle;
     uint8_t export_json_requested;

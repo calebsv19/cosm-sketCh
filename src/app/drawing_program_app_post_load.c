@@ -10,6 +10,8 @@ void drawing_program_app_rearm_after_document_swap(DrawingProgramAppContext *ctx
         return;
     }
 
+    ctx->session.control_document_generation += 1u;
+
     if (ctx->document.layer_count > 0u &&
         drawing_program_document_layer_index_for_id(&ctx->document,
                                                     ctx->editor.active_layer_id,

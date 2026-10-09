@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "core_font.h"
+#include "drawing_program/drawing_program_control.h"
 #include "kit_ui_window_sdl.h"
 #include "drawing_program/drawing_program_ui_controls.h"
 #include "drawing_program/drawing_program_ui_commands.h"
@@ -485,6 +486,7 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
     CoreThemePresetId selected_theme = CORE_THEME_PRESET_DARK_DEFAULT;
     CoreFontPresetId selected_font = CORE_FONT_PRESET_IDE;
     DrawingProgramAppContext *app_ptr = 0;
+    SketchControl *control = NULL;
     SDL_Window *window = 0;
     SDL_Renderer *renderer = 0;
     char **app_argv = argv;
@@ -662,6 +664,12 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
     {
         int background_present_dirty = 0;
         DrawingProgramVisualLoopEventContext event_ctx;
+        const char *control_path = getenv("SKETCH_CONTROL_SOCKET");
+        if (control_path && *control_path) {
+            const char *write = getenv("SKETCH_CONTROL_ALLOW_WRITE");
+            control = sketch_control_start(control_path, write && !strcmp(write,"1"), getenv("SKETCH_CONTROL_OUTPUT_ROOT"));
+            if (!control) { fprintf(stderr,"sketCh: control endpoint startup refused\n"); goto cleanup; }
+        }
         while (!quit) {
             SDL_Event event;
             int current_w = 0;
@@ -719,6 +727,12 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
                 if (drawing_program_visual_loop_event_requires_runtime_tick(&event)) {
                     frame_runtime_tick_event_count += 1u;
                 }
+            }
+            if (sketch_control_poll(control, &app_ctx,
+                drawing_program_visual_loop_has_continuous_interaction(&canvas_interaction) ||
+                drawing_program_authoring_host_active(&app_ctx) || app_ctx.pane_host.composition_host.blocked)) {
+                frame_event_count += 1u;
+                force_render = 1;
             }
             if (frame_event_count > 0u) {
                 last_input_event_ms = (uint32_t)SDL_GetTicks();
@@ -778,7 +792,7 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
                            background_present_dirty)
                               ? 1
                               : 0;
-            force_render = (present_count == 0u || window_probe.directory ||
+            force_render = (force_render || present_count == 0u || window_probe.directory ||
                 getenv("DRAWING_PROGRAM_UI_PROOF") || getenv("DRAWING_PROGRAM_PANE_HEADER_PROOF") ||
                 getenv("DRAWING_PROGRAM_SPLITTER_PROOF") || getenv("DRAWING_PROGRAM_PANE_LIFECYCLE_PROOF")) ? 1 : 0;
             should_run_runtime_tick =
@@ -890,6 +904,7 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
         drawing_program_visual_runtime_print_stage_failure("vulkan_runtime", result);
         goto cleanup;
     }
+    sketch_control_stop(control); control = NULL;
     CoreResult loop_result=result;
     result = drawing_program_app_shutdown(&app_ctx);
     if (loop_result.code!=CORE_OK) result=loop_result;
@@ -900,6 +915,7 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
     exit_code = (result.code == CORE_OK) ? 0 : 1;
 
 cleanup:
+    sketch_control_stop(control);
     drawing_program_visual_text_cache_shutdown();
     drawing_program_visual_font_cache_shutdown();
     drawing_program_visual_canvas_world_backdrop_cache_shutdown();

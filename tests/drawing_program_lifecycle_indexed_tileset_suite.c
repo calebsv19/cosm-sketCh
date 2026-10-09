@@ -1,4 +1,7 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <json-c/json.h>
+#include "../src/control/control_internal.h"
 #include <string.h>
 #include <unistd.h>
 
@@ -1049,8 +1052,87 @@ cleanup:
     return status ? 0 : 1;
 }
 
+
+static int indexed_assert_control_admission(void) {
+    DrawingProgramIndexedTilesetProfile profile;
+    DrawingProgramAppContext *app=calloc(1,sizeof(*app));
+    SketchControl *control=calloc(1,sizeof(*control));
+    char request[1024],expected[32]; char *response=NULL;
+    json_object *o=NULL,*v=NULL; bool changed=false; int status=0;
+    if(!app || !control) goto done;
+    strcpy(control->instance,"fixture");control->allow_write=true;
+    indexed_seed_profile(&profile);
+    if(!indexed_init_project(&app->texture_project,&profile) || !indexed_seed_two_cells(&app->texture_project)) goto done;
+    response=sketch_control_dispatch(control,app,"{\"op\":\"inspect_project\"}",false,&changed);
+    if(!response) goto done;
+    o=json_tokener_parse(response);free(response);response=NULL;
+    if(!o || !json_object_object_get_ex(o,"expected_state",&v)) goto done;
+    snprintf(expected,sizeof(expected),"%s",json_object_get_string(v));json_object_put(o);o=NULL;
+    snprintf(request,sizeof(request),"{\"op\":\"patch_tile\",\"instance\":\"fixture\",\"request_id\":\"busy\",\"expected_state\":\"%s\",\"tile\":\"fixture.left\",\"pixels\":[{\"x\":0,\"y\":0,\"slot\":4}]}",expected);
+    response=sketch_control_dispatch(control,app,request,true,&changed);
+    if(!response || !strstr(response,"busy") || changed || app->texture_project.indexed_history.command_count) goto done;
+    free(response);response=NULL;
+    app->session.control_document_generation++;
+    /* Change request identity to avoid replaying the earlier busy receipt. */
+    char *id=strstr(request,"busy"); memcpy(id,"swap",4);
+    response=sketch_control_dispatch(control,app,request,false,&changed);
+    if(!response || !strstr(response,"stale_state") || changed) goto done;
+    free(response);response=NULL;
+    response=sketch_control_dispatch(control,app,"{\"op\":\"inspect_project\"}",false,&changed);
+    if(!response) goto done;
+    o=json_tokener_parse(response);free(response);response=NULL;
+    if(!o || !json_object_object_get_ex(o,"expected_state",&v)) goto done;
+    snprintf(expected,sizeof(expected),"%s",json_object_get_string(v));json_object_put(o);o=NULL;
+    snprintf(request,sizeof(request),"{\"op\":\"undo\",\"instance\":\"fixture\",\"request_id\":\"readonly\",\"expected_state\":\"%s\"}",expected);
+    control->allow_write=false;
+    response=sketch_control_dispatch(control,app,request,false,&changed);
+    if(!response || !strstr(response,"read_only")) goto done;
+    free(response);response=NULL;
+    control->allow_write=true;control->receipt_count=SKETCH_CONTROL_RECEIPTS;
+    snprintf(request,sizeof(request),"{\"op\":\"undo\",\"instance\":\"fixture\",\"request_id\":\"full\",\"expected_state\":\"%s\"}",expected);
+    response=sketch_control_dispatch(control,app,request,false,&changed);
+    if(!response || !strstr(response,"receipt_capacity") || changed) goto done;
+    status=1;
+done:
+    if(o) json_object_put(o);free(response);
+    if(control) {for(int i=0;i<control->receipt_count;i++) {free(control->receipts[i].request);free(control->receipts[i].response);}free(control);}
+    if(app) {drawing_program_texture_project_dispose(&app->texture_project);free(app);}
+    return status?0:1;
+}
+
+static int indexed_assert_atomic_tile_commands(void) {
+    DrawingProgramIndexedTilesetProfile profile;
+    DrawingProgramAppContext *app = calloc(1, sizeof(*app));
+    uint8_t pixels[256];
+    int status = 0;
+    if (!app) return 1;
+    indexed_seed_profile(&profile);
+    if (!indexed_init_project(&app->texture_project, &profile) ||
+        !indexed_seed_two_cells(&app->texture_project)) goto done;
+    memset(pixels, 5, sizeof(pixels));
+    if (!indexed_expect_ok(drawing_program_indexed_editor_replace_tile(app,"fixture.left",pixels),"tile_batch")) goto done;
+    if (app->texture_project.indexed_history.command_count != 1 ||
+        app->texture_project.indexed_tile_canvases.canvases[0].indices[255] != 5 ||
+        app->texture_project.indexed_tile_canvases.canvases[1].indices[0] != 0) goto done;
+    if (!indexed_expect_ok(drawing_program_indexed_editor_replace_tile(app,"fixture.left",pixels),"tile_noop") ||
+        app->texture_project.indexed_history.command_count != 1) goto done;
+    pixels[0]=3; pixels[255]=31;
+    if (!indexed_expect_error(drawing_program_indexed_editor_replace_tile(app,"fixture.left",pixels),"tile_atomic_invalid") ||
+        app->texture_project.indexed_raster.indices[0] != 5 ||
+        app->texture_project.indexed_history.command_count != 1) goto done;
+    if (!indexed_expect_ok(drawing_program_indexed_editor_undo(app),"tile_undo") ||
+        app->texture_project.indexed_tile_canvases.canvases[0].indices[255] != 0 ||
+        !indexed_expect_ok(drawing_program_indexed_editor_redo(app),"tile_redo") ||
+        app->texture_project.indexed_tile_canvases.canvases[0].indices[255] != 5) goto done;
+    status=1;
+done:
+    drawing_program_texture_project_dispose(&app->texture_project); free(app); return status?0:1;
+}
+
 int drawing_program_lifecycle_run_indexed_tileset_suite(void) {
-    if (indexed_assert_model_and_history() != 0 ||
+    if (indexed_assert_control_admission() != 0 ||
+        indexed_assert_atomic_tile_commands() != 0 ||
+        indexed_assert_model_and_history() != 0 ||
         indexed_assert_cells_and_history() != 0 ||
         indexed_assert_texture_only_project_opens_in_app_shell() != 0 ||
         indexed_assert_editor_profile_routing() != 0 ||
