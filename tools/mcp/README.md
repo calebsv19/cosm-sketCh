@@ -239,3 +239,69 @@ library. Latest two editable packs: `build/marble-cave-authoring-20261009/`.
 Paired urns use half-width source silhouettes mapped to a 2x1 native footprint,
 keeping each vessel proportionate. Cave formations use several angular faces.
 Native review: Dungeon `build/marble-cave-final-20261009/`.
+
+## Top-down enemy authoring
+
+`make enemy-template` builds the additive empty-carrier CLI. Run its
+`build/bin/enemy-template NEW_PACK_PATH` output (or the configured
+`PROGRAM_BIN_DIR` equivalent) to create six named body cells, five weapon cells and an 18-role
+palette. It refuses an existing destination. The tool creates the carrier;
+actual art edits run through the existing MCP owner-thread commands:
+
+```sh
+build/mcp-venv/bin/python tools/mcp/prepare_enemy_sprites.py \
+  --app '/absolute/path/sketCh Main Edit.app/Contents/MacOS/drawing-program-bin' \
+  --source /absolute/path/new-template.pack --output /absolute/path/new-art-root
+```
+
+The output contains editable `enemies.pack`, validated `candidate/` export,
+exact readback and receipt. All six body recipes point north and use top-down
+silhouettes: snout/tail, radial legs, ears, overhead helmet, cap and hat, with no feet or upright torso. Separate sword, pistol, shotgun and staff cells use grip metadata.
+Undo/redo, exact independent export validation, reopened cells and unchanged
+source carrier are checked. `candidate/enemy_sprites.json` records catalog
+IDs, body pivots, hand points, default weapons and weapon grips in schema 2. Dungeon loads these bindings and owns continuous rotation; Sketch need not
+author discrete directional frames. This prototype provides one static pose
+per identity, not animation or all catalog entries.
+
+## Chest and player authoring
+
+The same `enemy-template` CLI accepts `NEW_PACK_PATH --objects` to create an
+empty six-cell `game_objects_v1` carrier with the 20-slot `objects_common` palette.
+It refuses an existing destination. Run `prepare_game_objects.py --app APP_BIN
+--source EMPTY_PACK --output NEW_DIRECTORY` through the MCP Python environment.
+The tool replaces named cells through the real owner loop, checks exact readback,
+undo/redo, independent export validation, source identity and editable reopen.
+`candidate/game_objects.json` records chest states and player/weapon anchors.
+The source stays editable as `objects.pack`. No image generator is used.
+
+The Dungeon object renderer consumes this export beside the enemy bundle; native
+review uses `tools/render_object_preview.py` in Dungeon. Wood/fire swords are
+separate local cells; steel/ice/pistol/shotgun reuse existing enemy weapon art.
+Player spell slots remain unarmed. These are authored static cells with runtime
+rotation, not a walking/casting animation set.
+
+## Campfire and combat authoring
+
+`enemy-template NEW_PACK_PATH --effects` creates the empty 27-cell
+`combat_pixels_v1` carrier with a 24-slot palette. Run `prepare_combat_pixels.py
+--app APP_BIN --source EMPTY_PACK --output NEW_DIRECTORY` in the MCP environment.
+It authors exact indexed pixels through the real owner loop, verifies undo/redo,
+independent export, immutable source and editable reopen. `combat.pack` remains
+editable; `candidate/combat_pixels.json` binds the complete ordered cell set.
+
+The Dungeon runtime selects campfire/fire-bolt frames from existing gameplay
+time, projectile roles from existing effect/creator data, and impact phases from
+damage-event age. The companion `render_combat_preview.py` captures a matched
+native matrix and actual pistol movement/collision/damage, with no persistence.
+This is a curated asset/state recipe, not a general animation editor.
+
+Combat refinement uses the same 27-cell carrier and `prepare_combat_pixels.py`.
+Campfires now preserve thick overhead logs and use separate irregular flame
+patches. Bullet ink is 3×8 pixels. Healing/shield cells contain small identity
+cues; Dungeon supplies their thin radius boundary independently so enlarging
+an area does not enlarge the glyph. Exact MCP readback, history, export and
+editable reopen remain required.
+
+## Catalog weapon authoring
+
+`prepare_weapon_pixels.py --app <installed-or-fresh-Sketch-bin> --source <weapon-template.pack> --output <fresh-root>` authors 28 exact indexed cells through MCP, checks undo/redo, saves an editable pack, validates exports and reopens the result. Create the carrier with `enemy-template <path> --weapons`. The recipe covers 15 swords, nine guns and four action cue frames; runtime bindings and mechanics are owned by Dungeon.

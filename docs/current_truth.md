@@ -406,3 +406,30 @@ recipes are saved on `codex/drawing-program-main-edit`. A fresh contained staged
 build, full lifecycle tests, Main Edit package contracts, headless smoke and
 13-tool live owner-loop SDK test pass. Source input bytes remain unchanged and
 saved candidate indices reopen exactly. VERSION and installed app are unchanged.
+
+## 2026-10-09 — Enemy sprite authoring prototype
+
+The additive empty six-cell carrier CLI and MCP pixel recipes now produce an editable top-down enemy pack and independently validated indexed export. Actual installed owner-loop edit/history/export/reopen passes; full Sketch checks pass. See tools/mcp/README.md. Dungeon renders six catalog identities with continuous facing; visual acceptance remains open. No VERSION or Desktop refresh.
+
+## 2026-10-09 — Overhead body and weapon refinement
+
+The carrier now has six body cells and five separate weapon cells. MCP recipes author humanoid overhead heads and shoulders without feet, a darker straight-tailed rat and eight separated spider legs. Schema-2 attachment metadata binds body pivots, hand points and weapon grips; Dungeon validates and loads it. Exact MCP export/history/reopen and source preservation pass. See tools/mcp/README.md.
+
+## 2026-10-10 — Chest and player MCP carrier
+
+`enemy-template --objects` creates six empty 16×16 cells with the 20-slot object
+palette. `prepare_game_objects.py` qualifies real MCP edits/history, independent
+export and exact editable reopen. Three chest states, true overhead player and
+wood/fire weapons now feed Dungeon's inventory-driven native renderer. Carrier
+build and Sketch aggregate/package checks pass; visual review remains open.
+
+## 2026-10-10 — Combat MCP carrier
+
+The additive `--effects` carrier and `prepare_combat_pixels.py` author 27 cells
+for campfire, projectile, area/status and impact rendering. Exact MCP history,
+export validation and editable reopen pass. Carrier build and Sketch aggregate
+checks pass; native Dungeon review provides the visual acceptance boundary.
+
+## 2026-10-10 — Catalog weapon recipe
+
+The weapon carrier and `prepare_weapon_pixels.py` author 28 cells through actual MCP, with exact export, undo/redo and editable reopen proof. Dungeon consumes these as independent grip-based weapons and brief action cues. Editable source: `build/weapon-pixel-authoring-20261010/art/weapons.pack`. Existing body/object/combat recipes are preserved.

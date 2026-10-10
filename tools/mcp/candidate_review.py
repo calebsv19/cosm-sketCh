@@ -52,17 +52,17 @@ def indexed_png(path):
     return width, height, result, [rgb + [alpha[i] if i < len(alpha) else 255] for i, rgb in enumerate(palette)]
 
 
-def verify_export(directory, project, tiles, baseline=None):
+def verify_export(directory, project, tiles, baseline=None, palette_id="crypt_dark"):
     manifest = json.loads((directory / 'tileset_manifest.json').read_text())
     validation = json.loads((directory / 'export_validation.json').read_text())
     assert validation['status'] == 'validated'
     assert manifest['logical_tile'] == dict(width=16, height=16)
-    assert manifest['preview_palette'] == 'crypt_dark'
+    assert manifest['preview_palette'] == palette_id
     if baseline is not None:
         assert manifest == baseline, 'Candidate changed metadata or palette roles'
     w, h, indices, colors = indexed_png(directory / manifest['atlas']['image'])
     assert (w, h) == (manifest['atlas']['width'], manifest['atlas']['height'])
-    palette = json.loads((directory / 'palettes/crypt_dark.palette.json').read_text())
+    palette = json.loads((directory / ('palettes/'+palette_id+'.palette.json')).read_text())
     assert [s['id'] for s in manifest['palette_slots']] == project['slots']
     assert colors[:len(project['slots'])] == [palette['colors'][slot] for slot in project['slots']]
     assert set(tiles) == {c['key'] for c in manifest['cells']}

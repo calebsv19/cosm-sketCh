@@ -187,3 +187,10 @@ print-identity:
 	@echo "LAUNCHER_BIN=$(LAUNCHER_BIN)"
 	@echo "APP_BIN=$(APP_BIN)"
 	@echo "VERSION=$$(cat $(VERSION_FILE))"
+
+# Development carrier for MCP-authored top-down enemy sprites.
+$(PROGRAM_BIN_DIR)/enemy-template: $(filter-out %/src/app/main.c.o,$(APP_OBJS)) $(PROGRAM_OBJ_DIR)/tools/sketch_enemy_template.c.o $(SHARED_LIBS)
+	@mkdir -p "$(@D)"
+	$(HOST_CC) $(ARCH_FLAGS) $^ -o "$@" $(APP_LDLIBS)
+.PHONY: enemy-template
+enemy-template: $(PROGRAM_BIN_DIR)/enemy-template
