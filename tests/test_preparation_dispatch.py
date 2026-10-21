@@ -40,7 +40,7 @@ class DispatchTest(unittest.TestCase):
                 self.assertIn('Unsupported contained preparation goal', result.stderr)
             result = subprocess.run(args+['release-notarize', 'run-headless'], capture_output=True, text=True, env=ENV)
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn('Unsupported contained preparation goal', result.stderr)
+            self.assertIn('cannot mix', result.stderr)
             mismatch = base/'mismatch'
             result = subprocess.run(args+['BUILD_DIR='+str(mismatch), 'run-headless'], capture_output=True, text=True, env=ENV)
             self.assertNotEqual(result.returncode, 0)

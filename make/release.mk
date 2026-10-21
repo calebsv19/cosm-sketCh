@@ -23,7 +23,7 @@ release-clean:
 	@rm -rf "$(RELEASE_DIR)"
 
 release-build:
-	@$(MAKE) BUILD_TOOLCHAIN="$(PACKAGE_TOOLCHAIN)" PACKAGE_TOOLCHAIN="$(PACKAGE_TOOLCHAIN)" package-desktop-self-test
+	@$(MAKE) PREPARATION_CHILD=1 PREPARATION_DISPATCH=0 SHARED_VENDOR_DIR="$(SHARED_VENDOR_DIR)" BUILD_TOOLCHAIN="$(PACKAGE_TOOLCHAIN)" PACKAGE_TOOLCHAIN="$(PACKAGE_TOOLCHAIN)" package-desktop-self-test
 	@mkdir -p "$(RELEASE_DIR)"
 	@echo "Release build prepared at $(PACKAGE_APP_DIR)"
 
@@ -118,10 +118,15 @@ release-verify-notarized: release-staple
 
 # The credential owner supplies an absent, disjoint job root. Preserve all
 # pre-existing unsigned packages, dist bundles and historical release outputs.
+ifeq ($(PREPARATION_AUTH_PHASE),1)
+release-artifact: release-artifact-internal
+else
 release-artifact:
 	@set -eu; \
 	root="$$(python3 tools/packaging/macos/prepare_release_root.py --output "$(RELEASE_ROOT)")"; \
 	$(MAKE) release-artifact-internal RELEASE_DIR="$$root" DIST_DIR="$$root"
+
+endif
 
 .PHONY: release-artifact-internal
 release-artifact-internal: release-verify-notarized
