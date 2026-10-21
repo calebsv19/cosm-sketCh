@@ -52,8 +52,8 @@ static int snapshot_shell_file_contains_text(const char *path, const char *needl
 
 int drawing_program_lifecycle_run_snapshot_shell_suite(DrawingProgramAppContext *ctx) {
     {
-        const char *pack_path = "/tmp/drawing_program_test_snapshot.pack";
-        const char *json_path = "/tmp/drawing_program_test_snapshot.json";
+        const char *pack_path = lifecycle_test_artifact("drawing_program_test_snapshot.pack");
+        const char *json_path = lifecycle_test_artifact("drawing_program_test_snapshot.json");
         if (!expect_ok(drawing_program_snapshot_save(ctx, pack_path), "snapshot_save")) {
             return 1;
         }
@@ -99,11 +99,11 @@ int drawing_program_lifecycle_run_snapshot_shell_suite(DrawingProgramAppContext 
         char texture_arg2[] = "--smoke-frames";
         char texture_arg3[] = "1";
         char texture_arg4[] = "--preset";
-        char texture_arg5[] = "/tmp/drawing_program_texture_project_roundtrip.pack";
+        char *texture_arg5 = lifecycle_test_artifact("drawing_program_texture_project_roundtrip.pack");
         char *texture_argv[] = {
             texture_arg0, texture_arg1, texture_arg2, texture_arg3, texture_arg4, texture_arg5, 0
         };
-        const char *legacy_pack_path = "/tmp/drawing_program_texture_project_roundtrip_legacy.pack";
+        const char *legacy_pack_path = lifecycle_test_artifact("drawing_program_texture_project_roundtrip_legacy.pack");
         uint32_t extra_surface_index = 0u;
         uint32_t blank_surface_index = 0u;
         uint32_t base_sample_x = 41u;
@@ -195,7 +195,7 @@ int drawing_program_lifecycle_run_snapshot_shell_suite(DrawingProgramAppContext 
         (void)snprintf(texture_save_ctx.texture_project.source_scene_path,
                        sizeof(texture_save_ctx.texture_project.source_scene_path),
                        "%s",
-                       "/tmp/drawing_program_snapshot_scene_roundtrip.json");
+                       lifecycle_test_artifact("drawing_program_snapshot_scene_roundtrip.json"));
         texture_save_ctx.texture_project.primitive_kind = DRAWING_PROGRAM_TEXTURE_PRIMITIVE_KIND_RECT_PRISM;
         texture_save_ctx.texture_project.net_layout_kind = DRAWING_PROGRAM_TEXTURE_NET_LAYOUT_KIND_RECT_PRISM_CROSS;
         {
@@ -392,9 +392,9 @@ int drawing_program_lifecycle_run_snapshot_shell_suite(DrawingProgramAppContext 
         if (strcmp(texture_load_ctx.texture_project.source_scene_id, "scene_snapshot_roundtrip") != 0 ||
             strcmp(texture_load_ctx.texture_project.source_object_id, "obj_snapshot_roundtrip") != 0 ||
             strcmp(texture_load_ctx.texture_project.source_scene_path,
-                   "/tmp/drawing_program_snapshot_scene_roundtrip.json") != 0 ||
+                   lifecycle_test_artifact("drawing_program_snapshot_scene_roundtrip.json")) != 0 ||
             strcmp(texture_load_ctx.session.selected_scene_path,
-                   "/tmp/drawing_program_snapshot_scene_roundtrip.json") != 0 ||
+                   lifecycle_test_artifact("drawing_program_snapshot_scene_roundtrip.json")) != 0 ||
             strcmp(texture_load_ctx.session.selected_scene_object_id, "obj_snapshot_roundtrip") != 0) {
             fprintf(stderr,
                     "lifecycle_test: expected texture project snapshot provenance roundtrip scene=%s object=%s path=%s selected_path=%s selected_object=%s\n",
@@ -555,7 +555,7 @@ int drawing_program_lifecycle_run_snapshot_shell_suite(DrawingProgramAppContext 
         char arg3[] = "1";
         char arg4[] = "--no-persist";
         char *argv[] = { arg0, arg1, arg2, arg3, arg4, 0 };
-        const char *pack_path = "/tmp/drawing_program_module_binding_repair.pack";
+        const char *pack_path = lifecycle_test_artifact("drawing_program_module_binding_repair.pack");
         (void)unlink(pack_path);
         ctx->pane_host.module_binding_count = 0u;
         if (!expect_ok(drawing_program_snapshot_save(ctx, pack_path), "binding_repair_snapshot_save")) {
@@ -596,7 +596,7 @@ int drawing_program_lifecycle_run_snapshot_shell_suite(DrawingProgramAppContext 
         char arg3[] = "2";
         char arg4[] = "--no-persist";
         char *argv[] = { arg0, arg1, arg2, arg3, arg4, 0 };
-        const char *pack_path = "/tmp/drawing_program_post_load_edit_visibility.pack";
+        const char *pack_path = lifecycle_test_artifact("drawing_program_post_load_edit_visibility.pack");
         uint32_t center_x = 0u;
         uint32_t center_y = 0u;
         uint8_t center_before_load = 0u;
@@ -718,9 +718,9 @@ int drawing_program_lifecycle_run_snapshot_shell_suite(DrawingProgramAppContext 
         char color_arg2[] = "--smoke-frames";
         char color_arg3[] = "1";
         char color_arg4[] = "--preset";
-        char color_arg5[] = "/tmp/drawing_program_color_migration.pack";
+        char *color_arg5 = lifecycle_test_artifact("drawing_program_color_migration.pack");
         char *color_argv[] = { color_arg0, color_arg1, color_arg2, color_arg3, color_arg4, color_arg5, 0 };
-        const char *upgraded_pack_path = "/tmp/drawing_program_color_migration_upgraded.pack";
+        const char *upgraded_pack_path = lifecycle_test_artifact("drawing_program_color_migration_upgraded.pack");
         uint32_t sample_x = 21u;
         uint32_t sample_y = 29u;
         uint8_t migrated_sample = 0u;
@@ -861,9 +861,9 @@ int drawing_program_lifecycle_run_snapshot_shell_suite(DrawingProgramAppContext 
         char arg2[] = "--smoke-frames";
         char arg3[] = "1";
         char arg4[] = "--preset";
-        char arg5[] = "/tmp/drawing_program_legacy_dps2_chunk_fallback.pack";
+        char *arg5 = lifecycle_test_artifact("drawing_program_legacy_dps2_chunk_fallback.pack");
         char *argv[] = { arg0, arg1, arg2, arg3, arg4, arg5, 0 };
-        const char *truncated_pack_path = "/tmp/drawing_program_legacy_dps2_chunk_fallback_truncated.pack";
+        const char *truncated_pack_path = lifecycle_test_artifact("drawing_program_legacy_dps2_chunk_fallback_truncated.pack");
         uint32_t sample_x = 31u;
         uint32_t sample_y = 27u;
         uint8_t sample_value = 201u;
@@ -995,9 +995,9 @@ int drawing_program_lifecycle_run_snapshot_shell_suite(DrawingProgramAppContext 
         char arg2[] = "--smoke-frames";
         char arg3[] = "1";
         char arg4[] = "--preset";
-        char arg5[] = "/tmp/drawing_program_legacy_dps3_chunk_fallback.pack";
+        char *arg5 = lifecycle_test_artifact("drawing_program_legacy_dps3_chunk_fallback.pack");
         char *argv[] = { arg0, arg1, arg2, arg3, arg4, arg5, 0 };
-        const char *truncated_pack_path = "/tmp/drawing_program_legacy_dps3_chunk_fallback_truncated.pack";
+        const char *truncated_pack_path = lifecycle_test_artifact("drawing_program_legacy_dps3_chunk_fallback_truncated.pack");
         uint32_t sample_x = 19u;
         uint32_t sample_y = 11u;
         uint8_t sample_value = 143u;

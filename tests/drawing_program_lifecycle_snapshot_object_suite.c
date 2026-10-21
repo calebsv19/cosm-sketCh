@@ -21,10 +21,10 @@ int drawing_program_lifecycle_run_snapshot_object_suite(void) {
         char object_arg2[] = "--smoke-frames";
         char object_arg3[] = "1";
         char object_arg4[] = "--preset";
-        char object_arg5[] = "/tmp/drawing_program_object_roundtrip.pack";
+        char *object_arg5 = lifecycle_test_artifact("drawing_program_object_roundtrip.pack");
         char *object_argv[] = { object_arg0, object_arg1, object_arg2, object_arg3, object_arg4, object_arg5, 0 };
-        const char *legacy_pack_path = "/tmp/drawing_program_object_roundtrip_legacy.pack";
-        const char *legacy_v1_pack_path = "/tmp/drawing_program_object_roundtrip_legacy_v1.pack";
+        const char *legacy_pack_path = lifecycle_test_artifact("drawing_program_object_roundtrip_legacy.pack");
+        const char *legacy_v1_pack_path = lifecycle_test_artifact("drawing_program_object_roundtrip_legacy_v1.pack");
         uint32_t object_id = 0u;
         (void)unlink(object_arg5);
         (void)unlink(legacy_pack_path);
@@ -179,10 +179,10 @@ int drawing_program_lifecycle_run_snapshot_object_suite(void) {
         char path_arg2[] = "--smoke-frames";
         char path_arg3[] = "1";
         char path_arg4[] = "--preset";
-        char path_arg5[] = "/tmp/drawing_program_path_roundtrip.pack";
+        char *path_arg5 = lifecycle_test_artifact("drawing_program_path_roundtrip.pack");
         char *path_argv[] = { path_arg0, path_arg1, path_arg2, path_arg3, path_arg4, path_arg5, 0 };
-        const char *invalid_path_pack = "/tmp/drawing_program_path_roundtrip_invalid.pack";
-        const char *legacy_v2_pack = "/tmp/drawing_program_path_roundtrip_legacy_v2.pack";
+        const char *invalid_path_pack = lifecycle_test_artifact("drawing_program_path_roundtrip_invalid.pack");
+        const char *legacy_v2_pack = lifecycle_test_artifact("drawing_program_path_roundtrip_legacy_v2.pack");
         uint32_t rect_object_id = 0u;
         uint32_t path_object_id = 0u;
         uint32_t i;

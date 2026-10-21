@@ -1,6 +1,11 @@
 test: $(TEST_TARGET)
+ifeq ($(PREPARATION_CHILD),1)
+	@mkdir -p "$(DRAWING_PROGRAM_TEST_ARTIFACT_ROOT)"
+	cd "$(DRAWING_PROGRAM_TEST_ARTIFACT_ROOT)" && "$(abspath $(TEST_TARGET))"
+else
 	"$(TEST_TARGET)"
-	./tests/run_main_edit_package_contract_checks.sh
+endif
+	@$(MAKE) main-edit-package-contract-checks
 
 test-list: $(TEST_TARGET)
 	"$(TEST_TARGET)" --list-suites
@@ -11,6 +16,8 @@ test-suite: $(TEST_TARGET)
 
 main-edit-package-contract-checks:
 	./tests/run_main_edit_package_contract_checks.sh
+	PYTHONDONTWRITEBYTECODE=1 python3 tests/test_preparation_dispatch.py
+	PYTHONDONTWRITEBYTECODE=1 python3 tests/test_frozen_shared_provenance.py
 
 -include $(APP_DEPS) $(HEADLESS_DEPS) $(TEST_DEPS)
 
@@ -25,12 +32,12 @@ visual-artifact: $(APP_TARGET)
 	@echo "Drawing visual artifact ready: $(VISUAL_ARTIFACT_PATH)"
 
 vulkan-rollout-contract:
-	@PYTHONDONTWRITEBYTECODE=1 python3 tools/verify-vulkan-rollout.py \
+	@PYTHONDONTWRITEBYTECODE=1 python3 tools/verify-vulkan-rollout.py $(VULKAN_PROVENANCE_ARGS) \
 		--shared-root "$(SHARED_VENDOR_DIR)"
 
 vulkan-rollout-self-test: $(APP_TARGET) vulkan-rollout-contract
 	@mkdir -p "$(VULKAN_ROLLOUT_DIR)"
-	@PYTHONDONTWRITEBYTECODE=1 python3 tools/verify-vulkan-rollout.py \
+	@PYTHONDONTWRITEBYTECODE=1 python3 tools/verify-vulkan-rollout.py $(VULKAN_PROVENANCE_ARGS) \
 		--shared-root "$(SHARED_VENDOR_DIR)" \
 		--app "$(APP_TARGET)" \
 		--shader-root "$(VK_RENDERER_DIR)" \

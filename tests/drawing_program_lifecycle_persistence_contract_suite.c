@@ -36,42 +36,42 @@ int drawing_program_lifecycle_run_persistence_contract_suite(void) {
     static DrawingProgramAppContext override_ctx;
     static DrawingProgramAppContext bad_root_ctx;
     static DrawingProgramAppContext long_env_root_ctx;
-    char suite_root[] = "/tmp/drawing_program_persistence_contract_suite";
-    char runtime_root[] = "/tmp/drawing_program_persistence_contract_suite/runtime";
-    char input_root[] = "/tmp/drawing_program_persistence_contract_suite/input";
-    char output_root[] = "/tmp/drawing_program_persistence_contract_suite/output";
-    char scene_root[] = "/tmp/drawing_program_persistence_contract_suite/scenes";
-    char alt_input_root[] = "/tmp/drawing_program_persistence_contract_suite/alt_input";
-    char alt_output_root[] = "/tmp/drawing_program_persistence_contract_suite/alt_output";
-    char alt_scene_root[] = "/tmp/drawing_program_persistence_contract_suite/alt_scenes";
-    char expected_project_path[] = "/tmp/drawing_program_persistence_contract_suite/input/icon_project_001.pack";
-    char expected_preset_path[] = "/tmp/drawing_program_persistence_contract_suite/runtime/last_session.pack";
-    char expected_alt_project_path[] = "/tmp/drawing_program_persistence_contract_suite/alt_input/persisted_current.pack";
-    char blocked_runtime_root[] = "/tmp/drawing_program_persistence_contract_suite/blocked_runtime_root";
+    char *suite_root = lifecycle_test_artifact("drawing_program_persistence_contract_suite");
+    char *runtime_root = lifecycle_test_artifact("drawing_program_persistence_contract_suite/runtime");
+    char *input_root = lifecycle_test_artifact("drawing_program_persistence_contract_suite/input");
+    char *output_root = lifecycle_test_artifact("drawing_program_persistence_contract_suite/output");
+    char *scene_root = lifecycle_test_artifact("drawing_program_persistence_contract_suite/scenes");
+    char *alt_input_root = lifecycle_test_artifact("drawing_program_persistence_contract_suite/alt_input");
+    char *alt_output_root = lifecycle_test_artifact("drawing_program_persistence_contract_suite/alt_output");
+    char *alt_scene_root = lifecycle_test_artifact("drawing_program_persistence_contract_suite/alt_scenes");
+    char *expected_project_path = lifecycle_test_artifact("drawing_program_persistence_contract_suite/input/icon_project_001.pack");
+    char *expected_preset_path = lifecycle_test_artifact("drawing_program_persistence_contract_suite/runtime/last_session.pack");
+    char *expected_alt_project_path = lifecycle_test_artifact("drawing_program_persistence_contract_suite/alt_input/persisted_current.pack");
+    char *blocked_runtime_root = lifecycle_test_artifact("drawing_program_persistence_contract_suite/blocked_runtime_root");
     char arg0[] = "drawing_program_persistence_contract_save";
     char arg1[] = "--headless";
     char arg2[] = "--smoke-frames";
     char arg3[] = "1";
     char arg4[] = "--runtime-root";
-    char arg5[] = "/tmp/drawing_program_persistence_contract_suite/runtime";
+    char *arg5 = lifecycle_test_artifact("drawing_program_persistence_contract_suite/runtime");
     char arg6[] = "--input-root";
-    char arg7[] = "/tmp/drawing_program_persistence_contract_suite/input";
+    char *arg7 = lifecycle_test_artifact("drawing_program_persistence_contract_suite/input");
     char arg8[] = "--output-root";
-    char arg9[] = "/tmp/drawing_program_persistence_contract_suite/output";
+    char *arg9 = lifecycle_test_artifact("drawing_program_persistence_contract_suite/output");
     char *argv[] = { arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, 0 };
     char runtime_only_arg0[] = "drawing_program_persistence_contract_load";
     char runtime_only_arg1[] = "--headless";
     char runtime_only_arg2[] = "--smoke-frames";
     char runtime_only_arg3[] = "1";
     char runtime_only_arg4[] = "--runtime-root";
-    char runtime_only_arg5[] = "/tmp/drawing_program_persistence_contract_suite/runtime";
+    char *runtime_only_arg5 = lifecycle_test_artifact("drawing_program_persistence_contract_suite/runtime");
     char *runtime_only_argv[] = {
         runtime_only_arg0, runtime_only_arg1, runtime_only_arg2, runtime_only_arg3, runtime_only_arg4, runtime_only_arg5, 0
     };
     char bad_arg0[] = "drawing_program_persistence_contract_bad_root";
     char bad_arg1[] = "--headless";
     char bad_arg2[] = "--runtime-root";
-    char bad_arg3[] = "/tmp/drawing_program_persistence_contract_suite/blocked_runtime_root";
+    char *bad_arg3 = lifecycle_test_artifact("drawing_program_persistence_contract_suite/blocked_runtime_root");
     char bad_arg4[] = "--no-persist";
     char *bad_root_argv[] = { bad_arg0, bad_arg1, bad_arg2, bad_arg3, bad_arg4, 0 };
     char long_env_arg0[] = "drawing_program_persistence_contract_long_env_root";
@@ -108,7 +108,7 @@ int drawing_program_lifecycle_run_persistence_contract_suite(void) {
     (void)unlink(expected_project_path);
     (void)unlink(expected_preset_path);
     (void)unlink(expected_alt_project_path);
-    (void)unlink("/tmp/drawing_program_persistence_contract_suite/runtime/session_prefs_v1.txt");
+    (void)unlink(lifecycle_test_artifact("drawing_program_persistence_contract_suite/runtime/session_prefs_v1.txt"));
     (void)unlink(blocked_runtime_root);
 
     blocked_file = fopen(blocked_runtime_root, "wb");
@@ -138,7 +138,7 @@ int drawing_program_lifecycle_run_persistence_contract_suite(void) {
 
     (void)snprintf(long_runtime_root,
                    sizeof(long_runtime_root),
-                   "/tmp/drawing_program_persistence_contract_suite/%0560d",
+                   lifecycle_test_artifact("drawing_program_persistence_contract_suite/%0560d"),
                    1);
     if (setenv("DRAWING_PROGRAM_RUNTIME_DIR", long_runtime_root, 1) != 0) {
         fprintf(stderr, "lifecycle_test: failed to seed long runtime env root\n");

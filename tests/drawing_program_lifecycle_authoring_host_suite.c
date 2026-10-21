@@ -86,8 +86,8 @@ int drawing_program_lifecycle_run_authoring_host_suite(void) {
     CorePaneModuleBinding exported_bindings[DRAWING_PROGRAM_MODULE_BINDING_CAPACITY];
     uint64_t revision_before_apply;
     KitWorkspaceAuthoringFontThemeLayout font_theme_layout;
-    const char *applied_pack_path = "/tmp/drawing_program_authoring_applied.pack";
-    const char *active_draft_pack_path = "/tmp/drawing_program_authoring_active_draft.pack";
+    const char *applied_pack_path = lifecycle_test_artifact("drawing_program_authoring_applied.pack");
+    const char *active_draft_pack_path = lifecycle_test_artifact("drawing_program_authoring_active_draft.pack");
     char arg0[] = "drawing_program_authoring_host_test";
     char arg1[] = "--headless";
     char arg2[] = "--smoke-frames";

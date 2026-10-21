@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-MAKEFILE="${ROOT_DIR}/Makefile"
+MAKEFILE="${ROOT_DIR}/make/application.mk"
 PACKAGE_MK="${ROOT_DIR}/make/package-macos.mk"
 PATHS_MK="${ROOT_DIR}/make/paths.mk"
 LAUNCHER="${ROOT_DIR}/tools/packaging/macos/sketch-launcher"

@@ -564,7 +564,7 @@ cleanup:
 
 static int lifecycle_assert_canvas_world_guide_overlay(void) {
     static DrawingProgramAppContext ctx;
-    const char *scene_path = "/tmp/drawing_program_runtime_render_guides_fixture.json";
+    const char *scene_path = lifecycle_test_artifact("drawing_program_runtime_render_guides_fixture.json");
     char arg0[] = "drawing_program_runtime_guides";
     char arg1[] = "--headless";
     char arg2[] = "--smoke-frames";

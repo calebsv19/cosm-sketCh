@@ -163,8 +163,8 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
         const DrawingProgramTextureSurface *active_surface = 0;
         int8_t font_zoom_before = 0;
         uint8_t recent_slot = 0u;
-        const char *scene_root = "/tmp/drawing_program_color_panel_scene_root";
-        const char *scene_file = "/tmp/drawing_program_color_panel_scene_root/panel_scene.json";
+        const char *scene_root = lifecycle_test_artifact("drawing_program_color_panel_scene_root");
+        const char *scene_file = lifecycle_test_artifact("drawing_program_color_panel_scene_root/panel_scene.json");
         memset(&hooks, 0, sizeof(hooks));
         memset(&panel_ui, 0, sizeof(panel_ui));
         hooks.point_in_rect = lifecycle_test_point_in_rect;
@@ -1116,7 +1116,7 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
         char persist_arg2[] = "--smoke-frames";
         char persist_arg3[] = "1";
         char persist_arg4[] = "--preset";
-        char persist_arg5[] = "/tmp/drawing_program_persist_roundtrip.pack";
+        char *persist_arg5 = lifecycle_test_artifact("drawing_program_persist_roundtrip.pack");
         char persist_arg6[] = "--runtime-root";
         char persist_arg7[128];
         char persist_arg8[] = "--input-root";
@@ -1138,15 +1138,15 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
                                  0 };
         (void)snprintf(persist_arg7,
                        sizeof(persist_arg7),
-                       "/tmp/drawing_program_persist_roundtrip_runtime_%ld",
+                       lifecycle_test_artifact("drawing_program_persist_roundtrip_runtime_%ld"),
                        (long)getpid());
         (void)snprintf(persist_arg9,
                        sizeof(persist_arg9),
-                       "/tmp/drawing_program_persist_roundtrip_input_%ld",
+                       lifecycle_test_artifact("drawing_program_persist_roundtrip_input_%ld"),
                        (long)getpid());
         (void)snprintf(persist_arg11,
                        sizeof(persist_arg11),
-                       "/tmp/drawing_program_persist_roundtrip_output_%ld",
+                       lifecycle_test_artifact("drawing_program_persist_roundtrip_output_%ld"),
                        (long)getpid());
         (void)unlink(persist_arg5);
         if (!expect_ok(drawing_program_app_bootstrap(&save_ctx, 12, persist_argv), "persist_roundtrip_bootstrap_save")) {
@@ -1317,7 +1317,7 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
     {
         static DrawingProgramAppContext project_ctx;
         static DrawingProgramAppContext relaunch_ctx;
-        char runtime_root[] = "/tmp/drawing_program_session_ui_prefs";
+        char *runtime_root = lifecycle_test_artifact("drawing_program_session_ui_prefs");
         char project_arg0[] = "drawing_program_session_ui_prefs";
         char project_arg1[] = "--headless";
         char project_arg2[] = "--smoke-frames";
@@ -1325,9 +1325,9 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
         char project_arg4[] = "--runtime-root";
         char *project_argv[] = { project_arg0, project_arg1, project_arg2, project_arg3, project_arg4, runtime_root, 0 };
 
-        (void)unlink("/tmp/drawing_program_session_ui_prefs/last_session.pack");
-        (void)unlink("/tmp/drawing_program_session_ui_prefs/session_prefs_v1.txt");
-        (void)unlink("/tmp/drawing_program_session_ui_prefs/input/icon_project_001.pack");
+        (void)unlink(lifecycle_test_artifact("drawing_program_session_ui_prefs/last_session.pack"));
+        (void)unlink(lifecycle_test_artifact("drawing_program_session_ui_prefs/session_prefs_v1.txt"));
+        (void)unlink(lifecycle_test_artifact("drawing_program_session_ui_prefs/input/icon_project_001.pack"));
 
         if (!expect_ok(drawing_program_app_bootstrap(&project_ctx, 6, project_argv), "session_ui_bootstrap_save")) {
             return 1;
@@ -1348,7 +1348,7 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
         project_ctx.ui.font_preset_id = (uint32_t)CORE_FONT_PRESET_IDE;
         project_ctx.ui.font_zoom_step = -1;
         if (!expect_ok(drawing_program_project_state_set_scene_authored_root(&project_ctx,
-                                                                             "/tmp/drawing_program_session_ui_prefs/scenes"),
+                                                                             lifecycle_test_artifact("drawing_program_session_ui_prefs/scenes")),
                        "session_ui_set_scene_root")) {
             return 1;
         }
@@ -1380,7 +1380,7 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
         if (relaunch_ctx.ui.theme_preset_id != (uint32_t)CORE_THEME_PRESET_LIGHT_DEFAULT ||
             relaunch_ctx.ui.font_preset_id != (uint32_t)CORE_FONT_PRESET_IDE ||
             relaunch_ctx.ui.font_zoom_step != 4 ||
-            strcmp(relaunch_ctx.session.scene_authored_root_path, "/tmp/drawing_program_session_ui_prefs/scenes") != 0) {
+            strcmp(relaunch_ctx.session.scene_authored_root_path, lifecycle_test_artifact("drawing_program_session_ui_prefs/scenes")) != 0) {
             fprintf(stderr,
                     "lifecycle_test: expected session ui prefs to override older project snapshot theme=%u font=%u zoom=%d scene_root=%s\n",
                     (unsigned)relaunch_ctx.ui.theme_preset_id,

@@ -113,32 +113,32 @@ int drawing_program_lifecycle_run_export_suite(void) {
     static DrawingProgramAppContext boot_ctx;
     static DrawingProgramAppContext prefs_save_ctx;
     static DrawingProgramAppContext prefs_load_ctx;
-    char suite_root[] = "/tmp/drawing_program_export_suite";
-    char runtime_root[] = "/tmp/drawing_program_export_suite/runtime";
-    char input_root[] = "/tmp/drawing_program_export_suite/input";
-    char alt_input_root[] = "/tmp/drawing_program_export_suite/alt_input";
-    char prefs_input_root[] = "/tmp/drawing_program_export_suite/prefs_input";
-    char prefs_output_root[] = "/tmp/drawing_program_export_suite/prefs_output";
-    char output_root[] = "/tmp/drawing_program_export_suite/output";
-    char expected_project_path[] = "/tmp/drawing_program_export_suite/input/icon_project_001.pack";
-    char expected_blank_path[] = "/tmp/drawing_program_export_suite/input/icon_project_002.pack";
-    char expected_preset_path[] = "/tmp/drawing_program_export_suite/runtime/last_session.pack";
-    char expected_save_as_path[] = "/tmp/drawing_program_export_suite/alt_input/custom_icon.pack";
-    char expected_png_path[] = "/tmp/drawing_program_export_suite/output/icon_project_001.png";
-    char expected_iconset_path[] = "/tmp/drawing_program_export_suite/output/icon_project_001.iconset";
-    char expected_icns_path[] = "/tmp/drawing_program_export_suite/output/icon_project_001.icns";
-    char expected_prefs_project_path[] = "/tmp/drawing_program_export_suite/prefs_input/persisted_icon.pack";
-    char expanded_queue_paths[][DRAWING_PROGRAM_PROJECT_PATH_CAPACITY] = {
-        "/tmp/drawing_program_export_suite/input/icon_project_005.pack",
-        "/tmp/drawing_program_export_suite/input/icon_project_006.pack",
-        "/tmp/drawing_program_export_suite/input/icon_project_007.pack",
-        "/tmp/drawing_program_export_suite/input/icon_project_008.pack",
-        "/tmp/drawing_program_export_suite/input/icon_project_009.pack",
-        "/tmp/drawing_program_export_suite/input/icon_project_010.pack",
-        "/tmp/drawing_program_export_suite/input/icon_project_011.pack",
-        "/tmp/drawing_program_export_suite/input/icon_project_012.pack",
-        "/tmp/drawing_program_export_suite/input/icon_project_013.pack",
-        "/tmp/drawing_program_export_suite/input/icon_project_014.pack"
+    char *suite_root = lifecycle_test_artifact("drawing_program_export_suite");
+    char *runtime_root = lifecycle_test_artifact("drawing_program_export_suite/runtime");
+    char *input_root = lifecycle_test_artifact("drawing_program_export_suite/input");
+    char *alt_input_root = lifecycle_test_artifact("drawing_program_export_suite/alt_input");
+    char *prefs_input_root = lifecycle_test_artifact("drawing_program_export_suite/prefs_input");
+    char *prefs_output_root = lifecycle_test_artifact("drawing_program_export_suite/prefs_output");
+    char *output_root = lifecycle_test_artifact("drawing_program_export_suite/output");
+    char *expected_project_path = lifecycle_test_artifact("drawing_program_export_suite/input/icon_project_001.pack");
+    char *expected_blank_path = lifecycle_test_artifact("drawing_program_export_suite/input/icon_project_002.pack");
+    char *expected_preset_path = lifecycle_test_artifact("drawing_program_export_suite/runtime/last_session.pack");
+    char *expected_save_as_path = lifecycle_test_artifact("drawing_program_export_suite/alt_input/custom_icon.pack");
+    char *expected_png_path = lifecycle_test_artifact("drawing_program_export_suite/output/icon_project_001.png");
+    char *expected_iconset_path = lifecycle_test_artifact("drawing_program_export_suite/output/icon_project_001.iconset");
+    char *expected_icns_path = lifecycle_test_artifact("drawing_program_export_suite/output/icon_project_001.icns");
+    char *expected_prefs_project_path = lifecycle_test_artifact("drawing_program_export_suite/prefs_input/persisted_icon.pack");
+    char *expanded_queue_paths[] = {
+        lifecycle_test_artifact("drawing_program_export_suite/input/icon_project_005.pack"),
+        lifecycle_test_artifact("drawing_program_export_suite/input/icon_project_006.pack"),
+        lifecycle_test_artifact("drawing_program_export_suite/input/icon_project_007.pack"),
+        lifecycle_test_artifact("drawing_program_export_suite/input/icon_project_008.pack"),
+        lifecycle_test_artifact("drawing_program_export_suite/input/icon_project_009.pack"),
+        lifecycle_test_artifact("drawing_program_export_suite/input/icon_project_010.pack"),
+        lifecycle_test_artifact("drawing_program_export_suite/input/icon_project_011.pack"),
+        lifecycle_test_artifact("drawing_program_export_suite/input/icon_project_012.pack"),
+        lifecycle_test_artifact("drawing_program_export_suite/input/icon_project_013.pack"),
+        lifecycle_test_artifact("drawing_program_export_suite/input/icon_project_014.pack")
     };
     char resolved_png_path[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
     char resolved_iconset_path[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
@@ -177,11 +177,11 @@ int drawing_program_lifecycle_run_export_suite(void) {
     char boot_arg3[] = "1";
     char boot_arg4[] = "--no-persist";
     char boot_arg5[] = "--runtime-root";
-    char boot_arg6[] = "/tmp/drawing_program_export_suite/runtime";
+    char *boot_arg6 = lifecycle_test_artifact("drawing_program_export_suite/runtime");
     char boot_arg7[] = "--input-root";
-    char boot_arg8[] = "/tmp/drawing_program_export_suite/input";
+    char *boot_arg8 = lifecycle_test_artifact("drawing_program_export_suite/input");
     char boot_arg9[] = "--output-root";
-    char boot_arg10[] = "/tmp/drawing_program_export_suite/output";
+    char *boot_arg10 = lifecycle_test_artifact("drawing_program_export_suite/output");
     char *boot_argv[] = {
         boot_arg0, boot_arg1, boot_arg2, boot_arg3, boot_arg4, boot_arg5, boot_arg6, boot_arg7, boot_arg8, boot_arg9,
         boot_arg10, 0
@@ -191,11 +191,11 @@ int drawing_program_lifecycle_run_export_suite(void) {
     char prefs_arg2[] = "--smoke-frames";
     char prefs_arg3[] = "1";
     char prefs_arg4[] = "--runtime-root";
-    char prefs_arg5[] = "/tmp/drawing_program_export_suite/runtime";
+    char *prefs_arg5 = lifecycle_test_artifact("drawing_program_export_suite/runtime");
     char prefs_arg6[] = "--input-root";
-    char prefs_arg7[] = "/tmp/drawing_program_export_suite/input";
+    char *prefs_arg7 = lifecycle_test_artifact("drawing_program_export_suite/input");
     char prefs_arg8[] = "--output-root";
-    char prefs_arg9[] = "/tmp/drawing_program_export_suite/output";
+    char *prefs_arg9 = lifecycle_test_artifact("drawing_program_export_suite/output");
     char *prefs_save_argv[] = {
         prefs_arg0, prefs_arg1, prefs_arg2, prefs_arg3, prefs_arg4, prefs_arg5, prefs_arg6, prefs_arg7, prefs_arg8,
         prefs_arg9, 0
@@ -205,7 +205,7 @@ int drawing_program_lifecycle_run_export_suite(void) {
     char prefs_load_arg2[] = "--smoke-frames";
     char prefs_load_arg3[] = "1";
     char prefs_load_arg4[] = "--runtime-root";
-    char prefs_load_arg5[] = "/tmp/drawing_program_export_suite/runtime";
+    char *prefs_load_arg5 = lifecycle_test_artifact("drawing_program_export_suite/runtime");
     char *prefs_load_argv[] = {
         prefs_load_arg0, prefs_load_arg1, prefs_load_arg2, prefs_load_arg3, prefs_load_arg4, prefs_load_arg5, 0
     };
@@ -699,7 +699,7 @@ int drawing_program_lifecycle_run_export_suite(void) {
     }
     drawing_program_ui_color_load_active_paint_from_swatch(&ctx, 7u);
     if (!expect_ok(drawing_program_project_state_set_save_as_path(&ctx,
-                                                                  "/tmp/drawing_program_export_suite/alt_input/custom_icon"),
+                                                                  lifecycle_test_artifact("drawing_program_export_suite/alt_input/custom_icon")),
                    "export_suite_set_save_as_path")) {
         return 1;
     }

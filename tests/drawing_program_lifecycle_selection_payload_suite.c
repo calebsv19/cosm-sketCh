@@ -530,7 +530,7 @@ int drawing_program_lifecycle_run_selection_payload_suite(DrawingProgramAppConte
             return 1;
         }
     }
-    if (!expect_ok(drawing_program_snapshot_save(&workflow_ctx, "/tmp/drawing_program_selection_roundtrip.pack"),
+    if (!expect_ok(drawing_program_snapshot_save(&workflow_ctx, lifecycle_test_artifact("drawing_program_selection_roundtrip.pack")),
                    "snapshot_save_selection_roundtrip")) {
         return 1;
     }
@@ -551,7 +551,7 @@ int drawing_program_lifecycle_run_selection_payload_suite(DrawingProgramAppConte
         if (!expect_ok(drawing_program_runtime_start(&selection_load_ctx), "selection_load_runtime_start")) {
             return 1;
         }
-        if (!expect_ok(drawing_program_snapshot_load(&selection_load_ctx, "/tmp/drawing_program_selection_roundtrip.pack"),
+        if (!expect_ok(drawing_program_snapshot_load(&selection_load_ctx, lifecycle_test_artifact("drawing_program_selection_roundtrip.pack")),
                        "snapshot_load_selection_roundtrip")) {
             return 1;
         }
@@ -563,7 +563,7 @@ int drawing_program_lifecycle_run_selection_payload_suite(DrawingProgramAppConte
             return 1;
         }
     }
-    (void)unlink("/tmp/drawing_program_selection_roundtrip.pack");
+    (void)unlink(lifecycle_test_artifact("drawing_program_selection_roundtrip.pack"));
     drawing_program_selection_reset(&workflow_ctx.selection);
     if (workflow_ctx.selection.has_payload || workflow_ctx.selection.payload_count != 0u) {
         fprintf(stderr, "lifecycle_test: expected clear selection to remove payload\n");

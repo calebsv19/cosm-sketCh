@@ -90,7 +90,7 @@ int drawing_program_lifecycle_run_texture_workspace_suite(DrawingProgramAppConte
     uint32_t sample_x = 0u;
     uint32_t sample_y = 0u;
     uint8_t surface_ready = 0u;
-    const char *scene_path = "/tmp/drawing_program_texture_workspace_semantic_fixture.json";
+    const char *scene_path = lifecycle_test_artifact("drawing_program_texture_workspace_semantic_fixture.json");
 #define ctx (*ctx_ptr)
 
     if (!expect_ok(drawing_program_texture_project_session_seed_blank(

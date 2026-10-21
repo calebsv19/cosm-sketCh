@@ -195,7 +195,7 @@ static int indexed_assert_cells_and_history(void) {
 }
 
 static int indexed_assert_texture_only_project_opens_in_app_shell(void) {
-    const char *pack_path = "/tmp/drawing_program_indexed_texture_only_open.pack";
+    const char *pack_path = lifecycle_test_artifact("drawing_program_indexed_texture_only_open.pack");
     DrawingProgramIndexedTilesetProfile profile;
     DrawingProgramTextureProject project;
     DrawingProgramAppContext load_ctx;
@@ -204,7 +204,7 @@ static int indexed_assert_texture_only_project_opens_in_app_shell(void) {
     char arg1[] = "--headless";
     char arg2[] = "--no-persist";
     char arg3[] = "--runtime-root";
-    char arg4[] = "/tmp/drawing_program_indexed_texture_only_open_runtime";
+    char *arg4 = lifecycle_test_artifact("drawing_program_indexed_texture_only_open_runtime");
     char *argv[] = { arg0, arg1, arg2, arg3, arg4, 0 };
     int writer_open = 0;
     int status = 1;

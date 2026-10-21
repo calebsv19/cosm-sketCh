@@ -563,7 +563,7 @@ int drawing_program_lifecycle_run_baseline_history_suite(DrawingProgramAppContex
                                    "persist_save_blocked_in_authoring")) {
         return 1;
     }
-    ctx.session.export_json_path = "/tmp/drawing_program_overlay_authoring_blocked.json";
+    ctx.session.export_json_path = lifecycle_test_artifact("drawing_program_overlay_authoring_blocked.json");
     if (!expect_overlay_error_code(drawing_program_adapter_persist_export_debug_json(&ctx),
                                    DRAWING_PROGRAM_OVERLAY_ADAPTER_INVALID_STATE,
                                    "persist_export_blocked_in_authoring")) {
@@ -617,7 +617,7 @@ int drawing_program_lifecycle_run_baseline_history_suite(DrawingProgramAppContex
     if (!expect_overlay_ok(drawing_program_adapter_render_runtime_base(&ctx), "runtime_render_after_authoring")) {
         return 1;
     }
-    ctx.session.export_json_path = "/tmp/drawing_program_overlay_runtime_export.json";
+    ctx.session.export_json_path = lifecycle_test_artifact("drawing_program_overlay_runtime_export.json");
     if (!expect_overlay_ok(drawing_program_adapter_persist_save_session(&ctx), "persist_save_after_authoring")) {
         return 1;
     }

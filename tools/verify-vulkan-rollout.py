@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import hashlib
+import json
 import os
 import re
 import struct
@@ -47,6 +48,25 @@ def verify_shared(adopted: Path, canonical: Path) -> str:
         manifest.update(b"\n")
     if mismatches:
         raise SystemExit("adopted Vulkan source mismatch: " + ", ".join(mismatches[:12]))
+    return manifest.hexdigest()
+
+
+def verify_frozen_shared(adopted: Path, manifest_path: Path) -> str:
+    data = json.loads(manifest_path.read_text())
+    if data.get("commit") != EXPECTED_SHARED_COMMIT or not data.get("files"):
+        raise SystemExit("invalid frozen shared provenance")
+    manifest = hashlib.sha256()
+    for relative, expected in sorted(data["files"].items()):
+        path = Path(relative)
+        target = adopted / path
+        if (path.is_absolute() or ".." in path.parts or
+                not re.fullmatch(r"[0-9a-f]{64}", expected) or
+                target.resolve() != target.absolute() or not target.is_file() or
+                digest(target) != expected):
+            raise SystemExit("adopted Vulkan source mismatch: " + relative)
+        manifest.update(relative.encode() + b"\0" + expected.encode() + b"\n")
+    if manifest.hexdigest() != "c1164a52aad53d3f64913459c7b523f22a44f0e6be650308276a77dcc2a952a5":
+        raise SystemExit("frozen shared manifest is incomplete or changed")
     return manifest.hexdigest()
 
 
@@ -203,6 +223,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--shared-root", type=Path, required=True)
     parser.add_argument("--canonical-shared", type=Path)
+    parser.add_argument("--shared-manifest", type=Path)
     parser.add_argument("--app", type=Path)
     parser.add_argument("--shader-root", type=Path)
     parser.add_argument("--initial-capture", type=Path)
@@ -215,14 +236,17 @@ def main() -> int:
     args = parser.parse_args()
     repo = Path(__file__).resolve().parents[1]
     adopted = args.shared_root.resolve()
-    if args.canonical_shared is None:
-        common_dir = Path(output(
-            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
-            repo)).resolve()
-        canonical = common_dir.parent.parent / "shared"
+    if args.shared_manifest:
+        manifest = verify_frozen_shared(adopted, args.shared_manifest)
     else:
-        canonical = (repo / args.canonical_shared).resolve()
-    manifest = verify_shared(adopted, canonical)
+        if args.canonical_shared is None:
+            common_dir = Path(output(
+                ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+                repo)).resolve()
+            canonical = common_dir.parent.parent / "shared"
+        else:
+            canonical = (repo / args.canonical_shared).resolve()
+        manifest = verify_shared(adopted, canonical)
     verify_adoption(repo)
     runtime = (adopted / "vk_runtime/VERSION").read_text().strip()
     renderer = (adopted / "vk_renderer/VERSION").read_text().strip()

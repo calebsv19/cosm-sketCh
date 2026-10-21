@@ -17,6 +17,8 @@ int expect_overlay_error_code(DrawingProgramOverlayAdapterResult result,
                               DrawingProgramOverlayAdapterErrorCode code,
                               const char *label);
 const char *lifecycle_test_artifact_root(void);
+/* Stable until process exit; test paths never share transient formatting storage. */
+char *lifecycle_test_artifact(const char *relative);
 int lifecycle_test_artifact_path(char *buffer, size_t buffer_size, const char *leaf_name);
 int lifecycle_test_artifact_child_path(char *buffer,
                                        size_t buffer_size,

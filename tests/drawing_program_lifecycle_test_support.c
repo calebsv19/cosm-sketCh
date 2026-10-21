@@ -61,6 +61,26 @@ const char *lifecycle_test_artifact_root(void) {
     return default_root;
 }
 
+char *lifecycle_test_artifact(const char *relative) {
+    static char paths[128][1024];
+    static char names[128][256];
+    static size_t count;
+    if (!relative || !relative[0] || relative[0] == '/' || strstr(relative, "..") ||
+        strlen(relative) >= sizeof(names[0])) {
+        fprintf(stderr, "invalid test artifact name\n");
+        abort();
+    }
+    for (size_t i = 0; i < count; ++i) {
+        if (strcmp(names[i], relative) == 0) return paths[i];
+    }
+    if (count == 128 || !lifecycle_test_artifact_path(paths[count], sizeof(paths[count]), relative)) {
+        fprintf(stderr, "test artifact storage exhausted or root unavailable\n");
+        abort();
+    }
+    strcpy(names[count], relative);
+    return paths[count++];
+}
+
 int lifecycle_test_artifact_path(char *buffer, size_t buffer_size, const char *leaf_name) {
     const char *root = lifecycle_test_artifact_root();
     int written = 0;

@@ -43,8 +43,8 @@ release-artifact-disposable:
 .PHONY: release-package-self-test
 release-package-self-test:
 	@set -eu; \
-	mkdir -p "$(CURDIR)/build"; \
-	runtime="$$(mktemp -d "$(CURDIR)/build/sketch-package-self-test.XXXXXX")"; \
+	mkdir -p "$(BUILD_DIR)"; \
+	runtime="$$(mktemp -d "$(BUILD_DIR)/sketch-package-self-test.XXXXXX")"; \
 	trap 'rm -rf "$$runtime"' EXIT HUP INT TERM; \
 	DRAWING_PROGRAM_RUNTIME_DIR="$$runtime/runtime" DRAWING_PROGRAM_LOG_DIR="$$runtime/logs" \
 	$(MAKE) package-desktop-self-test VULKAN_ROLLOUT_PACKAGE_DIR="$$runtime/proof"

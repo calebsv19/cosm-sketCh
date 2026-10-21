@@ -91,7 +91,7 @@ package-desktop-smoke: package-desktop
 package-desktop-self-test: package-desktop-smoke
 	@"$(PACKAGE_MACOS_DIR)/$(LAUNCHER_BIN)" --self-test || (echo "package-desktop self-test failed."; exit 1)
 	@mkdir -p "$(VULKAN_ROLLOUT_PACKAGE_DIR)"
-	@PYTHONDONTWRITEBYTECODE=1 python3 tools/verify-vulkan-rollout.py \
+	@PYTHONDONTWRITEBYTECODE=1 python3 tools/verify-vulkan-rollout.py $(VULKAN_PROVENANCE_ARGS) \
 		--shared-root "$(SHARED_VENDOR_DIR)" \
 		--app "$(PACKAGE_MACOS_DIR)/$(APP_BIN)" \
 		--shader-root "$(PACKAGE_RESOURCES_DIR)/vk_renderer" \
@@ -166,9 +166,9 @@ package-desktop-main-edit-self-test: package-desktop-main-edit
 		--product sketCh \
 		--version "$(PACKAGE_PROGRAM_VERSION)"
 	@set -e; \
-	fake_home="$(CURDIR)/$(MAIN_EDIT_SELF_TEST_DIR)/home"; \
-	isolated_runtime="$(CURDIR)/$(MAIN_EDIT_SELF_TEST_DIR)/runtime"; \
-	isolated_logs="$(CURDIR)/$(MAIN_EDIT_SELF_TEST_DIR)/logs"; \
+	fake_home="$(abspath $(MAIN_EDIT_SELF_TEST_DIR))/home"; \
+	isolated_runtime="$(abspath $(MAIN_EDIT_SELF_TEST_DIR))/runtime"; \
+	isolated_logs="$(abspath $(MAIN_EDIT_SELF_TEST_DIR))/logs"; \
 	rm -rf "$$fake_home" "$$isolated_runtime" "$$isolated_logs"; \
 	mkdir -p "$$fake_home" "$$isolated_runtime" "$$isolated_logs"; \
 	HOME="$$fake_home" DRAWING_PROGRAM_RUNTIME_DIR="$$isolated_runtime" DRAWING_PROGRAM_LOG_DIR="$$isolated_logs" "$(MAIN_EDIT_APP_DIR)/Contents/MacOS/$(LAUNCHER_BIN)" --self-test; \

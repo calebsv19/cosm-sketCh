@@ -79,3 +79,20 @@ worktrees retain it. Main Edit packaging requires an icon input. Its self-test
 requires the bundled icon, the matching `CFBundleIconFile`, and byte equality
 with the selected `.icns` input. Missing icons must fail rather than silently
 produce a generic Desktop icon. Other local icon experiments remain ignored.
+
+## Contained preparation qualification (2026-10-21)
+
+Ordinary preparation accepts `PREPARATION_ROOT` equal to `BUILD_DIR`, copies declared
+vendored shared inputs there, and dispatches only the bounded preparation goals in
+`make/preparation.mk`. Shared recursive builds explicitly use their local `build`
+directory. Tests use `DRAWING_PROGRAM_TEST_ARTIFACT_ROOT` both for stable paths and
+for their working directory. Packaging invokes selected Xcode tools directly.
+
+Frozen Vulkan verification uses the complete checked hash manifest for shared commit
+`7b37ad8c6ca7eafa679ab820aab9cac033d46c11`; ordinary non-contained verification retains
+the live Git check. The manifest is source provenance, not authentication evidence.
+
+The candidate producer declaration and qualification receipts are retained under
+`_private_workspace_artifacts/sketch-contained-preparation-20261021/` in the workspace.
+Canonical adoption and attachment of this profile remain separate next steps.
+VERSION remains 0.4.0; no live authentication or publication is implied.
