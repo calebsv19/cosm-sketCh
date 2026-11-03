@@ -280,6 +280,22 @@ int drawing_program_lifecycle_run_persistence_contract_suite(void) {
         strcmp(save_ctx.session.input_root_path, input_root) != 0 ||
         drawing_program_project_state_current_is_dirty(&save_ctx) || unlink(refused) != 0)
         return 1;
+    uint8_t visible = save_ctx.document.layers[0].visible;
+    uint32_t layer = save_ctx.document.layers[0].layer_id;
+    if (!expect_ok(drawing_program_history_apply_set_layer_visibility(
+                       &save_ctx.history, &save_ctx.document, layer, !visible), "edit visibility") ||
+        !expect_ok(drawing_program_history_undo(&save_ctx.history, &save_ctx.document,
+                       &save_ctx.layer_rasters, &save_ctx.object_store), "undo before save as") ||
+        !expect_ok(drawing_program_project_state_save_to(&save_ctx, refused), "save as after undo") ||
+        strcmp(save_ctx.session.project_path, refused) || strcmp(save_ctx.session.input_root_path, alt_input_root) ||
+        !expect_ok(drawing_program_project_state_open(&save_ctx, refused), "reopen after undo") ||
+        save_ctx.document.layers[0].visible != visible || drawing_program_project_state_current_is_dirty(&save_ctx) ||
+        !expect_ok(drawing_program_history_redo(&save_ctx.history, &save_ctx.document,
+                       &save_ctx.layer_rasters, &save_ctx.object_store), "redo after reopen") ||
+        save_ctx.document.layers[0].visible == visible || !drawing_program_project_state_current_is_dirty(&save_ctx) ||
+        !expect_ok(drawing_program_project_state_open(&save_ctx, expected_project_path), "reopen original") ||
+        unlink(refused) != 0)
+        return 1;
     if (!expect_ok(drawing_program_project_state_load_current(&save_ctx), "persistence_contract_reload_saved_project")) {
         return 1;
     }
