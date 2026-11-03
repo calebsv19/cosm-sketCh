@@ -1,6 +1,7 @@
 #include "drawing_program/drawing_program_app_post_load.h"
 
 #include "drawing_program/drawing_program_canvas_reflection.h"
+#include "drawing_program/drawing_program_ui_controls.h"
 #include "drawing_program/drawing_program_render_runtime_state.h"
 #include "drawing_program/drawing_program_visual_layer_opacity.h"
 
@@ -10,6 +11,7 @@ void drawing_program_app_rearm_after_document_swap(DrawingProgramAppContext *ctx
         return;
     }
 
+    drawing_program_ui_controls_invalidate();
     ctx->session.control_document_generation += 1u;
 
     if (ctx->document.layer_count > 0u &&

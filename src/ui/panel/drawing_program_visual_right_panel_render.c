@@ -760,19 +760,19 @@ void drawing_program_visual_render_right_panel_content(SDL_Renderer *renderer,
                                                      p.text_primary, m.body_scale, 0,
                                                      drawing_program_visual_panel_ui_hovered(ui, button_rect, hooks), hooks);
         button_rect = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_DUPLICATE);
-        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_DUPLICATE_SELECTED,0,1);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_DUPLICATE_SELECTED,ctx->editor.active_layer_id,1);
         drawing_program_visual_panel_draw_tab_button(renderer, rect, button_rect, "DUPLICATE SELECTED",
                                                      p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
                                                      p.text_primary, m.body_scale, 0,
                                                      drawing_program_visual_panel_ui_hovered(ui, button_rect, hooks), hooks);
         button_rect = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_RENAME);
-        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_AUTO_ROLE_NAME,0,1);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_AUTO_ROLE_NAME,ctx->editor.active_layer_id,1);
         drawing_program_visual_panel_draw_tab_button(renderer, rect, button_rect, "AUTO ROLE NAME",
                                                      p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
                                                      p.text_primary, m.body_scale, 0,
                                                      drawing_program_visual_panel_ui_hovered(ui, button_rect, hooks), hooks);
         button_rect = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_DELETE);
-        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_DELETE_SELECTED,0,1);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_DELETE_SELECTED,ctx->editor.active_layer_id,1);
         drawing_program_visual_panel_draw_tab_button(renderer, rect, button_rect, "DELETE SELECTED",
                                                      p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
                                                      p.text_primary, m.body_scale, 0,
@@ -790,19 +790,19 @@ void drawing_program_visual_render_right_panel_content(SDL_Renderer *renderer,
                                                      p.text_primary, m.body_scale, 0,
                                                      drawing_program_visual_panel_ui_hovered(ui, button_rect, hooks), hooks);
         button_rect = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_MOVE_UP);
-        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_MOVE_UP,0,1);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_MOVE_UP,ctx->editor.active_layer_id,1);
         drawing_program_visual_panel_draw_tab_button(renderer, rect, button_rect, "MOVE UP",
                                                      p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
                                                      p.text_primary, m.body_scale, 0,
                                                      drawing_program_visual_panel_ui_hovered(ui, button_rect, hooks), hooks);
         button_rect = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_MOVE_DOWN);
-        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_MOVE_DOWN,0,1);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_MOVE_DOWN,ctx->editor.active_layer_id,1);
         drawing_program_visual_panel_draw_tab_button(renderer, rect, button_rect, "MOVE DOWN",
                                                      p.button_fill, p.button_fill_hover, p.button_fill_active, p.button_border,
                                                      p.text_primary, m.body_scale, 0,
                                                      drawing_program_visual_panel_ui_hovered(ui, button_rect, hooks), hooks);
         button_rect = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_TOGGLE_VISIBLE);
-        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_ACTIVE_VISIBLE_VISIBLE_ON_VISIBLE_OFF,0,1);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_ACTIVE_VISIBLE_VISIBLE_ON_VISIBLE_OFF,ctx->editor.active_layer_id,1);
         drawing_program_visual_panel_draw_tab_button(renderer,
                                                      rect,
                                                      button_rect,
@@ -817,7 +817,7 @@ void drawing_program_visual_render_right_panel_content(SDL_Renderer *renderer,
                                                      drawing_program_visual_panel_ui_hovered(ui, button_rect, hooks),
                                                      hooks);
         button_rect = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_TOGGLE_LOCK);
-        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_ACTIVE_LOCKED_LOCK_ON_LOCK_OFF,0,1);
+        drawing_program_ui_controls_key(DRAWING_UI_RIGHT_PANEL_RENDER_ACTIVE_LOCKED_LOCK_ON_LOCK_OFF,ctx->editor.active_layer_id,1);
         drawing_program_visual_panel_draw_tab_button(renderer,
                                                      rect,
                                                      button_rect,

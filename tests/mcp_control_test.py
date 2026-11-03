@@ -58,6 +58,18 @@ async def check(args, name, source, writable, previous=None):
                     assert (await call('request_status',instance=previous,request_id='prior'))['code']=='stale_instance'
                 if not writable:
                     assert (await mutate('replace_tile',tile=tile,indices=[0]*256))['code']=='read_only'
+                    # Exhaust this disposable instance's receipt table using refused requests.
+                    # A later retry must still recover the earliest receipt even at capacity.
+                    first = dict(instance=instance, request_id='first-capacity-check',
+                                 expected_state=before['expected_state'], tile=tile, indices=before['indices'])
+                    refused = await call('replace_tile', **first)
+                    assert refused['code'] == 'read_only'
+                    for n in range(126):
+                        reply = wire(endpoint, dict(op='replace_tile', **dict(first, request_id=f'capacity-{n}')))
+                        assert reply['code'] == 'read_only'
+                    assert (await mutate('replace_tile', tile=tile, indices=before['indices']))['code'] == 'receipt_capacity'
+                    assert (await call('replace_tile', **first)) == refused
+                    assert (await call('read_tile', tile=tile))['indices'] == before['indices']
                     return before['indices'], instance
                 no_op=await mutate('replace_tile',tile=tile,indices=before['indices'])
                 assert no_op['ok'] and not no_op['changed'] and no_op['expected_state']==before['expected_state']

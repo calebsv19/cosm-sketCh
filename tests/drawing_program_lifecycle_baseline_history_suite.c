@@ -109,6 +109,13 @@ int drawing_program_lifecycle_run_baseline_history_suite(DrawingProgramAppContex
         delta_entry.sample_index = 0u;
         delta_entry.previous_sample_value = expected_eraser_value;
         delta_entry.new_sample_value = 129u;
+        DrawingProgramHistoryRasterDeltaEntry invalid_block[2] = {delta_entry, delta_entry};
+        invalid_block[1].sample_index = ctx.document.raster_sample_count;
+        uint64_t before_revision = ctx.document.content_revision;
+        if (drawing_program_history_apply_raster_delta_block(&ctx.history, &ctx.document, &ctx.layer_rasters,
+                ctx.editor.active_layer_id, invalid_block, 2u).code == CORE_OK ||
+            ctx.document.content_revision != before_revision || ctx.history.raster_delta_count != DRAWING_PROGRAM_HISTORY_RASTER_DELTA_CAPACITY)
+            return 1;
         if (!expect_ok(drawing_program_history_apply_raster_delta_block(&ctx.history,
                                                                         &ctx.document,
                                                                         &ctx.layer_rasters,

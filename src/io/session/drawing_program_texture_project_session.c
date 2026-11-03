@@ -193,6 +193,10 @@ CoreResult drawing_program_texture_project_session_commit_active_surface(Drawing
     if (ctx->texture_project.surface_count == 0u) {
         return drawing_program_texture_project_session_init_from_current_document(ctx);
     }
+    if (!ctx->texture_project.surfaces ||
+        ctx->texture_project.active_surface_index >= ctx->texture_project.surface_count) {
+        return texture_project_session_invalid("active texture surface is unavailable");
+    }
     return drawing_program_texture_project_capture_surface(&ctx->texture_project,
                                                            ctx->texture_project.active_surface_index,
                                                            &ctx->document,
@@ -275,8 +279,6 @@ CoreResult drawing_program_texture_project_session_import_scene_object(DrawingPr
         return result;
     }
     drawing_program_texture_project_session_sync_scene_selection_from_project(ctx);
-    ctx->session.project_saved_history_count = 0u;
-    ctx->session.project_saved_history_cursor = 0u;
     ctx->session.project_has_saved_state = 0u;
     return core_result_ok();
 }

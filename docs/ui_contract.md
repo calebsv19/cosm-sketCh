@@ -220,3 +220,7 @@ row reordering. Its spatial-hit hook deliberately fails if any semantic command
 reaches a legacy hit test. Aggregate domain/history/persistence/export tests and
 real-loop UI/native/package checks complete the qualification boundary; native
 file-panel acceptance and every destructive action are not automated.
+
+### Layer actions and saved content
+
+Layer controls bind a press to its layer ID. Changing the target or replacing the document invalidates the pending action. A visibility toggle commits one edit. Undo restores the prior value, and a gesture that closes without an edit preserves redo. The File panel compares authored content to the saved baseline, including changes such as layer locking that have no history entry. If a layer edit succeeds and copying it to the active texture surface fails, the File status reports the accepted edit and Save retries the copy.

@@ -54,6 +54,7 @@ DRAWING_PROGRAM_BASE_LOCAL_SRCS := \
 	src/io/export/drawing_program_texture_export.c \
 	src/io/export/indexed_tileset/drawing_program_indexed_png.c \
 	src/io/export/indexed_tileset/drawing_program_indexed_tileset_export.c \
+	src/io/session/drawing_program_project_content.c \
 	src/io/session/drawing_program_project_state.c \
 	src/io/session/drawing_program_project_selection.c \
 	src/io/session/drawing_program_session_paths.c \

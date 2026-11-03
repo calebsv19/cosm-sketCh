@@ -91,6 +91,7 @@ typedef struct DrawingProgramCommand {
 } DrawingProgramCommand;
 
 typedef struct DrawingProgramHistory {
+    uint8_t pending_group; /* Runtime gesture, materialized only by an accepted edit. */
     DrawingProgramCommand entries[DRAWING_PROGRAM_HISTORY_CAPACITY];
     uint32_t count;
     uint32_t cursor;

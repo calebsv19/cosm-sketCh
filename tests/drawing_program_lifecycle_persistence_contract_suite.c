@@ -280,12 +280,22 @@ int drawing_program_lifecycle_run_persistence_contract_suite(void) {
         strcmp(save_ctx.session.input_root_path, input_root) != 0 ||
         drawing_program_project_state_current_is_dirty(&save_ctx) || unlink(refused) != 0)
         return 1;
+    uint8_t locked = save_ctx.document.layers[0].locked;
+    uint32_t id = save_ctx.document.layers[0].layer_id;
+    if (!expect_ok(drawing_program_document_set_layer_locked(&save_ctx.document,id,!locked,NULL),"lock change") ||
+        !drawing_program_project_state_current_is_dirty(&save_ctx) ||
+        !expect_ok(drawing_program_document_set_layer_locked(&save_ctx.document,id,locked,NULL),"restore lock") ||
+        drawing_program_project_state_current_is_dirty(&save_ctx)) return 1;
     uint8_t visible = save_ctx.document.layers[0].visible;
     uint32_t layer = save_ctx.document.layers[0].layer_id;
     if (!expect_ok(drawing_program_history_apply_set_layer_visibility(
                        &save_ctx.history, &save_ctx.document, layer, !visible), "edit visibility") ||
         !expect_ok(drawing_program_history_undo(&save_ctx.history, &save_ctx.document,
                        &save_ctx.layer_rasters, &save_ctx.object_store), "undo before save as") ||
+        drawing_program_project_state_current_is_dirty(&save_ctx) ||
+        !expect_ok(drawing_program_history_begin_group(&save_ctx.history), "begin empty gesture with redo") ||
+        !expect_ok(drawing_program_history_end_group(&save_ctx.history), "cancel empty gesture with redo") ||
+        drawing_program_project_state_current_is_dirty(&save_ctx) ||
         !expect_ok(drawing_program_project_state_save_to(&save_ctx, refused), "save as after undo") ||
         strcmp(save_ctx.session.project_path, refused) || strcmp(save_ctx.session.input_root_path, alt_input_root) ||
         !expect_ok(drawing_program_project_state_open(&save_ctx, refused), "reopen after undo") ||
@@ -293,6 +303,12 @@ int drawing_program_lifecycle_run_persistence_contract_suite(void) {
         !expect_ok(drawing_program_history_redo(&save_ctx.history, &save_ctx.document,
                        &save_ctx.layer_rasters, &save_ctx.object_store), "redo after reopen") ||
         save_ctx.document.layers[0].visible == visible || !drawing_program_project_state_current_is_dirty(&save_ctx) ||
+        !expect_ok(drawing_program_project_state_save_to(&save_ctx, refused), "save visibility branch") ||
+        !expect_ok(drawing_program_history_undo(&save_ctx.history, &save_ctx.document,
+                       &save_ctx.layer_rasters, &save_ctx.object_store), "branch before visibility") ||
+        !expect_ok(drawing_program_history_apply_set_sample_value(&save_ctx.history, &save_ctx.document,
+                       &save_ctx.layer_rasters, layer, 0, 0, 192), "paint divergent branch at saved depth") ||
+        !drawing_program_project_state_current_is_dirty(&save_ctx) ||
         !expect_ok(drawing_program_project_state_open(&save_ctx, expected_project_path), "reopen original") ||
         unlink(refused) != 0)
         return 1;

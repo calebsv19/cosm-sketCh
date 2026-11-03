@@ -232,6 +232,22 @@ CoreResult drawing_program_history_apply_raster_delta_block(
     if (entry_count > DRAWING_PROGRAM_HISTORY_RASTER_DELTA_CAPACITY) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "raster-delta block exceeds history storage capacity" };
     }
+    /* Validate the entire block before cropping redo, evicting history or painting. */
+    uint32_t layer_index;
+    result = drawing_program_document_layer_index_for_id(document, layer_id, &layer_index);
+    if (result.code != CORE_OK) return result;
+    if (document->raster_width == 0u) return history_raster_invalid("invalid raster width");
+    for (i = 0u; i < entry_count; ++i) {
+        uint32_t index = entries[i].sample_index;
+        if (index >= document->raster_sample_count || index / document->raster_width >= document->raster_height)
+            return (CoreResult){CORE_ERR_NOT_FOUND, "sample index out of bounds"};
+    }
+    if (history_layer_raster_store_usable_local(document, layer_rasters)) {
+        DrawingProgramRasterSample sample;
+        result = drawing_program_layer_raster_store_sample_read(layer_rasters, layer_id, 0, 0, &sample);
+        if (result.code != CORE_OK) return result;
+    }
+    drawing_program_history_materialize_group(history);
     if (history->cursor < history->count) {
         drawing_program_history_raster_delta_trim_to_count(history, history->cursor);
     }

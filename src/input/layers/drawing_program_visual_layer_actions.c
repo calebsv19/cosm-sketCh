@@ -46,6 +46,8 @@ void drawing_program_visual_apply_workflow_control_if_valid(DrawingProgramAppCon
     if (control_result.code == CORE_OK && workflow_control_changes_layer_surface(control)) {
         CoreResult commit_result = drawing_program_texture_project_session_commit_active_surface(ctx);
         if (commit_result.code != CORE_OK) {
+            snprintf(ctx->session.file_action_status_message, sizeof(ctx->session.file_action_status_message),
+                     "Layer edited. Surface sync failed; Save retries: %s", commit_result.message);
             fprintf(stderr,
                     "drawing_program: active surface commit after layer control failed: %s\n",
                     commit_result.message);

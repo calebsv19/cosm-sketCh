@@ -48,6 +48,8 @@ int drawing_program_ui_pilot_probe(SDL_Window *window, SDL_Renderer *renderer,
   static int phase = 0;
   static uint64_t start = 0;
   static uint32_t pressed_scope = 0;
+  static uint32_t layer_cursor, layer_id, layer_index;
+  static uint8_t visible;
   const char *dir = getenv("DRAWING_PROGRAM_UI_PROOF");
   if (!dir || !*dir)
     return 0;
@@ -141,6 +143,61 @@ int drawing_program_ui_pilot_probe(SDL_Window *window, SDL_Renderer *renderer,
       return -1;
     printf("UI_PILOT modal-cancel status=pass controls=%u\n",
            drawing_program_ui_controls_snapshot()->count);
+  } else if (phase >= 26 && phase <= 34 && !drawing_program_indexed_editor_is_active(app)) {
+    if (phase == 28 || phase == 29 || phase == 31 || phase == 32) {
+      char path[4096];
+      snprintf(path, sizeof(path), "%s/layer-%d.bmp", dir, phase);
+      if (!drawing_program_render_backend_request_capture(renderer, path)) return -1;
+    }
+    if (phase == 26) {
+      /* Give the visibility proof an observable canvas mark on its disposable project. */
+      int width, height;
+      SDL_GetWindowSize(window, &width, &height);
+      SDL_Event stroke = {0};
+      stroke.button.button = SDL_BUTTON_LEFT;
+      stroke.button.x = width / 2;
+      stroke.button.y = height / 2;
+      stroke.type = SDL_MOUSEBUTTONDOWN;
+      if (SDL_PushEvent(&stroke) != 1) return -1;
+      stroke.type = SDL_MOUSEBUTTONUP;
+      if (SDL_PushEvent(&stroke) != 1) return -1;
+    }
+    if (phase == 26 || phase == 27) {
+      if (!click(window, renderer, tabs[1], 0, phase == 27)) return -1;
+    } else if (phase == 28) {
+      layer_id = app->editor.active_layer_id;
+      if (drawing_program_document_layer_index_for_id(&app->document, layer_id, &layer_index).code != CORE_OK)
+        return -1;
+      visible = app->document.layers[layer_index].visible;
+      layer_cursor = app->history.cursor;
+      key(SDLK_v, KMOD_NONE, 0);
+      key(SDLK_v, KMOD_NONE, 1);
+    } else if (phase == 29 || phase == 30) {
+      if (app->document.layers[layer_index].visible == visible || app->history.cursor != layer_cursor + 1)
+        return -1;
+      if (!click(window, renderer, DRAWING_UI_RIGHT_PANEL_RENDER_ACTIVE_VISIBLE_VISIBLE_ON_VISIBLE_OFF,
+                 layer_id, phase == 30)) return -1;
+    } else if (phase == 31) {
+      if (app->document.layers[layer_index].visible != visible || app->history.cursor != layer_cursor + 2)
+        return -1;
+      key(SDLK_z, KMOD_NONE, 0);
+      key(SDLK_z, KMOD_NONE, 1);
+    } else if (phase == 32) {
+      if (app->document.layers[layer_index].visible == visible || app->history.cursor != layer_cursor + 1)
+        return -1;
+      const KitUiSurface *surface = drawing_program_ui_controls_snapshot();
+      KitUiSurfaceKey focused;
+      if (!kit_ui_surface_key(surface, surface->interaction.focused_id, &focused) ||
+          focused.domain != DRAWING_UI_RIGHT_PANEL_RENDER_ACTIVE_VISIBLE_VISIBLE_ON_VISIBLE_OFF ||
+          focused.value != layer_id) return -1;
+      key(SDLK_RETURN, KMOD_NONE, 0);
+    } else if (phase == 33) {
+      key(SDLK_RETURN, KMOD_NONE, 1);
+    } else {
+      if (app->document.layers[layer_index].visible != visible || app->history.cursor != layer_cursor + 2)
+        return -1;
+      puts("UI_PILOT visibility keyboard/pointer/undo/focused-enter status=pass");
+    }
   } else {
     puts("UI_PILOT status=complete");
     return 1;

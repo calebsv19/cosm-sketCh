@@ -392,14 +392,9 @@ void drawing_program_project_state_mark_clean(struct DrawingProgramAppContext *c
     if (!ctx) {
         return;
     }
-    ctx->session.project_saved_history_count = ctx->history.count;
-    ctx->session.project_saved_history_cursor = ctx->history.cursor;
-    ctx->session.project_saved_indexed_history_count = ctx->texture_project.indexed_history.command_count;
-    ctx->session.project_saved_indexed_history_cursor = ctx->texture_project.indexed_history.command_cursor;
-    ctx->session.project_saved_indexed_cell_history_count =
-        ctx->texture_project.indexed_cell_history.command_count;
-    ctx->session.project_saved_indexed_cell_history_cursor =
-        ctx->texture_project.indexed_cell_history.command_cursor;
+    ctx->session.saved_authoring_signature = drawing_program_project_authoring_signature(ctx);
+    ctx->session.saved_raster_stamp = drawing_program_project_raster_signature(ctx, 0);
+    ctx->session.saved_raster_signature = drawing_program_project_raster_signature(ctx, 1);
     ctx->session.project_has_saved_state = 1u;
 }
 
@@ -410,23 +405,9 @@ uint8_t drawing_program_project_state_current_is_dirty(const struct DrawingProgr
     if (!ctx->session.project_has_saved_state) {
         return 1u;
     }
-    if (ctx->session.project_saved_history_count != ctx->history.count) {
+    if (ctx->session.saved_authoring_signature != drawing_program_project_authoring_signature(ctx))
         return 1u;
-    }
-    if (ctx->session.project_saved_history_cursor != ctx->history.cursor) {
-        return 1u;
-    }
-    if (ctx->session.project_saved_indexed_history_count !=
-            ctx->texture_project.indexed_history.command_count ||
-        ctx->session.project_saved_indexed_history_cursor !=
-            ctx->texture_project.indexed_history.command_cursor) {
-        return 1u;
-    }
-    if (ctx->session.project_saved_indexed_cell_history_count !=
-            ctx->texture_project.indexed_cell_history.command_count ||
-        ctx->session.project_saved_indexed_cell_history_cursor !=
-            ctx->texture_project.indexed_cell_history.command_cursor) {
-        return 1u;
-    }
-    return 0u;
+    if (ctx->session.saved_raster_stamp == drawing_program_project_raster_signature(ctx, 0))
+        return 0u;
+    return ctx->session.saved_raster_signature != drawing_program_project_raster_signature(ctx, 1);
 }

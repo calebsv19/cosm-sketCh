@@ -565,16 +565,8 @@ void drawing_program_history_clear(DrawingProgramHistory *history) {
 }
 
 CoreResult drawing_program_history_begin_group(DrawingProgramHistory *history) {
-    DrawingProgramCommand marker;
-    if (!history) {
-        return drawing_program_history_invalid("invalid begin group request");
-    }
-    if (history->cursor < history->count) {
-        drawing_program_history_raster_delta_trim_to_count(history, history->cursor);
-    }
-    memset(&marker, 0, sizeof(marker));
-    marker.type = DRAWING_PROGRAM_COMMAND_GROUP_BEGIN;
-    drawing_program_history_push(history, &marker);
+    if (!history) return drawing_program_history_invalid("invalid begin group request");
+    history->pending_group = 1u;
     return core_result_ok();
 }
 
@@ -582,6 +574,29 @@ CoreResult drawing_program_history_end_group(DrawingProgramHistory *history) {
     DrawingProgramCommand marker;
     if (!history) {
         return drawing_program_history_invalid("invalid end group request");
+    }
+    if (history->pending_group) {
+        history->pending_group = 0u;
+        return core_result_ok();
+    }
+    /* Input cancellation also ends gestures when no group was opened. */
+    uint32_t closed = 0u;
+    int open_group = 0;
+    uint32_t i = history->cursor;
+    while (i > 0u) {
+        DrawingProgramCommandType type = history->entries[--i].type;
+        if (type == DRAWING_PROGRAM_COMMAND_GROUP_END) {
+            ++closed;
+        } else if (type == DRAWING_PROGRAM_COMMAND_GROUP_BEGIN) {
+            if (closed == 0u) {
+                open_group = 1;
+                break;
+            }
+            --closed;
+        }
+    }
+    if (!open_group) {
+        return core_result_ok();
     }
     if (history->cursor < history->count) {
         drawing_program_history_raster_delta_trim_to_count(history, history->cursor);
@@ -610,7 +625,7 @@ void drawing_program_history_query_units(const DrawingProgramHistory *history,
     }
 }
 
-void drawing_program_history_push(DrawingProgramHistory *history, const DrawingProgramCommand *command) {
+static void history_append(DrawingProgramHistory *history, const DrawingProgramCommand *command) {
     if (!history || !command) {
         return;
     }
@@ -626,6 +641,20 @@ void drawing_program_history_push(DrawingProgramHistory *history, const DrawingP
     history->entries[history->count] = *command;
     history->count += 1u;
     history->cursor = history->count;
+}
+
+void drawing_program_history_materialize_group(DrawingProgramHistory *history) {
+    if (history->pending_group) {
+        DrawingProgramCommand marker = {.type = DRAWING_PROGRAM_COMMAND_GROUP_BEGIN};
+        history->pending_group = 0u;
+        history_append(history, &marker);
+    }
+}
+
+void drawing_program_history_push(DrawingProgramHistory *history, const DrawingProgramCommand *command) {
+    if (!history || !command) return;
+    drawing_program_history_materialize_group(history);
+    history_append(history, command);
 }
 
 CoreResult drawing_program_history_apply_set_layer_visibility(DrawingProgramHistory *history,

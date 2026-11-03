@@ -4,6 +4,9 @@
 #include "drawing_program/drawing_program_app_main.h"
 #include "drawing_program/drawing_program_project_state.h"
 
+uint64_t drawing_program_project_authoring_signature(const DrawingProgramAppContext *ctx);
+uint64_t drawing_program_project_raster_signature(const DrawingProgramAppContext *ctx, int content);
+
 CoreResult drawing_program_project_invalid(const char *message);
 CoreResult drawing_program_project_slot_path_missing(const char *message);
 void drawing_program_project_trim_dir_path(char *path);

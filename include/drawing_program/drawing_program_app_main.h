@@ -210,12 +210,9 @@ typedef struct DrawingProgramAppSessionState {
     char project_path_buffer[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
     char recent_project_paths[DRAWING_PROGRAM_RECENT_PROJECT_CAPACITY][DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
     char file_action_status_message[160];
-    uint32_t project_saved_history_count;
-    uint32_t project_saved_history_cursor;
-    uint32_t project_saved_indexed_history_count;
-    uint32_t project_saved_indexed_history_cursor;
-    uint32_t project_saved_indexed_cell_history_count;
-    uint32_t project_saved_indexed_cell_history_cursor;
+    uint64_t saved_authoring_signature;
+    uint64_t saved_raster_stamp;
+    uint64_t saved_raster_signature;
     uint8_t project_has_saved_state;
     uint16_t recent_project_count;
     uint8_t ui_prefs_loaded;

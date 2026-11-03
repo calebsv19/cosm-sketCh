@@ -1,4 +1,6 @@
 #include "drawing_program/drawing_program_ui_commands.h"
+#include "drawing_program/drawing_program_app_post_load.h"
+#include "drawing_program/drawing_program_texture_project_session.h"
 #include "drawing_program/drawing_program_visual_text_render.h"
 #include "drawing_program/drawing_program_authoring_host.h"
 #include "drawing_program/drawing_program_visual_authoring_chrome.h"
@@ -7,7 +9,10 @@
 #include "../src/app/drawing_program_app_visual_runtime_support.h"
 #include "../src/ui/panel/drawing_program_ui_button.h"
 #include "kit_workspace_authoring_ui.h"
+#include "../src/control/control_internal.h"
+#include <json-c/json.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #define CHECK(c) do { if (!(c)) { fprintf(stderr,"UI command line %d: %s\n",__LINE__,#c); return 1; } } while(0)
 static SDL_Renderer *renderer;
@@ -85,6 +90,37 @@ static int standard(DrawingProgramAppContext *ctx) {
     uint32_t id=ctx->document.layers[0].layer_id;
     CHECK(!send(ctx,(KitUiSurfaceKey){DRAWING_UI_RIGHT_PANEL_RENDER_SELECT_LAYER,id}));
     CHECK(ctx->editor.active_layer_id==id);
+    KitUiSurfaceKey visible = {DRAWING_UI_RIGHT_PANEL_RENDER_ACTIVE_VISIBLE_VISIBLE_ON_VISIBLE_OFF,id};
+    uint32_t other = ctx->document.layers[1].layer_id;
+    uint32_t cursor = ctx->history.cursor;
+    CHECK(!send(ctx,visible));
+    CHECK(!ctx->document.layers[0].visible && ctx->history.cursor == cursor + 1);
+    CHECK(!activate(ctx,visible));
+    ctx->editor.active_layer_id = other;
+    CHECK(drawing_program_ui_command_dispatch(ctx,visible,&ctx->selection,&ui,&hooks));
+    CHECK(ctx->document.layers[1].visible && ctx->history.cursor == cursor + 1);
+    ctx->editor.active_layer_id = id;
+    CHECK(!activate(ctx,visible));
+    drawing_program_app_rearm_after_document_swap(ctx);
+    CHECK(drawing_program_ui_command_dispatch(ctx,visible,&ctx->selection,&ui,&hooks));
+    CHECK(!ctx->document.layers[0].visible && ctx->history.cursor == cursor + 1);
+    VisualCanvasInteractionState canvas = {0};
+    CoreThemePreset theme = {0};
+    CoreThemePresetId theme_id = 0;
+    SDL_Event event = {.type = SDL_KEYDOWN};
+    event.key.keysym.sym = SDLK_v;
+    CHECK(drawing_program_visual_input_handle_keydown_payload(&event,0,(SDL_Rect){0},
+        &theme_id,&theme,ctx,&canvas,&ctx->selection,&ui,&hooks));
+    CHECK(ctx->document.layers[0].visible && ctx->history.cursor == cursor + 2);
+    uint32_t surface = ctx->texture_project.active_surface_index;
+    ctx->texture_project.active_surface_index = ctx->texture_project.surface_count;
+    CHECK(!send(ctx,visible));
+    CHECK(!ctx->document.layers[0].visible && ctx->history.cursor == cursor + 3);
+    CHECK(strstr(ctx->session.file_action_status_message, "Surface sync failed"));
+    ctx->texture_project.active_surface_index = surface;
+    CHECK(drawing_program_texture_project_session_commit_active_surface(ctx).code == CORE_OK);
+    CHECK(!ctx->texture_project.surfaces[surface].storage->document.layers[0].visible);
+    CHECK(ctx->history.cursor == cursor + 3);
     CHECK(!activate(ctx,add)); drawing_program_ui_controls_invalidate();
     CHECK(drawing_program_ui_command_dispatch(ctx,add,&ctx->selection,&ui,&hooks));
     CHECK(ctx->document.layer_count==count+1);
@@ -166,6 +202,34 @@ static int indexed(DrawingProgramAppContext *ctx) {
     CHECK(ctx->ui.indexed_selected_cell==0 && !spatial_hits);
     return 0;
 }
+static int indexed_busy(DrawingProgramAppContext *ctx) {
+    SketchControl control = {.instance="busy-fixture", .allow_write=true};
+    bool changed = false;
+    char *raw = sketch_control_dispatch(&control,ctx,"{\"op\":\"inspect_project\"}",false,&changed);
+    CHECK(raw);
+    json_object *before = json_tokener_parse(raw);
+    free(raw);
+    json_object *token = NULL;
+    CHECK(before && json_object_object_get_ex(before,"expected_state",&token));
+    char request[256];
+    snprintf(request,sizeof(request),
+             "{\"op\":\"undo\",\"instance\":\"busy-fixture\",\"request_id\":\"busy\",\"expected_state\":\"%s\"}",
+             json_object_get_string(token));
+    raw = sketch_control_dispatch(&control,ctx,request,true,&changed);
+    CHECK(raw && !changed);
+    json_object *after = json_tokener_parse(raw);
+    free(raw);
+    json_object *code = NULL, *after_token = NULL;
+    CHECK(after && json_object_object_get_ex(after,"code",&code) && !strcmp(json_object_get_string(code),"busy"));
+    CHECK(json_object_object_get_ex(after,"expected_state",&after_token) &&
+          !strcmp(json_object_get_string(token),json_object_get_string(after_token)));
+    json_object_put(before);
+    json_object_put(after);
+    free(control.receipts[0].request);
+    free(control.receipts[0].response);
+    return 0;
+}
+
 int drawing_program_ui_command_suite(void) {
     static DrawingProgramAppContext ctx;
     char *args[]={"ui-command","--headless","--no-persist",NULL};
@@ -180,7 +244,7 @@ int drawing_program_ui_command_suite(void) {
     CHECK(pixels); renderer=SDL_CreateSoftwareRenderer(pixels); CHECK(renderer);
     hooks=*drawing_program_visual_input_handlers_hooks(); hooks.point_in_rect=forbidden_hit;
     hooks.sync_panel_ui_from_app(&ctx,&ui); spatial_hits=0; drawing_program_ui_controls_reset();
-    CHECK(!keyboard_and_disabled(&ctx)); CHECK(!standard(&ctx)); CHECK(!indexed(&ctx));
+    CHECK(!keyboard_and_disabled(&ctx)); CHECK(!standard(&ctx)); CHECK(!indexed(&ctx)); CHECK(!indexed_busy(&ctx));
     drawing_program_ui_controls_reset(); SDL_DestroyRenderer(renderer); SDL_FreeSurface(pixels);
     CHECK(drawing_program_app_shutdown(&ctx).code==CORE_OK);
     puts("Direct UI command, once-only activation and stale identity contracts passed (standard/indexed)");

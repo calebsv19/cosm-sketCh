@@ -249,8 +249,6 @@ CoreResult drawing_program_project_state_begin_new_blank(struct DrawingProgramAp
     if (result.code != CORE_OK) {
         return result;
     }
-    ctx->session.project_saved_history_count = 0u;
-    ctx->session.project_saved_history_cursor = 0u;
     ctx->session.project_has_saved_state = 0u;
     return core_result_ok();
 }

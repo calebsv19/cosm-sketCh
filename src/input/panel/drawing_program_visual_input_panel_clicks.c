@@ -179,18 +179,18 @@ void drawing_program_visual_input_handle_right_panel_click_payload_intent(
             return;
         }
         action = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_DUPLICATE);
-        if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_RENDER_DUPLICATE_SELECTED, 0, action, hooks)) {
+        if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_RENDER_DUPLICATE_SELECTED, ctx->editor.active_layer_id, action, hooks)) {
             hooks->apply_layer_duplicate_active(ctx);
             drawing_program_visual_layer_opacity_sync_document(ctx);
             return;
         }
         action = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_RENAME);
-        if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_RENDER_AUTO_ROLE_NAME, 0, action, hooks)) {
+        if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_RENDER_AUTO_ROLE_NAME, ctx->editor.active_layer_id, action, hooks)) {
             hooks->apply_layer_rename_auto(ctx);
             return;
         }
         action = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_DELETE);
-        if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_RENDER_DELETE_SELECTED, 0, action, hooks)) {
+        if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_RENDER_DELETE_SELECTED, ctx->editor.active_layer_id, action, hooks)) {
             hooks->apply_workflow_control_if_valid(ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_DELETE_ACTIVE_LAYER);
             drawing_program_visual_layer_opacity_sync_document(ctx);
             return;
@@ -206,22 +206,22 @@ void drawing_program_visual_input_handle_right_panel_click_payload_intent(
             return;
         }
         action = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_MOVE_UP);
-        if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_RENDER_MOVE_UP, 0, action, hooks)) {
+        if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_RENDER_MOVE_UP, ctx->editor.active_layer_id, action, hooks)) {
             hooks->apply_workflow_control_if_valid(ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_MOVE_ACTIVE_LAYER_UP);
             return;
         }
         action = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_MOVE_DOWN);
-        if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_RENDER_MOVE_DOWN, 0, action, hooks)) {
+        if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_RENDER_MOVE_DOWN, ctx->editor.active_layer_id, action, hooks)) {
             hooks->apply_workflow_control_if_valid(ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_MOVE_ACTIVE_LAYER_DOWN);
             return;
         }
         action = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_TOGGLE_VISIBLE);
-        if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_RENDER_ACTIVE_VISIBLE_VISIBLE_ON_VISIBLE_OFF, 0, action, hooks)) {
+        if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_RENDER_ACTIVE_VISIBLE_VISIBLE_ON_VISIBLE_OFF, ctx->editor.active_layer_id, action, hooks)) {
             hooks->apply_workflow_control_if_valid(ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_TOGGLE_ACTIVE_LAYER_VISIBILITY);
             return;
         }
         action = right_layer_action_button_rect(rect, m, ctx->document.layer_count, VISUAL_LAYER_ACTION_TOGGLE_LOCK);
-        if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_RENDER_ACTIVE_LOCKED_LOCK_ON_LOCK_OFF, 0, action, hooks)) {
+        if (drawing_program_panel_intent_matches(intent, DRAWING_UI_RIGHT_PANEL_RENDER_ACTIVE_LOCKED_LOCK_ON_LOCK_OFF, ctx->editor.active_layer_id, action, hooks)) {
             hooks->apply_workflow_control_if_valid(ctx, DRAWING_PROGRAM_WORKFLOW_CONTROL_TOGGLE_ACTIVE_LAYER_LOCK);
             return;
         }

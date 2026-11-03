@@ -3,6 +3,7 @@
 
 #include "drawing_program/drawing_program_history.h"
 
+void drawing_program_history_materialize_group(DrawingProgramHistory *history);
 void drawing_program_history_push(DrawingProgramHistory *history, const DrawingProgramCommand *command);
 int drawing_program_history_command_uses_raster_delta(const DrawingProgramCommand *command);
 uint32_t drawing_program_history_raster_delta_count_for_limit(const DrawingProgramHistory *history, uint32_t limit);
