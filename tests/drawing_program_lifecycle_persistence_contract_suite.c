@@ -1,3 +1,6 @@
+#include <signal.h>
+#include <sys/resource.h>
+#include <sys/wait.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,6 +29,56 @@ static int persistence_contract_seed_project_sample(DrawingProgramAppContext *ct
         return 0;
     }
     return 1;
+}
+
+/* Limit real writes in a child so the parent can verify the original file
+ * and reopen it even when the writer is killed before closing the pack. */
+static int verify_pack_faults(DrawingProgramAppContext *ctx, const char *path, const unsigned char *original) {
+    struct stat before, after;
+    if (stat(path, &before) != 0 || before.st_size < 2) return 0;
+    for (int pass = 0; pass < 3; ++pass) {
+        pid_t writer = fork();
+        if (writer < 0) return 0;
+        if (writer == 0) {
+            struct rlimit limit = {.rlim_cur = pass == 1 ? (rlim_t)before.st_size - 1 : 1,
+                                   .rlim_max = (rlim_t)before.st_size};
+            signal(SIGXFSZ, pass == 2 ? SIG_DFL : SIG_IGN);
+            if (setrlimit(RLIMIT_FSIZE, &limit) != 0) _exit(2);
+            ctx->session.project_has_saved_state = 0;
+            CoreResult r = drawing_program_project_state_save_current(ctx);
+            _exit(r.code != CORE_OK && drawing_program_project_state_current_is_dirty(ctx) ? 0 : 1);
+        }
+        int status;
+        if (waitpid(writer, &status, 0) != writer) return 0;
+        if (pass == 2 ? !(WIFSIGNALED(status) && WTERMSIG(status) == SIGXFSZ)
+                      : !(WIFEXITED(status) && WEXITSTATUS(status) == 0)) return 0;
+        if (stat(path, &after) != 0 || before.st_ino != after.st_ino || before.st_size != after.st_size)
+            return 0;
+        FILE *current = fopen(path, "rb");
+        if (!current) return 0;
+        unsigned char block[4096];
+        size_t offset = 0, count;
+        while ((count = fread(block, 1, sizeof(block), current)) > 0) {
+            if (offset + count > (size_t)before.st_size || memcmp(original + offset, block, count)) break;
+            offset += count;
+        }
+        int equal = !ferror(current) && offset == (size_t)before.st_size && !count;
+        if (fclose(current) != 0 || !equal) return 0;
+    }
+    return 1;
+}
+
+static int pack_publication_faults(DrawingProgramAppContext *ctx, const char *path) {
+    struct stat st;
+    if (stat(path, &st) || st.st_size <= 0) return 0;
+    FILE *file = fopen(path, "rb");
+    if (!file) return 0;
+    unsigned char *original = malloc((size_t)st.st_size);
+    int ok = original && fread(original, 1, (size_t)st.st_size, file) == (size_t)st.st_size;
+    if (fclose(file) != 0) ok = 0;
+    if (ok) ok = verify_pack_faults(ctx, path, original);
+    free(original);
+    return ok;
 }
 
 int drawing_program_lifecycle_run_persistence_contract_suite(void) {
@@ -210,6 +263,23 @@ int drawing_program_lifecycle_run_persistence_contract_suite(void) {
     if (!expect_ok(drawing_program_project_state_save_current(&save_ctx), "persistence_contract_save_project")) {
         return 1;
     }
+    if (!pack_publication_faults(&save_ctx, expected_project_path)) {
+        fprintf(stderr, "pack write, finalization, or interruption did not preserve predecessor\n");
+        return 1;
+    }
+    /* A directory cannot replace a pack; an invalid candidate cannot open. */
+    char refused[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    snprintf(refused, sizeof(refused), "%s/refused.pack", alt_input_root);
+    if (!persistence_contract_prepare_dir(refused) ||
+        drawing_program_project_state_save_to(&save_ctx, refused).code == CORE_OK ||
+        rmdir(refused) != 0) return 1;
+    FILE *bad = fopen(refused, "wb");
+    if (!bad || fputs("invalid pack", bad) < 0 || fclose(bad) != 0 ||
+        drawing_program_project_state_open(&save_ctx, refused).code == CORE_OK ||
+        strcmp(save_ctx.session.project_path, expected_project_path) != 0 ||
+        strcmp(save_ctx.session.input_root_path, input_root) != 0 ||
+        drawing_program_project_state_current_is_dirty(&save_ctx) || unlink(refused) != 0)
+        return 1;
     if (!expect_ok(drawing_program_project_state_load_current(&save_ctx), "persistence_contract_reload_saved_project")) {
         return 1;
     }

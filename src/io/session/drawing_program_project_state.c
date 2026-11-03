@@ -341,42 +341,51 @@ CoreResult drawing_program_project_state_set_scene_authored_root(struct DrawingP
     return core_result_ok();
 }
 
-CoreResult drawing_program_project_state_save_current(struct DrawingProgramAppContext *ctx) {
-    CoreResult result;
-    if (!ctx || !ctx->session.project_path || ctx->session.project_path[0] == '\0') {
-        return drawing_program_project_invalid("invalid project save request");
+static CoreResult transfer_project(struct DrawingProgramAppContext *ctx, const char *path, int save) {
+    char normalized[DRAWING_PROGRAM_PROJECT_PATH_CAPACITY];
+    char parent[sizeof(ctx->session.input_root_path)];
+    if (!ctx) return drawing_program_project_invalid("missing project context");
+    CoreResult result = drawing_program_project_normalize_path(path, 0u, normalized, sizeof(normalized));
+    if (result.code != CORE_OK) return result;
+    if (!drawing_program_project_path_has_pack_extension(normalized))
+        return drawing_program_project_invalid("project path must use .pack extension");
+    result = drawing_program_project_copy_parent_dir(normalized, parent, sizeof(parent));
+    if (result.code != CORE_OK) return result;
+    if (save) {
+        result = drawing_program_project_mkdirs_if_needed(parent);
+        if (result.code == CORE_OK) result = drawing_program_snapshot_save(ctx, normalized);
+    } else {
+        struct stat st;
+        if (stat(normalized, &st) != 0 || !S_ISREG(st.st_mode))
+            return drawing_program_project_slot_path_missing("selected project target is not a regular file");
+        result = drawing_program_snapshot_load(ctx, normalized);
     }
-    result = drawing_program_project_ensure_parent_dir(ctx->session.project_path);
-    if (result.code != CORE_OK) {
-        return result;
-    }
-    result = drawing_program_snapshot_save(ctx, ctx->session.project_path);
-    if (result.code != CORE_OK) {
-        return result;
-    }
+    if (result.code != CORE_OK) return result;
+
+    /* Path, input root, and saved revision follow the accepted transfer. */
+    drawing_program_project_state_copy_current_path(ctx, normalized);
+    snprintf(ctx->session.input_root_path, sizeof(ctx->session.input_root_path), "%s", parent);
     drawing_program_project_state_mark_clean(ctx);
-    return drawing_program_project_state_refresh_recent(ctx);
+    result = drawing_program_project_state_refresh_recent(ctx);
+    if (result.code != CORE_OK)
+        fprintf(stderr, "project accepted; recent project list unavailable: %s\n", result.message);
+    return core_result_ok();
+}
+
+CoreResult drawing_program_project_state_save_to(struct DrawingProgramAppContext *ctx, const char *path) {
+    return transfer_project(ctx, path, 1);
+}
+
+CoreResult drawing_program_project_state_open(struct DrawingProgramAppContext *ctx, const char *path) {
+    return transfer_project(ctx, path, 0);
+}
+
+CoreResult drawing_program_project_state_save_current(struct DrawingProgramAppContext *ctx) {
+    return drawing_program_project_state_save_to(ctx, ctx ? ctx->session.project_path : NULL);
 }
 
 CoreResult drawing_program_project_state_load_current(struct DrawingProgramAppContext *ctx) {
-    CoreResult result;
-    uint8_t exists = 0u;
-    if (!ctx || !ctx->session.project_path || ctx->session.project_path[0] == '\0') {
-        return drawing_program_project_invalid("invalid project load request");
-    }
-    result = drawing_program_project_state_current_exists(ctx, &exists);
-    if (result.code != CORE_OK) {
-        return result;
-    }
-    if (!exists) {
-        return drawing_program_project_slot_path_missing("selected project target does not exist");
-    }
-    result = drawing_program_snapshot_load(ctx, ctx->session.project_path);
-    if (result.code != CORE_OK) {
-        return result;
-    }
-    drawing_program_project_state_mark_clean(ctx);
-    return drawing_program_project_state_refresh_recent(ctx);
+    return drawing_program_project_state_open(ctx, ctx ? ctx->session.project_path : NULL);
 }
 
 void drawing_program_project_state_mark_clean(struct DrawingProgramAppContext *ctx) {

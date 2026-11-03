@@ -32,6 +32,8 @@ CoreResult drawing_program_project_state_slot_path(const struct DrawingProgramAp
                                                    char *out_path,
                                                    size_t out_cap,
                                                    uint8_t *out_existing);
+CoreResult drawing_program_project_state_save_to(struct DrawingProgramAppContext *ctx, const char *path);
+CoreResult drawing_program_project_state_open(struct DrawingProgramAppContext *ctx, const char *path);
 CoreResult drawing_program_project_state_save_current(struct DrawingProgramAppContext *ctx);
 CoreResult drawing_program_project_state_load_current(struct DrawingProgramAppContext *ctx);
 void drawing_program_project_state_mark_clean(struct DrawingProgramAppContext *ctx);

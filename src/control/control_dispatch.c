@@ -83,11 +83,7 @@ static json_object *write_output(SketchControl *control,DrawingProgramAppContext
     if(lstat(path,&info)==0) return result("destination_exists");
     CoreResult r;
     if(!strcmp(op,"save_candidate")) {
-        snprintf(stage,sizeof(stage),"%s.stage-%ld",path,(long)getpid());
-        if(lstat(stage,&info)==0) return result("staging_exists");
-        r=drawing_program_snapshot_save(app,stage);
-        if(r.code==CORE_OK && link(stage,path)!=0) r=(CoreResult){CORE_ERR_IO,"candidate commit failed"};
-        (void)unlink(stage);
+        r=drawing_program_snapshot_create(app,path);
     } else {
         /* Existing exporter owns these exact temporary names; refuse foreign staging. */
         snprintf(stage,sizeof(stage),"%s.dpt-stage-%ld",path,(long)getpid());

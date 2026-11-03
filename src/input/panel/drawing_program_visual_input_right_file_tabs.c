@@ -151,12 +151,7 @@ static int visual_right_panel_open_project(DrawingProgramAppContext *ctx,
         visual_right_panel_set_file_status(ctx, "OPEN PROJECT CANCELLED");
         return 0;
     }
-    result = drawing_program_project_state_set_current_path(ctx, chosen_path);
-    if (result.code != CORE_OK) {
-        visual_right_panel_set_file_status(ctx, "OPEN PROJECT TARGET FAILED");
-        return 0;
-    }
-    result = drawing_program_project_state_load_current(ctx);
+    result = drawing_program_project_state_open(ctx, chosen_path);
     if (result.code != CORE_OK) {
         visual_right_panel_set_file_status(ctx, "OPEN PROJECT FAILED");
         return 0;
@@ -198,12 +193,7 @@ static int visual_right_panel_save_as_project(DrawingProgramAppContext *ctx,
         visual_right_panel_set_file_status(ctx, "SAVE AS CANCELLED");
         return 0;
     }
-    result = drawing_program_project_state_set_current_path(ctx, chosen_path);
-    if (result.code != CORE_OK) {
-        visual_right_panel_set_file_status(ctx, "SAVE AS TARGET FAILED");
-        return 0;
-    }
-    result = drawing_program_project_state_save_current(ctx);
+    result = drawing_program_project_state_save_to(ctx, chosen_path);
     if (result.code != CORE_OK) {
         visual_right_panel_set_file_status(ctx, "SAVE AS FAILED");
         return 0;

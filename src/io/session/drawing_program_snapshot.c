@@ -1,5 +1,8 @@
 #include "drawing_program/drawing_program_snapshot.h"
 
+#include <errno.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -73,7 +76,7 @@ drawing_program_snapshot_apply_texture_only_indexed_project(DrawingProgramAppCon
     return result;
 }
 
-CoreResult drawing_program_snapshot_save(struct DrawingProgramAppContext *ctx, const char *path) {
+static CoreResult write_snapshot_pack(struct DrawingProgramAppContext *ctx, const char *path) {
     CorePackWriter writer;
     DrawingProgramSnapshotV1 *legacy_payload = 0;
     CoreResult result;
@@ -172,6 +175,40 @@ CoreResult drawing_program_snapshot_save(struct DrawingProgramAppContext *ctx, c
                 (int)result.code, result.message ? result.message : "(null)");
     }
     return result;
+}
+
+/* The pack index and footer are emitted on close. Only a completed stream
+ * may replace an editable pack or become a create-only control candidate. */
+static CoreResult publish_snapshot(struct DrawingProgramAppContext *ctx, const char *path, int create_only) {
+    if (!ctx || !path || !*path)
+        return drawing_program_snapshot_invalid("invalid snapshot destination");
+    const char *leaf = strrchr(path, '/');
+    size_t prefix = leaf ? (size_t)(leaf + 1 - path) : 0;
+    const char suffix[] = ".sketch-pack-XXXXXX";
+    char *stage = malloc(prefix + sizeof(suffix));
+    if (!stage) return (CoreResult){CORE_ERR_OUT_OF_MEMORY, "could not allocate snapshot path"};
+    memcpy(stage, path, prefix);
+    memcpy(stage + prefix, suffix, sizeof(suffix));
+    int fd = mkstemp(stage);
+    CoreResult result = {CORE_ERR_IO, "could not stage snapshot"};
+    if (fd >= 0) {
+        if (close(fd) == 0) result = write_snapshot_pack(ctx, stage);
+        if (result.code == CORE_OK) {
+            int published = create_only ? link(stage, path) : rename(stage, path);
+            if (published != 0) result = (CoreResult){CORE_ERR_IO, "could not publish snapshot"};
+        }
+        if (create_only || result.code != CORE_OK) (void)unlink(stage);
+    }
+    free(stage);
+    return result;
+}
+
+CoreResult drawing_program_snapshot_save(struct DrawingProgramAppContext *ctx, const char *path) {
+    return publish_snapshot(ctx, path, 0);
+}
+
+CoreResult drawing_program_snapshot_create(struct DrawingProgramAppContext *ctx, const char *path) {
+    return publish_snapshot(ctx, path, 1);
 }
 
 CoreResult drawing_program_snapshot_load_payload(struct DrawingProgramAppContext *ctx, const char *path) {
