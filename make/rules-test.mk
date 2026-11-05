@@ -1,4 +1,4 @@
-test: $(TEST_TARGET)
+test: $(TEST_TARGET) test-worker-lifetime
 ifeq ($(PREPARATION_CHILD),1)
 	@mkdir -p "$(DRAWING_PROGRAM_TEST_ARTIFACT_ROOT)"
 	cd "$(DRAWING_PROGRAM_TEST_ARTIFACT_ROOT)" && "$(abspath $(TEST_TARGET))"
@@ -69,3 +69,16 @@ headless-probe-matrix: $(HEADLESS_TARGET)
 	@test -s "$(HEADLESS_PROBE_PRESET)"
 	@test -s "$(HEADLESS_PROBE_JSON)"
 	@echo "Headless probe matrix passed: preset=$(HEADLESS_PROBE_PRESET) json=$(HEADLESS_PROBE_JSON) workspace=$(WORKSPACE_PRESET)"
+
+# Standalone fixtures include the actual transport/picker owner implementations.
+L3_TEST_BINS := $(TEST_BIN_DIR)/control_bridge_lifetime_test $(TEST_BIN_DIR)/native_dialog_lifetime_test
+.PHONY: test-worker-lifetime
+test-worker-lifetime: $(L3_TEST_BINS)
+	"$(TEST_BIN_DIR)/control_bridge_lifetime_test"
+	"$(TEST_BIN_DIR)/native_dialog_lifetime_test"
+$(TEST_BIN_DIR)/control_bridge_lifetime_test: tests/control_bridge_lifetime_test.c src/control/control_bridge.c src/control/control_internal.h
+	@mkdir -p "$(@D)"
+	$(HOST_CC) $(HOST_CFLAGS) $< $(SDL_LIBS) -o "$@"
+$(TEST_BIN_DIR)/native_dialog_lifetime_test: tests/native_dialog_lifetime_test.c src/io/session/drawing_program_native_dialogs.c
+	@mkdir -p "$(@D)"
+	$(HOST_CC) $(HOST_CFLAGS) $< -o "$@"

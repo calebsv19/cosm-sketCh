@@ -90,6 +90,20 @@ async def check(args, name, source, writable, previous=None):
                 assert (await call('read_tile',tile=tile))['indices']==before['indices']
                 assert (await mutate('redo'))['ok']
                 assert (await call('read_tile',tile=tile))['indices']==after['indices']
+                # Drop the reply after a complete admitted mutation frame, then recover
+                # the exact receipt through a new connection without applying twice.
+                lost = dict(op='patch_tile', instance=instance, request_id=str(uuid.uuid4()),
+                            expected_state=(await call('inspect_project'))['expected_state'],
+                            tile=tile, pixels=[dict(x=0,y=0,slot=(after['indices'][0]+1)%9)])
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as disconnected:
+                    disconnected.connect(str(endpoint))
+                    disconnected.sendall(json.dumps(lost).encode()+b"\n")
+                receipt = wire(endpoint,lost)
+                assert receipt['ok'] and receipt['changed']
+                assert wire(endpoint,lost)==receipt
+                assert (await call('request_status',instance=instance,request_id=lost['request_id']))==receipt
+                assert (await mutate('undo'))['ok']
+                assert (await call('read_tile',tile=tile))['indices']==after['indices']
                 second=await call('read_tile',tile='cobble.floor.b')
                 assert (await mutate('copy_tile',tile='cobble.floor.b',source_tile=tile))['ok']
                 assert (await call('read_tile',tile='cobble.floor.b'))['indices']==after['indices']

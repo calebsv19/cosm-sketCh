@@ -1,6 +1,29 @@
 # drawing_program Current Truth
 
-Last updated: 2026-10-05 (retained Main Edit UI refinement)
+Last updated: 2026-11-05 (L3 worker and picker lifetime qualification)
+
+## Worker and picker lifetime
+
+Native edits and file pickers execute synchronously on the application owner.
+The local control transport owns one request at a time; owner polling dispatches
+it, and shutdown stops/joins transport before application storage is destroyed.
+Poll and stop must remain on the owner thread. A lost reply can be recovered with
+the same instance/request identity; retained receipts are process-local and bounded
+at 128, with explicit refusal at capacity. A slow reader can delay shutdown by
+about four seconds under the current socket timeouts.
+
+Native picker output is fully drained and the direct child is reaped before return.
+Interrupted reads/waits retry, pipe-action setup failures refuse before spawning,
+and output exceeding the caller buffer is rejected rather than accepted as a
+truncated path. A user cancellation is a failed selection with empty output.
+There is no application-level timeout or asynchronous cancellation for the modal
+picker; the owner resumes after the picker exits. No background edit pool or
+durable cross-process job service is promised.
+
+`make test-worker-lifetime` exercises actual transport/picker implementations with
+controlled dispatch responses and real substitute picker children. It is included
+in `make test`. The SDK integration test covers lost-reply mutation replay through
+the real GUI owner. These source proofs do not certify physical display acceptance.
 
 ## Retained Main Edit refinement
 

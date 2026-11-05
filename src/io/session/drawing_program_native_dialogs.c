@@ -1,6 +1,7 @@
 #include "drawing_program/drawing_program_native_dialogs.h"
 
 #include <spawn.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -79,10 +80,10 @@ static CoreResult native_dialog_run_applescript_pick(const char *script_pick,
     ssize_t bytes_read = 0;
     size_t total_read = 0u;
     int spawn_result = 0;
-    out_path[0] = '\0';
     if (!script_pick || !script_result || !out_path || out_cap == 0u) {
         return native_dialog_invalid("invalid native dialog request");
     }
+    out_path[0] = '\0';
     if (pipe(pipe_fds) != 0) {
         return native_dialog_io_error("failed to create native dialog pipe");
     }
@@ -91,9 +92,14 @@ static CoreResult native_dialog_run_applescript_pick(const char *script_pick,
         (void)close(pipe_fds[1]);
         return native_dialog_io_error("failed to initialize native dialog actions");
     }
-    (void)posix_spawn_file_actions_adddup2(&actions, pipe_fds[1], STDOUT_FILENO);
-    (void)posix_spawn_file_actions_addclose(&actions, pipe_fds[0]);
-    (void)posix_spawn_file_actions_addclose(&actions, pipe_fds[1]);
+    if (posix_spawn_file_actions_adddup2(&actions, pipe_fds[1], STDOUT_FILENO) != 0 ||
+        posix_spawn_file_actions_addclose(&actions, pipe_fds[0]) != 0 ||
+        posix_spawn_file_actions_addclose(&actions, pipe_fds[1]) != 0) {
+        (void)posix_spawn_file_actions_destroy(&actions);
+        (void)close(pipe_fds[0]);
+        (void)close(pipe_fds[1]);
+        return native_dialog_io_error("failed to prepare native dialog pipe actions");
+    }
     argv[0] = "/usr/bin/osascript";
     argv[1] = "-e";
     argv[2] = (char *)script_pick;
@@ -107,15 +113,24 @@ static CoreResult native_dialog_run_applescript_pick(const char *script_pick,
         (void)close(pipe_fds[0]);
         return native_dialog_io_error(spawn_error_message);
     }
-    while ((bytes_read = read(pipe_fds[0], out_path + total_read, out_cap - total_read - 1u)) > 0) {
-        total_read += (size_t)bytes_read;
-        if (total_read >= out_cap - 1u) {
-            break;
-        }
+    /* Drain excess output so the child can exit, but never accept a truncated path. */
+    int output_failed = 0;
+    char chunk[512];
+    for (;;) {
+        bytes_read = read(pipe_fds[0], chunk, sizeof(chunk));
+        if (bytes_read < 0 && errno == EINTR) continue;
+        if (bytes_read <= 0) { if (bytes_read < 0) output_failed = 1; break; }
+        size_t available = out_cap - total_read - 1u;
+        size_t copied = (size_t)bytes_read < available ? (size_t)bytes_read : available;
+        memcpy(out_path + total_read, chunk, copied);
+        total_read += copied;
+        if (copied != (size_t)bytes_read) output_failed = 1;
     }
     (void)close(pipe_fds[0]);
     out_path[total_read] = '\0';
-    if (waitpid(child_pid, &status, 0) < 0) {
+    pid_t waited;
+    do { waited = waitpid(child_pid, &status, 0); } while (waited < 0 && errno == EINTR);
+    if (waited < 0 || output_failed) {
         out_path[0] = '\0';
         return native_dialog_io_error(wait_error_message);
     }
