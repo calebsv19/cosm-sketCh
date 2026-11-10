@@ -12,11 +12,11 @@ DRAWING_PROGRAM_BASE_LOCAL_SRCS := \
 	src/ui/pane/drawing_program_visual_pane_header.c \
 	src/app/drawing_program_ui_pilot_probe.c \
 	src/ui/panel/drawing_program_ui_controls.c \
-	third_party/codework_shared/kit/kit_ui/src/kit_ui_interaction_sdl.c \
-	third_party/codework_shared/kit/kit_ui/src/kit_ui_sdl.c \
-	third_party/codework_shared/kit/kit_ui/src/kit_ui_window_sdl.c \
-	third_party/codework_shared/kit/kit_ui/src/kit_ui_window_probe_sdl.c \
-	third_party/codework_shared/kit/kit_pane/src/kit_pane_composition_sdl.c \
+	$(KIT_UI_DIR)/src/kit_ui_interaction_sdl.c \
+	$(KIT_UI_DIR)/src/kit_ui_sdl.c \
+	$(KIT_UI_DIR)/src/kit_ui_window_sdl.c \
+	$(KIT_UI_DIR)/src/kit_ui_window_probe_sdl.c \
+	$(KIT_PANE_DIR)/src/kit_pane_composition_sdl.c \
 	src/runtime/adapters/drawing_program_pane_composition.c \
 	src/domain/drawing_program_color_model.c \
 	src/domain/drawing_program_document.c \

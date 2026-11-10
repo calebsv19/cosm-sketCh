@@ -21,102 +21,97 @@ $(SHARED_BUILD_DIR):
 	@mkdir -p "$@"
 
 $(CORE_BASE_LIB): $(CORE_BASE_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
-	@$(MAKE) BUILD_DIR=build -C "$(CORE_BASE_DIR)" clean CC="$(SHARED_CC)"
-	@$(MAKE) BUILD_DIR=build -C "$(CORE_BASE_DIR)" CC="$(SHARED_CC)"
+	@rm -f "$(CORE_BASE_DIR)/build/libcore_base.a"
+	@$(MAKE) -B BUILD_DIR=build -C "$(CORE_BASE_DIR)" CC="python3 $(abspath tools/shared_compile.py) --target $@ -- $(SHARED_CC)" build/libcore_base.a
 	@cp "$(CORE_BASE_DIR)/build/libcore_base.a" "$@"
 
 $(CORE_OBJECT_LIB): $(CORE_OBJECT_LOCAL_SRCS) $(CORE_BASE_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
-	@$(MAKE) BUILD_DIR=build -C "$(CORE_OBJECT_DIR)" clean CC="$(SHARED_CC)"
-	@$(MAKE) BUILD_DIR=build -C "$(CORE_OBJECT_DIR)" CC="$(SHARED_CC)"
+	@rm -f "$(CORE_OBJECT_DIR)/build/libcore_object.a"
+	@$(MAKE) -B BUILD_DIR=build -C "$(CORE_OBJECT_DIR)" CC="python3 $(abspath tools/shared_compile.py) --target $@ -- $(SHARED_CC)" build/libcore_object.a
 	@cp "$(CORE_OBJECT_DIR)/build/libcore_object.a" "$@"
 
 $(CORE_UNITS_LIB): $(CORE_UNITS_LOCAL_SRCS) $(CORE_BASE_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
-	@$(MAKE) BUILD_DIR=build -C "$(CORE_UNITS_DIR)" clean CC="$(SHARED_CC)"
-	@$(MAKE) BUILD_DIR=build -C "$(CORE_UNITS_DIR)" CC="$(SHARED_CC)"
+	@rm -f "$(CORE_UNITS_DIR)/build/libcore_units.a"
+	@$(MAKE) -B BUILD_DIR=build -C "$(CORE_UNITS_DIR)" CC="python3 $(abspath tools/shared_compile.py) --target $@ -- $(SHARED_CC)" build/libcore_units.a
 	@cp "$(CORE_UNITS_DIR)/build/libcore_units.a" "$@"
 
 $(CORE_SCENE_LIB): $(CORE_SCENE_LOCAL_SRCS) $(CORE_OBJECT_LOCAL_SRCS) $(CORE_UNITS_LOCAL_SRCS) $(CORE_BASE_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
-	@$(MAKE) BUILD_DIR=build -C "$(CORE_SCENE_DIR)" clean CC="$(SHARED_CC)"
-	@$(MAKE) BUILD_DIR=build -C "$(CORE_SCENE_DIR)" CC="$(SHARED_CC)"
+	@rm -f "$(CORE_SCENE_DIR)/build/libcore_scene.a"
+	@$(MAKE) -B BUILD_DIR=build -C "$(CORE_SCENE_DIR)" CC="python3 $(abspath tools/shared_compile.py) --target $@ -- $(SHARED_CC)" build/libcore_scene.a
 	@cp "$(CORE_SCENE_DIR)/build/libcore_scene.a" "$@"
 
 $(CORE_AUTHORED_TEXTURE_LIB): $(CORE_AUTHORED_TEXTURE_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
-	@$(MAKE) BUILD_DIR=build -C "$(CORE_AUTHORED_TEXTURE_DIR)" clean CC="$(SHARED_CC)"
-	@$(MAKE) BUILD_DIR=build -C "$(CORE_AUTHORED_TEXTURE_DIR)" CC="$(SHARED_CC)"
+	@rm -f "$(CORE_AUTHORED_TEXTURE_DIR)/build/libcore_authored_texture.a"
+	@$(MAKE) -B BUILD_DIR=build -C "$(CORE_AUTHORED_TEXTURE_DIR)" CC="python3 $(abspath tools/shared_compile.py) --target $@ -- $(SHARED_CC)" build/libcore_authored_texture.a
 	@cp "$(CORE_AUTHORED_TEXTURE_DIR)/build/libcore_authored_texture.a" "$@"
 
 $(CORE_PACK_LIB): $(CORE_PACK_LOCAL_SRCS) $(CORE_BASE_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
-	@$(MAKE) BUILD_DIR=build -C "$(CORE_PACK_DIR)" clean CC="$(SHARED_CC)"
-	@$(MAKE) BUILD_DIR=build -C "$(CORE_PACK_DIR)" CC="$(SHARED_CC)"
+	@rm -f "$(CORE_PACK_DIR)/build/libcore_pack.a"
+	@$(MAKE) -B BUILD_DIR=build -C "$(CORE_PACK_DIR)" CC="python3 $(abspath tools/shared_compile.py) --target $@ -- $(SHARED_CC)" build/libcore_pack.a
 	@cp "$(CORE_PACK_DIR)/build/libcore_pack.a" "$@"
 
 $(CORE_THEME_LIB): $(CORE_THEME_LOCAL_SRCS) $(CORE_BASE_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
-	@$(MAKE) BUILD_DIR=build -C "$(CORE_THEME_DIR)" clean CC="$(SHARED_CC)"
-	@$(MAKE) BUILD_DIR=build -C "$(CORE_THEME_DIR)" CC="$(SHARED_CC)"
+	@rm -f "$(CORE_THEME_DIR)/build/libcore_theme.a"
+	@$(MAKE) -B BUILD_DIR=build -C "$(CORE_THEME_DIR)" CC="python3 $(abspath tools/shared_compile.py) --target $@ -- $(SHARED_CC)" build/libcore_theme.a
 	@cp "$(CORE_THEME_DIR)/build/libcore_theme.a" "$@"
 
 $(CORE_FONT_LIB): $(CORE_FONT_LOCAL_SRCS) $(CORE_BASE_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
-	@$(MAKE) BUILD_DIR=build -C "$(CORE_FONT_DIR)" clean CC="$(SHARED_CC)"
-	@$(MAKE) BUILD_DIR=build -C "$(CORE_FONT_DIR)" CC="$(SHARED_CC)"
+	@rm -f "$(CORE_FONT_DIR)/build/libcore_font.a"
+	@$(MAKE) -B BUILD_DIR=build -C "$(CORE_FONT_DIR)" CC="python3 $(abspath tools/shared_compile.py) --target $@ -- $(SHARED_CC)" build/libcore_font.a
 	@cp "$(CORE_FONT_DIR)/build/libcore_font.a" "$@"
 
 $(CORE_PANE_LIB): $(CORE_PANE_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
-	@$(MAKE) BUILD_DIR=build -C "$(CORE_PANE_DIR)" clean CC="$(SHARED_CC)"
-	@$(MAKE) BUILD_DIR=build -C "$(CORE_PANE_DIR)" CC="$(SHARED_CC)"
+	@rm -f "$(CORE_PANE_DIR)/build/libcore_pane.a"
+	@$(MAKE) -B BUILD_DIR=build -C "$(CORE_PANE_DIR)" CC="python3 $(abspath tools/shared_compile.py) --target $@ -- $(SHARED_CC)" build/libcore_pane.a
 	@cp "$(CORE_PANE_DIR)/build/libcore_pane.a" "$@"
 
 $(CORE_LAYOUT_LIB): $(CORE_LAYOUT_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
-	@$(MAKE) BUILD_DIR=build -C "$(CORE_LAYOUT_DIR)" clean CC="$(SHARED_CC)"
-	@$(MAKE) BUILD_DIR=build -C "$(CORE_LAYOUT_DIR)" CC="$(SHARED_CC)"
+	@rm -f "$(CORE_LAYOUT_DIR)/build/libcore_layout.a"
+	@$(MAKE) -B BUILD_DIR=build -C "$(CORE_LAYOUT_DIR)" CC="python3 $(abspath tools/shared_compile.py) --target $@ -- $(SHARED_CC)" build/libcore_layout.a
 	@cp "$(CORE_LAYOUT_DIR)/build/libcore_layout.a" "$@"
 
 $(CORE_PANE_MODULE_LIB): $(CORE_PANE_MODULE_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
-	@$(MAKE) BUILD_DIR=build -C "$(CORE_PANE_MODULE_DIR)" clean CC="$(SHARED_CC)"
-	@$(MAKE) BUILD_DIR=build -C "$(CORE_PANE_MODULE_DIR)" CC="$(SHARED_CC)"
+	@rm -f "$(CORE_PANE_MODULE_DIR)/build/libcore_pane_module.a"
+	@$(MAKE) -B BUILD_DIR=build -C "$(CORE_PANE_MODULE_DIR)" CC="python3 $(abspath tools/shared_compile.py) --target $@ -- $(SHARED_CC)" build/libcore_pane_module.a
 	@cp "$(CORE_PANE_MODULE_DIR)/build/libcore_pane_module.a" "$@"
 
 $(CORE_VIEWPORT2D_LIB): $(CORE_VIEWPORT2D_LOCAL_SRCS) $(CORE_BASE_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
-	@$(MAKE) BUILD_DIR=build -C "$(CORE_VIEWPORT2D_DIR)" clean CC="$(SHARED_CC)"
-	@$(MAKE) BUILD_DIR=build -C "$(CORE_VIEWPORT2D_DIR)" CC="$(SHARED_CC)"
+	@rm -f "$(CORE_VIEWPORT2D_DIR)/build/libcore_viewport2d.a"
+	@$(MAKE) -B BUILD_DIR=build -C "$(CORE_VIEWPORT2D_DIR)" CC="python3 $(abspath tools/shared_compile.py) --target $@ -- $(SHARED_CC)" build/libcore_viewport2d.a
 	@cp "$(CORE_VIEWPORT2D_DIR)/build/libcore_viewport2d.a" "$@"
 
 $(KIT_RENDER_LIB): $(KIT_RENDER_LOCAL_SRCS) $(CORE_THEME_LOCAL_SRCS) $(CORE_FONT_LOCAL_SRCS) $(CORE_BASE_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
-	@$(MAKE) BUILD_DIR=build -C "$(KIT_RENDER_DIR)" clean CC="$(SHARED_CC)" KIT_RENDER_ENABLE_VK=0
-	@$(MAKE) BUILD_DIR=build -C "$(KIT_RENDER_DIR)" CC="$(SHARED_CC)" KIT_RENDER_ENABLE_VK=0
+	@rm -f "$(KIT_RENDER_DIR)/build/default/libkit_render.a"
+	@$(MAKE) -B BUILD_DIR=build -C "$(KIT_RENDER_DIR)" CC="python3 $(abspath tools/shared_compile.py) --target $@ -- $(SHARED_CC)" KIT_RENDER_ENABLE_VK=0 build/default/libkit_render.a
 	@cp "$(KIT_RENDER_DIR)/build/default/libkit_render.a" "$@"
 
 $(KIT_PANE_LIB): $(KIT_PANE_LOCAL_SRCS) $(KIT_RENDER_LOCAL_SRCS) $(CORE_PANE_LOCAL_SRCS) $(CORE_THEME_LOCAL_SRCS) $(CORE_FONT_LOCAL_SRCS) $(CORE_BASE_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
-	@$(MAKE) BUILD_DIR=build -C "$(KIT_PANE_DIR)" clean CC="$(SHARED_CC)" KIT_RENDER_ENABLE_VK=0
-	@$(MAKE) BUILD_DIR=build -C "$(KIT_PANE_DIR)" CC="$(SHARED_CC)" KIT_RENDER_ENABLE_VK=0
+	@rm -f "$(KIT_PANE_DIR)/build/libkit_pane.a"
+	@$(MAKE) -B BUILD_DIR=build -C "$(KIT_PANE_DIR)" CC="python3 $(abspath tools/shared_compile.py) --target $@ -- $(SHARED_CC)" KIT_RENDER_ENABLE_VK=0 build/libkit_pane.a
 	@cp "$(KIT_PANE_DIR)/build/libkit_pane.a" "$@"
 
 $(KIT_UI_LIB): $(KIT_UI_LOCAL_SRCS) $(KIT_RENDER_LOCAL_SRCS) $(CORE_THEME_LOCAL_SRCS) $(CORE_FONT_LOCAL_SRCS) $(CORE_BASE_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
-	@$(MAKE) BUILD_DIR=build -C "$(KIT_UI_DIR)" clean CC="$(SHARED_CC)" KIT_RENDER_ENABLE_VK=0
-	@$(MAKE) BUILD_DIR=build -C "$(KIT_UI_DIR)" CC="$(SHARED_CC)" KIT_RENDER_ENABLE_VK=0
+	@rm -f "$(KIT_UI_DIR)/build/libkit_ui.a"
+	@$(MAKE) -B BUILD_DIR=build -C "$(KIT_UI_DIR)" CC="python3 $(abspath tools/shared_compile.py) --target $@ -- $(SHARED_CC)" KIT_RENDER_ENABLE_VK=0 build/libkit_ui.a
 	@cp "$(KIT_UI_DIR)/build/libkit_ui.a" "$@"
 
 $(KIT_WORKSPACE_AUTHORING_LIB): $(KIT_WORKSPACE_AUTHORING_LOCAL_SRCS) $(KIT_RENDER_LOCAL_SRCS) $(CORE_PANE_LOCAL_SRCS) $(CORE_THEME_LOCAL_SRCS) $(CORE_FONT_LOCAL_SRCS) $(CORE_BASE_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
-	@$(MAKE) BUILD_DIR=build -C "$(KIT_WORKSPACE_AUTHORING_DIR)" clean CC="$(SHARED_CC)" CORE_BASE_DIR="../../core/core_base" CORE_PANE_DIR="../../core/core_pane" CORE_THEME_DIR="../../core/core_theme" CORE_FONT_DIR="../../core/core_font" KIT_RENDER_DIR="../kit_render"
-	@$(MAKE) BUILD_DIR=build -C "$(KIT_WORKSPACE_AUTHORING_DIR)" CC="$(SHARED_CC)" CORE_BASE_DIR="../../core/core_base" CORE_PANE_DIR="../../core/core_pane" CORE_THEME_DIR="../../core/core_theme" CORE_FONT_DIR="../../core/core_font" KIT_RENDER_DIR="../kit_render"
+	@rm -f "$(KIT_WORKSPACE_AUTHORING_DIR)/build/libkit_workspace_authoring.a"
+	@$(MAKE) -B BUILD_DIR=build -C "$(KIT_WORKSPACE_AUTHORING_DIR)" CC="python3 $(abspath tools/shared_compile.py) --target $@ -- $(SHARED_CC)" CORE_BASE_DIR="../../core/core_base" CORE_PANE_DIR="../../core/core_pane" CORE_THEME_DIR="../../core/core_theme" CORE_FONT_DIR="../../core/core_font" KIT_RENDER_DIR="../kit_render" build/libkit_workspace_authoring.a
 	@cp "$(KIT_WORKSPACE_AUTHORING_DIR)/build/libkit_workspace_authoring.a" "$@"
 
 $(VK_RUNTIME_LIB): $(VK_RUNTIME_LOCAL_SRCS) | $(SHARED_BUILD_DIR)
-	@$(MAKE) BUILD_DIR=build -C "$(VK_RUNTIME_DIR)" clean CC="$(SHARED_CC)"
-	@$(MAKE) BUILD_DIR=build -C "$(VK_RUNTIME_DIR)" CC="$(SHARED_CC)"
+	@rm -f "$(VK_RUNTIME_DIR)/build/lib/libvkruntime.a"
+	@$(MAKE) -B BUILD_DIR=build -C "$(VK_RUNTIME_DIR)" CC="python3 $(abspath tools/shared_compile.py) --target $@ -- $(SHARED_CC)" build/lib/libvkruntime.a
 	@cp "$(VK_RUNTIME_DIR)/build/lib/libvkruntime.a" "$@"
 
 $(VK_RENDERER_LIB): $(VK_RENDERER_LOCAL_SRCS) $(VK_RUNTIME_LIB) | $(SHARED_BUILD_DIR)
-	@$(MAKE) BUILD_DIR=build -C "$(VK_RENDERER_DIR)" clean CC="$(SHARED_CC)" VK_RUNTIME_ROOT="../vk_runtime"
-	@$(MAKE) BUILD_DIR=build -C "$(VK_RENDERER_DIR)" CC="$(SHARED_CC)" VK_RUNTIME_ROOT="../vk_runtime"
+	@rm -f "$(VK_RENDERER_DIR)/build/lib/libvkrenderer.a"
+	@$(MAKE) -B BUILD_DIR=build -C "$(VK_RENDERER_DIR)" CC="python3 $(abspath tools/shared_compile.py) --target $@ -- $(SHARED_CC)" VK_RUNTIME_ROOT="../vk_runtime" build/lib/libvkrenderer.a
 	@cp "$(VK_RENDERER_DIR)/build/lib/libvkrenderer.a" "$@"
 
 $(TARGET_BUILD_DIR) $(PROGRAM_BUILD_DIR) $(PROGRAM_BIN_DIR) $(HOST_TEST_DIR) $(TEST_OBJ_DIR) $(TEST_BIN_DIR):
 	@mkdir -p "$@"
-
-$(PROGRAM_CC_STAMP): makefile $(PROGRAM_CC_DEP) | $(PROGRAM_BUILD_DIR)
-	@printf '%s\n' "$(PROGRAM_CC)" > "$@.tmp"
-	@cmp -s "$@.tmp" "$@" 2>/dev/null || mv "$@.tmp" "$@"
-	@rm -f "$@.tmp"
 
 $(APP_OBJS) $(HEADLESS_OBJS): $(PROGRAM_CC_STAMP)
 
@@ -124,19 +119,19 @@ $(PROGRAM_OBJ_DIR)/%.c.o: %.c $(PROGRAM_CC_STAMP)
 	@mkdir -p "$(dir $@)"
 	FISICS_MAX_PROCS="$(FISICS_MAX_PROCS)" $(PROGRAM_CC) $(PROGRAM_CFLAGS) $(PROGRAM_DEPFLAGS) -c "$<" -o "$@"
 
-$(TEST_OBJ_DIR)/%.c.o: %.c
+$(TEST_OBJ_DIR)/%.c.o: %.c $(HOST_CC_STAMP)
 	@mkdir -p "$(dir $@)"
 	$(HOST_CC) $(HOST_CFLAGS) $(HOST_DEPFLAGS) -c "$<" -o "$@"
 
-$(APP_TARGET): $(APP_OBJS) $(SHARED_LIBS)
+$(APP_TARGET): $(APP_OBJS) $(SHARED_LIBS) $(LINK_STAMP)
 	@mkdir -p "$(dir $@)"
 	$(HOST_CC) $(ARCH_FLAGS) $(APP_OBJS) $(SHARED_LIBS) $(FISICS_MEMCHECK_LINK_LIBS) -o "$@" $(APP_LDLIBS)
 
-$(HEADLESS_TARGET): $(HEADLESS_OBJS) $(SHARED_LIBS)
+$(HEADLESS_TARGET): $(HEADLESS_OBJS) $(SHARED_LIBS) $(LINK_STAMP)
 	@mkdir -p "$(dir $@)"
 	$(HOST_CC) $(ARCH_FLAGS) $(HEADLESS_OBJS) $(SHARED_LIBS) $(FISICS_MEMCHECK_LINK_LIBS) -o "$@" $(APP_LDLIBS)
 
-$(TEST_TARGET): $(TEST_OBJS) $(SHARED_LIBS)
+$(TEST_TARGET): $(TEST_OBJS) $(SHARED_LIBS) $(LINK_STAMP)
 	@mkdir -p "$(dir $@)"
 	$(HOST_CC) $(ARCH_FLAGS) $(TEST_OBJS) $(SHARED_LIBS) $(FISICS_MEMCHECK_LINK_LIBS) -o "$@" $(APP_LDLIBS)
 

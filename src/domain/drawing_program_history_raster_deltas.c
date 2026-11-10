@@ -244,7 +244,7 @@ CoreResult drawing_program_history_apply_raster_delta_block(
     }
     if (history_layer_raster_store_usable_local(document, layer_rasters)) {
         DrawingProgramRasterSample sample;
-        result = drawing_program_layer_raster_store_sample_read(layer_rasters, layer_id, 0, 0, &sample);
+        result = drawing_program_layer_raster_store_raster_sample_read(layer_rasters, layer_id, 0, 0, &sample);
         if (result.code != CORE_OK) return result;
     }
     drawing_program_history_materialize_group(history);

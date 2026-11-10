@@ -8,6 +8,7 @@ include make/flags.mk
 include make/paths.mk
 include make/sources.mk
 include make/objects.mk
+include make/build-identity.mk
 
 .PHONY: all build clean run run-headless test test-list test-suite visual-harness visual-artifact identity print-identity \
 	fisics-compiler fisics-build fisics-run fisics-run-headless \

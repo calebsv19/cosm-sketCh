@@ -44,6 +44,6 @@ VK_RENDERER_DIR := $(SHARED_WORKSPACE_DIR)/vk_renderer
 VK_RUNTIME_DIR := $(SHARED_WORKSPACE_DIR)/vk_runtime
 endif
 
-ifeq ($(wildcard $(CORE_AUTHORED_TEXTURE_DIR)/include/core_authored_texture.h),)
-CORE_AUTHORED_TEXTURE_DIR := $(SHARED_WORKSPACE_DIR)/core/core_authored_texture
+ifneq ($(filter $(SHARED_MODE),vendored-subtree workspace-linked),$(SHARED_MODE))
+$(error Unsupported SHARED_MODE '$(SHARED_MODE)')
 endif

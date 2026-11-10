@@ -16,8 +16,8 @@ ifeq ($(BUILD_TOOLCHAIN),clang)
 PROGRAM_CC := $(HOST_CC)
 PROGRAM_CC_DEP :=
 else ifeq ($(BUILD_TOOLCHAIN),fisics)
-PROGRAM_CC := $(FISICS_CC)
-PROGRAM_CC_DEP := $(FISICS_CC)
+PROGRAM_CC := python3 tools/fisics_compile.py -- $(FISICS_CC)
+PROGRAM_CC_DEP := $(FISICS_CC) tools/fisics_compile.py
 else
 $(error Unsupported BUILD_TOOLCHAIN '$(BUILD_TOOLCHAIN)'; expected clang or fisics)
 endif
