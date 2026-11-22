@@ -57,7 +57,7 @@ int drawing_program_pane_header_probe(SDL_Window *window, SDL_Renderer *renderer
     static DrawingProgramViewportState initial, panned, expected;
     static CorePaneNode nodes[DRAWING_PROGRAM_PANE_NODE_CAPACITY];
     static KitUiSurfaceKey fit, layout;
-    static KitRenderRect fit_bounds;
+    static KitRenderRect fit_bounds, layout_bounds;
     static int cx,cy;
     struct stat out;
     REQUIRE(stat(dir,&out)==0 && S_ISDIR(out.st_mode));
@@ -69,9 +69,8 @@ int drawing_program_pane_header_probe(SDL_Window *window, SDL_Renderer *renderer
         fy=(int)(fit_bounds.y+fit_bounds.height/2);
     switch (phase) {
     case 0: {
-        KitRenderRect ignored;
         REQUIRE(find_control(DRAWING_UI_PANE_HEADER_FIT,&fit,&fit_bounds));
-        REQUIRE(find_control(DRAWING_UI_PANE_HEADER_LAYOUT,&layout,&ignored));
+        REQUIRE(find_control(DRAWING_UI_PANE_HEADER_LAYOUT,&layout,&layout_bounds));
         SDL_Rect content;
         REQUIRE(drawing_program_visual_pane_rect_for_module_type(app,1,&content));
         cx=content.x+content.w/2; cy=content.y+content.h/2;
@@ -95,10 +94,15 @@ int drawing_program_pane_header_probe(SDL_Window *window, SDL_Renderer *renderer
         (void)drawing_program_visual_input_workspace_view_fit_all_or_reset(oracle);
         expected=oracle->editor.viewport;
         free(oracle);
+        int lx = (int)(layout_bounds.x + layout_bounds.width / 2);
+        int ly = (int)(layout_bounds.y + layout_bounds.height / 2);
+        REQUIRE(push_pointer(window,renderer,SDL_MOUSEBUTTONDOWN,SDL_BUTTON_LEFT,fx,fy));
+        REQUIRE(push_pointer(window,renderer,SDL_MOUSEBUTTONUP,SDL_BUTTON_LEFT,lx,ly));
         REQUIRE(push_pointer(window,renderer,SDL_MOUSEBUTTONDOWN,SDL_BUTTON_LEFT,fx,fy)); break;
     }
     case 4:
         REQUIRE(!memcmp(&panned,&app->editor.viewport,sizeof(panned)));
+        REQUIRE(!drawing_program_authoring_host_active(app));
         REQUIRE(push_pointer(window,renderer,SDL_MOUSEBUTTONUP,SDL_BUTTON_LEFT,-20,-20)); break;
     case 5:
         REQUIRE(!memcmp(&panned,&app->editor.viewport,sizeof(panned)));
@@ -110,7 +114,7 @@ int drawing_program_pane_header_probe(SDL_Window *window, SDL_Renderer *renderer
         REQUIRE(!memcmp(&expected,&app->editor.viewport,sizeof(expected)));
         REQUIRE(!app->pane_host.composition_host.pointer.captured_id);
         REQUIRE(capture(renderer,dir,"headers-fit"));
-        puts("PANE_HEADER_PROOF fit-release-outside-and-domain status=pass"); break;
+        puts("PANE_HEADER_PROOF fit-cross-control-outside-and-domain status=pass"); break;
     case 8: {
         const KitUiSurface *s=drawing_program_ui_controls_snapshot();
         for (uint32_t i=0; i<s->count; ++i)

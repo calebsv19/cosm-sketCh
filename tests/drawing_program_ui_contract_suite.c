@@ -217,6 +217,21 @@ int drawing_program_ui_contract_suite(void) {
   CHECK(drawing_program_pane_host_update_splitter_drag(&ctx, hx + 40, hy));
   drawing_program_pane_host_end_splitter_drag(&ctx);
   CHECK(ctx.pane_host.layout_state.active_revision == revision + 1);
+
+  /* The draft changed en route, while accepted content is still a no-op. */
+  hit = ctx.pane_host.splitter_hits[1];
+  hx = hit.splitter_bounds.x + hit.splitter_bounds.width / 2;
+  hy = hit.splitter_bounds.y + hit.splitter_bounds.height / 2;
+  CoreLayoutState accepted = ctx.pane_host.layout_state;
+  memcpy(before, ctx.pane_host.nodes, sizeof(before));
+  CHECK(drawing_program_pane_host_begin_splitter_drag(&ctx, hx, hy));
+  CHECK(drawing_program_pane_host_update_splitter_drag(&ctx, hx + 40, hy));
+  CHECK(drawing_program_pane_host_update_splitter_drag(&ctx, hx, hy));
+  drawing_program_pane_host_end_splitter_drag(&ctx);
+  CHECK(!drawing_program_pane_host_splitter_drag_active(&ctx));
+  CHECK(!memcmp(before, ctx.pane_host.nodes, sizeof(before)));
+  CHECK(!memcmp(&accepted, &ctx.pane_host.layout_state, sizeof(accepted)));
+
   CHECK(drawing_program_pane_host_compose(&ctx, 0).code == CORE_OK);
   KitPaneHost *host = &ctx.pane_host.composition_host;
   CHECK(host->view.count == ctx.pane_host.leaf_count);

@@ -1,5 +1,6 @@
 #include "drawing_program/drawing_program_pane_host.h"
 
+#include <float.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -711,9 +712,19 @@ void drawing_program_pane_host_end_splitter_drag(struct DrawingProgramAppContext
     if (!ctx) {
         return;
     }
-    if (ctx->pane_host.splitter_edit.active)
-        (void)kit_pane_layout_edit_commit(&ctx->pane_host.splitter_edit,&ctx->pane_host.layout_state);
-    kit_pane_splitter_interaction_end_drag(&ctx->pane_host.splitter_interaction);
+    DrawingProgramPaneHost *host = &ctx->pane_host;
+    if (host->splitter_edit.active) {
+        uint32_t index = host->splitter_interaction.drag_hit.node_index;
+        /* Incremental motion adds normalized deltas. Returning to the
+         * starting ratio can leave float roundoff after several updates. */
+        if (host->splitter_edit.changed && index < host->node_count &&
+            fabsf(host->nodes[index].ratio_01 - host->splitter_before[index].ratio_01) <= FLT_EPSILON) {
+            drawing_program_pane_host_cancel_splitter_drag(ctx);
+            return;
+        }
+        (void)kit_pane_layout_edit_commit(&host->splitter_edit, &host->layout_state);
+    }
+    kit_pane_splitter_interaction_end_drag(&host->splitter_interaction);
 }
 
 int drawing_program_pane_host_splitter_drag_active(const struct DrawingProgramAppContext *ctx) {

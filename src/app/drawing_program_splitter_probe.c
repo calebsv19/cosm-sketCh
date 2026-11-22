@@ -23,6 +23,14 @@ static void key(SDL_Keycode sym, Uint16 mod) {
     SDL_Event e={0}; e.type=SDL_KEYDOWN; e.key.keysym.sym=sym; e.key.keysym.mod=mod; SDL_PushEvent(&e);
     e.type=SDL_KEYUP; SDL_PushEvent(&e);
 }
+static int escape(Uint32 type, Uint8 repeat) {
+    SDL_Event event = {0};
+    event.type = type;
+    event.key.keysym.sym = SDLK_ESCAPE;
+    event.key.keysym.scancode = SDL_SCANCODE_ESCAPE;
+    event.key.repeat = repeat;
+    return SDL_PushEvent(&event) == 1;
+}
 static int capture(SDL_Renderer *r,const char *dir,const char *name) {
     char path[4096];
     if (snprintf(path,sizeof(path),"%s/%s.bmp",dir,name)>=(int)sizeof(path)) return 0;
@@ -40,7 +48,8 @@ static const CorePaneSplitterHit *left_divider(const DrawingProgramAppContext *a
 int drawing_program_splitter_probe(SDL_Window *window, SDL_Renderer *renderer,
                                    const DrawingProgramAppContext *app) {
     const char *dir=getenv("DRAWING_PROGRAM_SPLITTER_PROOF"); if (!dir || !*dir) return 0;
-    static int phase, hover_attempts; static uint64_t start; static float x,y,moved_x;
+    static int phase, hover_attempts, resized_width, resized_height;
+    static uint64_t start; static float x,y,moved_x;
     static CoreLayoutState before; static CorePaneNode nodes[DRAWING_PROGRAM_PANE_NODE_CAPACITY];
     struct stat st; CHECK(stat(dir,&st)==0 && S_ISDIR(st.st_mode));
     if (!start) start=SDL_GetTicks64(); CHECK(SDL_GetTicks64()-start<30000);
@@ -48,6 +57,13 @@ int drawing_program_splitter_probe(SDL_Window *window, SDL_Renderer *renderer,
      * Begin the input proof only after the newly launched window settles. */
     if (phase==0 && SDL_GetTicks64()-start<250) return 0;
     int active=drawing_program_pane_host_splitter_drag_active(app);
+    if (phase == 13)
+        CHECK(!strstr(SDL_GetWindowTitle(window), "[Authoring]"));
+    if (phase == 17 || phase == 20 || phase == 24) {
+        CHECK(!active && !drawing_program_authoring_host_active(app));
+        CHECK(!memcmp(nodes, app->pane_host.nodes, sizeof(nodes)));
+        CHECK(!memcmp(&before, &app->pane_host.layout_state, sizeof(before)));
+    }
     if (phase>=2 && phase<=4) {
         CHECK(active && !drawing_program_authoring_host_active(app));
         CHECK(!strstr(SDL_GetWindowTitle(window), "[Authoring]"));
@@ -109,28 +125,99 @@ int drawing_program_splitter_probe(SDL_Window *window, SDL_Renderer *renderer,
     case 6:
         if (!active) fprintf(stderr,"SPLITTER_PROOF second-press x=%g y=%g mode=%u paused=%u overlay=%u\n",moved_x,y,app->pane_host.layout_state.mode,app->overlay_adapter.runtime_paused,app->overlay_adapter.lifecycle_state);
         CHECK(active); CHECK(pointer(window,renderer,SDL_MOUSEMOTION,moved_x+30*app->pane_host.splitter_scale_x,y)); break;
-    case 7: CHECK(active); key(SDLK_ESCAPE,0); break;
+    case 7:
+        CHECK(active && escape(SDL_KEYDOWN, 0));
+        break;
     case 8:
         CHECK(!active && !memcmp(nodes,app->pane_host.nodes,sizeof(nodes)));
         CHECK(!memcmp(&before,&app->pane_host.layout_state,sizeof(before)));
         CHECK(capture(renderer,dir,"resize-cancelled"));
+        CHECK(escape(SDL_KEYDOWN, 1));
+        CHECK(escape(SDL_KEYUP, 0));
+        CHECK(pointer(window,renderer,SDL_MOUSEBUTTONUP,moved_x,y));
+        break;
+    case 9:
+        CHECK(!active && !drawing_program_authoring_host_active(app));
+        CHECK(!memcmp(nodes,app->pane_host.nodes,sizeof(nodes)));
+        CHECK(!memcmp(&before,&app->pane_host.layout_state,sizeof(before)));
+        puts("SPLITTER_PROOF held-escape-and-late-release status=pass");
         /* The established explicit Alt+C then Alt+V entry remains available. */
         key(SDLK_c,KMOD_ALT); key(SDLK_v,KMOD_ALT); break;
-    case 9:
+    case 10:
         CHECK(drawing_program_authoring_host_active(app));
         CHECK(app->authoring_host.draft_baseline_valid);
         CHECK(capture(renderer,dir,"resize-explicit-authoring")); break;
-    case 10:
+    case 11:
         /* Window title updates after present; observe the completed frame. */
         CHECK(strstr(SDL_GetWindowTitle(window), "[Authoring]"));
         key(SDLK_ESCAPE,0); break;
-    case 11:
+    case 12:
         CHECK(!drawing_program_authoring_host_active(app));
         CHECK(!memcmp(nodes,app->pane_host.nodes,sizeof(nodes)));
         puts("SPLITTER_PROOF cancellation-and-explicit-authoring status=pass"); break;
-    default:
-        CHECK(!strstr(SDL_GetWindowTitle(window), "[Authoring]"));
+    case 13:
+    case 21:
+        CHECK(!active);
+        CHECK(pointer(window, renderer, SDL_MOUSEBUTTONDOWN, moved_x, y));
+        break;
+    case 17:
+        puts("SPLITTER_PROOF round-trip-no-op status=pass");
+        CHECK(pointer(window, renderer, SDL_MOUSEBUTTONDOWN, moved_x, y));
+        break;
+    case 14:
+    case 18:
+    case 22:
+        CHECK(active);
+        CHECK(pointer(window, renderer, SDL_MOUSEMOTION,
+                      moved_x + 30 * app->pane_host.splitter_scale_x, y));
+        break;
+    case 15:
+        CHECK(active && memcmp(nodes, app->pane_host.nodes, sizeof(nodes)));
+        CHECK(pointer(window, renderer, SDL_MOUSEMOTION, moved_x, y));
+        break;
+    case 16:
+        CHECK(active);
+        CHECK(pointer(window, renderer, SDL_MOUSEBUTTONUP, moved_x, y));
+        break;
+    case 19: {
+        CHECK(active && memcmp(nodes, app->pane_host.nodes, sizeof(nodes)));
+        SDL_Event event = {0};
+        event.type = SDL_WINDOWEVENT;
+        event.window.windowID = SDL_GetWindowID(window);
+        event.window.event = SDL_WINDOWEVENT_FOCUS_LOST;
+        CHECK(SDL_PushEvent(&event) == 1);
+        CHECK(pointer(window, renderer, SDL_MOUSEBUTTONUP, moved_x, y));
+        break;
+    }
+    case 20:
+        puts("SPLITTER_PROOF focus-loss-and-late-release status=pass");
+        break;
+    case 23: {
+        CHECK(active && memcmp(nodes, app->pane_host.nodes, sizeof(nodes)));
+        int width, height;
+        SDL_GetWindowSize(window, &width, &height);
+        resized_width = width - 100;
+        resized_height = height - 80;
+        SDL_SetWindowSize(window, resized_width, resized_height);
+        break;
+    }
+    case 24: {
+        int width, height;
+        SDL_GetWindowSize(window, &width, &height);
+        CHECK(width == resized_width && height == resized_height);
+        CHECK(pointer(window, renderer, SDL_MOUSEBUTTONUP, moved_x, y));
+        break;
+    }
+    case 25:
+        CHECK(!active && !drawing_program_authoring_host_active(app));
+        CHECK(!memcmp(nodes, app->pane_host.nodes, sizeof(nodes)));
+        CHECK(!memcmp(&before, &app->pane_host.layout_state, sizeof(before)));
+        puts("SPLITTER_PROOF resize-and-late-release status=pass");
+        break;
+    case 26:
         puts("SPLITTER_PROOF status=complete"); return 1;
+    default:
+        CHECK(0);
     }
     ++phase; return 0;
 }

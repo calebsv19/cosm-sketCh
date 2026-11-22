@@ -230,6 +230,12 @@ static void drawing_program_visual_loop_handle_event(DrawingProgramVisualLoopEve
         return;
     }
 
+    /* One Escape press may cancel a gesture or close a scope. Its repeats
+     * must not act on the scope that becomes active after that cancellation. */
+    if (event->type == SDL_KEYDOWN && event->key.keysym.sym == SDLK_ESCAPE && event->key.repeat) {
+        return;
+    }
+
     has_canvas_pane = drawing_program_visual_pane_rect_for_module_type(ctx->app, 1u, &canvas_pane);
     has_left_pane = drawing_program_visual_pane_rect_for_module_type(ctx->app, 2u, &left_pane);
     has_right_pane = drawing_program_visual_pane_rect_for_module_type(ctx->app, 4u, &right_pane);

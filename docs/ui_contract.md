@@ -1,13 +1,13 @@
 # sketCh UI contract
 
-This reference describes the retained Main Edit pilot; it is not a production
-release or canonical adoption claim. App version remains 0.3.0.
+This reference describes sketCh Main Edit at app version 0.4.1.
 
 ## Ownership and shared baseline
 
 Drawing, indexed palette meaning, history, persistence, exports, native file
-panels, pane topology and module policy remain app-owned. The managed subtree
-imports immutable shared source 7b37ad8c6ca7eafa679ab820aab9cac033d46c11:
+panels, pane topology and module policy remain app-owned.
+[`config/shared_adoption.json`](../config/shared_adoption.json) binds
+the selected module-level origins and file hashes. The UI route uses
 kit_ui 0.18.0, kit_pane 0.5.0, kit_render 0.14.6,
 kit_workspace_authoring 0.6.1, core_layout 0.2.1, vk_renderer 1.6.0 and
 vk_runtime 0.6.0. The exact-source verifier checks the linked UI/window/pane and
@@ -81,9 +81,12 @@ visible click bounds so the generous divider band cannot swallow a header action
 Movement outside the band retains normal content interaction.
 
 Splitter motion is a layout transaction. Cancel restores node payload and
-revision state, including nested authoring state. A no-op drag creates no new
-revision; an accepted runtime drag commits once. Escape and all ten shared
-window invalidation classes cancel unfinished drags and drawing transients.
+revision state, including nested authoring state. Releasing at the starting
+ratio preserves the layout revision, including after intermediate movement.
+An accepted runtime drag commits once. Escape and the shared window
+invalidation events cancel unfinished drags and drawing transients. Holding
+Escape after cancellation leaves the window open. A separate press performs the
+next scope's action.
 
 F11 toggles desktop fullscreen. Window observation continues while idle. Hidden
 or minimized windows do not submit frames and resume on restoration. Native
@@ -176,8 +179,9 @@ completion, exit status and capture existence; do not combine their drivers.
 `DRAWING_PROGRAM_SPLITTER_PROOF=<existing directory>` independently qualifies
 the actual loop: hit the wider band over an ordinary content tab, drag without the
 authoring HUD, commit one revision, cancel another drag with Escape, then enter
-and cancel explicit workspace authoring. It records six captures. Use the same
-isolated no-persist roots and run each engineering probe separately.
+and cancel explicit workspace authoring. It also checks held Escape, a round-trip
+no-op, focus loss, actual window resize and stale releases. It records six
+captures. Use isolated no-persist roots and run each engineering probe separately.
 
 ## Direct content commands — 2026-10-06
 
