@@ -225,6 +225,12 @@ reaches a legacy hit test. Aggregate domain/history/persistence/export tests and
 real-loop UI/native/package checks complete the qualification boundary; native
 file-panel acceptance and every destructive action are not automated.
 
+### Object Color target
+
+Escape ends the active stroke or fill color assignment and keeps the editor open.
+A subsequent swatch changes the active paint until an object color target is
+selected again. A separate unhandled Escape retains the normal exit action.
+
 ### Layer actions and saved content
 
 Layer controls bind a press to its layer ID. Changing the target or replacing the document invalidates the pending action. A visibility toggle commits one edit. Undo restores the prior value, and a gesture that closes without an edit preserves redo. The File panel compares authored content to the saved baseline, including changes such as layer locking that have no history entry. If a layer edit succeeds and copying it to the active texture surface fails, the File status reports the accepted edit and Save retries the copy.

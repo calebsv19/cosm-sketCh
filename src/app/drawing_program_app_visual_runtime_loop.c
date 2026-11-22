@@ -328,9 +328,6 @@ static void drawing_program_visual_loop_handle_event(DrawingProgramVisualLoopEve
     if (drawing_program_authoring_host_font_theme_overlay_active(ctx->app) &&
         event->type == SDL_MOUSEBUTTONDOWN) return;
 
-    if (event->type == SDL_KEYDOWN && event->key.keysym.sym == SDLK_ESCAPE) {
-        *(ctx->quit) = 1;
-    }
     if (event->type == SDL_WINDOWEVENT) {
         drawing_program_visual_input_window_event_flags(event,
                                                         &clear_mouse_known,
@@ -436,16 +433,21 @@ static void drawing_program_visual_loop_handle_event(DrawingProgramVisualLoopEve
             return;
         }
     }
-    (void)drawing_program_visual_input_handle_keydown_payload(event,
-                                                              has_canvas_pane,
-                                                              canvas_pane,
-                                                              ctx->selected_theme,
-                                                              ctx->theme_preset,
-                                                              ctx->app,
-                                                              ctx->canvas_interaction,
-                                                              ctx->selection,
-                                                              ctx->panel_ui,
-                                                              ctx->input_handlers);
+    if (drawing_program_visual_input_handle_keydown_payload(event,
+                                                            has_canvas_pane,
+                                                            canvas_pane,
+                                                            ctx->selected_theme,
+                                                            ctx->theme_preset,
+                                                            ctx->app,
+                                                            ctx->canvas_interaction,
+                                                            ctx->selection,
+                                                            ctx->panel_ui,
+                                                            ctx->input_handlers)) {
+        return;
+    }
+    if (event->type == SDL_KEYDOWN && event->key.keysym.sym == SDLK_ESCAPE) {
+        *(ctx->quit) = 1;
+    }
 }
 
 static int drawing_program_visual_loop_event_requires_runtime_tick(const SDL_Event *event) {
@@ -855,7 +857,7 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
                 }
                 quit = 1;
             }
-            int ui_proof=drawing_program_ui_pilot_probe(window,renderer,&app_ctx);
+            int ui_proof=drawing_program_ui_pilot_probe(window, renderer, &app_ctx, &panel_ui);
             if (ui_proof<0) {result=(CoreResult){CORE_ERR_IO,"UI pilot proof failed"};break;}
             if (ui_proof>0) quit=1;
             int header_proof=drawing_program_pane_header_probe(window,renderer,&app_ctx);
