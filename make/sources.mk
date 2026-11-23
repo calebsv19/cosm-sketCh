@@ -44,6 +44,7 @@ DRAWING_PROGRAM_BASE_LOCAL_SRCS := \
 	src/domain/drawing_program_texture_export_intent.c \
 	src/domain/drawing_program_texture_overlay_material_intent.c \
 	src/domain/drawing_program_texture_project.c \
+	src/domain/drawing_program_texture_project_indexed.c \
 	src/domain/drawing_program_texture_project_template.c \
 	src/domain/drawing_program_texture_workspace.c \
 	src/domain/drawing_program_object_transform.c \

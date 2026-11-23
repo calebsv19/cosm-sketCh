@@ -11,6 +11,9 @@ As behavior depth grows, new code should be placed in focused lanes:
 - `domain/`: document/editor/history/tool domain behavior and command semantics.
 - `io/`: snapshot/preset/runtime-root persistence and import/export bridges.
 
+Indexed-atlas project admission lives in `domain/drawing_program_texture_project_indexed.c`.
+Snapshot and export adapters use that validator through the texture project API.
+
 Migration rule:
 - keep existing runtime behavior stable;
 - move code from `runtime/` into focused lanes incrementally by slice,
