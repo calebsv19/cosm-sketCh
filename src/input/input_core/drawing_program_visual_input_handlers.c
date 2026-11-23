@@ -252,6 +252,14 @@ CoreResult path_draft_commit(DrawingProgramAppContext *ctx,
     return core_result_ok();
 }
 
+int drawing_program_visual_input_has_left_capture(
+    const VisualCanvasInteractionState *canvas, const DrawingProgramSelectionState *selection) {
+    return canvas->drawing_active || canvas->shape_active || canvas->path_draft_drag_active ||
+           canvas->canvas_resize_active || canvas->canvas_move_active || canvas->reflector_drag_active ||
+           canvas->transform_active || canvas->object_move_active || canvas->object_path_point_move_active ||
+           canvas->object_path_handle_move_active || selection->selecting || selection->moving;
+}
+
 int drawing_program_visual_input_handle_mouse_button_up_payload(const SDL_Event *event,
                                                                 int event_has_position,
                                                                 int event_x,
@@ -273,8 +281,16 @@ int drawing_program_visual_input_handle_mouse_button_up_payload(const SDL_Event 
     }
     up_action = drawing_program_visual_input_classify_mouse_up(event->button.button);
     if (up_action == DRAWING_PROGRAM_VISUAL_MOUSE_UP_ACTION_RIGHT_RELEASE) {
+        if (!canvas_interaction->panning_active) {
+            return 0;
+        }
+        if (has_canvas_pane && event_has_position) {
+            (void)drawing_program_visual_input_apply_pan_motion(
+                app, 1u, canvas_pane, event_x, event_y,
+                &canvas_interaction->last_mouse_x, &canvas_interaction->last_mouse_y);
+        }
         hooks->cancel_all_transient_interactions(app, canvas_interaction, selection_state, 1);
-        return 0;
+        return 1;
     }
     if (up_action != DRAWING_PROGRAM_VISUAL_MOUSE_UP_ACTION_LEFT_RELEASE) {
         return 0;
@@ -286,7 +302,6 @@ int drawing_program_visual_input_handle_mouse_button_up_payload(const SDL_Event 
                                                        &release_x,
                                                        &release_y);
     if (canvas_interaction->panning_active) {
-        hooks->cancel_all_transient_interactions(app, canvas_interaction, selection_state, 1);
         return 1;
     }
     if (canvas_interaction->canvas_resize_active) {
@@ -440,28 +455,29 @@ int drawing_program_visual_input_handle_mouse_motion_payload(const SDL_Event *ev
     panel_ui->mouse_known = 1u;
     panel_ui->mouse_x = event_has_position ? event_x : event->motion.x;
     panel_ui->mouse_y = event_has_position ? event_y : event->motion.y;
-    if (drawing_program_visual_input_apply_pan_motion(app,
-                                                      canvas_interaction->panning_active,
-                                                      canvas_pane,
-                                                      panel_ui->mouse_x,
-                                                      panel_ui->mouse_y,
-                                                      &canvas_interaction->last_mouse_x,
-                                                      &canvas_interaction->last_mouse_y)) {
+    const int pan = canvas_interaction->panning_active;
+    const Uint32 held = event->motion.state;
+    if ((pan && !(held & SDL_BUTTON_RMASK)) ||
+        (!pan && !(held & SDL_BUTTON_LMASK) &&
+         drawing_program_visual_input_has_left_capture(canvas_interaction, selection_state))) {
+        /* Finish the accepted prefix before a missed release can turn hover into input. */
+        hooks->cancel_all_transient_interactions(app, canvas_interaction, selection_state, 1);
+        drawing_program_pane_host_cancel_input(app);
         return 1;
     }
-    if (canvas_interaction->canvas_resize_active || canvas_interaction->canvas_move_active) {
-        if (!(event->motion.state & SDL_BUTTON_LMASK)) {
-            /* A missed mouse-up cannot make hover mutate the canvas. */
-            drawing_program_texture_canvas_resize_end(canvas_interaction);
-            drawing_program_texture_canvas_move_end(canvas_interaction);
-            drawing_program_pane_host_cancel_input(app);
-        } else if (canvas_interaction->canvas_resize_active) {
-            (void)drawing_program_texture_canvas_resize_update(app, canvas_interaction,
-                                                                panel_ui->mouse_x, panel_ui->mouse_y);
-        } else {
-            (void)drawing_program_texture_canvas_move_update(app, canvas_interaction,
-                                                              panel_ui->mouse_x, panel_ui->mouse_y);
-        }
+    if (pan) {
+        return drawing_program_visual_input_apply_pan_motion(app, 1u, canvas_pane,
+            panel_ui->mouse_x, panel_ui->mouse_y,
+            &canvas_interaction->last_mouse_x, &canvas_interaction->last_mouse_y);
+    }
+    if (canvas_interaction->canvas_resize_active) {
+        (void)drawing_program_texture_canvas_resize_update(app, canvas_interaction,
+            panel_ui->mouse_x, panel_ui->mouse_y);
+        return 1;
+    }
+    if (canvas_interaction->canvas_move_active) {
+        (void)drawing_program_texture_canvas_move_update(app, canvas_interaction,
+            panel_ui->mouse_x, panel_ui->mouse_y);
         return 1;
     }
     if (canvas_interaction->reflector_drag_active) {

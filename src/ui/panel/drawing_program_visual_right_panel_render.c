@@ -13,6 +13,7 @@
 #include "drawing_program/drawing_program_visual_panel_render_common.h"
 #include "drawing_program/drawing_program_ui_controls.h"
 #include "drawing_program/drawing_program_visual_right_panel_defs.h"
+#include "drawing_program/drawing_program_visual_panel_ui_state.h"
 #include "drawing_program/drawing_program_visual_right_panel_color_render.h"
 #include "drawing_program/drawing_program_visual_right_panel_file_tabs_render.h"
 #include "drawing_program/drawing_program_visual_theme.h"
@@ -555,10 +556,7 @@ void drawing_program_visual_render_right_panel_content(SDL_Renderer *renderer,
             drawing_program_visual_panel_ui_hovered(ui, reflector_delete_button, hooks),
             hooks);
         {
-            int delete_canvas_armed =
-                ui &&
-                ui->right_canvas_delete_confirm_pending &&
-                ui->right_canvas_delete_confirm_surface_index == ctx->texture_project.active_surface_index;
+            int delete_canvas_armed = drawing_program_visual_panel_ui_canvas_delete_is_armed(ctx, ui);
             uint8_t delete_fill_r = (p.button_fill_active.r > 227u) ? 255u : (uint8_t)(p.button_fill_active.r + 28u);
             uint8_t delete_hover_r = (p.button_fill_hover.r > 219u) ? 255u : (uint8_t)(p.button_fill_hover.r + 36u);
             SDL_Color delete_fill = delete_canvas_armed

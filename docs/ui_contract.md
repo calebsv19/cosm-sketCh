@@ -273,3 +273,33 @@ with `DRAWING_PROGRAM_UI_PROOF` set to a fresh output directory. Run separately
 with `DRAWING_PROGRAM_CANVAS_TRANSFORM_SCENARIO` set to `release`, `focus`,
 `missed-release`, `remount`, or `escape`, using a disposable standard document
 (`--canvas-size 256x256 --no-persist`).
+
+
+### Canvas tools, confirmation and export status
+
+A held brush or eraser keeps the paint already applied when Escape or a missed
+button release ends the stroke. Motion after the gesture ends does not paint.
+A provisional shape, path-handle drag, marquee, or selection/object transform
+stops when it loses capture. An already accepted viewport pan remains in place.
+Right-button pan applies release coordinates even without an intervening move.
+
+An armed canvas deletion targets the canvas ID. Escape, focus loss, pane
+departure, or document replacement clears the confirmation. The selection and
+the contents remain available for a fresh action. Reflection Center Pick can
+move from the inspector into the canvas and is cleared by Escape, window focus
+loss, or document replacement.
+
+The authored-scene folder chooser replaces the browser root and clears the
+previous scene and object selection on acceptance. Cancel preserves the
+selection. Save As uses the macOS overwrite prompt for existing destinations.
+Cancel leaves the prior bytes intact. Replace passes the selected path to the
+normal save transaction. Save and export results belong to their synchronous
+command. The Export pane reserves its full action/status row.
+
+`DRAWING_PROGRAM_UI_PROOF_CASE=closeout` exercises the native paint, pan,
+confirmation, path, marquee/clipboard and export surfaces. Set
+`DRAWING_PROGRAM_L5_CLOSEOUT_SCENARIO` to `brush`, `brush-escape`, `pan`,
+`confirm`, `path`, `selection`, or `footer`. Run one scenario per process
+with the same isolated output and persistence flags as the other UI probes.
+For the indexed brush cases, use a disposable indexed `--preset` and an empty
+input root. The explicit canvas-size override creates a standard document.

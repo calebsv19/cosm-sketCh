@@ -359,6 +359,7 @@ int drawing_program_lifecycle_run_runtime_path_pointer_suite(DrawingProgramAppCo
         }
         memset(&event, 0, sizeof(event));
         event.type = SDL_MOUSEMOTION;
+        event.motion.state = SDL_BUTTON_LMASK;
         event.motion.x = 96;
         event.motion.y = 56;
         (void)drawing_program_visual_input_handle_mouse_motion_payload(&event,
@@ -772,6 +773,7 @@ int drawing_program_lifecycle_run_runtime_path_pointer_suite(DrawingProgramAppCo
         }
         memset(&event, 0, sizeof(event));
         event.type = SDL_MOUSEMOTION;
+        event.motion.state = SDL_BUTTON_LMASK;
         event.motion.x = direction_handle.x + 24;
         event.motion.y = direction_handle.y - 10;
         (void)drawing_program_visual_input_handle_mouse_motion_payload(&event,
@@ -861,6 +863,7 @@ int drawing_program_lifecycle_run_runtime_path_pointer_suite(DrawingProgramAppCo
         }
         memset(&event, 0, sizeof(event));
         event.type = SDL_MOUSEMOTION;
+        event.motion.state = SDL_BUTTON_LMASK;
         event.motion.x = anchor_handle.x + 18;
         event.motion.y = anchor_handle.y + 12;
         (void)drawing_program_visual_input_handle_mouse_motion_payload(&event,
@@ -989,6 +992,7 @@ int drawing_program_lifecycle_run_runtime_path_pointer_suite(DrawingProgramAppCo
 
         memset(&event, 0, sizeof(event));
         event.type = SDL_MOUSEMOTION;
+        event.motion.state = SDL_BUTTON_LMASK;
         event.motion.x = 66;
         event.motion.y = 58;
         (void)drawing_program_visual_input_handle_mouse_motion_payload(&event,

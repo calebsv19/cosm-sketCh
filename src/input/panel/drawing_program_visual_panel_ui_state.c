@@ -8,7 +8,7 @@ void drawing_program_visual_panel_ui_disarm_canvas_delete(VisualPanelUiState *ui
         return;
     }
     ui->right_canvas_delete_confirm_pending = 0u;
-    ui->right_canvas_delete_confirm_surface_index = 0u;
+    ui->right_canvas_delete_confirm_surface_id = 0u;
     ui->right_canvas_delete_confirm_armed_frame = 0u;
 }
 
@@ -16,16 +16,31 @@ void drawing_program_visual_panel_ui_arm_canvas_delete(DrawingProgramAppContext 
     if (!ctx || !ui) {
         return;
     }
+    const DrawingProgramTextureSurface *surface = drawing_program_texture_project_surface_at(
+        &ctx->texture_project, ctx->texture_project.active_surface_index);
+    if (!surface) {
+        drawing_program_visual_panel_ui_disarm_canvas_delete(ui);
+        return;
+    }
     ui->right_canvas_delete_confirm_pending = 1u;
-    ui->right_canvas_delete_confirm_surface_index = ctx->texture_project.active_surface_index;
+    ui->right_canvas_delete_confirm_surface_id = surface->surface_id;
     ui->right_canvas_delete_confirm_armed_frame = ctx->runtime.frame_counter;
+}
+
+int drawing_program_visual_panel_ui_canvas_delete_is_armed(const DrawingProgramAppContext *ctx,
+                                                          const VisualPanelUiState *ui) {
+    if (!ctx || !ui || !ui->right_canvas_delete_confirm_pending) {
+        return 0;
+    }
+    const DrawingProgramTextureSurface *surface = drawing_program_texture_project_surface_at(
+        &ctx->texture_project, ctx->texture_project.active_surface_index);
+    return surface && ui->right_canvas_delete_confirm_surface_id == surface->surface_id;
 }
 
 int drawing_program_visual_panel_ui_canvas_delete_is_confirmable(const DrawingProgramAppContext *ctx,
                                                                  const VisualPanelUiState *ui) {
     uint64_t delta = 0u;
-    if (!ctx || !ui || !ui->right_canvas_delete_confirm_pending ||
-        ui->right_canvas_delete_confirm_surface_index != ctx->texture_project.active_surface_index ||
+    if (!drawing_program_visual_panel_ui_canvas_delete_is_armed(ctx, ui) ||
         ctx->runtime.frame_counter < ui->right_canvas_delete_confirm_armed_frame) {
         return 0;
     }
@@ -40,8 +55,7 @@ int drawing_program_visual_panel_ui_canvas_delete_is_waiting_for_min_confirm_del
     const DrawingProgramAppContext *ctx,
     const VisualPanelUiState *ui) {
     uint64_t delta = 0u;
-    if (!ctx || !ui || !ui->right_canvas_delete_confirm_pending ||
-        ui->right_canvas_delete_confirm_surface_index != ctx->texture_project.active_surface_index ||
+    if (!drawing_program_visual_panel_ui_canvas_delete_is_armed(ctx, ui) ||
         ctx->runtime.frame_counter <= ui->right_canvas_delete_confirm_armed_frame) {
         return 0;
     }

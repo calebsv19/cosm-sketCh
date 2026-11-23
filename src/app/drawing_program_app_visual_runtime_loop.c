@@ -29,6 +29,7 @@
 #include "drawing_program/drawing_program_visual_loop_timing.h"
 #include "drawing_program/drawing_program_visual_overlay_render.h"
 #include "drawing_program/drawing_program_visual_pane_bindings.h"
+#include "drawing_program/drawing_program_visual_panel_ui_state.h"
 #include "drawing_program/drawing_program_visual_resources.h"
 #include "drawing_program/drawing_program_visual_runtime_debug.h"
 #include "drawing_program/drawing_program_render_cache_telemetry.h"
@@ -61,11 +62,14 @@ typedef struct DrawingProgramVisualLoopEventContext {
 static void drawing_program_visual_pane_lifecycle(void *user,
     const CorePaneModuleBinding *binding, const KitPaneHostEvent *event) {
     DrawingProgramVisualLoopEventContext *ctx=user;
-    (void)binding;
     if (event->type==KIT_PANE_HOST_CANCEL || event->type==KIT_PANE_HOST_BLUR ||
-        event->type==KIT_PANE_HOST_UNMOUNT)
+        event->type==KIT_PANE_HOST_UNMOUNT) {
+        if (binding->module_type_id == 4u) {
+            drawing_program_visual_panel_ui_disarm_canvas_delete(ctx->panel_ui);
+        }
         ctx->input_handlers->cancel_all_transient_interactions(
             ctx->app,ctx->canvas_interaction,ctx->selection,1);
+    }
     /* Fonts, document textures and surface caches belong to the renderer host.
      * Pane controllers borrow them, so authoring previews/Cancel retain caches. */
     if (event->type==KIT_PANE_HOST_RESIZE || event->type==KIT_PANE_HOST_UNMOUNT)
@@ -75,6 +79,7 @@ static void drawing_program_visual_document_will_change(void *user) {
     DrawingProgramVisualLoopEventContext *ctx=user;
     ctx->input_handlers->cancel_all_transient_interactions(
         ctx->app,ctx->canvas_interaction,ctx->selection,1);
+    drawing_program_visual_panel_ui_disarm_right_canvas_transients(ctx->panel_ui);
     drawing_program_visual_surface_cache_cancel_pending();
 }
 
@@ -340,6 +345,7 @@ static void drawing_program_visual_loop_handle_event(DrawingProgramVisualLoopEve
         }
         if (cancel_transients && ctx->input_handlers &&
             ctx->input_handlers->cancel_all_transient_interactions) {
+            drawing_program_visual_panel_ui_disarm_right_canvas_transients(ctx->panel_ui);
             ctx->input_handlers->cancel_all_transient_interactions(
                 ctx->app, ctx->canvas_interaction, ctx->selection, 1);
         }

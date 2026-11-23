@@ -182,6 +182,9 @@ typedef struct DrawingProgramVisualInputHandlersHooks {
                                                              int32_t dy);
 } DrawingProgramVisualInputHandlersHooks;
 
+int drawing_program_visual_input_has_left_capture(
+    const VisualCanvasInteractionState *canvas, const DrawingProgramSelectionState *selection);
+
 int drawing_program_visual_input_handle_mouse_button_up_payload(const SDL_Event *event,
                                                                 int event_has_position,
                                                                 int event_x,

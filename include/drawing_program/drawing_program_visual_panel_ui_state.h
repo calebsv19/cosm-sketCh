@@ -9,6 +9,8 @@ extern "C" {
 
 void drawing_program_visual_panel_ui_disarm_canvas_delete(VisualPanelUiState *ui);
 void drawing_program_visual_panel_ui_arm_canvas_delete(DrawingProgramAppContext *ctx, VisualPanelUiState *ui);
+int drawing_program_visual_panel_ui_canvas_delete_is_armed(const DrawingProgramAppContext *ctx,
+                                                          const VisualPanelUiState *ui);
 int drawing_program_visual_panel_ui_canvas_delete_is_confirmable(const DrawingProgramAppContext *ctx,
                                                                  const VisualPanelUiState *ui);
 int drawing_program_visual_panel_ui_canvas_delete_is_waiting_for_min_confirm_delay(

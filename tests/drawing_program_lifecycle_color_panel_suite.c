@@ -15,6 +15,7 @@
 #include "drawing_program/drawing_program_ui_color_state.h"
 #include "drawing_program/drawing_program_visual_layer_actions.h"
 #include "drawing_program/drawing_program_visual_input_handlers.h"
+#include "drawing_program/drawing_program_visual_panel_ui_state.h"
 #include "drawing_program/drawing_program_visual_input_panel_clicks.h"
 #include "drawing_program/drawing_program_visual_input_workspace_view.h"
 #include "drawing_program/drawing_program_visual_layout.h"
@@ -590,8 +591,7 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
                                                                       &workflow_ctx.selection,
                                                                       &panel_ui,
                                                                       &hooks);
-        if (!panel_ui.right_canvas_delete_confirm_pending ||
-            panel_ui.right_canvas_delete_confirm_surface_index != workflow_ctx.texture_project.active_surface_index) {
+        if (!drawing_program_visual_panel_ui_canvas_delete_is_armed(&workflow_ctx, &panel_ui)) {
             fprintf(stderr, "lifecycle_test: expected first delete canvas click to arm confirmation\n");
             return 1;
         }
@@ -618,9 +618,20 @@ int drawing_program_lifecycle_run_color_panel_suite(DrawingProgramAppContext *wo
                                                                       &workflow_ctx.selection,
                                                                       &panel_ui,
                                                                       &hooks);
-        if (!panel_ui.right_canvas_delete_confirm_pending ||
-            panel_ui.right_canvas_delete_confirm_surface_index != workflow_ctx.texture_project.active_surface_index) {
+        if (!drawing_program_visual_panel_ui_canvas_delete_is_armed(&workflow_ctx, &panel_ui)) {
             fprintf(stderr, "lifecycle_test: expected second delete canvas click to rearm confirmation\n");
+            return 1;
+        }
+        DrawingProgramTextureSurface *armed_surface =
+            &workflow_ctx.texture_project.surfaces[workflow_ctx.texture_project.active_surface_index];
+        uint32_t armed_id = armed_surface->surface_id;
+        workflow_ctx.runtime.frame_counter = 109u;
+        armed_surface->surface_id = workflow_ctx.texture_project.next_surface_id;
+        const int replaced_surface_armed =
+            drawing_program_visual_panel_ui_canvas_delete_is_confirmable(&workflow_ctx, &panel_ui);
+        armed_surface->surface_id = armed_id;
+        if (replaced_surface_armed) {
+            fprintf(stderr, "lifecycle_test: replacement at the same slot inherited delete confirmation\n");
             return 1;
         }
         workflow_ctx.runtime.frame_counter = 103u;

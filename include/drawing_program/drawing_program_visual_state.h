@@ -106,7 +106,7 @@ typedef struct VisualPanelUiState {
     int mouse_x;
     int mouse_y;
     int right_file_target_queue_scroll_y;
-    uint32_t right_canvas_delete_confirm_surface_index;
+    uint32_t right_canvas_delete_confirm_surface_id;
     uint32_t object_color_target_object_id;
     uint64_t right_canvas_delete_confirm_armed_frame;
 } VisualPanelUiState;

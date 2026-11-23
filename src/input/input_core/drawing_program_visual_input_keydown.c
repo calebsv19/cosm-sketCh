@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 #include "drawing_program/drawing_program_visual_input_keymap.h"
+#include "drawing_program/drawing_program_visual_panel_ui_state.h"
 #include "drawing_program/drawing_program_visual_input_selection_ops.h"
 #include "drawing_program/drawing_program_viewport.h"
 
@@ -46,12 +47,15 @@ int drawing_program_visual_input_handle_keydown_payload(const SDL_Event *event,
         return 1;
     }
     if (event->key.keysym.sym == SDLK_ESCAPE) {
-        const int layout_drag = canvas_interaction->canvas_move_active || canvas_interaction->canvas_resize_active;
-        if (layout_drag || canvas_interaction->shape_active) {
-            if (layout_drag) {
-                drawing_program_pane_host_cancel_input(app);
-            }
-            hooks->cancel_all_transient_interactions(app, canvas_interaction, selection_state, 0);
+        if (canvas_interaction->panning_active ||
+            drawing_program_visual_input_has_left_capture(canvas_interaction, selection_state)) {
+            hooks->cancel_all_transient_interactions(app, canvas_interaction, selection_state, 1);
+            drawing_program_pane_host_cancel_input(app);
+            return 1;
+        }
+        if (panel_ui->right_canvas_delete_confirm_pending ||
+            panel_ui->right_canvas_reflection_center_pick_pending) {
+            drawing_program_visual_panel_ui_disarm_right_canvas_transients(panel_ui);
             return 1;
         }
     }
