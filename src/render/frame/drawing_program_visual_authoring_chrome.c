@@ -669,6 +669,7 @@ static void authoring_draw_font_theme_overlay(SDL_Renderer *renderer,
 
 static void authoring_draw_leaf_labels(SDL_Renderer *renderer,
                                        const DrawingProgramAppContext *ctx,
+                                       SDL_Rect hud_rect,
                                        SDL_Color accent,
                                        SDL_Color text,
                                        SDL_Color fill) {
@@ -698,12 +699,15 @@ static void authoring_draw_leaf_labels(SDL_Renderer *renderer,
         if (label_rect.x + label_rect.w > pane_rect.x + pane_rect.w - 8) {
             label_rect.w = pane_rect.x + pane_rect.w - label_rect.x - 8;
         }
-        if (label_rect.w < 72) {
-            label_rect.w = 72;
-        }
-        (void)snprintf(line, sizeof(line), "P%u  %s", (unsigned)leaf->id, label);
         SDL_SetRenderDrawColor(renderer, accent.r, accent.g, accent.b, 220u);
         (void)SDL_RenderDrawRect(renderer, &pane_rect);
+        if (SDL_HasIntersection(&label_rect, &hud_rect)) {
+            label_rect.y = hud_rect.y + hud_rect.h + 8;
+        }
+        if (label_rect.w < 72 || label_rect.y + label_rect.h > pane_rect.y + pane_rect.h - 8) {
+            continue;
+        }
+        (void)snprintf(line, sizeof(line), "P%u  %s", (unsigned)leaf->id, label);
         SDL_SetRenderDrawColor(renderer, fill.r, fill.g, fill.b, 210u);
         (void)SDL_RenderFillRect(renderer, &label_rect);
         SDL_SetRenderDrawColor(renderer, accent.r, accent.g, accent.b, 230u);
@@ -755,6 +759,9 @@ void drawing_program_visual_authoring_chrome_draw(SDL_Renderer *renderer,
     screen_clip = (SDL_Rect){0, 0, viewport_width, viewport_height};
     panel_rect = authoring_panel_rect(viewport_width, viewport_height, row_count);
     title_band = (SDL_Rect){panel_rect.x, panel_rect.y, panel_rect.w, 30};
+
+    authoring_draw_leaf_labels(renderer, ctx, panel_rect,
+                               palette.accent_primary, palette.text_primary, panel_fill);
 
     panel_fill.a = 232u;
     authoring_draw_panel(renderer, panel_rect, panel_fill, palette.accent_primary);
@@ -820,12 +827,6 @@ void drawing_program_visual_authoring_chrome_draw(SDL_Renderer *renderer,
                                                       1);
         y += 18;
     }
-
-    authoring_draw_leaf_labels(renderer,
-                               ctx,
-                               palette.accent_primary,
-                               palette.text_primary,
-                               panel_fill);
 
     (void)SDL_SetRenderDrawBlendMode(renderer, previous_blend);
 }

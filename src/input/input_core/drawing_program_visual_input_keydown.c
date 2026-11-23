@@ -45,6 +45,10 @@ int drawing_program_visual_input_handle_keydown_payload(const SDL_Event *event,
         hooks->cancel_selection_transient(selection_state);
         return 1;
     }
+    if (event->key.keysym.sym == SDLK_ESCAPE && canvas_interaction->shape_active) {
+        hooks->cancel_all_transient_interactions(app, canvas_interaction, selection_state, 0);
+        return 1;
+    }
     if (panel_ui->object_color_target_kind != 0u &&
         (event->key.keysym.sym == SDLK_RETURN || event->key.keysym.sym == SDLK_KP_ENTER ||
          event->key.keysym.sym == SDLK_ESCAPE)) {

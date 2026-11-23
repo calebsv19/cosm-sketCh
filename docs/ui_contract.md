@@ -163,8 +163,13 @@ Optional qualification environments run finite probes in the actual event loop:
 `CODEWORK_WINDOW_LIFECYCLE_PROOF=<existing directory>` covers resize, fullscreen,
 hide/minimize and restore; `CODEWORK_WINDOW_PROOF_LARGE=1` adds a Retina extent
 above the canvas bound. `DRAWING_PROGRAM_UI_PROOF=<existing directory>` covers
-the six inspector regions (Layer disabled for indexed mode), keyboard release
-and authoring scopes. These are engineering probes, inactive in routine use.
+the six inspector regions (Layer disabled for indexed mode), keyboard release,
+authoring scopes, Layer opacity and visibility history. Optional
+`DRAWING_PROGRAM_UI_PROOF_CASE=canvas-escape` checks a live rectangle draft,
+late release and fresh commit with Undo. `DRAWING_PROGRAM_UI_PROOF_CASE=indexed-file`
+requires a disposable indexed `--preset` pack. It paints with an inspector swatch,
+checks Undo and Redo, then saves and reloads the edited session through File.
+These are engineering probes, inactive in routine use.
 Always supply isolated runtime/input/output roots and `--no-persist`. Native
 macOS proof does not establish human IME, external monitor/DPI, exclusive
 fullscreen, device-loss, Linux or Windows acceptance.
@@ -231,6 +236,12 @@ Escape ends the active stroke or fill color assignment and keeps the editor open
 A subsequent swatch changes the active paint until an object color target is
 selected again. A separate unhandled Escape retains the normal exit action.
 
+### Canvas shape drafts
+
+Escape cancels an active line, rectangle or ellipse draft. Releasing the
+original pointer after cancellation leaves the canvas and history unchanged.
+A fresh press and release can commit normally.
+
 ### Layer actions and saved content
 
-Layer controls bind a press to its layer ID. Changing the target or replacing the document invalidates the pending action. A visibility toggle commits one edit. Undo restores the prior value, and a gesture that closes without an edit preserves redo. The File panel compares authored content to the saved baseline, including changes such as layer locking that have no history entry. If a layer edit succeeds and copying it to the active texture surface fails, the File status reports the accepted edit and Save retries the copy.
+Layer controls bind a press to its layer ID. Changing the target or replacing the document invalidates the pending action. A visibility toggle commits one edit. Undo restores the prior value, and a gesture that closes without an edit preserves redo. The File panel compares authored content to the saved baseline, including changes such as layer locking that have no history entry. Opacity applies to the active texture surface without adding a history entry. Reapplying the same value leaves the render opacity revision unchanged. Undo and Redo of visibility retain the current opacity. If a layer edit succeeds and copying it to the active texture surface fails, the File status reports the accepted edit and Save retries the copy.

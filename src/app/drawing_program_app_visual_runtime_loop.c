@@ -857,7 +857,7 @@ int drawing_program_app_visual_run_mode(int argc, char **argv) {
                 }
                 quit = 1;
             }
-            int ui_proof=drawing_program_ui_pilot_probe(window, renderer, &app_ctx, &panel_ui);
+            int ui_proof=drawing_program_ui_pilot_probe(window, renderer, &app_ctx, &panel_ui, &canvas_interaction);
             if (ui_proof<0) {result=(CoreResult){CORE_ERR_IO,"UI pilot proof failed"};break;}
             if (ui_proof>0) quit=1;
             int header_proof=drawing_program_pane_header_probe(window,renderer,&app_ctx);
