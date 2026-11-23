@@ -95,6 +95,8 @@ static int drawing_program_visual_loop_has_continuous_interaction(
     return interaction->drawing_active ||
            interaction->panning_active ||
            interaction->shape_active ||
+           interaction->canvas_move_active ||
+           interaction->canvas_resize_active ||
            interaction->path_draft_drag_active ||
            interaction->transform_active ||
            interaction->object_move_active ||

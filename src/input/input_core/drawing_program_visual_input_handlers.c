@@ -290,10 +290,16 @@ int drawing_program_visual_input_handle_mouse_button_up_payload(const SDL_Event 
         return 1;
     }
     if (canvas_interaction->canvas_resize_active) {
+        if (has_canvas_pane && event_has_position) {
+            (void)drawing_program_texture_canvas_resize_update(app, canvas_interaction, release_x, release_y);
+        }
         drawing_program_texture_canvas_resize_end(canvas_interaction);
         return 1;
     }
     if (canvas_interaction->canvas_move_active) {
+        if (has_canvas_pane && event_has_position) {
+            (void)drawing_program_texture_canvas_move_update(app, canvas_interaction, release_x, release_y);
+        }
         drawing_program_texture_canvas_move_end(canvas_interaction);
         return 1;
     }
@@ -443,17 +449,20 @@ int drawing_program_visual_input_handle_mouse_motion_payload(const SDL_Event *ev
                                                       &canvas_interaction->last_mouse_y)) {
         return 1;
     }
-    if (canvas_interaction->canvas_resize_active) {
-        return drawing_program_texture_canvas_resize_update(app,
-                                                            canvas_interaction,
-                                                            panel_ui->mouse_x,
-                                                            panel_ui->mouse_y);
-    }
-    if (canvas_interaction->canvas_move_active) {
-        return drawing_program_texture_canvas_move_update(app,
-                                                          canvas_interaction,
-                                                          panel_ui->mouse_x,
-                                                          panel_ui->mouse_y);
+    if (canvas_interaction->canvas_resize_active || canvas_interaction->canvas_move_active) {
+        if (!(event->motion.state & SDL_BUTTON_LMASK)) {
+            /* A missed mouse-up cannot make hover mutate the canvas. */
+            drawing_program_texture_canvas_resize_end(canvas_interaction);
+            drawing_program_texture_canvas_move_end(canvas_interaction);
+            drawing_program_pane_host_cancel_input(app);
+        } else if (canvas_interaction->canvas_resize_active) {
+            (void)drawing_program_texture_canvas_resize_update(app, canvas_interaction,
+                                                                panel_ui->mouse_x, panel_ui->mouse_y);
+        } else {
+            (void)drawing_program_texture_canvas_move_update(app, canvas_interaction,
+                                                              panel_ui->mouse_x, panel_ui->mouse_y);
+        }
+        return 1;
     }
     if (canvas_interaction->reflector_drag_active) {
         uint32_t sample_x = 0u;

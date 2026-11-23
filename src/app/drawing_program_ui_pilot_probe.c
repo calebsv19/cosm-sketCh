@@ -356,6 +356,8 @@ int drawing_program_ui_pilot_probe(SDL_Window *window, SDL_Renderer *renderer,
   /* Let native startup show and focus events settle before arming the first press. */
   if (phase == 0 && SDL_GetTicks64() - start < 250) return 0;
   const char *proof_case = getenv("DRAWING_PROGRAM_UI_PROOF_CASE");
+  if (proof_case && strcmp(proof_case, "canvas-transform") == 0)
+    return drawing_program_canvas_transform_probe(window, renderer, app, canvas);
   if (proof_case && strcmp(proof_case, "canvas-escape") == 0) {
     if (phase == 8) {
       puts("UI_PILOT status=complete");

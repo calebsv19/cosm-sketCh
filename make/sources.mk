@@ -11,6 +11,7 @@ DRAWING_PROGRAM_BASE_LOCAL_SRCS := \
 	src/ui/pane/drawing_program_visual_pane_geometry.c \
 	src/ui/pane/drawing_program_visual_pane_header.c \
 	src/app/drawing_program_ui_pilot_probe.c \
+	src/app/drawing_program_canvas_transform_probe.c \
 	src/ui/panel/drawing_program_ui_controls.c \
 	$(KIT_UI_DIR)/src/kit_ui_interaction_sdl.c \
 	$(KIT_UI_DIR)/src/kit_ui_sdl.c \

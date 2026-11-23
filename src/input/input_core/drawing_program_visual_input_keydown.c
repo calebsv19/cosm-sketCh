@@ -45,9 +45,15 @@ int drawing_program_visual_input_handle_keydown_payload(const SDL_Event *event,
         hooks->cancel_selection_transient(selection_state);
         return 1;
     }
-    if (event->key.keysym.sym == SDLK_ESCAPE && canvas_interaction->shape_active) {
-        hooks->cancel_all_transient_interactions(app, canvas_interaction, selection_state, 0);
-        return 1;
+    if (event->key.keysym.sym == SDLK_ESCAPE) {
+        const int layout_drag = canvas_interaction->canvas_move_active || canvas_interaction->canvas_resize_active;
+        if (layout_drag || canvas_interaction->shape_active) {
+            if (layout_drag) {
+                drawing_program_pane_host_cancel_input(app);
+            }
+            hooks->cancel_all_transient_interactions(app, canvas_interaction, selection_state, 0);
+            return 1;
+        }
     }
     if (panel_ui->object_color_target_kind != 0u &&
         (event->key.keysym.sym == SDLK_RETURN || event->key.keysym.sym == SDLK_KP_ENTER ||

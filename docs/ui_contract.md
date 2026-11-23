@@ -257,3 +257,19 @@ Cancel preserves the current document, path and saved baseline. The File panel
 reports picker failure separately from Cancel and from a project read or write
 failure. When the chooser closes, the editor window and its eligible controls
 can receive a fresh event. Input queued during the modal scope is retired.
+
+
+### Canvas layout move and resize
+
+A left drag moves a canvas or resizes a blank, unlocked canvas by its handle.
+Held-pointer motion applies geometry live. Release applies its final coordinates
+even if no motion arrived after the press. Escape, focus loss, pane replacement,
+or motion showing that the button is no longer held retires the gesture and
+keeps the last accepted geometry. A late motion or release cannot change the
+canvas after cancellation. A fresh press can begin another gesture.
+
+For bounded native qualification, set `DRAWING_PROGRAM_UI_PROOF_CASE=canvas-transform`
+with `DRAWING_PROGRAM_UI_PROOF` set to a fresh output directory. Run separately
+with `DRAWING_PROGRAM_CANVAS_TRANSFORM_SCENARIO` set to `release`, `focus`,
+`missed-release`, `remount`, or `escape`, using a disposable standard document
+(`--canvas-size 256x256 --no-persist`).

@@ -7,6 +7,8 @@
 int drawing_program_ui_pilot_probe(SDL_Window *window, SDL_Renderer *renderer,
                                    DrawingProgramAppContext *app, const VisualPanelUiState *panel,
                                    const VisualCanvasInteractionState *canvas);
+int drawing_program_canvas_transform_probe(SDL_Window *window, SDL_Renderer *renderer,
+    DrawingProgramAppContext *app, const VisualCanvasInteractionState *canvas);
 int drawing_program_pane_header_probe(SDL_Window *window, SDL_Renderer *renderer,
                                       const DrawingProgramAppContext *app);
 int drawing_program_splitter_probe(SDL_Window *window, SDL_Renderer *renderer,
