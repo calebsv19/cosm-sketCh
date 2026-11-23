@@ -245,3 +245,15 @@ A fresh press and release can commit normally.
 ### Layer actions and saved content
 
 Layer controls bind a press to its layer ID. Changing the target or replacing the document invalidates the pending action. A visibility toggle commits one edit. Undo restores the prior value, and a gesture that closes without an edit preserves redo. The File panel compares authored content to the saved baseline, including changes such as layer locking that have no history entry. Opacity applies to the active texture surface without adding a history entry. Reapplying the same value leaves the render opacity revision unchanged. Undo and Redo of visibility retain the current opacity. If a layer edit succeeds and copying it to the active texture surface fails, the File status reports the accepted edit and Save retries the copy.
+
+
+### macOS project and folder choosers
+
+The desktop app presents native Cocoa panels in its own modal scope. Open and
+Save As start at the current project input folder. The folder pickers start at
+the input, export or authored-scene folder they edit. The app processes the
+exact selected file-system path through the existing project transaction.
+Cancel preserves the current document, path and saved baseline. The File panel
+reports picker failure separately from Cancel and from a project read or write
+failure. When the chooser closes, the editor window and its eligible controls
+can receive a fresh event. Input queued during the modal scope is retired.

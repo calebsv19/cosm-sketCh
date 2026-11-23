@@ -10,6 +10,12 @@
 
 extern char **environ;
 
+static DrawingProgramNativeDialogPicker desktop_picker;
+
+void drawing_program_native_dialog_set_picker(DrawingProgramNativeDialogPicker picker) {
+    desktop_picker = picker;
+}
+
 static CoreResult native_dialog_invalid(const char *message) {
     return (CoreResult){ CORE_ERR_INVALID_ARG, message };
 }
@@ -156,6 +162,10 @@ CoreResult drawing_program_native_choose_directory(const char *prompt,
                                                    const char *initial_dir,
                                                    char *out_path,
                                                    size_t out_cap) {
+    if (desktop_picker) {
+        return desktop_picker(DRAWING_PROGRAM_NATIVE_DIALOG_DIRECTORY, prompt, initial_dir,
+                              NULL, out_path, out_cap);
+    }
 #if defined(__APPLE__)
     char escaped_prompt[256];
     char escaped_initial_dir[768];
@@ -201,6 +211,10 @@ CoreResult drawing_program_native_choose_file(const char *prompt,
                                               const char *initial_dir,
                                               char *out_path,
                                               size_t out_cap) {
+    if (desktop_picker) {
+        return desktop_picker(DRAWING_PROGRAM_NATIVE_DIALOG_OPEN, prompt, initial_dir,
+                              NULL, out_path, out_cap);
+    }
 #if defined(__APPLE__)
     char escaped_prompt[256];
     char escaped_initial_dir[768];
@@ -247,6 +261,10 @@ CoreResult drawing_program_native_choose_save_file(const char *prompt,
                                                    const char *default_name,
                                                    char *out_path,
                                                    size_t out_cap) {
+    if (desktop_picker) {
+        return desktop_picker(DRAWING_PROGRAM_NATIVE_DIALOG_SAVE, prompt, initial_dir,
+                              default_name, out_path, out_cap);
+    }
 #if defined(__APPLE__)
     char escaped_prompt[256];
     char escaped_initial_dir[768];

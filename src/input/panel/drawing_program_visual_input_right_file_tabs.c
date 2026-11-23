@@ -148,7 +148,8 @@ static int visual_right_panel_open_project(DrawingProgramAppContext *ctx,
                                                 chosen_path,
                                                 sizeof(chosen_path));
     if (result.code != CORE_OK) {
-        visual_right_panel_set_file_status(ctx, "OPEN PROJECT CANCELLED");
+        visual_right_panel_set_file_status(ctx, result.code == CORE_ERR_NOT_FOUND ?
+                                               "OPEN PROJECT CANCELLED" : "OPEN PICKER FAILED");
         return 0;
     }
     result = drawing_program_project_state_open(ctx, chosen_path);
@@ -190,7 +191,8 @@ static int visual_right_panel_save_as_project(DrawingProgramAppContext *ctx,
                                                      chosen_path,
                                                      sizeof(chosen_path));
     if (result.code != CORE_OK) {
-        visual_right_panel_set_file_status(ctx, "SAVE AS CANCELLED");
+        visual_right_panel_set_file_status(ctx, result.code == CORE_ERR_NOT_FOUND ?
+                                               "SAVE AS CANCELLED" : "SAVE AS PICKER FAILED");
         return 0;
     }
     result = drawing_program_project_state_save_to(ctx, chosen_path);
@@ -264,7 +266,8 @@ static int visual_right_panel_pick_input_root(DrawingProgramAppContext *ctx,
                                                      chosen_path,
                                                      sizeof(chosen_path));
     if (result.code != CORE_OK) {
-        visual_right_panel_set_file_status(ctx, "INPUT ROOT PICKER CANCELLED");
+        visual_right_panel_set_file_status(ctx, result.code == CORE_ERR_NOT_FOUND ?
+                                               "INPUT ROOT PICKER CANCELLED" : "INPUT ROOT PICKER FAILED");
         return 0;
     }
     result = drawing_program_project_state_set_input_root(ctx, chosen_path);
@@ -288,7 +291,8 @@ static int visual_right_panel_pick_output_root(DrawingProgramAppContext *ctx) {
                                                      chosen_path,
                                                      sizeof(chosen_path));
     if (result.code != CORE_OK) {
-        visual_right_panel_set_file_status(ctx, "OUTPUT ROOT PICKER CANCELLED");
+        visual_right_panel_set_file_status(ctx, result.code == CORE_ERR_NOT_FOUND ?
+                                               "OUTPUT ROOT PICKER CANCELLED" : "OUTPUT ROOT PICKER FAILED");
         return 0;
     }
     result = drawing_program_project_state_set_output_root(ctx, chosen_path);
@@ -313,7 +317,8 @@ static int visual_right_panel_pick_scene_root(DrawingProgramAppContext *ctx,
                                                      chosen_path,
                                                      sizeof(chosen_path));
     if (result.code != CORE_OK) {
-        visual_right_panel_set_file_status(ctx, "SCENE ROOT PICKER CANCELLED");
+        visual_right_panel_set_file_status(ctx, result.code == CORE_ERR_NOT_FOUND ?
+                                               "SCENE ROOT PICKER CANCELLED" : "SCENE ROOT PICKER FAILED");
         return 0;
     }
     result = drawing_program_project_state_set_scene_authored_root(ctx, chosen_path);

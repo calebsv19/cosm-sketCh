@@ -119,6 +119,10 @@ $(PROGRAM_OBJ_DIR)/%.c.o: %.c $(PROGRAM_CC_STAMP)
 	@mkdir -p "$(dir $@)"
 	FISICS_MAX_PROCS="$(FISICS_MAX_PROCS)" $(PROGRAM_CC) $(PROGRAM_CFLAGS) $(PROGRAM_DEPFLAGS) -c "$<" -o "$@"
 
+$(PROGRAM_OBJ_DIR)/%.m.o: %.m $(HOST_CC_STAMP)
+	@mkdir -p "$(dir $@)"
+	$(HOST_CC) $(HOST_CFLAGS) $(HOST_DEPFLAGS) -fobjc-arc -c "$<" -o "$@"
+
 $(TEST_OBJ_DIR)/%.c.o: %.c $(HOST_CC_STAMP)
 	@mkdir -p "$(dir $@)"
 	$(HOST_CC) $(HOST_CFLAGS) $(HOST_DEPFLAGS) -c "$<" -o "$@"

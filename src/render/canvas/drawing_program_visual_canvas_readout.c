@@ -1,4 +1,5 @@
 #include "drawing_program/drawing_program_visual_canvas_world_render.h"
+#include "drawing_program/drawing_program_indexed_editor.h"
 #include "drawing_program/drawing_program_visual_layout.h"
 #include "drawing_program/drawing_program_visual_text_render.h"
 #include "drawing_program/drawing_program_visual_theme.h"
@@ -7,7 +8,9 @@
 void drawing_program_visual_draw_canvas_content_readout(
     SDL_Renderer *renderer, SDL_Rect content,
     const DrawingProgramAppContext *ctx, const CoreThemePreset *theme) {
-    if (!renderer || !ctx)
+    if (!renderer || !ctx ||
+        (drawing_program_indexed_editor_is_active(ctx) &&
+         ctx->ui.indexed_workspace_mode == (uint8_t)DRAWING_PROGRAM_INDEXED_WORKSPACE_MODE_CELL_BOARD))
         return;
     VisualPaneLayoutMetrics m = make_pane_layout_metrics(ctx);
     VisualThemePalette p;

@@ -223,6 +223,10 @@ TEST_TARGET_LOCAL_SRCS := \
 	tests/drawing_program_lifecycle_test_support.c \
 	tests/drawing_program_lifecycle_test.c
 
+ifeq ($(TARGET_OS),macOS)
+APP_TARGET_LOCAL_SRCS += src/io/session/drawing_program_native_dialogs_mac.m
+endif
+
 APP_LOCAL_SRCS := $(DRAWING_PROGRAM_BASE_LOCAL_SRCS) $(APP_TARGET_LOCAL_SRCS)
 
 HEADLESS_LOCAL_SRCS := $(DRAWING_PROGRAM_BASE_LOCAL_SRCS) $(HEADLESS_TARGET_LOCAL_SRCS)
