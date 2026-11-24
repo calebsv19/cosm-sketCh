@@ -48,8 +48,14 @@ static int client(const char* path) {
 /* Covers pending stop, slow reply, fallback failure and endpoint reuse. */
 int main(void) {
     alarm(35); assert(SDL_Init(SDL_INIT_EVENTS|SDL_INIT_TIMER)==0);
-    char dir[]="/private/tmp/sk-l3-XXXXXX"; assert(mkdtemp(dir));
-    char path[104]; snprintf(path,sizeof(path),"%s/socket",dir);
+    const char* tmp_root=getenv("TMPDIR");
+    if(!tmp_root || !*tmp_root) tmp_root="/tmp";
+    char path[sizeof(((struct sockaddr_un*)0)->sun_path)];
+    char dir[sizeof(path)];
+    int length=snprintf(dir,sizeof(dir),"%s/sk-l3-XXXXXX",tmp_root);
+    assert(length>0 && (size_t)length+sizeof("/socket")<=sizeof(path));
+    assert(mkdtemp(dir));
+    snprintf(path,sizeof(path),"%s/socket",dir);
     static DrawingProgramAppContext app;
     for(unsigned c=0;c<5;++c) {
         mode=c ? c-1 : 0; atomic_store(&sending,false);
